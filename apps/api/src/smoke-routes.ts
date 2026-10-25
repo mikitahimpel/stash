@@ -24,6 +24,14 @@ export const handleSmoke = async (
     return Response.json({ written: id, read: row?.id ?? null });
   }
 
+  // Lists the tables the D1 migrations created, so the smoke test can see Alchemy applied them.
+  if (request.method === "GET" && url.pathname === "/_smoke/schema") {
+    const { results } = await env.DB.prepare(
+      "SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name",
+    ).all<{ name: string }>();
+    return Response.json({ tables: results.map((row) => row.name) });
+  }
+
   if (request.method === "POST" && url.pathname === "/_smoke/queue") {
     const id = crypto.randomUUID();
     await env.ENRICHMENT_QUEUE.send({ id });

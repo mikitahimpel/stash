@@ -1,5 +1,6 @@
 // Boots the root `alchemy.run.ts` under `alchemy dev` (no Cloudflare credentials) and drives the
-// local Worker over HTTP: health, a D1 write + read, and one queue message through the consumer.
+// local Worker over HTTP: health, a D1 write + read, the applied migrations, and one queue message
+// through the consumer.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Http from "node:http";
 import { fileURLToPath } from "node:url";
@@ -91,6 +92,13 @@ describe("alchemy dev (local, no credentials)", () => {
     expect(response.status).toBe(200);
     const body = JSON.parse(response.body) as { written: string; read: string | null };
     expect(body.read).toBe(body.written);
+  });
+
+  it("applies the D1 migrations", async () => {
+    const response = await call("GET", "/_smoke/schema");
+    expect(response.status).toBe(200);
+    const { tables } = JSON.parse(response.body) as { tables: ReadonlyArray<string> };
+    expect(tables).toEqual(expect.arrayContaining(["links", "links_fts", "devices", "sessions"]));
   });
 
   it("delivers a queue message to the consumer", async () => {
