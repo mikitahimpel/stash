@@ -1,7 +1,8 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
-// routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), search
-// is served, unimplemented groups answer 501, and CORS follows the web origin. D1 is the in-memory
-// platform layer with this package's migrations applied, and GitHub is never called. The same checks run
+// routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), links
+// and search are served, unimplemented groups answer 501, and CORS follows the web origin. D1 is
+// the in-memory platform layer with this package's migrations applied, and GitHub is never called.
+// The same checks run
 // against the real Worker in workerd in `local-dev-smoke.test.ts`.
 import * as ApiTokenSecret from "@stash/backend-auth/api-token-secret";
 import * as GithubClient from "@stash/backend-auth/github-client";
@@ -59,14 +60,27 @@ const app = HttpRouter.toWebHandler(
     Layer.provide(Testing.layerVectors),
     Layer.provide(Testing.layerGithubOAuthConfig),
     Layer.provide(layerNoNetwork),
+    Layer.provide(Testing.layerEnrichmentQueue),
+    Layer.provide(Testing.layerKv),
   ),
   { disableLogger: true },
 );
 
 afterAll(() => app.dispose());
 
-const request = (method: string, path: string, headers: Record<string, string> = {}) =>
-  app.handler(new Request(`http://localhost${path}`, { method, headers }));
+const request = (
+  method: string,
+  path: string,
+  headers: Record<string, string> = {},
+  body?: unknown,
+) =>
+  app.handler(
+    new Request(`http://localhost${path}`, {
+      method,
+      headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
+  );
 
 const bearer = { authorization: `Bearer ${token}` };
 const cookie = { cookie: `stash_session=${session}` };
@@ -121,10 +135,36 @@ describe("composed API", () => {
     expect(await filtered.json()).toEqual({ hits: [] });
   });
 
+  it("serves the links group: save as the token's device, then list", async () => {
+    const saved = await request("POST", "/links", bearer, {
+      url: "https://www.example.com/wiring/?utm_source=test",
+    });
+    expect(saved.status).toBe(201);
+    expect(await saved.json()).toMatchObject({
+      canonicalUrl: "https://example.com/wiring",
+      sourceDeviceId: "device-1",
+      status: "new",
+    });
+
+    const listed = await request("GET", "/links?seen=false&limit=10", bearer);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({ url: "https://www.example.com/wiring/?utm_source=test" }),
+      ]),
+      nextCursor: null,
+    });
+  });
+
+  it("answers 400 to an unknown links cursor", async () => {
+    const response = await request("GET", "/links?cursor=bogus", bearer);
+    expect(response.status).toBe(400);
+  });
+
   it("answers 501 NotImplemented for groups that have not landed", async () => {
-    const response = await request("GET", "/links", bearer);
+    const response = await request("GET", "/devices", bearer);
     expect(response.status).toBe(501);
-    expect(await response.json()).toEqual({ _tag: "NotImplemented", endpoint: "links.list" });
+    expect(await response.json()).toEqual({ _tag: "NotImplemented", endpoint: "devices.list" });
   });
 
   it("starts the GitHub login without credentials", async () => {

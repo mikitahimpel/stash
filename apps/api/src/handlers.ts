@@ -1,4 +1,5 @@
 import * as AuthHandlers from "@stash/backend-auth/auth-handlers";
+import * as LinksHandlers from "@stash/backend-links/links-handlers";
 import * as TokensHandlers from "@stash/backend-auth/tokens-handlers";
 import * as SearchHandlers from "@stash/backend-search/search-handlers";
 import * as Api from "@stash/contracts-api/api";
@@ -32,7 +33,7 @@ const notImplemented = <const Name extends GroupName>(
 // One handler layer per `StashApi` group. A feature replaces its `notImplemented(...)` line with
 // its package's handler layer.
 export const layer = Layer.mergeAll(
-  notImplemented("links"),
+  LinksHandlers.layer,
   SearchHandlers.layer,
   notImplemented("tabs"),
   notImplemented("devices"),

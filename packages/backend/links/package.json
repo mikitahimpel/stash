@@ -1,0 +1,41 @@
+{
+  "name": "@stash/backend-links",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./links-repo": "./src/links-repo.ts",
+    "./links-handlers": "./src/links-handlers.ts",
+    "./canonicalize-url": "./src/save/canonicalize-url.ts",
+    "./save-link": "./src/save/save-link.ts",
+    "./save-links-batch": "./src/save/save-links-batch.ts",
+    "./save-rate-limiter": "./src/save/save-rate-limiter.ts",
+    "./list-links": "./src/list/list-links.ts",
+    "./get-link": "./src/details/get-link.ts",
+    "./update-link": "./src/details/update-link.ts",
+    "./delete-link": "./src/details/delete-link.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
