@@ -17,12 +17,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@effect/atom-vue": "catalog:",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "@stash/web-platform": "workspace:*",
-    "effect": "catalog:",
-    "vue": "catalog:"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
