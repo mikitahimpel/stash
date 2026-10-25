@@ -43,7 +43,9 @@ behavior is tested in `packages/extension/*`.
 - `wxt.config.ts`, `entrypoints/background.ts`, `entrypoints/options/index.html`,
   `entrypoints/options/main.ts`, `entrypoints/options/options-page.vue` (WXT dictates the
   `entrypoints/` layout). In a directory entrypoint only `index.html` is the entry, so the options
-  page logic sits beside it: `entrypoints/options/save-config.ts`.
+  page logic sits beside it: `entrypoints/options/save-config.ts`. The "Save all & close"
+  confirmation popup is `entrypoints/save-all-and-close/` (`index.html`, `main.ts`,
+  `save-all-and-close-page.vue`).
 - `test/background.test.ts`, `test/save-config.test.ts`
 
 ## Commands
