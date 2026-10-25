@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.turbo/
+.wrangler/
+.alchemy/
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+# migration dumps and other personal data
+data/
