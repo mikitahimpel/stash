@@ -225,6 +225,11 @@ const rpc = async (
   return { response, body: json ? (JSON.parse(json) as Record<string, any>) : undefined };
 };
 
+const linkTools = ["get_link", "list_links", "save_link", "search_links", "set_link_status"];
+
+const toolNames = (body: Record<string, any> | undefined): Array<string> =>
+  body?.result.tools.map((tool: { name: string }) => tool.name).sort();
+
 describe("OAuth metadata", () => {
   it("serves authorization server metadata (RFC 8414)", async () => {
     const response = await send("/.well-known/oauth-authorization-server");
@@ -299,7 +304,7 @@ describe("GitHub sign-in", () => {
 });
 
 describe("MCP with an issued token", () => {
-  it("handles initialize and tools/list (2025-06-18, sessionful)", async () => {
+  it("handles initialize and lists the link tools (2025-06-18, sessionful)", async () => {
     const token = await issueToken();
     const init = await rpc(token, {
       id: 1,
@@ -324,10 +329,10 @@ describe("MCP with an issued token", () => {
 
     const list = await rpc(token, { id: 2, method: "tools/list" }, headers);
     expect(list.response.status).toBe(200);
-    expect(list.body).toMatchObject({ id: 2, result: { tools: [] } });
+    expect(toolNames(list.body)).toEqual(linkTools);
   });
 
-  it("handles tools/list without a session (2026-07-28)", async () => {
+  it("lists the link tools without a session (2026-07-28)", async () => {
     const token = await issueToken();
     const list = await rpc(
       token,
@@ -343,7 +348,37 @@ describe("MCP with an issued token", () => {
       },
       { "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/list" },
     );
-    expect(list.body).toMatchObject({ id: 1, result: { tools: [] } });
+    expect(list.body).toMatchObject({ id: 1 });
+    expect(toolNames(list.body)).toEqual(linkTools);
     expect(list.response.status).toBe(200);
+  });
+
+  it("calls a link tool with the issued token (2026-07-28)", async () => {
+    const token = await issueToken();
+    const call = await rpc(
+      token,
+      {
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "save_link",
+          arguments: { url: "https://example.com/from-claude" },
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      { "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "save_link" },
+    );
+    expect(call.response.status).toBe(200);
+    expect(call.body).toMatchObject({
+      id: 1,
+      result: {
+        isError: false,
+        structuredContent: { url: "https://example.com/from-claude", status: "new" },
+      },
+    });
+    expect(call.body?.result.content[0].text).toContain("Saved https://example.com/from-claude");
   });
 });
