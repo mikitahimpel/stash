@@ -111,28 +111,40 @@ behind services.
 
 - The repo is public. Never commit secrets, tokens, account IDs, domains, real e-mail addresses or
   GitHub logins. Personal values come from env.
-- Never hardcode, log or print secrets.
+- Never hardcode, log or print secret values. That includes command output, test snapshots and
+  error messages.
+- User data never enters git. Test fixtures are synthetic: invented URLs (`https://example.com/...`),
+  titles and devices. Migration dumps go to the gitignored `data/` folder.
+- `.alchemy/`, `.wrangler/` and `.env*` are gitignored (except `.env.example`). Keep them that way.
 
 ## Secrets
 
 - Project secrets live in the Proton Pass vault **`Stash`**. There is one item per service, and
-  each field is named after the env var it feeds (`ANTHROPIC_API_KEY` →
-  `pass://Stash/anthropic/api_key`).
-- The committed root `.env.example` lists every reference. Copy it to `.env`, which is gitignored
+  fields are named after the env var they feed.
+- A reference is `pass://Stash/<item title>/<field>`. It must match the vault item title and field
+  name **exactly, case-sensitive** (the Anthropic item is titled `Anthropic`, not `anthropic`).
+- The committed root `.env.example` holds the references. Copy it to `.env`, which is gitignored
   and must stay that way. Both files hold only `pass://` references, never real values.
 
   | Env var | Reference | Status |
   |---|---|---|
-  | `ANTHROPIC_API_KEY` | `pass://Stash/anthropic/api_key` | exists |
+  | `ANTHROPIC_API_KEY` | `pass://Stash/Anthropic/api_key` | item exists |
   | `GITHUB_OAUTH_CLIENT_ID` | `pass://Stash/github-oauth/client_id` | planned |
   | `GITHUB_OAUTH_CLIENT_SECRET` | `pass://Stash/github-oauth/client_secret` | planned |
   | `CLOUDFLARE_ACCOUNT_ID` | `pass://Stash/cloudflare/account_id` | planned |
   | `CLOUDFLARE_API_TOKEN` | `pass://Stash/cloudflare/api_token` | planned |
   | `SESSION_SECRET` | `pass://Stash/app/session_secret` | planned |
 
-- Run commands that need secrets as `pp run --env-file .env -- <cmd>`.
-- A new secret gets an item (or a field on the service's existing item) in `Stash`, plus a line
-  in `.env.example` and in this table.
-- User data never enters git. Test fixtures are synthetic: invented URLs (`https://example.com/...`),
-  titles and devices. Migration dumps go to the gitignored `data/` folder.
-- `.alchemy/`, `.wrangler/` and `.env*` are gitignored. Keep them that way.
+- **Planned items (`github-oauth`, `cloudflare`, `app`) are not created in the vault yet.** Their
+  item titles above are placeholders. They stay commented out in `.env.example`. When an item is
+  created, uncomment its lines and change the reference to match the real item title exactly
+  (case-sensitive), then update this table.
+- To run a command that needs secrets, first set `PROTON_PASS_AGENT_REASON` to a short reason, then
+  run it through `pp run`:
+
+  ```sh
+  PROTON_PASS_AGENT_REASON="classifier smoke test" pp run --env-file .env -- <cmd>
+  ```
+
+- A new secret gets an item (or a field on the service's existing item) in `Stash`, plus a line in
+  `.env.example` and in this table.
