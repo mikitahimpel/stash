@@ -34,6 +34,21 @@ services so the parsers are pure functions over bytes or strings.
 - The API URL and token come from env (`pass://` reference, `pp run`).
 - Imports must be idempotent. Rely on the API's canonical-URL dedupe and support `--dry-run`.
 
+## Running
+
+```sh
+pnpm --filter @stash/migrate run import --zen <file> --dry-run   # counts only: no env, no network
+pnpm --filter @stash/migrate run import --craft <dir> --dry-run
+PROTON_PASS_AGENT_REASON="stash import" pp run --env-file .env -- \
+  pnpm --filter @stash/migrate run import --zen <file> [--batch-size <n>]
+```
+
+- Use `run import`: bare `pnpm import` is a pnpm built-in command and never reaches the script.
+- Paths are relative to where you run pnpm (`INIT_CWD`). `--zen` takes `recovery.jsonlz4`,
+  `*.baklz4` or the same session as plain JSON.
+- Batches are posted one at a time; rate limits, transport errors and 5xx are retried with an
+  exponential `Schedule`. A failed import is resumed by running it again (the api dedupes).
+
 ## Testing
 
 Vitest with `@effect/vitest`. Each parser has a synthetic fixture (invented URLs and titles) that is
@@ -41,5 +56,7 @@ built in the test or committed as a small hand-written file. Test the importer w
 
 ## File naming
 
-- `src/main.ts`, `src/zen-session-parser.ts`, `src/craft-export-parser.ts`, `src/batch-importer.ts`
-- `test/zen-session-parser.test.ts`, `test/fixtures/zen-session.synthetic.json`
+- `src/main.ts` (entry), `src/import-command.ts` (CLI), `src/stash-api-client.ts`,
+  `src/zen-session-parser.ts`, `src/craft-export-parser.ts`, `src/batch-importer.ts`
+- `test/zen-session-parser.test.ts`, `test/fixtures/zen-session.synthetic.json`,
+  `test/stash-api-stub.ts` (fake api for the importer)
