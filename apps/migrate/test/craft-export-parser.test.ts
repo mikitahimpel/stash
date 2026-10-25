@@ -90,6 +90,10 @@ describe("parseDocument", () => {
         "~~~",
         "https://example.com/tilde-fenced",
         "~~~",
+        "```",
+        "```js is not a closing fence",
+        "https://example.com/still-fenced",
+        "```",
         "mailto:someone@example.com ftp://example.com/f [x](javascript:alert(1))",
         "https://example.com/after-code",
       ].join("\n"),
@@ -98,8 +102,28 @@ describe("parseDocument", () => {
   });
 
   it("uses no title when the link text is the URL", () => {
-    const [link] = parse("[https://example.com/same](https://example.com/same)");
-    expect(link?.title).toBeNull();
+    const links = parse("- [https://example.com/same](https://example.com/same) — a note");
+    expect(links).toMatchObject([
+      { url: "https://example.com/same", title: null, context: "a note" },
+    ]);
+    expect(links).toHaveLength(1);
+  });
+
+  it("does not extract a URL from the link text as a link of its own", () => {
+    expect(parse("[https://example.com/a](https://example.com/b)")).toEqual([
+      expect.objectContaining({ url: "https://example.com/b", title: null, context: null }),
+    ]);
+    const [link, ...others] = CraftExport.parseDocuments([
+      { path: "a.md", markdown: "[https://example.com/same](https://example.com/same)" },
+    ]);
+    expect(others).toEqual([]);
+    expect(link?.sources).toHaveLength(1);
+  });
+
+  it("keeps link text that mixes words and a URL as the title", () => {
+    expect(parse("[mirror of https://example.com/a](https://example.com/b)")).toMatchObject([
+      { url: "https://example.com/b", title: "mirror of https://example.com/a" },
+    ]);
   });
 
   it("normalizes URLs and handles CRLF and a BOM", () => {
@@ -195,7 +219,12 @@ describe("parseExport", () => {
       Effect.provide(
         Layer.mergeAll(
           FileSystem.layerNoop({
-            readDirectory: () => Effect.succeed(["Sub", "Sub/Doc.md", "Sub/Doc.assets/a.png"]),
+            readDirectory: () =>
+              Effect.succeed(["Sub", "Sub/Doc.md", "Sub/Doc.assets/a.png", "Folder.md"]),
+            stat: (path) =>
+              Effect.succeed({
+                type: path === "/export/Folder.md" ? "Directory" : "File",
+              } as FileSystem.File.Info),
             readFileString: (path) =>
               Effect.succeed(
                 path === "/export/Sub/Doc.md" ? "# Doc\nhttps://example.com/in-memory" : "",

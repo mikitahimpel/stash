@@ -53,6 +53,8 @@ const autolinkPattern = new RegExp(String.raw`<(${urlPattern})>`, "gi");
 const bareUrlPattern = /https?:\/\/[^\s<>"'`]+/gi;
 const headingPattern = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/;
 const fencePattern = /^ {0,3}(`{3,}|~{3,})/;
+// A closing fence has no info string (CommonMark).
+const fenceClosePattern = /^ {0,3}(`{3,}|~{3,})\s*$/;
 const inlineCodePattern = /(`+)[^`]*?\1/g;
 // Marks where a URL was taken out of a line, so the punctuation around it can be cleaned up.
 const removed = "\u0000";
@@ -119,9 +121,14 @@ const parseLine = (line: string): { links: ReadonlyArray<LineLink>; context: str
 
   rest = rest.replace(markdownLinkPattern, (_match, bang: string, text: string, url: string) => {
     const label = stripInlineMarkdown(text);
+    // A URL in the label is display text (Craft writes pasted links as `[url](url)`), not a link
+    // of its own: take it out so the bare-URL pass below does not pick it up again.
+    const prose = label.replace(bareUrlPattern, removed);
     // Images are media, not links worth keeping; their alt text still gives context.
-    if (bang !== "!") links.push({ url, title: label === "" || label === url ? null : label });
-    return label;
+    if (bang !== "!") {
+      links.push({ url, title: nonEmpty(prose.replaceAll(removed, "")) === null ? null : label });
+    }
+    return prose;
   });
   rest = rest.replace(autolinkPattern, (_match, url: string) => {
     links.push({ url, title: null });
@@ -137,6 +144,9 @@ const parseLine = (line: string): { links: ReadonlyArray<LineLink>; context: str
     rest
       // List markers, task boxes, block quotes.
       .replace(/^\s*(?:>\s*)*(?:[-*+]|\d+[.)])?\s*(?:\[[ xX]\]\s*)?/, "")
+      // A URL that starts or ends the line takes the punctuation around it along
+      // ("<url> — note", "See: <url>.").
+      .replace(new RegExp(String.raw`^${removed}[\s:–—-]*`), "")
       // A URL that ends the line takes the punctuation around it ("See: <url>.") along.
       .replace(new RegExp(String.raw`[\s:–—-]*${removed}[\s.,;:!?]*$`), "")
       .replaceAll(removed, " ")
@@ -161,11 +171,12 @@ export const parseDocument = (document: CraftDocument): ReadonlyArray<CraftLinkO
   let fence: string | null = null;
 
   for (const line of lines) {
-    const fenceMatch = fencePattern.exec(line);
     if (fence !== null) {
-      if (fenceMatch !== null && fenceMatch[1]!.startsWith(fence)) fence = null;
+      const close = fenceClosePattern.exec(line);
+      if (close !== null && close[1]!.startsWith(fence)) fence = null;
       continue;
     }
+    const fenceMatch = fencePattern.exec(line);
     if (fenceMatch !== null) {
       fence = fenceMatch[1]!;
       continue;
@@ -231,7 +242,7 @@ export const parseDocuments = (documents: ReadonlyArray<CraftDocument>): Readonl
       .flatMap(parseDocument),
   );
 
-/** Walks an export folder and parses every `.md` file in it, at any depth. */
+/** Walks an export folder and parses every `.md` file in it, at any depth. Folders are skipped. */
 export const parseExport = (
   directory: string,
 ): Effect.Effect<ReadonlyArray<CraftLink>, CraftExportError, FileSystem.FileSystem | Path.Path> =>
@@ -242,9 +253,13 @@ export const parseExport = (
     const documents = yield* Effect.forEach(
       entries.filter((entry) => /\.md$/i.test(entry)),
       (entry) =>
-        fs
-          .readFileString(path.join(directory, entry))
-          .pipe(Effect.map((markdown) => ({ path: entry, markdown }))),
+        Effect.gen(function* () {
+          const file = path.join(directory, entry);
+          // A folder can be named `*.md` too.
+          if ((yield* fs.stat(file)).type !== "File") return [];
+          return [{ path: entry, markdown: yield* fs.readFileString(file) }];
+        }),
+      { concurrency: 8 },
     );
-    return parseDocuments(documents);
+    return parseDocuments(documents.flat());
   }).pipe(Effect.mapError((error) => new CraftExportError({ message: error.message })));
