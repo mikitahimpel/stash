@@ -1,0 +1,39 @@
+{
+  "name": "@stash/backend-auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./api-token-secret": "./src/api-tokens/api-token-secret.ts",
+    "./api-tokens-repo": "./src/api-tokens/api-tokens-repo.ts",
+    "./create-api-token": "./src/api-tokens/create-api-token.ts",
+    "./list-api-tokens": "./src/api-tokens/list-api-tokens.ts",
+    "./revoke-api-token": "./src/api-tokens/revoke-api-token.ts",
+    "./tokens-handlers": "./src/api-tokens/tokens-handlers.ts",
+    "./authorization-live": "./src/authorization/authorization-live.ts",
+    "./session-verifier": "./src/authorization/session-verifier.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
