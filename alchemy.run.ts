@@ -32,6 +32,8 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const port = yield* Config.Port("STASH_API_PORT").pipe(Config.withDefault(8787));
     const host = yield* Config.String("STASH_API_HOST").pipe(Config.withDefault("0.0.0.0"));
+    const webPort = yield* Config.Port("STASH_WEB_PORT").pipe(Config.withDefault(8791));
+    const webHost = yield* Config.String("STASH_WEB_HOST").pipe(Config.withDefault("0.0.0.0"));
     // The `/_smoke/*` routes exist only under `alchemy dev` (see apps/api/src/smoke-routes.ts).
     const dev = yield* Alchemy.ALCHEMY_DEV;
     // Personal values come from env. Local dev gets placeholders; a deploy requires real ones.
@@ -101,6 +103,19 @@ export default Alchemy.Stack(
       dev: { host, port: mcpPort, strictPort: true },
     });
 
-    return { url: api.url, mcpUrl: mcp.url };
+    // The SPA, served as Workers Static Assets. `alchemy dev` builds `apps/web` and serves `dist/`
+    // from a local Worker; unknown paths fall back to `index.html` so the client router takes over.
+    // For hot reload use `pnpm dev:web` (Vite) instead.
+    const web = yield* Cloudflare.Website.StaticSite("Web", {
+      cwd: "./apps/web",
+      command: "pnpm run build",
+      outdir: "dist",
+      assets: { notFoundHandling: "single-page-application" },
+      // Rebuild when the app or a web package it bundles changes (gitignored files stay excluded).
+      memo: { include: ["**/*", "../../packages/web/*/src/**"], lockfile: true },
+      dev: { host: webHost, port: webPort },
+    });
+
+    return { url: api.url, mcpUrl: mcp.url, webUrl: web.url };
   }),
 );

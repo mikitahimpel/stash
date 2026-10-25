@@ -1,0 +1,4 @@
+@import "@stash/web-ui/styles.css";
+
+/* The app shell lives in this package, so Tailwind scans it from here. */
+@source "./";

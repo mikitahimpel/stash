@@ -33,6 +33,7 @@ run it, and what to watch for.
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
 | `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_OAUTH_CLIENT_ID`, `ALLOWED_GITHUB_LOGIN`, secrets `GITHUB_OAUTH_CLIENT_SECRET`, `API_TOKEN` |
+| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist` | — (assets-only Worker serving the SPA) |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
   `scheduled`,
@@ -63,6 +64,8 @@ token are secret):
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
 | `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, **required** for deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
 | `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |
+| `STASH_WEB_PORT` | `8791` | local dev port of `Web` (not strict: it picks the next free port when taken) |
+| `STASH_WEB_HOST` | `0.0.0.0` | local dev bind host of `Web` |
 | `ALCHEMY_STAGE` | `dev_$USER` (dev), `live_$USER` (deploy) | stage, which also sets physical names and the state folder |
 
 ## Local development (no credentials)
@@ -71,7 +74,14 @@ token are secret):
 pnpm dev:api            # = alchemy dev
 curl -sf http://localhost:8787/health   # {"status":"ok"}
 curl -sf http://localhost:8790/.well-known/oauth-authorization-server   # Mcp: OAuth metadata
+curl -sf http://localhost:8791/links    # the SPA's index.html (SPA fallback)
 ```
+
+- `Web` runs `pnpm run build` in `apps/web` (memoized on the app, the `packages/web/*` sources and
+  the lockfile) and serves `apps/web/dist` from a local assets-only Worker. Unknown paths fall
+  back to `index.html` (`notFoundHandling: "single-page-application"`), so client routes load.
+- For hot reload while working on the UI, run `pnpm dev:web` instead (Vite on
+  `http://0.0.0.0:5173`). It doesn't need `alchemy dev`.
 
 `alchemy dev` runs the stack file under `node --watch`. Every resource above has a local provider,
 so the plan shows `create (local)` for all of them and makes **no Cloudflare API calls**:
