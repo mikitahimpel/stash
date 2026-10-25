@@ -10,7 +10,11 @@ import * as State from "alchemy/State";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
-export const Database = Cloudflare.D1.Database("Database");
+// Migrations are applied in order on every reconcile (`alchemy dev` and deploy). Bookkeeping lives
+// in Alchemy's `__alchemy_migrations` table. Paths resolve from the repo root.
+export const Database = Cloudflare.D1.Database("Database", {
+  migrations: "./apps/api/migrations",
+});
 
 export const EnrichmentQueue = Cloudflare.Queues.Queue("EnrichmentQueue");
 

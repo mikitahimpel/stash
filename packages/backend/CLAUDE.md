@@ -47,8 +47,8 @@ services and never on `env` or `fetch` directly. Outbound HTTP goes through the 
 - External services (GitHub, Anthropic, Workers AI, YouTube) are always behind a service, and tests
   mock them. No test calls a real external API.
 - Retries and timeouts use Effect `Schedule`, not hand-written loops.
-- SQL lives next to the feature that owns the table (`links-repo.ts`). Migrations live in one place,
-  which the D1 schema issue defines.
+- SQL lives next to the feature that owns the table (`links-repo.ts`). Migrations live in one place:
+  `apps/api/migrations/NNNN-<name>.sql` (see `apps/api/CLAUDE.md`).
 
 ## Testing
 
