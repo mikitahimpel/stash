@@ -21,6 +21,13 @@ CREATE TABLE api_tokens (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   revoked_at TEXT
 );
+
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY,
+  github_login TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  expires_at TEXT NOT NULL
+);
 `;
 
 /** A synthetic device that exists in every test database. */
