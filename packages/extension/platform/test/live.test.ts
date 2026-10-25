@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
+import * as ToolbarAction from "../src/browser-action.ts";
 import * as Alarms from "../src/browser-alarms.ts";
 import * as Commands from "../src/browser-commands.ts";
 import * as Storage from "../src/browser-storage.ts";
@@ -43,6 +44,7 @@ const fakeBrowser = () => {
     onReplaced: event<[number, number]>(),
     onUpdated: event<[number, Record<string, unknown>, unknown]>(),
   };
+  const onClicked = event<[unknown]>();
   const calls: Array<{ readonly api: string; readonly args: ReadonlyArray<unknown> }> = [];
   const record = (api: string, ...args: ReadonlyArray<unknown>) => calls.push({ api, args });
   const tabs = [
@@ -102,8 +104,15 @@ const fakeBrowser = () => {
       ],
       onCommand,
     },
+    browserAction: {
+      setBadgeText: async (details: unknown) => void record("browserAction.setBadgeText", details),
+      setBadgeBackgroundColor: async (details: unknown) =>
+        void record("browserAction.setBadgeBackgroundColor", details),
+      setTitle: async (details: unknown) => void record("browserAction.setTitle", details),
+      onClicked,
+    },
   };
-  return { api, calls, local, onChanged, onAlarm, onCommand, tabEvents };
+  return { api, calls, local, onChanged, onAlarm, onCommand, tabEvents, onClicked };
 };
 
 afterEach(() => {
@@ -241,6 +250,32 @@ describe("live layer", () => {
       fake.onCommand.emit("save-tab");
       expect(yield* Fiber.join(triggered)).toEqual(["save-tab"]);
       expect(fake.onAlarm.size + fake.onCommand.size).toBe(0);
+    }).pipe(Effect.provide(Live.layer));
+  });
+
+  it.effect("wraps browser.browserAction when there is no browser.action", () => {
+    const fake = fakeBrowser();
+    vi.stubGlobal("browser", fake.api);
+    return Effect.gen(function* () {
+      const action = yield* ToolbarAction.ToolbarAction;
+      yield* action.setBadge({ text: "OK", color: "#2e7d32", title: "Saved" });
+      yield* action.setBadge(null);
+      expect(fake.calls.filter((call) => call.api.startsWith("browserAction."))).toEqual([
+        { api: "browserAction.setBadgeText", args: [{ text: "OK" }] },
+        { api: "browserAction.setBadgeBackgroundColor", args: [{ color: "#2e7d32" }] },
+        { api: "browserAction.setTitle", args: [{ title: "Saved" }] },
+        { api: "browserAction.setBadgeText", args: [{ text: "" }] },
+        { api: "browserAction.setTitle", args: [{ title: null }] },
+      ]);
+      const clicked = yield* action.clicked.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      yield* settle;
+      fake.onClicked.emit({ id: 1 });
+      expect(yield* Fiber.join(clicked)).toEqual([undefined]);
+      expect(fake.onClicked.size).toBe(0);
     }).pipe(Effect.provide(Live.layer));
   });
 

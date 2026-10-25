@@ -3,6 +3,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as ExtensionConfig from "./extension-config.ts";
 import * as StashApiClient from "./stash-api-client.ts";
+import * as ToolbarAction from "./browser-action.ts";
 import * as Alarms from "./browser-alarms.ts";
 import * as Commands from "./browser-commands.ts";
 import * as Storage from "./browser-storage.ts";
@@ -12,10 +13,11 @@ import * as Workspaces from "./browser-workspaces.ts";
 
 /**
  * Every extension platform service, provided by the browser. `apps/extension` provides this
- * layer in each entrypoint. The manifest needs the `tabs`, `storage` and `alarms` permissions
- * and host permission for the API origin.
+ * layer in each entrypoint. The manifest needs the `tabs`, `storage` and `alarms` permissions,
+ * host permission for the API origin and a toolbar button (`browser_action`).
  *
- * - `Tabs`, `Windows`, `Storage`, `Alarms`, `Commands`, `Workspaces`: `browser.*`.
+ * - `Tabs`, `Windows`, `Storage`, `Alarms`, `Commands`, `Workspaces`, `ToolbarAction`:
+ *   `browser.*`.
  * - `HttpClient` (`effect/http/HttpClient`): backed by `fetch`.
  * - `ExtensionConfig`, `StashApiClient`: built on `Storage` and `HttpClient`.
  */
@@ -26,6 +28,7 @@ export type Services =
   | Alarms.Alarms
   | Commands.Commands
   | Workspaces.Workspaces
+  | ToolbarAction.ToolbarAction
   | HttpClient.HttpClient
   | ExtensionConfig.ExtensionConfig
   | StashApiClient.StashApiClient;
@@ -39,6 +42,7 @@ const browserLayer = Layer.mergeAll(
   Alarms.layer,
   Commands.layer,
   Workspaces.layer,
+  ToolbarAction.layer,
   layerHttpClient,
 );
 

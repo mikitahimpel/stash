@@ -11,6 +11,7 @@ import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as ExtensionConfig from "./extension-config.ts";
 import * as StashApiClient from "./stash-api-client.ts";
+import { ToolbarAction, type Badge } from "./browser-action.ts";
 import { Alarms, type Alarm } from "./browser-alarms.ts";
 import { BrowserError } from "./browser-error.ts";
 import { Commands, type Command } from "./browser-commands.ts";
@@ -264,6 +265,38 @@ export const layerWorkspaces = (
     }),
   );
 
+/** Test controls for the in-memory `ToolbarAction`. */
+export class TestToolbarAction extends Context.Service<
+  TestToolbarAction,
+  {
+    /** The badge shown now, `None` when there is none. */
+    readonly badge: Effect.Effect<Option.Option<Badge>>;
+    /** Every badge set so far, in order, with `null` for each removal. */
+    readonly history: Effect.Effect<ReadonlyArray<Badge | null>>;
+    /** Clicks the toolbar button. */
+    readonly click: Effect.Effect<void>;
+  }
+>()("@stash/ext-platform/TestToolbarAction") {}
+
+/** Starts without a badge. Click the button with `TestToolbarAction.click`. */
+export const layerToolbarAction: Layer.Layer<ToolbarAction | TestToolbarAction> =
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const history = yield* Ref.make<ReadonlyArray<Badge | null>>([]);
+      const clicked = yield* PubSub.unbounded<void>();
+      return Context.make(ToolbarAction, {
+        setBadge: (badge) => Ref.update(history, (all) => [...all, badge]),
+        clicked: Stream.fromPubSub(clicked),
+      }).pipe(
+        Context.add(TestToolbarAction, {
+          badge: Effect.map(Ref.get(history), (all) => Option.fromNullishOr(all.at(-1))),
+          history: Ref.get(history),
+          click: Effect.asVoid(PubSub.publish(clicked, undefined)),
+        }),
+      );
+    }),
+  );
+
 /** Answers every request with `handler`. By default every request gets a 404. */
 export const layerHttpClient = (
   handler: (request: HttpClientRequest.HttpClientRequest) => Effect.Effect<Response> = () =>
@@ -295,10 +328,11 @@ export interface Options {
   readonly handler?: (request: HttpClientRequest.HttpClientRequest) => Effect.Effect<Response>;
 }
 
+/** The test controls `make` provides next to the services. */
+export type Controls = TestTabs | TestAlarms | TestCommands | TestWorkspaces | TestToolbarAction;
+
 /** Every service from `./live`, in memory, plus the test controls. */
-export const make = (
-  options: Options = {},
-): Layer.Layer<Live.Services | TestTabs | TestAlarms | TestCommands | TestWorkspaces> => {
+export const make = (options: Options = {}): Layer.Layer<Live.Services | Controls> => {
   const tabsOptions: { tabs?: ReadonlyArray<Tab>; currentWindowId?: number } = {};
   if (options.tabs !== undefined) tabsOptions.tabs = options.tabs;
   if (options.currentWindowId !== undefined) tabsOptions.currentWindowId = options.currentWindowId;
@@ -320,6 +354,7 @@ export const make = (
         layerAlarms,
         layerCommands(options.commands),
         layerWorkspaces(workspaceOptions),
+        layerToolbarAction,
         layerHttpClient(options.handler),
       ),
     ),
@@ -327,6 +362,4 @@ export const make = (
 };
 
 /** `make()`: no tabs, empty storage, no config, every request 404. */
-export const layer: Layer.Layer<
-  Live.Services | TestTabs | TestAlarms | TestCommands | TestWorkspaces
-> = make();
+export const layer: Layer.Layer<Live.Services | Controls> = make();

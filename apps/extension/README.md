@@ -32,3 +32,11 @@ the API rejects them.
 Once a device token is saved, the background page polls `GET /devices/:id/commands?status=pending`
 every minute (and on start), runs each command (`close-tab` closes every tab with that URL) and
 acks it `done` or `failed`. The device id comes from `GET /auth/me`.
+
+## Use
+
+Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (change it at `about:addons` → ⚙ → "Manage
+Extension Shortcuts") or click the Stash toolbar button to save the current tab. The badge shows
+the result for a few seconds: `✓` saved, `wait` rate limited, `off` API unreachable, `!` not
+saved (hover for the reason). Rate-limited and offline saves, and saves made before the device
+token is set, are queued in extension storage and sent again later.
