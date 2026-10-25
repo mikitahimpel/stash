@@ -10,6 +10,7 @@ so every package keeps `"lint": "oxlint ."`. Override globs are relative to the 
 |---|---|
 | `no-restricted-imports` | Context isolation by package-name prefix (table below) |
 | `no-restricted-globals` | `window`, `document`, `localStorage`, `sessionStorage`, `indexedDB`, `navigator`, `fetch`, `chrome`, `browser` are banned everywhere except `packages/*/platform/**` |
+| `stash/no-relative-packages` | A relative import must resolve inside the importing file's own package (nearest `package.json`). Import other packages by name |
 | `unicorn/filename-case` | kebab-case file names, including `.vue` |
 | `import/no-cycle` | No import cycles |
 | `vue-sfc/*` | Template rules from `oxlint-plugin-vue-sfc` (`recommended` preset) |
@@ -24,8 +25,25 @@ so every package keeps `"lint": "oxlint ."`. Override globs are relative to the 
 | `packages/extension/**`, `apps/extension/**` | `contracts-*`, `ext-*`, `config-*` |
 | `apps/mac-agent/**`, `apps/migrate/**` | `contracts-*`, `config-*` |
 
+## Relative imports
+
+`no-restricted-imports` matches specifier strings, so it cannot tell whether `../../backend/links/src/x`
+leaves the current package. oxlint has no `import/no-relative-packages` either. The local JS plugin
+[`plugins/stash-plugin.ts`](plugins/stash-plugin.ts) adds `stash/no-relative-packages`: it resolves each
+relative `import`, `export … from` and `import()` against the file and reports it when the nearest
+`package.json` of the target differs from the file's own. Node loads the plugin with built-in type
+stripping, so it stays TypeScript.
+
 Each rule is covered by `test/boundaries.test.ts`. The test writes a synthetic repo to a temp dir,
 extends this config and runs the real oxlint binary on it.
+
+## pnpm linker assumption
+
+`oxlintrc.json` extends `./node_modules/oxlint-plugin-vue-sfc/configs/recommended.json`, a path relative
+to this package. That only resolves because pnpm's default isolated linker gives each package its own
+`node_modules` with symlinks to its declared dependencies, and `oxlint-plugin-vue-sfc` is a dependency
+of this package. Switching to `nodeLinker: hoisted` (or another package manager) would move the plugin
+to the root `node_modules` and break this path.
 
 ## `.vue` files
 
