@@ -659,6 +659,9 @@ importers:
 
   packages/extension/capture:
     dependencies:
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
       '@stash/contracts-domain':
         specifier: workspace:*
         version: link:../../contracts/domain
