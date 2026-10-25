@@ -21,6 +21,16 @@ export class Windows extends Context.Service<
     readonly list: Effect.Effect<ReadonlyArray<Window>, BrowserError>;
     /** The window that is focused, or was focused last. */
     readonly lastFocused: Effect.Effect<Option.Option<Window>, BrowserError>;
+    /** The window the calling page runs in (for a popup page, the popup). */
+    readonly current: Effect.Effect<Option.Option<Window>, BrowserError>;
+    /**
+     * Opens one of the extension's own pages, for example `/confirm.html`, in a small popup window
+     * that is focused.
+     */
+    readonly openPopup: (
+      path: string,
+      size: { readonly width: number; readonly height: number },
+    ) => Effect.Effect<void, BrowserError>;
     /** Closes the window and every tab in it. */
     readonly remove: (id: number) => Effect.Effect<void, BrowserError>;
   }
@@ -45,5 +55,20 @@ export const layer: Layer.Layer<Windows> = Layer.succeed(Windows)({
     ),
     fromBrowser,
   ),
+  current: Effect.map(
+    tryCall("windows.getCurrent", () => browser.windows.getCurrent()),
+    fromBrowser,
+  ),
+  openPopup: (path, size) =>
+    Effect.asVoid(
+      tryCall("windows.create", () =>
+        browser.windows.create({
+          type: "popup",
+          url: browser.runtime.getURL(path),
+          width: size.width,
+          height: size.height,
+        }),
+      ),
+    ),
   remove: (id) => tryCall("windows.remove", () => browser.windows.remove(id)),
 });

@@ -46,6 +46,8 @@ export class TestTabs extends Context.Service<
     readonly set: (tabs: ReadonlyArray<Tab>) => Effect.Effect<void>;
     /** Focuses another window. */
     readonly focus: (windowId: number) => Effect.Effect<void>;
+    /** The paths opened with `Windows.openPopup`, in order. */
+    readonly popups: Effect.Effect<ReadonlyArray<string>>;
   }
 >()("@stash/ext-platform/TestTabs") {}
 
@@ -59,7 +61,9 @@ const matches = (filter: TabsFilter, currentWindowId: number) => (tab: Tab) =>
 
 /**
  * `Tabs` and `Windows` over one list of tabs. The windows are the distinct `windowId`s of the
- * tabs plus the focused one. `currentWindowId` defaults to the first tab's window (or `1`).
+ * tabs plus the focused one. `currentWindowId` defaults to the first tab's window (or `1`), and
+ * `Windows.current` is the focused window too. A blank tab gets the next free id and the URL
+ * `about:newtab`. `Windows.openPopup` only records the path.
  */
 export const layerTabs = (
   options: { readonly tabs?: ReadonlyArray<Tab>; readonly currentWindowId?: number } = {},
@@ -72,6 +76,7 @@ export const layerTabs = (
       const setTabs = (value: ReadonlyArray<Tab>) =>
         Ref.set(tabs, value).pipe(Effect.andThen(PubSub.publish(changed, undefined)));
       const current = yield* Ref.make(options.currentWindowId ?? initial[0]?.windowId ?? 1);
+      const popups = yield* Ref.make<ReadonlyArray<string>>([]);
 
       const query = (filter: TabsFilter = {}) =>
         Effect.map(Effect.all([Ref.get(tabs), Ref.get(current)]), ([all, windowId]) =>
@@ -92,6 +97,16 @@ export const layerTabs = (
               ? setTabs(all.filter((tab) => !ids.includes(tab.id)))
               : Effect.fail(new BrowserError({ api: "tabs.remove", cause: "No such tab" })),
           ),
+        createBlank: (windowId) =>
+          Effect.flatMap(Ref.get(tabs), (all) => {
+            const blank = tab({
+              id: Math.max(0, ...all.map((it) => it.id)) + 1,
+              windowId,
+              url: "about:newtab",
+              title: "New Tab",
+            });
+            return Effect.as(setTabs([...all, blank]), blank);
+          }),
         changed: Stream.fromPubSub(changed),
       }).pipe(
         Context.add(Windows, {
@@ -101,6 +116,10 @@ export const layerTabs = (
           lastFocused: Effect.map(Ref.get(current), (id) =>
             Option.some({ id, focused: true, incognito: false }),
           ),
+          current: Effect.map(Ref.get(current), (id) =>
+            Option.some({ id, focused: true, incognito: false }),
+          ),
+          openPopup: (path) => Ref.update(popups, (all) => [...all, path]),
           remove: (id) =>
             Effect.flatMap(windowIds, (ids) =>
               ids.includes(id)
@@ -114,6 +133,7 @@ export const layerTabs = (
           all: Ref.get(tabs),
           set: setTabs,
           focus: (windowId) => Ref.set(current, windowId),
+          popups: Ref.get(popups),
         }),
       );
     }),
