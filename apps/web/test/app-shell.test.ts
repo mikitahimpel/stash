@@ -1,7 +1,7 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import AppLayout from "../src/app-layout.vue";
 import * as AppRegistry from "../src/app-registry.ts";
@@ -80,8 +80,11 @@ describe("app shell", () => {
     const { wrapper, router } = await mountApp();
     const search = wrapper.findAll("nav a").find((a) => a.text() === "Search");
     await search?.trigger("click");
+    // The search page is lazy-loaded, and its first import can take longer than a flush.
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/search"), {
+      timeout: 10_000,
+    });
     await flushPromises();
-    expect(router.currentRoute.value.fullPath).toBe("/search");
     expect(wrapper.find("main h1").text()).toBe("Search");
   });
 });

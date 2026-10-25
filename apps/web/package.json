@@ -20,6 +20,7 @@
     "@stash/web-api-client": "workspace:*",
     "@stash/web-auth": "workspace:*",
     "@stash/web-platform": "workspace:*",
+    "@stash/web-search": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",
