@@ -18,6 +18,7 @@
     "@effect/atom-vue": "catalog:",
     "@lucide/vue": "catalog:",
     "@stash/web-api-client": "workspace:*",
+    "@stash/web-open-tabs": "workspace:*",
     "@stash/web-platform": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",

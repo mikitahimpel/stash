@@ -1,3 +1,4 @@
+import { routes as openTabs } from "@stash/web-open-tabs/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Placeholder from "./placeholder-routes.ts";
 
@@ -5,7 +6,7 @@ import * as Placeholder from "./placeholder-routes.ts";
 export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Placeholder.links,
   ...Placeholder.search,
-  ...Placeholder.openTabs,
+  ...openTabs,
   ...Placeholder.settings,
 ];
 

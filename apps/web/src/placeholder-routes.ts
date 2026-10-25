@@ -15,10 +15,6 @@ export const links: ReadonlyArray<RouteRecordRaw> = [placeholder("/links", "link
 
 export const search: ReadonlyArray<RouteRecordRaw> = [placeholder("/search", "search", "Search")];
 
-export const openTabs: ReadonlyArray<RouteRecordRaw> = [
-  placeholder("/open-now", "open-tabs", "Open now"),
-];
-
 export const settings: ReadonlyArray<RouteRecordRaw> = [
   placeholder("/settings", "settings", "Settings"),
 ];
