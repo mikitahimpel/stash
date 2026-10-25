@@ -57,6 +57,10 @@ Vitest with `@effect/vitest`. Test logic through Layers: provide the feature's l
 synthetic (`https://example.com/...`). Test handlers end to end against the contracts `HttpApi`
 where it adds value.
 
+`@stash/backend-platform/testing` runs D1 on `node:sqlite`, so it needs Node types. Typecheck tests
+with a separate `test/tsconfig.json` that extends `@stash/config-tsconfig/node.json` and sets
+`"types": ["node", "@cloudflare/workers-types"]` (see `packages/backend/platform`).
+
 ## File naming
 
 - `links/src/save-link.ts`, `links/src/links-repo.ts`, `links/src/links-handlers.ts`
