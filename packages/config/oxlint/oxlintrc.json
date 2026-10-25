@@ -1,0 +1,243 @@
+{
+  "$schema": "../../../node_modules/oxlint/configuration_schema.json",
+  "extends": ["./node_modules/oxlint-plugin-vue-sfc/configs/recommended.json"],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "vue"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "unicorn/filename-case": [
+      "error",
+      {
+        "case": "kebabCase"
+      }
+    ],
+    "import/no-cycle": "error",
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "window",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "document",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "localStorage",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "sessionStorage",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "indexedDB",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "navigator",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "fetch",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "chrome",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      },
+      {
+        "name": "browser",
+        "message": "Runtime globals are only allowed in packages/*/platform; depend on a platform service instead."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["packages/contracts/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "*",
+                  "!effect",
+                  "!effect/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!./**",
+                  "!../**"
+                ],
+                "message": "packages/contracts/* may only import effect and @stash/contracts-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/contracts/**/test/**",
+        "packages/contracts/**/*.test.ts",
+        "packages/contracts/**/vitest.config.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "*",
+                  "!effect",
+                  "!effect/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!./**",
+                  "!../**",
+                  "!vitest",
+                  "!vitest/**",
+                  "!@effect/vitest",
+                  "!@effect/vitest/**"
+                ],
+                "message": "packages/contracts/* may only import effect and @stash/contracts-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/backend/**", "apps/api/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@stash/*",
+                  "@stash/*/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!@stash/backend-*",
+                  "!@stash/backend-*/**",
+                  "!@stash/config-*",
+                  "!@stash/config-*/**"
+                ],
+                "message": "backend may only import @stash/{contracts,backend}-* and @stash/config-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/mcp/**", "apps/mcp/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@stash/*",
+                  "@stash/*/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!@stash/mcp-*",
+                  "!@stash/mcp-*/**",
+                  "!@stash/config-*",
+                  "!@stash/config-*/**"
+                ],
+                "message": "mcp may only import @stash/{contracts,mcp}-* and @stash/config-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/web/**", "apps/web/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@stash/*",
+                  "@stash/*/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!@stash/web-*",
+                  "!@stash/web-*/**",
+                  "!@stash/config-*",
+                  "!@stash/config-*/**"
+                ],
+                "message": "web may only import @stash/{contracts,web}-* and @stash/config-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/extension/**", "apps/extension/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@stash/*",
+                  "@stash/*/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!@stash/ext-*",
+                  "!@stash/ext-*/**",
+                  "!@stash/config-*",
+                  "!@stash/config-*/**"
+                ],
+                "message": "extension may only import @stash/{contracts,ext}-* and @stash/config-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["apps/mac-agent/**", "apps/migrate/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@stash/*",
+                  "@stash/*/**",
+                  "!@stash/contracts-*",
+                  "!@stash/contracts-*/**",
+                  "!@stash/config-*",
+                  "!@stash/config-*/**"
+                ],
+                "message": "mac-agent and migrate may only import @stash/contracts-* and @stash/config-* (see Context isolation rules in docs/architecture.md)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/*/platform/**"],
+      "rules": {
+        "no-restricted-globals": "off"
+      }
+    }
+  ]
+}
