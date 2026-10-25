@@ -102,7 +102,7 @@ describe("StashApi", () => {
     ["devices", "ackCommand", ["200", "401", "404", "409"]],
     ["tokens", "create", ["201", "401", "404"]],
     ["auth", "githubLogin", ["302"]],
-    ["auth", "githubCallback", ["302", "401"]],
+    ["auth", "githubCallback", ["302", "401", "403"]],
     ["digest", "latest", ["200", "401", "404"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);
