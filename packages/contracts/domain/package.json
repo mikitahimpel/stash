@@ -1,0 +1,34 @@
+{
+  "name": "@stash/contracts-domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./link": "./src/link.ts",
+    "./tag": "./src/tag.ts",
+    "./device": "./src/device.ts",
+    "./tab": "./src/tab.ts",
+    "./command": "./src/command.ts",
+    "./api-token": "./src/api-token.ts",
+    "./digest": "./src/digest.ts",
+    "./errors": "./src/errors.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
