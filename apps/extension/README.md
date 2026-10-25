@@ -28,3 +28,7 @@ remote host it can't: load the extension by hand in Firefox or Zen at `about:deb
 Open the extension's options page (`about:addons` → Stash → Preferences), enter the API URL and the
 device token, and save. The page checks them with `GET /auth/me` and keeps the previous settings if
 the API rejects them.
+
+Once a device token is saved, the background page polls `GET /devices/:id/commands?status=pending`
+every minute (and on start), runs each command (`close-tab` closes every tab with that URL) and
+acks it `done` or `failed`. The device id comes from `GET /auth/me`.

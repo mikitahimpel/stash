@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@stash/contracts-api": "workspace:*",
+    "@stash/ext-device-commands": "workspace:*",
     "@stash/ext-platform": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:"
