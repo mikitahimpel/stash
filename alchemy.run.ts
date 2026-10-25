@@ -19,6 +19,9 @@ export const Database = Cloudflare.D1.Database("Database", {
 
 export const EnrichmentQueue = Cloudflare.Queues.Queue("EnrichmentQueue");
 
+// OAuth clients, grants and tokens of the MCP server (`@cloudflare/workers-oauth-provider`).
+export const OAuthState = Cloudflare.KV.Namespace("OAuthState");
+
 export default Alchemy.Stack(
   "stash",
   {
@@ -48,9 +51,20 @@ export default Alchemy.Stack(
       Config.Redacted("GITHUB_OAUTH_CLIENT_SECRET"),
       Redacted.make("dev_only"),
     );
+    const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
+    const mcpOrigin = yield* devDefault(
+      Config.String("STASH_MCP_ORIGIN"),
+      `http://localhost:${mcpPort}`,
+    );
+    // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text` too.
+    const mcpApiToken = yield* devDefault(
+      Config.Redacted("STASH_MCP_API_TOKEN"),
+      Redacted.make("dev_only"),
+    );
 
     const db = yield* Database;
     const queue = yield* EnrichmentQueue;
+    const oauthState = yield* OAuthState;
 
     const api = yield* Cloudflare.Worker("Api", {
       main: "./apps/api/src/worker.ts",
@@ -72,6 +86,21 @@ export default Alchemy.Stack(
       settings: { batchSize: 10, maxWaitTimeMs: 1000 },
     });
 
-    return { url: api.url };
+    // Bindings must match apps/mcp/src/worker-env.ts.
+    const mcp = yield* Cloudflare.Worker("Mcp", {
+      main: "./apps/mcp/src/worker.ts",
+      env: {
+        API: api,
+        API_TOKEN: mcpApiToken,
+        OAUTH_KV: oauthState,
+        MCP_ORIGIN: mcpOrigin,
+        GITHUB_OAUTH_CLIENT_ID: githubClientId,
+        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
+        ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
+      },
+      dev: { host, port: mcpPort, strictPort: true },
+    });
+
+    return { url: api.url, mcpUrl: mcp.url };
   }),
 );

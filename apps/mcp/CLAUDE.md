@@ -41,5 +41,11 @@ behavior is tested in `packages/mcp/*`.
 
 ## File naming
 
-- `src/worker.ts` (entry), `src/oauth-handler.ts`, `src/mcp-server.ts`
-- `test/oauth-handler.test.ts`
+- `src/worker.ts` (entry: reads `env`, builds the live layers), `src/worker-env.ts` (bindings,
+  kept in sync with `alchemy.run.ts`)
+- `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent page, GitHub
+  redirect and callback, allowlist), `src/github-identity.ts` (GitHub code exchange over
+  `HttpClient`)
+- `src/mcp-server.ts` (Streamable HTTP transport from `effect/ai/McpServer`, tool registration)
+- `test/oauth-handler.test.ts`, `test/cloudflare-workers-stub.ts` (Node stand-in for
+  `cloudflare:workers`)

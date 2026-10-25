@@ -31,6 +31,8 @@ run it, and what to watch for.
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_OAUTH_CLIENT_ID`, `SMOKE_ROUTES`; secret `GITHUB_OAUTH_CLIENT_SECRET` |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
+| `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
+| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_OAUTH_CLIENT_ID`, `ALLOWED_GITHUB_LOGIN`, secrets `GITHUB_OAUTH_CLIENT_SECRET`, `API_TOKEN` |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
   `scheduled`,
@@ -47,7 +49,8 @@ run it, and what to watch for.
   before the folder exists). A remote state store (`Cloudflare.state()`) is a decision for the
   deploy issue.
 
-Config read by the stack (optional under `alchemy dev`; only the OAuth client secret is secret):
+Config read by the stack (optional under `alchemy dev`; the OAuth client secret and the MCP API
+token are secret):
 
 | Env var | Default | Meaning |
 |---|---|---|
@@ -55,8 +58,11 @@ Config read by the stack (optional under `alchemy dev`; only the OAuth client se
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
 | `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, **required** for deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` |
-| `GITHUB_OAUTH_CLIENT_ID` | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_ID` on `Api` |
-| `GITHUB_OAUTH_CLIENT_SECRET` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_SECRET` on `Api`, read with `Config.Redacted` so it is bound as `secret_text` |
+| `GITHUB_OAUTH_CLIENT_ID` | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_ID` on `Api` and `Mcp` |
+| `GITHUB_OAUTH_CLIENT_SECRET` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_SECRET` on `Api` and `Mcp`, read with `Config.Redacted` so it is bound as `secret_text` |
+| `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
+| `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, **required** for deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
+| `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |
 | `ALCHEMY_STAGE` | `dev_$USER` (dev), `live_$USER` (deploy) | stage, which also sets physical names and the state folder |
 
 ## Local development (no credentials)
@@ -64,6 +70,7 @@ Config read by the stack (optional under `alchemy dev`; only the OAuth client se
 ```sh
 pnpm dev:api            # = alchemy dev
 curl -sf http://localhost:8787/health   # {"status":"ok"}
+curl -sf http://localhost:8790/.well-known/oauth-authorization-server   # Mcp: OAuth metadata
 ```
 
 `alchemy dev` runs the stack file under `node --watch`. Every resource above has a local provider,
@@ -158,7 +165,6 @@ Check them again when you add them.
 | Vectorize index | `Cloudflare.Vectorize.Index("Embeddings", { dimensions: 1024, metric: "cosine" })` (bge-m3 is 1024-d) | documented only for Effect-native Workers (`Cloudflare.Vectorize.SearchIndex(index)`). `InferEnv` has no Vectorize case in beta.84, so async `env` support is unconfirmed | **no**, needs credentials |
 | Workers AI | — | `env: { AI: Cloudflare.Workers.AI() }` → `Ai` | **no**, needs credentials |
 | Cron triggers | `crons: ["0 3 * * *"]` prop on `Cloudflare.Worker` | export `scheduled()` from `worker.ts` | yes, fires on schedule; trigger manually via `/cdn-cgi/handler/scheduled` |
-| Service Binding (mcp → api) | `Cloudflare.Worker("Mcp", { main: "./apps/mcp/src/worker.ts", env: { API: api } })` | `env.API` is a `Fetcher` (or `Cloudflare.WorkerEntrypoint<T>(api, "Name")` for RPC) | yes, same workerd |
 | Static Assets (web SPA) | `Cloudflare.Website.Vite("Web", { … })`, or a Worker with `assets: "./dist"` (or `{ directory, config }`) | `env.ASSETS` when the Worker has assets | yes, runs Vite's own dev server |
 | Secrets (Anthropic key, session secret) | `effect/Config` / `Redacted` values on `env`, or Secrets Store | `env: { ANTHROPIC_API_KEY: Config.Redacted("ANTHROPIC_API_KEY") }` → `string` | yes, local store |
 
