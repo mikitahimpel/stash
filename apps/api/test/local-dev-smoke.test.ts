@@ -1,31 +1,48 @@
 // Boots the root `alchemy.run.ts` under `alchemy dev` (no Cloudflare credentials) and drives the
-// local Worker over HTTP: health, a D1 write + read, the applied migrations, and one queue message
-// through the consumer.
+// real Worker in workerd over HTTP: health, the HttpApi behind `Authorization` (401 without a
+// credential, a bearer token seeded by its hash), CORS, D1 and its migrations, and one queue
+// message through the consumer.
 import { type ChildProcess, spawn } from "node:child_process";
+import * as Crypto from "node:crypto";
 import * as Http from "node:http";
-import { fileURLToPath } from "node:url";
+import * as Path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+const repoRoot = Path.resolve(import.meta.dirname, "../../..");
 const port = Number(process.env["STASH_SMOKE_PORT"] ?? 8788);
 const baseUrl = `http://localhost:${port}`;
+// Synthetic, passed to the Worker as its WEB_ORIGIN.
+const webOrigin = "https://web.example.com";
 
 interface SmokeResponse {
   readonly status: number;
+  readonly headers: Http.IncomingHttpHeaders;
   readonly body: string;
 }
 
+interface CallOptions {
+  readonly headers?: Record<string, string>;
+  readonly body?: unknown;
+}
+
 // node:http keeps the test off the `fetch` global, which oxlint reserves for platform packages.
-const call = (method: "GET" | "POST", path: string): Promise<SmokeResponse> =>
+const call = (method: string, path: string, options: CallOptions = {}): Promise<SmokeResponse> =>
   new Promise((resolve, reject) => {
-    const req = Http.request(`${baseUrl}${path}`, { method }, (res) => {
-      let body = "";
+    const body = options.body === undefined ? undefined : JSON.stringify(options.body);
+    const headers = {
+      ...options.headers,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    };
+    const req = Http.request(`${baseUrl}${path}`, { method, headers }, (res) => {
+      let text = "";
       res.setEncoding("utf8");
-      res.on("data", (chunk: string) => (body += chunk));
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+      res.on("data", (chunk: string) => (text += chunk));
+      res.on("end", () =>
+        resolve({ status: res.statusCode ?? 0, headers: res.headers, body: text }),
+      );
     });
     req.on("error", reject);
-    req.end();
+    req.end(body);
   });
 
 let dev: ChildProcess | undefined;
@@ -58,7 +75,11 @@ const stopDev = async (): Promise<void> => {
 };
 
 beforeAll(async () => {
-  const env: NodeJS.ProcessEnv = { ...process.env, STASH_API_PORT: String(port) };
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    STASH_API_PORT: String(port),
+    STASH_WEB_ORIGIN: webOrigin,
+  };
   // Prove that no Cloudflare credentials are needed.
   for (const key of Object.keys(env)) if (key.startsWith("CLOUDFLARE_")) delete env[key];
 
@@ -81,10 +102,58 @@ beforeAll(async () => {
 afterAll(stopDev);
 
 describe("alchemy dev (local, no credentials)", () => {
-  it("serves GET /health", async () => {
+  it("serves GET /health without credentials", async () => {
     const response = await call("GET", "/health");
     expect(response.status).toBe(200);
     expect(JSON.parse(response.body)).toEqual({ status: "ok" });
+  });
+
+  it("answers 401 Unauthorized to GET /links without a credential", async () => {
+    const response = await call("GET", "/links");
+    expect(response.status).toBe(401);
+    expect(JSON.parse(response.body)).toMatchObject({ _tag: "Unauthorized" });
+  });
+
+  it("authenticates a bearer token seeded by its hash", async () => {
+    // Synthetic token, generated per run. Only its hash goes to D1.
+    const token = `stash_smoke-${Crypto.randomBytes(32).toString("base64url")}`;
+    const hash = Crypto.createHash("sha256").update(token).digest("hex");
+    const seeded = await call("POST", "/_smoke/api-token", { body: { hash } });
+    expect(seeded.status).toBe(201);
+    const { tokenId } = JSON.parse(seeded.body) as { tokenId: string };
+    const authorization = `Bearer ${token}`;
+
+    const tokens = await call("GET", "/tokens", { headers: { authorization } });
+    expect(tokens.status).toBe(200);
+    expect(JSON.parse(tokens.body)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: tokenId, revokedAt: null })]),
+    );
+
+    // Past the middleware, groups whose feature has not landed answer 501.
+    const links = await call("GET", "/links", { headers: { authorization } });
+    expect(links.status).toBe(501);
+    expect(JSON.parse(links.body)).toEqual({ _tag: "NotImplemented", endpoint: "links.list" });
+
+    const wrong = await call("GET", "/tokens", { headers: { authorization: `${authorization}x` } });
+    expect(wrong.status).toBe(401);
+  });
+
+  it("allows CORS from the web origin only", async () => {
+    const preflight = (origin: string) =>
+      call("OPTIONS", "/links", {
+        headers: {
+          origin,
+          "access-control-request-method": "GET",
+          "access-control-request-headers": "authorization",
+        },
+      });
+    const allowed = await preflight(webOrigin);
+    expect(allowed.status).toBeLessThan(300);
+    expect(allowed.headers["access-control-allow-origin"]).toBe(webOrigin);
+    expect(allowed.headers["access-control-allow-credentials"]).toBe("true");
+
+    const other = await preflight("https://other.example.com");
+    expect(other.headers["access-control-allow-origin"]).not.toBe("https://other.example.com");
   });
 
   it("writes and reads a D1 row", async () => {
@@ -106,17 +175,10 @@ describe("alchemy dev (local, no credentials)", () => {
     expect(response.status).toBe(202);
     const { sent } = JSON.parse(response.body) as { sent: string };
 
-    const received = await waitFor(
+    await waitFor(
       "queue delivery",
-      async () => {
-        const receipt = await call("GET", `/_smoke/queue/${sent}`);
-        return receipt.status === 200
-          ? (JSON.parse(receipt.body) as { received: string })
-          : undefined;
-      },
+      async () => (output.includes(`enrichment: received ${sent}`) ? true : undefined),
       30_000,
     );
-    expect(received.received).toBe(sent);
-    expect(output).toContain(`received ${sent}`);
   });
 });

@@ -1,18 +1,46 @@
-import { handleQueue } from "./queue-handler.ts";
+import * as D1Database from "@stash/backend-platform/d1-database";
+import * as StashConfig from "@stash/backend-platform/stash-config";
+import { env } from "cloudflare:workers";
+import * as Effect from "effect/Effect";
+import * as HttpRouter from "effect/http/HttpRouter";
+import * as Layer from "effect/Layer";
+import * as Scheduler from "effect/Scheduler";
+import * as ApiLayer from "./api-layer.ts";
+import * as QueueHandler from "./queue-handler.ts";
+import * as ScheduledHandler from "./scheduled-handler.ts";
 import { handleSmoke } from "./smoke-routes.ts";
-import type { EnrichmentMessage, WorkerEnv } from "./worker-env.ts";
+import type { WorkerEnv } from "./worker-env.ts";
 
-// Minimal entry for the Alchemy spike. The Effect HttpApi replaces this fetch handler later.
+const workerEnv = env as unknown as WorkerEnv;
+
+const platform = Layer.mergeAll(
+  D1Database.layer(workerEnv.DB),
+  StashConfig.layerFromEnv(workerEnv),
+);
+
+// Built once per isolate at module scope, as Workers require: fibers started inside `fetch` would
+// capture that request's context. Global scope allows no timers, so fibers run on a sync scheduler.
+const syncScheduler = Layer.succeed(Scheduler.Scheduler)(new Scheduler.MixedScheduler("sync"));
+const app = HttpRouter.toWebHandler(
+  ApiLayer.layer.pipe(Layer.provide(platform), Layer.provideMerge(syncScheduler)),
+);
+
 export default {
-  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-    const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/health") {
-      return Response.json({ status: "ok" });
-    }
-    return (await handleSmoke(request, url, env)) ?? new Response("Not found", { status: 404 });
+  async fetch(request, env): Promise<Response> {
+    return (await handleSmoke(request, env)) ?? app.handler(request);
   },
 
-  async queue(batch: MessageBatch<EnrichmentMessage>, env: WorkerEnv): Promise<void> {
-    await handleQueue(batch, env);
+  async queue(batch): Promise<void> {
+    await Effect.runPromise(
+      QueueHandler.handleBatch(batch.messages).pipe(Effect.provide(QueueHandler.layerNoop)),
+    );
   },
-} satisfies ExportedHandler<WorkerEnv, EnrichmentMessage>;
+
+  async scheduled(controller): Promise<void> {
+    await Effect.runPromise(
+      ScheduledHandler.handleScheduled(controller.cron).pipe(
+        Effect.provide(ScheduledHandler.layerNoop),
+      ),
+    );
+  },
+} satisfies ExportedHandler<WorkerEnv>;

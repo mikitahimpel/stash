@@ -29,10 +29,11 @@ run it, and what to watch for.
 |---|---|---|
 | `Database` | `Cloudflare.D1.Database`, `migrations: ./apps/api/migrations` | `DB` (`D1Database`) |
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
-| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | — |
+| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `SMOKE_ROUTES` |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 
-- `Api` is an **async Worker**: `main` points at a plain module that exports `fetch` and `queue`,
+- `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
+  `scheduled`,
   and bindings are declared with the `env` prop. Worker code never imports Alchemy, so the IaC
   beta stays out of the runtime bundle and `apps/api` keeps a normal Workers entry. Its binding
   types live in `apps/api/src/worker-env.ts` and must match `env` in `alchemy.run.ts`.
@@ -52,6 +53,8 @@ Config read by the stack (all optional, none secret):
 |---|---|---|
 | `STASH_API_PORT` | `8787` | local dev port of `Api` (`strictPort`: it fails instead of picking another) |
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
+| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, **required** for deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
+| `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` |
 | `ALCHEMY_STAGE` | `dev_$USER` (dev), `live_$USER` (deploy) | stage, which also sets physical names and the state folder |
 
 ## Local development (no credentials)
@@ -80,17 +83,25 @@ so the plan shows `create (local)` for all of them and makes **no Cloudflare API
 turbo and CI) spawns `alchemy dev --stage smoke` from the repo root with every `CLOUDFLARE_*`
 variable removed and `STASH_API_PORT=8788` (or `STASH_SMOKE_PORT`). It then checks:
 
-1. `GET /health` returns 200 `{"status":"ok"}`.
-2. `POST /_smoke/d1` inserts a row into D1 and reads it back.
+1. `GET /health` returns 200 `{"status":"ok"}` without credentials.
+2. The `StashApi`: `GET /links` without a credential answers 401. `POST /_smoke/api-token` seeds
+   a device and the SHA-256 hash of a synthetic token, and that bearer token then lists itself on
+   `GET /tokens` and gets 501 `NotImplemented` from `GET /links`. A CORS preflight from
+   `STASH_WEB_ORIGIN` (set by the test) is allowed with credentials, and other origins are not.
+3. `POST /_smoke/d1` inserts a row into D1 and reads it back.
    `GET /_smoke/schema` lists the tables, which shows the migrations in `apps/api/migrations` were
    applied (Alchemy splits each file into statements and keeps trigger bodies whole).
-3. `POST /_smoke/queue` sends one message. The consumer logs `received <id>` and records the id in
-   D1, and the test polls `GET /_smoke/queue/<id>` until it sees it.
+4. `POST /_smoke/queue` sends one `EnrichmentMessage`. The (no-op) consumer logs
+   `enrichment: received <linkId>`, and the test waits for that line in the `alchemy dev` output.
 
-The `/_smoke/*` routes are spike scaffolding (`apps/api/src/smoke-routes.ts`). They answer only
+The `/_smoke/*` routes are dev scaffolding (`apps/api/src/smoke-routes.ts`). They answer only
 when the `SMOKE_ROUTES` binding is `"on"`, which `alchemy.run.ts` sets only when `ALCHEMY_DEV` is
-true. They create their own tables with `CREATE TABLE IF NOT EXISTS` and don't define the real D1
-schema or the migrations location. Remove them once the HttpApi and the D1 schema issue land.
+true. `/_smoke/d1` creates its own table with `CREATE TABLE IF NOT EXISTS`. Remove the routes once
+feature endpoints cover the schema, token issuing and the queue.
+
+The Worker builds the `HttpRouter.toWebHandler` app once, at module scope, from the `env` export
+of `cloudflare:workers`, on Effect's sync scheduler (global scope allows no timers). The same
+wiring runs on Node in `apps/api/test/worker.test.ts` against the in-memory platform layers.
 
 A cold run takes about 5 s on a laptop.
 
