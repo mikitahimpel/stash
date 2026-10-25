@@ -2,7 +2,7 @@ node_modules/
 dist/
 .turbo/
 .wrangler/
-.alchemy/
+.alchemy
 .env
 .env.*
 !.env.example

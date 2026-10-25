@@ -18,6 +18,13 @@
         "$TURBO_ROOT$/.github/**"
       ]
     },
+    "//#typecheck:root": {
+      "inputs": [
+        "$TURBO_ROOT$/alchemy.run.ts",
+        "$TURBO_ROOT$/tsconfig.json",
+        "$TURBO_ROOT$/packages/config/tsconfig/*.json"
+      ]
+    },
     "lint": {
       "dependsOn": ["//#lint:root"],
       "inputs": [
@@ -35,7 +42,7 @@
       "dependsOn": ["^transit"]
     },
     "typecheck": {
-      "dependsOn": ["transit"],
+      "dependsOn": ["//#typecheck:root", "transit"],
       "inputs": ["$TURBO_DEFAULT$"]
     },
     "test": {

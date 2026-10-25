@@ -3,15 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev:api": "alchemy dev",
     "lint": "turbo run lint",
     "lint:root": "oxlint --ignore-pattern 'apps/**' --ignore-pattern 'packages/**' .",
     "format": "oxfmt .",
     "format:check": "turbo run format:check",
     "format:check:root": "oxfmt --check . '!apps/**' '!packages/**'",
     "typecheck": "turbo run typecheck",
+    "typecheck:root": "tsc --noEmit -p tsconfig.json",
     "test": "turbo run test"
   },
   "devDependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
+    "@effect/platform-node": "catalog:",
+    "@types/node": "catalog:",
+    "alchemy": "catalog:",
+    "effect": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "turbo": "catalog:",

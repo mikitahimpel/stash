@@ -45,4 +45,8 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
 ## File naming
 
 - `src/worker.ts` (entry), `src/api-layer.ts`, `src/queue-handler.ts`, `src/scheduled-handler.ts`
+- `src/worker-env.ts`: binding types. Keep it in sync with the `Api` Worker's `env` in the root
+  `alchemy.run.ts` (see [docs/alchemy.md](../../docs/alchemy.md)).
 - `test/worker.test.ts`
+- `test/local-dev-smoke.test.ts` boots `alchemy dev` and checks health, D1 and queue delivery. It is
+  the only test that runs the real Worker in workerd.
