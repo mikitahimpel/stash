@@ -12,7 +12,15 @@
     "./revoke-api-token": "./src/api-tokens/revoke-api-token.ts",
     "./tokens-handlers": "./src/api-tokens/tokens-handlers.ts",
     "./authorization-live": "./src/authorization/authorization-live.ts",
-    "./session-verifier": "./src/authorization/session-verifier.ts"
+    "./session-verifier": "./src/authorization/session-verifier.ts",
+    "./auth-handlers": "./src/github-oauth/auth-handlers.ts",
+    "./github-client": "./src/github-oauth/github-client.ts",
+    "./oauth-state": "./src/github-oauth/oauth-state.ts",
+    "./sessions-repo": "./src/sessions/sessions-repo.ts",
+    "./session-token": "./src/sessions/session-token.ts",
+    "./start-session": "./src/sessions/start-session.ts",
+    "./end-session": "./src/sessions/end-session.ts",
+    "./session-verifier-live": "./src/sessions/session-verifier-live.ts"
   },
   "scripts": {
     "lint": "oxlint .",

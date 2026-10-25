@@ -26,11 +26,15 @@ export type Result =
   | { readonly _tag: "NeedsSetup" }
   | { readonly _tag: "Rejected" };
 
-type SaveError = Effect.Error<
-  ReturnType<StashApiClient.StashApiClient["Service"]["links"]["save"]>
->;
+type Links = StashApiClient.StashApiClient["Service"]["links"];
 
-const classify = (error: SaveError): Result => {
+/** What `POST /links` or `POST /links/batch` can fail with. */
+export type SaveError =
+  | Effect.Error<ReturnType<Links["save"]>>
+  | Effect.Error<ReturnType<Links["saveBatch"]>>;
+
+/** Turns a failed save into a `Result`. */
+export const classify = (error: SaveError): Exclude<Result, { readonly _tag: "Saved" }> => {
   switch (error._tag) {
     case "RateLimited":
       return {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as SaveAllAndClose from "@stash/ext-capture/save-all-and-close";
 import * as SaveCurrentTab from "@stash/ext-capture/save-current-tab";
 import * as CommandsPoller from "@stash/ext-device-commands/commands-poller";
 import * as Alarms from "@stash/ext-platform/browser-alarms";
@@ -7,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
+import { existsSync } from "node:fs";
 import * as Background from "../entrypoints/background.ts";
 import config from "../wxt.config.ts";
 
@@ -78,6 +80,7 @@ describe("background", () => {
     if (typeof manifest !== "object" || manifest instanceof Promise)
       throw new Error("Expected a static manifest");
     expect(Object.keys(manifest.commands ?? {})).toContain(SaveCurrentTab.commandName);
+    expect(Object.keys(manifest.commands ?? {})).toContain(SaveAllAndClose.commandName);
     expect(manifest.browser_action).toEqual({ default_title: "Save to Stash" });
   });
 
@@ -109,5 +112,25 @@ describe("background", () => {
         }),
       ),
     );
+  });
+
+  it("the save-all confirm page is a WXT entrypoint", () => {
+    const name = Background.saveAllConfirmPage.replace(/^\/(.*)\.html$/, "$1");
+    expect(existsSync(new URL(`../entrypoints/${name}/index.html`, import.meta.url))).toBe(true);
+  });
+
+  it.effect("the save-all hotkey opens the confirm popup and closes nothing", () => {
+    const tabs = [Testing.tab({ id: 1, active: true })];
+    return Effect.scoped(
+      Effect.gen(function* () {
+        yield* Layer.build(Background.layer);
+        yield* Effect.repeat(Effect.yieldNow, { times: 20 });
+        yield* (yield* Testing.TestCommands).trigger(SaveAllAndClose.commandName);
+        yield* Effect.repeat(Effect.yieldNow, { times: 20 });
+        const testTabs = yield* Testing.TestTabs;
+        expect(yield* testTabs.popups).toEqual([Background.saveAllConfirmPage]);
+        expect(yield* testTabs.all).toEqual(tabs);
+      }),
+    ).pipe(Effect.provide(Testing.make({ tabs })));
   });
 });

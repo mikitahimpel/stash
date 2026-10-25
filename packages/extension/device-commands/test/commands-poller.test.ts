@@ -148,6 +148,7 @@ describe("pollOnce", () => {
       query: () => Effect.succeed(tabs),
       current: Effect.succeedNone,
       remove: () => Effect.fail(new BrowserError({ api: "tabs.remove" })),
+      createBlank: () => Effect.fail(new BrowserError({ api: "tabs.create" })),
       changed: Stream.empty,
     });
     return Effect.gen(function* () {

@@ -15,6 +15,8 @@ export type GithubCallbackQuery = typeof GithubCallbackQuery.Type;
 /**
  * The GitHub OAuth flow. `login` and `callback` run before a session exists, so only `me` and
  * `logout` are guarded. On success `callback` sets the session cookie and redirects to the app.
+ * `callback` answers `ValidationError` (400) when the OAuth state does not match, `Unauthorized`
+ * when GitHub rejects the code, and `Forbidden` when the GitHub login is not allowlisted.
  */
 export class AuthGroup extends HttpApiGroup.make("auth").add(
   HttpApiEndpoint.get("me", "/auth/me", {
@@ -26,7 +28,7 @@ export class AuthGroup extends HttpApiGroup.make("auth").add(
   HttpApiEndpoint.get("githubCallback", "/auth/github/callback", {
     query: GithubCallbackQuery,
     success: Redirect,
-    error: ErrorStatuses.Unauthorized,
+    error: [ErrorStatuses.ValidationError, ErrorStatuses.Unauthorized, ErrorStatuses.Forbidden],
   }),
   HttpApiEndpoint.post("logout", "/auth/logout", {
     success: HttpApiSchema.NoContent,

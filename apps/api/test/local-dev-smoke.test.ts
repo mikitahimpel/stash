@@ -1,6 +1,6 @@
 // Boots the root `alchemy.run.ts` under `alchemy dev` (no Cloudflare credentials) and drives the
 // real Worker in workerd over HTTP: health, the HttpApi behind `Authorization` (401 without a
-// credential, a bearer token seeded by its hash), CORS, D1 and its migrations, and one queue
+// credential, a bearer token seeded by its hash), the GitHub login redirect, CORS, D1 and its migrations, and one queue
 // message through the consumer.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";
@@ -136,8 +136,30 @@ describe("alchemy dev (local, no credentials)", () => {
     expect(links.status).toBe(501);
     expect(JSON.parse(links.body)).toEqual({ _tag: "NotImplemented", endpoint: "links.list" });
 
+    // `alchemy dev` has no Vectorize or Workers AI: hybrid search answers from FTS5 alone, and
+    // semantic search fails.
+    const hybrid = await call("GET", "/search?q=smoke", { headers: { authorization } });
+    expect(hybrid.status).toBe(200);
+    expect(JSON.parse(hybrid.body)).toEqual({ hits: [] });
+    const semantic = await call("GET", "/search?q=smoke&mode=semantic", {
+      headers: { authorization },
+    });
+    expect(semantic.status).toBe(500);
+
     const wrong = await call("GET", "/tokens", { headers: { authorization: `${authorization}x` } });
     expect(wrong.status).toBe(401);
+  });
+
+  it("starts the GitHub login with the placeholder OAuth client", async () => {
+    const response = await call("GET", "/auth/github/login");
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.location ?? "");
+    expect(location.origin).toBe("https://github.com");
+    expect(location.searchParams.get("client_id")).toBe("dev_only");
+    expect(location.searchParams.get("redirect_uri")).toBe(`${baseUrl}/auth/github/callback`);
+    expect(response.headers["set-cookie"]).toEqual([
+      expect.stringMatching(/^stash_oauth_state=.*HttpOnly; Secure; SameSite=Lax$/),
+    ]);
   });
 
   it("allows CORS from the web origin only", async () => {

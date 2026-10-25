@@ -6,6 +6,7 @@ describe("tagged errors", () => {
   const cases = [
     ["NotFound", Errors.NotFound, { resource: "link", id: "link-1" }],
     ["Unauthorized", Errors.Unauthorized, { message: "Missing token" }],
+    ["Forbidden", Errors.Forbidden, { message: "Login not allowed" }],
     ["RateLimited", Errors.RateLimited, { retryAfterSeconds: 30 }],
     ["ValidationError", Errors.ValidationError, { message: "Invalid url" }],
     ["Conflict", Errors.Conflict, { message: "Already saved" }],

@@ -7,6 +7,7 @@ import * as Ai from "../src/ai.ts";
 import * as Blobs from "../src/blobs.ts";
 import * as D1Database from "../src/d1-database.ts";
 import * as EnrichmentQueue from "../src/enrichment-queue.ts";
+import * as GithubOAuthConfig from "../src/github-oauth-config.ts";
 import * as Kv from "../src/kv.ts";
 import * as Live from "../src/live.ts";
 import * as SqliteD1 from "../src/sqlite-d1.ts";
@@ -39,6 +40,8 @@ const fakeEnv = (): Live.PlatformEnv => {
     AI: { run: async () => ({ data: [[1, 0]] }) },
     ALLOWED_GITHUB_LOGIN: "example-user",
     WEB_ORIGIN: "https://example.com",
+    GITHUB_OAUTH_CLIENT_ID: "synthetic-client-id",
+    GITHUB_OAUTH_CLIENT_SECRET: "synthetic-client-secret",
   };
   return env as unknown as Live.PlatformEnv;
 };
@@ -58,6 +61,7 @@ describe("live layer", () => {
       expect(yield* kv.get("k")).toEqual(Option.some("v"));
       expect(yield* (yield* Ai.Ai).embed(["x"])).toEqual([[1, 0]]);
       expect((yield* StashConfig.StashConfig).archiveAfterDays).toBe(30);
+      expect((yield* GithubOAuthConfig.GithubOAuthConfig).clientId).toBe("synthetic-client-id");
     }).pipe(Effect.provide(Live.layer(fakeEnv()))),
   );
 
@@ -88,6 +92,7 @@ describe("testing layer", () => {
       yield* Kv.Kv;
       yield* Ai.Ai;
       expect((yield* StashConfig.StashConfig).allowedGithubLogin).toBe("example-user");
+      expect((yield* GithubOAuthConfig.GithubOAuthConfig).clientId).toBe("synthetic-client-id");
     }).pipe(Effect.provide(Testing.layer)),
   );
 });

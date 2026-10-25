@@ -43,18 +43,24 @@ export default Alchemy.Stack(
       "dev_only",
     );
     const webOrigin = yield* devDefault(Config.String("STASH_WEB_ORIGIN"), "http://localhost:5173");
+    // The GitHub OAuth app (pass:// references in .env.example). Local dev gets placeholders, so
+    // the login redirect works but GitHub rejects it. The secret is Redacted, so Alchemy binds it
+    // as `secret_text`, never as a plain var.
+    const githubClientId = yield* devDefault(Config.String("GITHUB_OAUTH_CLIENT_ID"), "dev_only");
+    const githubClientSecret = yield* devDefault(
+      Config.Redacted("GITHUB_OAUTH_CLIENT_SECRET"),
+      Redacted.make("dev_only"),
+    );
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
     const mcpOrigin = yield* devDefault(
       Config.String("STASH_MCP_ORIGIN"),
       `http://localhost:${mcpPort}`,
     );
-    // Secrets: Redacted, so Alchemy never prints them. Local dev gets placeholders that GitHub and
-    // the api reject, so the sign-in only completes with real values.
-    const devSecret = (name: string) =>
-      devDefault(Config.Redacted(name), Redacted.make("dev_only"));
-    const githubClientId = yield* devDefault(Config.String("GITHUB_OAUTH_CLIENT_ID"), "dev_only");
-    const githubClientSecret = yield* devSecret("GITHUB_OAUTH_CLIENT_SECRET");
-    const mcpApiToken = yield* devSecret("STASH_MCP_API_TOKEN");
+    // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text` too.
+    const mcpApiToken = yield* devDefault(
+      Config.Redacted("STASH_MCP_API_TOKEN"),
+      Redacted.make("dev_only"),
+    );
 
     const db = yield* Database;
     const queue = yield* EnrichmentQueue;
@@ -67,6 +73,8 @@ export default Alchemy.Stack(
         ENRICHMENT_QUEUE: queue,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: webOrigin,
+        GITHUB_OAUTH_CLIENT_ID: githubClientId,
+        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
         SMOKE_ROUTES: dev ? "on" : "off",
       },
       dev: { host, port, strictPort: true },

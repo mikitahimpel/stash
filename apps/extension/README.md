@@ -40,3 +40,10 @@ Extension Shortcuts") or click the Stash toolbar button to save the current tab.
 the result for a few seconds: `✓` saved, `wait` rate limited, `off` API unreachable, `!` not
 saved (hover for the reason). Rate-limited and offline saves, and saves made before the device
 token is set, are queued in extension storage and sent again later.
+
+Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> to save every tab of the window (in Zen, the
+visible tabs, which are the current workspace) and close them. A small popup lists what will be
+saved and asks first. Pinned tabs and pages that are not http(s) are skipped and stay open. The
+tabs are sent with `POST /links/batch`, and only the tabs whose links come back saved are closed;
+the rest stay open, so pressing the hotkey again retries them. If nothing would be left, a blank
+tab is opened so the window stays.

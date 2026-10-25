@@ -37,6 +37,11 @@ export default defineConfig({
         suggested_key: { default: "Alt+Shift+S" },
         description: "Save the current tab to Stash",
       },
+      // Opens a popup that asks before anything is saved or closed.
+      "save-all-and-close": {
+        suggested_key: { default: "Alt+Shift+W" },
+        description: "Save all tabs of this window or workspace to Stash and close them",
+      },
     },
     browser_specific_settings: {
       gecko: {
