@@ -27,7 +27,7 @@ run it, and what to watch for.
 
 | Logical id | Resource | Binding on `Api` |
 |---|---|---|
-| `Database` | `Cloudflare.D1.Database` | `DB` (`D1Database`) |
+| `Database` | `Cloudflare.D1.Database`, `migrations: ./apps/api/migrations` | `DB` (`D1Database`) |
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | — |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
@@ -82,6 +82,8 @@ variable removed and `STASH_API_PORT=8788` (or `STASH_SMOKE_PORT`). It then chec
 
 1. `GET /health` returns 200 `{"status":"ok"}`.
 2. `POST /_smoke/d1` inserts a row into D1 and reads it back.
+   `GET /_smoke/schema` lists the tables, which shows the migrations in `apps/api/migrations` were
+   applied (Alchemy splits each file into statements and keeps trigger bodies whole).
 3. `POST /_smoke/queue` sends one message. The consumer logs `received <id>` and records the id in
    D1, and the test polls `GET /_smoke/queue/<id>` until it sees it.
 
@@ -146,7 +148,6 @@ Check them again when you add them.
 | Service Binding (mcp → api) | `Cloudflare.Worker("Mcp", { main: "./apps/mcp/src/worker.ts", env: { API: api } })` | `env.API` is a `Fetcher` (or `Cloudflare.WorkerEntrypoint<T>(api, "Name")` for RPC) | yes, same workerd |
 | Static Assets (web SPA) | `Cloudflare.Website.Vite("Web", { … })`, or a Worker with `assets: "./dist"` (or `{ directory, config }`) | `env.ASSETS` when the Worker has assets | yes, runs Vite's own dev server |
 | Secrets (Anthropic key, session secret) | `effect/Config` / `Redacted` values on `env`, or Secrets Store | `env: { ANTHROPIC_API_KEY: Config.Redacted("ANTHROPIC_API_KEY") }` → `string` | yes, local store |
-| D1 migrations | `Cloudflare.D1.Database("Database", { migrations: "./<dir>" })` | — | yes, applied on every reconcile |
 
 Docs: [Cloudflare local dev](https://alchemy.run/cloudflare/local-development),
 [Workers / async Workers](https://alchemy.run/cloudflare/compute/workers),
