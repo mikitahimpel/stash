@@ -126,6 +126,75 @@ describe("context boundaries", () => {
     expect(good.diagnostics).toEqual([]);
     expect(good.status).toBe(0);
   });
+
+  it("allows vitest/config in a contracts vitest.config.ts", () => {
+    const result = lint({
+      "packages/contracts/domain/vitest.config.ts":
+        'import { defineProject } from "vitest/config";\nexport default defineProject({});\n',
+    });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+});
+
+describe("relative imports across packages", () => {
+  const packages = {
+    "packages/web/links/package.json": "{}",
+    "packages/web/ui/package.json": "{}",
+    "packages/backend/links/package.json": "{}",
+    "packages/backend/links/src/links-repo.ts": "export const repo = 1;\n",
+    "packages/web/ui/src/button.ts": "export const button = 1;\n",
+  };
+
+  it.each([
+    ["into another context", "../../../backend/links/src/links-repo.ts"],
+    ["into another package of the same context", "../../ui/src/button.ts"],
+    ["to another package's root", "../../ui"],
+  ])("rejects a relative import %s", (_, specifier) => {
+    const result = lint({
+      ...packages,
+      "packages/web/links/src/links-page.ts": `import * as X from "${specifier}";\nexport const x = X;\n`,
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "stash(no-relative-packages)",
+        filename: "packages/web/links/src/links-page.ts",
+      }),
+    ]);
+  });
+
+  it("rejects re-exports and dynamic imports that cross a package", () => {
+    const result = lint({
+      ...packages,
+      "packages/web/links/src/links-page.ts": [
+        'export * from "../../ui/src/button.ts";',
+        'export const lazy = () => import("../../ui/src/button.ts");',
+        "",
+      ].join("\n"),
+    });
+    expect(result.status).not.toBe(0);
+    expect(codes(result)).toEqual(Array(2).fill("stash(no-relative-packages)"));
+  });
+
+  it("allows relative imports within the same package", () => {
+    const result = lint({
+      ...packages,
+      "packages/web/links/src/list/links-list.ts": [
+        'import * as Atoms from "../links-atoms.ts";',
+        'import * as Item from "./links-item.ts";',
+        'import * as Manifest from "../../package.json";',
+        "export const list = [Atoms, Item, Manifest];",
+        "",
+      ].join("\n"),
+      "packages/web/links/src/list/links-item.ts": "export const item = 1;\n",
+      "packages/web/links/src/links-atoms.ts": "export const atoms = 1;\n",
+      "packages/web/links/test/links-list.test.ts":
+        'import * as List from "../src/list/links-list.ts";\nexport const t = List;\n',
+    });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.status).toBe(0);
+  });
 });
 
 describe("runtime globals", () => {
