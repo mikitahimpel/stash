@@ -39,6 +39,22 @@ describe("testing layers", () => {
     }).pipe(Effect.provide(Testing.layerTabs({ tabs }))),
   );
 
+  it.effect("Tabs.changed emits when the tabs are set or closed", () =>
+    Effect.gen(function* () {
+      const service = yield* Tabs.Tabs;
+      const fiber = yield* service.changed.pipe(
+        Stream.take(3),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      yield* settle;
+      yield* (yield* Testing.TestTabs).set([...tabs, Testing.tab({ id: 4 })]);
+      yield* service.remove([4]);
+      yield* (yield* Windows.Windows).remove(2);
+      expect(yield* Fiber.join(fiber)).toHaveLength(3);
+    }).pipe(Effect.provide(Testing.layerTabs({ tabs }))),
+  );
+
   it.effect("Windows follows the tabs and closes a window with its tabs", () =>
     Effect.gen(function* () {
       const windows = yield* Windows.Windows;

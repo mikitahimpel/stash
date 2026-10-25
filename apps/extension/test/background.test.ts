@@ -41,7 +41,32 @@ describe("background", () => {
       yield* Effect.repeat(Effect.yieldNow, { times: 20 });
       const alarms = yield* (yield* Alarms.Alarms).list;
       expect(alarms.map((alarm) => alarm.name)).toContain(CommandsPoller.alarmName);
-      expect(requests).toEqual(["GET /auth/me", "GET /devices/device-1/commands"]);
+      // Tab sync runs too; only the poller's request is checked here.
+      expect(requests).toContain("GET /devices/device-1/commands");
     }).pipe(Effect.scoped, Effect.provide(platform));
   });
+
+  it.effect("runs tab sync: reports the open tabs on start", () =>
+    Effect.gen(function* () {
+      const reported: Array<string> = [];
+      // Synthetic config, tabs and API.
+      const platform = Testing.make({
+        tabs: [Testing.tab({ id: 1, url: "https://example.com/a" })],
+        config: { apiBaseUrl: "https://api.example.com", deviceToken: "synthetic-token" },
+        handler: (request) =>
+          Effect.sync(() => {
+            const path = new URL(request.url).pathname;
+            if (path === "/auth/me") return Response.json({ kind: "device", deviceId: "device-1" });
+            if (request.method === "PUT") reported.push(`${request.method} ${path}`);
+            return request.method === "PUT"
+              ? new Response(null, { status: 204 })
+              : Response.json([]);
+          }),
+      });
+      const fiber = yield* Effect.forkChild(Background.main(platform));
+      yield* Effect.repeat(Effect.yieldNow, { times: 50 });
+      expect(reported).toEqual(["PUT /devices/device-1/tabs"]);
+      yield* Fiber.interrupt(fiber);
+    }),
+  );
 });

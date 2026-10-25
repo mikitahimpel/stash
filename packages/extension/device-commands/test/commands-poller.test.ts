@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as UrlParams from "effect/http/UrlParams";
 import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
 import * as CommandsPoller from "../src/commands-poller.ts";
 
 // Synthetic placeholders, not real tokens.
@@ -147,6 +148,7 @@ describe("pollOnce", () => {
       query: () => Effect.succeed(tabs),
       current: Effect.succeedNone,
       remove: () => Effect.fail(new BrowserError({ api: "tabs.remove" })),
+      changed: Stream.empty,
     });
     return Effect.gen(function* () {
       expect(yield* CommandsPoller.pollOnce).toEqual([{ id: "command-1", status: "failed" }]);

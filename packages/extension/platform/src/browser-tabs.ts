@@ -2,6 +2,8 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 import { tryCall, type BrowserError } from "./browser-error.ts";
 
 /**
@@ -44,6 +46,12 @@ export class Tabs extends Context.Service<
     readonly current: Effect.Effect<Option.Option<Tab>, BrowserError>;
     /** Closes the tabs. Closing a tab that no longer exists fails. */
     readonly remove: (ids: ReadonlyArray<number>) => Effect.Effect<void, BrowserError>;
+    /**
+     * Emits whenever the set of open tabs may have changed: a tab was opened, closed, moved,
+     * shown or hidden, or its URL or title changed. Bursts are not coalesced. Run it when the
+     * background page starts, like `Alarms.fired`.
+     */
+    readonly changed: Stream.Stream<void>;
   }
 >()("@stash/ext-platform/Tabs") {}
 
@@ -71,6 +79,38 @@ const queryInfo = (filter: TabsFilter): browser.tabs._QueryQueryInfo => {
   return info;
 };
 
+// The `tabs.onUpdated` fields that change what a snapshot of the open tabs holds.
+const relevantUpdate = (change: browser.tabs._OnUpdatedChangeInfo) =>
+  change.url !== undefined ||
+  change.title !== undefined ||
+  change.hidden !== undefined ||
+  change.pinned !== undefined;
+
+const changed = Stream.callback<void>((queue) => {
+  const notify = () => Queue.offerUnsafe(queue, undefined);
+  const onUpdated = (_id: number, change: browser.tabs._OnUpdatedChangeInfo) => {
+    if (relevantUpdate(change)) notify();
+  };
+  const events = [
+    browser.tabs.onCreated,
+    browser.tabs.onRemoved,
+    browser.tabs.onMoved,
+    browser.tabs.onAttached,
+    browser.tabs.onReplaced,
+  ] as ReadonlyArray<WebExtEvent<() => void>>;
+  return Effect.acquireRelease(
+    Effect.sync(() => {
+      for (const event of events) event.addListener(notify);
+      browser.tabs.onUpdated.addListener(onUpdated);
+    }),
+    () =>
+      Effect.sync(() => {
+        for (const event of events) event.removeListener(notify);
+        browser.tabs.onUpdated.removeListener(onUpdated);
+      }),
+  );
+});
+
 const query = (filter: TabsFilter = {}) =>
   Effect.map(
     tryCall("tabs.query", () => browser.tabs.query(queryInfo(filter))),
@@ -87,4 +127,5 @@ export const layer: Layer.Layer<Tabs> = Layer.succeed(Tabs)({
   ),
   remove: (ids) =>
     ids.length === 0 ? Effect.void : tryCall("tabs.remove", () => browser.tabs.remove([...ids])),
+  changed,
 });

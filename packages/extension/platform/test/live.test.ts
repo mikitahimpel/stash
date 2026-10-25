@@ -35,6 +35,14 @@ const fakeBrowser = () => {
   const onChanged = event<[Record<string, { oldValue?: unknown; newValue?: unknown }>, string]>();
   const onAlarm = event<[{ name: string; scheduledTime: number; periodInMinutes?: number }]>();
   const onCommand = event<[string]>();
+  const tabEvents = {
+    onCreated: event<[unknown]>(),
+    onRemoved: event<[number, unknown]>(),
+    onMoved: event<[number, unknown]>(),
+    onAttached: event<[number, unknown]>(),
+    onReplaced: event<[number, number]>(),
+    onUpdated: event<[number, Record<string, unknown>, unknown]>(),
+  };
   const calls: Array<{ readonly api: string; readonly args: ReadonlyArray<unknown> }> = [];
   const record = (api: string, ...args: ReadonlyArray<unknown>) => calls.push({ api, args });
   const tabs = [
@@ -47,6 +55,7 @@ const fakeBrowser = () => {
       TAB_ID_NONE: -1,
       query: async (info: unknown) => (record("tabs.query", info), tabs),
       remove: async (ids: unknown) => void record("tabs.remove", ids),
+      ...tabEvents,
     },
     windows: {
       WINDOW_ID_NONE: -1,
@@ -94,7 +103,7 @@ const fakeBrowser = () => {
       onCommand,
     },
   };
-  return { api, calls, local, onChanged, onAlarm, onCommand };
+  return { api, calls, local, onChanged, onAlarm, onCommand, tabEvents };
 };
 
 afterEach(() => {
@@ -148,6 +157,30 @@ describe("live layer", () => {
       expect(error).toMatchObject({ _tag: "BrowserError", api: "windows.remove" });
 
       expect(yield* (yield* Workspaces.Workspaces).current).toEqual(Option.none());
+    }).pipe(Effect.provide(Live.layer));
+  });
+
+  it.effect("emits Tabs.changed for tab events that change the open tabs", () => {
+    const fake = fakeBrowser();
+    vi.stubGlobal("browser", fake.api);
+    return Effect.gen(function* () {
+      const tabs = yield* Tabs.Tabs;
+      const fiber = yield* tabs.changed.pipe(Stream.take(7), Stream.runCollect, Effect.forkChild);
+      yield* settle;
+      const { onCreated, onRemoved, onMoved, onAttached, onReplaced, onUpdated } = fake.tabEvents;
+      onCreated.emit({});
+      onRemoved.emit(1, {});
+      onMoved.emit(1, {});
+      onAttached.emit(1, {});
+      onReplaced.emit(2, 1);
+      // Loading progress and audio changes don't change a snapshot.
+      onUpdated.emit(1, { status: "loading" }, {});
+      onUpdated.emit(1, { audible: true }, {});
+      onUpdated.emit(1, { url: "https://example.com/b" }, {});
+      onUpdated.emit(1, { title: "B" }, {});
+      expect(yield* Fiber.join(fiber)).toHaveLength(7);
+      const listeners = Object.values(fake.tabEvents).reduce((sum, e) => sum + e.size, 0);
+      expect(listeners).toBe(0);
     }).pipe(Effect.provide(Live.layer));
   });
 
