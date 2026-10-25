@@ -24,6 +24,7 @@
     "@types/node": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "plist": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

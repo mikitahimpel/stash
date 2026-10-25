@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd user agent for mac-agent. This is a template: install.sh replaces every double-underscore placeholder
+  and writes the result to ~/Library/LaunchAgents. Never commit a rendered copy.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.stash.mac-agent</string>
+
+  <!-- pp resolves the pass:// references in the env file, then starts node with the agent. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PP_BIN__</string>
+    <string>run</string>
+    <string>--env-file</string>
+    <string>__ENV_FILE__</string>
+    <string>--</string>
+    <string>__NODE_BIN__</string>
+    <string>__AGENT_DIR__/src/main.ts</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__AGENT_DIR__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+    <key>PROTON_PASS_AGENT_REASON</key>
+    <string>stash mac-agent: post iCloud tabs</string>
+  </dict>
+
+  <!-- Start at login and restart after a crash, at most once a minute. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/mac-agent.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/mac-agent.err.log</string>
+</dict>
+</plist>
