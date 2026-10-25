@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
-import { tryCall, type BrowserError } from "./browser-error.ts";
+import { BrowserError, tryCall } from "./browser-error.ts";
 
 /**
  * An open tab. Only the fields features need, so the Safari port can fill the same shape.
@@ -46,6 +46,8 @@ export class Tabs extends Context.Service<
     readonly current: Effect.Effect<Option.Option<Tab>, BrowserError>;
     /** Closes the tabs. Closing a tab that no longer exists fails. */
     readonly remove: (ids: ReadonlyArray<number>) => Effect.Effect<void, BrowserError>;
+    /** Opens a blank tab (the browser's new tab page) at the end of the window. */
+    readonly createBlank: (windowId: number) => Effect.Effect<Tab, BrowserError>;
     /**
      * Emits whenever the set of open tabs may have changed: a tab was opened, closed, moved,
      * shown or hidden, or its URL or title changed. Bursts are not coalesced. Run it when the
@@ -127,5 +129,14 @@ export const layer: Layer.Layer<Tabs> = Layer.succeed(Tabs)({
   ),
   remove: (ids) =>
     ids.length === 0 ? Effect.void : tryCall("tabs.remove", () => browser.tabs.remove([...ids])),
+  createBlank: (windowId) =>
+    tryCall("tabs.create", () => browser.tabs.create({ windowId, active: false })).pipe(
+      Effect.flatMap((tab) =>
+        Option.match(fromBrowser(tab), {
+          onNone: () => Effect.fail(new BrowserError({ api: "tabs.create", cause: "No tab id" })),
+          onSome: Effect.succeed,
+        }),
+      ),
+    ),
   changed,
 });

@@ -37,6 +37,13 @@ describe("testing layers", () => {
       expect((yield* (yield* Testing.TestTabs).all).map((tab) => tab.id)).toEqual([2]);
       const error = yield* Effect.flip(service.remove([99]));
       expect(error.api).toBe("tabs.remove");
+
+      expect(yield* service.createBlank(1)).toMatchObject({
+        id: 3,
+        windowId: 1,
+        url: "about:newtab",
+      });
+      expect((yield* (yield* Testing.TestTabs).all).map((tab) => tab.id)).toEqual([2, 3]);
     }).pipe(Effect.provide(Testing.layerTabs({ tabs }))),
   );
 
@@ -64,6 +71,9 @@ describe("testing layers", () => {
         { id: 2, focused: false, incognito: false },
       ]);
       expect(Option.map(yield* windows.lastFocused, (window) => window.id)).toEqual(Option.some(1));
+      expect(Option.map(yield* windows.current, (window) => window.id)).toEqual(Option.some(1));
+      yield* windows.openPopup("/confirm.html", { width: 300, height: 200 });
+      expect(yield* (yield* Testing.TestTabs).popups).toEqual(["/confirm.html"]);
       yield* windows.remove(2);
       expect((yield* (yield* Tabs.Tabs).query()).map((tab) => tab.id)).toEqual([1, 2]);
       expect((yield* Effect.flip(windows.remove(7))).api).toBe("windows.remove");

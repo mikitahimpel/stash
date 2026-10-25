@@ -57,7 +57,14 @@ const fakeBrowser = () => {
       TAB_ID_NONE: -1,
       query: async (info: unknown) => (record("tabs.query", info), tabs),
       remove: async (ids: unknown) => void record("tabs.remove", ids),
+      create: async (info: { windowId: number }) => (
+        record("tabs.create", info),
+        { id: 9, windowId: info.windowId, url: "about:newtab", active: false, pinned: false }
+      ),
       ...tabEvents,
+    },
+    runtime: {
+      getURL: (path: string) => `moz-extension://synthetic${path}`,
     },
     windows: {
       WINDOW_ID_NONE: -1,
@@ -69,6 +76,8 @@ const fakeBrowser = () => {
         ]
       ),
       getLastFocused: async () => ({ id: 1, focused: true, incognito: false }),
+      getCurrent: async () => ({ id: 3, focused: true, incognito: false }),
+      create: async (info: unknown) => void record("windows.create", info),
       remove: async (id: number) => {
         if (id !== 1) throw new Error("No window with id");
       },
@@ -150,10 +159,12 @@ describe("live layer", () => {
       expect(Option.map(yield* tabs.current, (tab) => tab.id)).toEqual(Option.some(1));
       yield* tabs.remove([1, 2]);
       yield* tabs.remove([]);
+      expect(yield* tabs.createBlank(1)).toMatchObject({ id: 9, windowId: 1, url: "about:newtab" });
       expect(fake.calls.filter((call) => call.api.startsWith("tabs."))).toEqual([
         { api: "tabs.query", args: [{ currentWindow: true, pinned: true }] },
         { api: "tabs.query", args: [{ currentWindow: true, active: true }] },
         { api: "tabs.remove", args: [[1, 2]] },
+        { api: "tabs.create", args: [{ windowId: 1, active: false }] },
       ]);
 
       const windows = yield* Windows.Windows;
@@ -161,6 +172,21 @@ describe("live layer", () => {
       expect(yield* windows.lastFocused).toEqual(
         Option.some({ id: 1, focused: true, incognito: false }),
       );
+      expect(Option.map(yield* windows.current, (window) => window.id)).toEqual(Option.some(3));
+      yield* windows.openPopup("/confirm.html", { width: 300, height: 200 });
+      expect(fake.calls.filter((call) => call.api === "windows.create")).toEqual([
+        {
+          api: "windows.create",
+          args: [
+            {
+              type: "popup",
+              url: "moz-extension://synthetic/confirm.html",
+              width: 300,
+              height: 200,
+            },
+          ],
+        },
+      ]);
       yield* windows.remove(1);
       const error = yield* Effect.flip(windows.remove(2));
       expect(error).toMatchObject({ _tag: "BrowserError", api: "windows.remove" });
