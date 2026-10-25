@@ -3,7 +3,11 @@
   "ui": "stream",
   "tasks": {
     "//#lint:root": {
-      "inputs": ["$TURBO_ROOT$/*.{ts,mts,js,mjs,json}", "$TURBO_ROOT$/.oxlintrc.json"]
+      "inputs": [
+        "$TURBO_ROOT$/*.{ts,mts,js,mjs,json}",
+        "$TURBO_ROOT$/.oxlintrc.json",
+        "$TURBO_ROOT$/packages/config/oxlint/oxlintrc.json"
+      ]
     },
     "//#format:check:root": {
       "inputs": [
@@ -15,7 +19,11 @@
     },
     "lint": {
       "dependsOn": ["//#lint:root"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.oxlintrc.json",
+        "$TURBO_ROOT$/packages/config/oxlint/oxlintrc.json"
+      ]
     },
     "format:check": {
       "dependsOn": ["//#format:check:root"],

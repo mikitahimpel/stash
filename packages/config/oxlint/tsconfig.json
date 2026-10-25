@@ -1,0 +1,4 @@
+{
+  "extends": "@stash/config-tsconfig/node.json",
+  "include": ["test", "vitest.config.ts"]
+}
