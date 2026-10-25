@@ -83,6 +83,14 @@ const githubLayer = GitHub.layer({
   Layer.provide(Layer.succeed(FetchHttpClient.Fetch)(fakeGitHubFetch)),
 );
 
+// Every registered tool, in registration order.
+const expectedTools = [
+  { name: "list_open_tabs", annotations: { readOnlyHint: true, destructiveHint: false } },
+  { name: "archive_tab", annotations: { readOnlyHint: false, destructiveHint: false } },
+  { name: "close_tab_on_device", annotations: { readOnlyHint: false, destructiveHint: true } },
+  { name: "get_latest_digest", annotations: { readOnlyHint: true, destructiveHint: false } },
+];
+
 const mcp = HttpRouter.toWebHandler(McpServer.layer(Testing.layer()), { disableLogger: true });
 afterAll(() => mcp.dispose());
 
@@ -324,7 +332,19 @@ describe("MCP with an issued token", () => {
 
     const list = await rpc(token, { id: 2, method: "tools/list" }, headers);
     expect(list.response.status).toBe(200);
-    expect(list.body).toMatchObject({ id: 2, result: { tools: [] } });
+    expect(list.body).toMatchObject({ id: 2, result: { tools: expectedTools } });
+
+    // A tool call goes through the api client to the fake api, which has no digest yet.
+    const call = await rpc(
+      token,
+      { id: 3, method: "tools/call", params: { name: "get_latest_digest", arguments: {} } },
+      headers,
+    );
+    expect(call.response.status).toBe(200);
+    expect(call.body).toMatchObject({
+      id: 3,
+      result: { isError: false, structuredContent: { digest: null } },
+    });
   });
 
   it("handles tools/list without a session (2026-07-28)", async () => {
@@ -343,7 +363,7 @@ describe("MCP with an issued token", () => {
       },
       { "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/list" },
     );
-    expect(list.body).toMatchObject({ id: 1, result: { tools: [] } });
+    expect(list.body).toMatchObject({ id: 1, result: { tools: expectedTools } });
     expect(list.response.status).toBe(200);
   });
 });
