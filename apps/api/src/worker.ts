@@ -1,4 +1,6 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import { env } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
@@ -16,6 +18,8 @@ const workerEnv = env as unknown as WorkerEnv;
 const platform = Layer.mergeAll(
   D1Database.layer(workerEnv.DB),
   StashConfig.layerFromEnv(workerEnv),
+  GithubOAuthConfig.layerFromEnv(workerEnv),
+  HttpClientLive.layer,
 );
 
 // Built once per isolate at module scope, as Workers require: fibers started inside `fetch` would

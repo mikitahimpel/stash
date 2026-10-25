@@ -1,3 +1,4 @@
+import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
 import type * as Live from "@stash/backend-platform/live";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
 
@@ -5,7 +6,10 @@ import type * as StashConfig from "@stash/backend-platform/stash-config";
 // sync. Only the bindings the composed features use are declared: Vectorize and Workers AI have no
 // local emulation in `alchemy dev` (see docs/alchemy.md).
 export interface WorkerEnv
-  extends StashConfig.Env, Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE"> {
+  extends
+    StashConfig.Env,
+    GithubOAuthConfig.Env,
+    Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE"> {
   /** `"on"` only under `alchemy dev`; enables the `/_smoke/*` routes. */
   readonly SMOKE_ROUTES: string;
 }
