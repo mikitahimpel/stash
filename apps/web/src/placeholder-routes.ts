@@ -18,7 +18,3 @@ export const search: ReadonlyArray<RouteRecordRaw> = [placeholder("/search", "se
 export const openTabs: ReadonlyArray<RouteRecordRaw> = [
   placeholder("/open-now", "open-tabs", "Open now"),
 ];
-
-export const settings: ReadonlyArray<RouteRecordRaw> = [
-  placeholder("/settings", "settings", "Settings"),
-];

@@ -1,3 +1,4 @@
+import { routes as settings } from "@stash/web-settings/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Placeholder from "./placeholder-routes.ts";
 
@@ -6,7 +7,7 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Placeholder.links,
   ...Placeholder.search,
   ...Placeholder.openTabs,
-  ...Placeholder.settings,
+  ...settings,
 ];
 
 export const routes: ReadonlyArray<RouteRecordRaw> = [

@@ -7,6 +7,11 @@
   "vueCompilerOptions": {
     // `@stash/web-ui` marks its parts with data-slot, which strictTemplates rejects by default.
     "strictTemplates": true,
-    "dataAttributes": ["data-*"]
+    "dataAttributes": ["data-*"],
+    // Kit components declare only their own props and pass the rest (`disabled`, `@click`, ...)
+    // through to the element they render. Feature pages mounted here use that, so attributes and
+    // events a component doesn't declare are allowed.
+    "checkUnknownProps": false,
+    "checkUnknownEvents": false
   }
 }
