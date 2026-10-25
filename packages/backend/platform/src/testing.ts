@@ -4,11 +4,13 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
+import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Ai from "./ai.ts";
 import * as Blobs from "./blobs.ts";
 import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
+import * as GithubOAuthConfig from "./github-oauth-config.ts";
 import * as Kv from "./kv.ts";
 import type * as Live from "./live.ts";
 import * as SqliteD1 from "./sqlite-d1.ts";
@@ -202,6 +204,13 @@ export const layerStashConfig = (
     ...overrides,
   });
 
+/** Synthetic OAuth app credentials. They are placeholders, not real secrets. */
+export const layerGithubOAuthConfig: Layer.Layer<GithubOAuthConfig.GithubOAuthConfig> =
+  Layer.succeed(GithubOAuthConfig.GithubOAuthConfig)({
+    clientId: "synthetic-client-id",
+    clientSecret: Redacted.make("synthetic-client-secret"),
+  });
+
 /** Every service from `./live`, in memory, plus the queue's consumer side. */
 export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue> = Layer.mergeAll(
   layerD1Database,
@@ -211,4 +220,5 @@ export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue> = Layer.mer
   layerKv,
   layerAi(),
   layerStashConfig(),
+  layerGithubOAuthConfig,
 );

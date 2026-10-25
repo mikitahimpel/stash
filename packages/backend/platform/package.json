@@ -9,6 +9,8 @@
     "./blobs": "./src/blobs.ts",
     "./d1-database": "./src/d1-database.ts",
     "./enrichment-queue": "./src/enrichment-queue.ts",
+    "./github-oauth-config": "./src/github-oauth-config.ts",
+    "./http-client": "./src/http-client.ts",
     "./kv": "./src/kv.ts",
     "./live": "./src/live.ts",
     "./stash-config": "./src/stash-config.ts",
