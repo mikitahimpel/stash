@@ -83,6 +83,19 @@ const githubLayer = GitHub.layer({
   Layer.provide(Layer.succeed(FetchHttpClient.Fetch)(fakeGitHubFetch)),
 );
 
+// Every registered tool, in registration order.
+const expectedTools = [
+  { name: "save_link", annotations: { readOnlyHint: false, openWorldHint: false } },
+  { name: "search_links", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "list_links", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "get_link", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "set_link_status", annotations: { destructiveHint: false, idempotentHint: true } },
+  { name: "list_open_tabs", annotations: { readOnlyHint: true, destructiveHint: false } },
+  { name: "archive_tab", annotations: { readOnlyHint: false, destructiveHint: false } },
+  { name: "close_tab_on_device", annotations: { readOnlyHint: false, destructiveHint: true } },
+  { name: "get_latest_digest", annotations: { readOnlyHint: true, destructiveHint: false } },
+];
+
 const mcp = HttpRouter.toWebHandler(McpServer.layer(Testing.layer()), { disableLogger: true });
 afterAll(() => mcp.dispose());
 
@@ -225,11 +238,6 @@ const rpc = async (
   return { response, body: json ? (JSON.parse(json) as Record<string, any>) : undefined };
 };
 
-const linkTools = ["get_link", "list_links", "save_link", "search_links", "set_link_status"];
-
-const toolNames = (body: Record<string, any> | undefined): Array<string> =>
-  body?.result.tools.map((tool: { name: string }) => tool.name).sort();
-
 describe("OAuth metadata", () => {
   it("serves authorization server metadata (RFC 8414)", async () => {
     const response = await send("/.well-known/oauth-authorization-server");
@@ -304,7 +312,7 @@ describe("GitHub sign-in", () => {
 });
 
 describe("MCP with an issued token", () => {
-  it("handles initialize and lists the link tools (2025-06-18, sessionful)", async () => {
+  it("handles initialize and tools/list (2025-06-18, sessionful)", async () => {
     const token = await issueToken();
     const init = await rpc(token, {
       id: 1,
@@ -329,10 +337,22 @@ describe("MCP with an issued token", () => {
 
     const list = await rpc(token, { id: 2, method: "tools/list" }, headers);
     expect(list.response.status).toBe(200);
-    expect(toolNames(list.body)).toEqual(linkTools);
+    expect(list.body).toMatchObject({ id: 2, result: { tools: expectedTools } });
+
+    // A tool call goes through the api client to the fake api, which has no digest yet.
+    const call = await rpc(
+      token,
+      { id: 3, method: "tools/call", params: { name: "get_latest_digest", arguments: {} } },
+      headers,
+    );
+    expect(call.response.status).toBe(200);
+    expect(call.body).toMatchObject({
+      id: 3,
+      result: { isError: false, structuredContent: { digest: null } },
+    });
   });
 
-  it("lists the link tools without a session (2026-07-28)", async () => {
+  it("handles tools/list without a session (2026-07-28)", async () => {
     const token = await issueToken();
     const list = await rpc(
       token,
@@ -348,8 +368,7 @@ describe("MCP with an issued token", () => {
       },
       { "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/list" },
     );
-    expect(list.body).toMatchObject({ id: 1 });
-    expect(toolNames(list.body)).toEqual(linkTools);
+    expect(list.body).toMatchObject({ id: 1, result: { tools: expectedTools } });
     expect(list.response.status).toBe(200);
   });
 
