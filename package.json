@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev:api": "alchemy dev",
+    "dev:web": "pnpm --filter @stash/web dev",
     "lint": "turbo run lint",
     "lint:root": "oxlint --ignore-pattern 'apps/**' --ignore-pattern 'packages/**' .",
     "format": "oxfmt .",

@@ -1,0 +1,12 @@
+{
+  "extends": "@stash/config-tsconfig/web.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts"],
+  "vueCompilerOptions": {
+    // `@stash/web-ui` marks its parts with data-slot, which strictTemplates rejects by default.
+    "strictTemplates": true,
+    "dataAttributes": ["data-*"]
+  }
+}

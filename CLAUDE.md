@@ -36,7 +36,8 @@ pnpm turbo run lint format:check typecheck test --filter=...[origin/main]  # che
 pnpm turbo run lint format:check typecheck test                         # check everything (what CI runs)
 pnpm --filter @stash/<package> test                                     # one package
 pnpm format                                                             # oxfmt --write the whole repo
-pnpm dev:api                                                            # api Worker + D1 + Queue locally via Alchemy (no credentials), see docs/alchemy.md
+pnpm dev:api                                                            # api Worker + D1 + Queue + web Static Assets locally via Alchemy (no credentials), see docs/alchemy.md
+pnpm dev:web                                                            # web SPA with hot reload (Vite on 0.0.0.0:5173)
 ```
 
 - Lint is `oxlint`, format is `oxfmt` (`printWidth` 100; Markdown is not formatted), typecheck is
