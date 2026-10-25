@@ -41,5 +41,19 @@ behavior is tested in `packages/extension/*`.
 ## File naming
 
 - `wxt.config.ts`, `entrypoints/background.ts`, `entrypoints/options/index.html`,
-  `entrypoints/options/options-page.vue` (WXT dictates the `entrypoints/` layout)
-- `test/background.test.ts`
+  `entrypoints/options/main.ts`, `entrypoints/options/options-page.vue` (WXT dictates the
+  `entrypoints/` layout). In a directory entrypoint only `index.html` is the entry, so the options
+  page logic sits beside it: `entrypoints/options/save-config.ts`.
+- `test/background.test.ts`, `test/save-config.test.ts`
+
+## Commands
+
+`build` (Firefox zip in `.output/`) and `dev` (WXT dev server on `0.0.0.0`). See
+[README.md](README.md).
+
+## WXT notes
+
+- Auto-imports are off (`imports: false`), and a `config:resolved` hook also turns off unimport's
+  rewriting, which otherwise turns `browser.*` in `@stash/ext-platform` into an unresolvable
+  `wxt/browser` import. Import `defineBackground` and friends from `wxt/utils/*`.
+- `.output/` and `.wxt/` are generated and gitignored.

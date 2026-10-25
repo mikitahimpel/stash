@@ -1,0 +1,3 @@
+# WXT build output and generated types
+.output/
+.wxt/
