@@ -1,0 +1,5 @@
+{
+  "extends": "@stash/config-tsconfig/workers.json",
+  "include": ["src"],
+  "exclude": ["src/testing.ts", "src/sqlite-d1.ts"]
+}

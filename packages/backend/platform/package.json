@@ -1,0 +1,38 @@
+{
+  "name": "@stash/backend-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./ai": "./src/ai.ts",
+    "./blobs": "./src/blobs.ts",
+    "./d1-database": "./src/d1-database.ts",
+    "./enrichment-queue": "./src/enrichment-queue.ts",
+    "./kv": "./src/kv.ts",
+    "./live": "./src/live.ts",
+    "./stash-config": "./src/stash-config.ts",
+    "./testing": "./src/testing.ts",
+    "./vectors": "./src/vectors.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
