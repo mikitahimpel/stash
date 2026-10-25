@@ -85,6 +85,11 @@ const githubLayer = GitHub.layer({
 
 // Every registered tool, in registration order.
 const expectedTools = [
+  { name: "save_link", annotations: { readOnlyHint: false, openWorldHint: false } },
+  { name: "search_links", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "list_links", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "get_link", annotations: { readOnlyHint: true, openWorldHint: false } },
+  { name: "set_link_status", annotations: { destructiveHint: false, idempotentHint: true } },
   { name: "list_open_tabs", annotations: { readOnlyHint: true, destructiveHint: false } },
   { name: "archive_tab", annotations: { readOnlyHint: false, destructiveHint: false } },
   { name: "close_tab_on_device", annotations: { readOnlyHint: false, destructiveHint: true } },
@@ -365,5 +370,34 @@ describe("MCP with an issued token", () => {
     );
     expect(list.body).toMatchObject({ id: 1, result: { tools: expectedTools } });
     expect(list.response.status).toBe(200);
+  });
+
+  it("calls a link tool with the issued token (2026-07-28)", async () => {
+    const token = await issueToken();
+    const call = await rpc(
+      token,
+      {
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "save_link",
+          arguments: { url: "https://example.com/from-claude" },
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      { "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "save_link" },
+    );
+    expect(call.response.status).toBe(200);
+    expect(call.body).toMatchObject({
+      id: 1,
+      result: {
+        isError: false,
+        structuredContent: { url: "https://example.com/from-claude", status: "new" },
+      },
+    });
+    expect(call.body?.result.content[0].text).toContain("Saved https://example.com/from-claude");
   });
 });

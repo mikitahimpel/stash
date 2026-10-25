@@ -15,6 +15,7 @@
     "@cloudflare/workers-oauth-provider": "catalog:",
     "@stash/mcp-platform": "workspace:*",
     "@stash/mcp-tools-digest": "workspace:*",
+    "@stash/mcp-tools-links": "workspace:*",
     "@stash/mcp-tools-tabs": "workspace:*",
     "effect": "catalog:"
   },

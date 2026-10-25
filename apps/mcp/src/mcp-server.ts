@@ -1,5 +1,6 @@
 import * as ApiClient from "@stash/mcp-platform/api-client";
 import * as DigestToolkit from "@stash/mcp-tools-digest/digest-toolkit";
+import * as LinksTools from "@stash/mcp-tools-links/links-tools";
 import * as TabsToolkit from "@stash/mcp-tools-tabs/tabs-toolkit";
 import { Layer } from "effect";
 import { McpProtocol, McpServer, Toolkit } from "effect/ai";
@@ -19,8 +20,11 @@ const protocols = [
 
 // Tools from `packages/mcp/tools-*` are registered here. Their handlers depend on
 // `StashApiClient` only.
-const tools = McpServer.toolkit(Toolkit.merge(TabsToolkit.toolkit, DigestToolkit.toolkit)).pipe(
-  Layer.provide([TabsToolkit.layer, DigestToolkit.layer]),
+const tools = Layer.mergeAll(
+  LinksTools.layer,
+  McpServer.toolkit(Toolkit.merge(TabsToolkit.toolkit, DigestToolkit.toolkit)).pipe(
+    Layer.provide([TabsToolkit.layer, DigestToolkit.layer]),
+  ),
 );
 
 /** The Streamable HTTP MCP endpoint at `path`, with every tool registered. */
