@@ -1,0 +1,33 @@
+{
+  "name": "@stash/web-api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./api-atoms": "./src/api-atoms.ts",
+    "./stash-api-client": "./src/stash-api-client.ts",
+    "./testing": "./src/testing.ts",
+    "./unauthenticated": "./src/unauthenticated.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "@stash/web-platform": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
