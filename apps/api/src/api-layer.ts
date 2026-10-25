@@ -3,9 +3,13 @@ import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
+import type * as Ai from "@stash/backend-platform/ai";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
 import * as StashConfig from "@stash/backend-platform/stash-config";
+import type * as Vectors from "@stash/backend-platform/vectors";
+import * as SearchRepo from "@stash/backend-search/search-repo";
+import * as SearchService from "@stash/backend-search/search-service";
 import * as Api from "@stash/contracts-api/api";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -21,7 +25,9 @@ export type Requirements =
   | D1Database.Database
   | StashConfig.StashConfig
   | GithubOAuthConfig.GithubOAuthConfig
-  | HttpClient.HttpClient;
+  | HttpClient.HttpClient
+  | Ai.Ai
+  | Vectors.Vectors;
 
 /** Unauthenticated liveness probe. */
 const health = HttpRouter.add("GET", "/health", HttpServerResponse.jsonUnsafe({ status: "ok" }));
@@ -52,6 +58,8 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(SessionVerifierLive.layer),
       Layer.provide(GithubClient.layer),
       Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, SessionsRepo.layer)),
+      Layer.provide(SearchService.layer),
+      Layer.provide(SearchRepo.layer),
     ),
     health,
     cors,

@@ -1,7 +1,7 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
-// routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies),
-// unimplemented groups answer 501, and CORS follows the web origin. D1 is the in-memory platform
-// layer with this package's migrations applied, and GitHub is never called. The same checks run
+// routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), search
+// is served, unimplemented groups answer 501, and CORS follows the web origin. D1 is the in-memory
+// platform layer with this package's migrations applied, and GitHub is never called. The same checks run
 // against the real Worker in workerd in `local-dev-smoke.test.ts`.
 import * as ApiTokenSecret from "@stash/backend-auth/api-token-secret";
 import * as GithubClient from "@stash/backend-auth/github-client";
@@ -39,6 +39,7 @@ const layerDatabase = Layer.effectDiscard(
     yield* db.batch([
       D1Database.sql`INSERT INTO devices (id, name, kind) VALUES ('device-1', 'Synthetic Zen', 'zen')`,
       D1Database.sql`INSERT INTO api_tokens (id, device_id, hash) VALUES ('token-1', 'device-1', ${hash})`,
+      D1Database.sql`INSERT INTO links (id, url, title, type) VALUES ('link-1', 'https://example.com/a', 'Economics explained', 'article')`,
       D1Database.sql`INSERT INTO sessions (id, github_login, expires_at)
         VALUES (${sessionId}, 'example-user', '2999-01-01T00:00:00.000Z')`,
     ]);
@@ -54,6 +55,8 @@ const app = HttpRouter.toWebHandler(
   ApiLayer.layer.pipe(
     Layer.provide(layerDatabase),
     Layer.provide(Testing.layerStashConfig({ webOrigin })),
+    Layer.provide(Testing.layerAi()),
+    Layer.provide(Testing.layerVectors),
     Layer.provide(Testing.layerGithubOAuthConfig),
     Layer.provide(layerNoNetwork),
   ),
@@ -99,6 +102,23 @@ describe("composed API", () => {
     expect(await response.json()).toEqual([
       expect.objectContaining({ id: "token-1", deviceId: "device-1", revokedAt: null }),
     ]);
+  });
+
+  it("serves the search group from FTS5 (hybrid by default) with filters", async () => {
+    const response = await request("GET", "/search?q=economics", bearer);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      hits: [
+        {
+          link: expect.objectContaining({ id: "link-1", title: "Economics explained", tags: [] }),
+          score: expect.any(Number),
+        },
+      ],
+    });
+
+    const filtered = await request("GET", "/search?q=economics&mode=keyword&type=video", bearer);
+    expect(filtered.status).toBe(200);
+    expect(await filtered.json()).toEqual({ hits: [] });
   });
 
   it("answers 501 NotImplemented for groups that have not landed", async () => {

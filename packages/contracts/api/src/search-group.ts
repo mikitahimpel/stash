@@ -12,6 +12,7 @@ export const SearchQuery = Schema.Struct({
   q: Schema.String.pipe(Schema.check(Schema.isNonEmpty(), Schema.isMaxLength(500))),
   mode: Schema.optionalKey(SearchMode),
   type: Schema.optionalKey(Link.LinkType),
+  status: Schema.optionalKey(Link.LinkStatus),
   tag: Schema.optionalKey(Tag.TagName),
 });
 export type SearchQuery = typeof SearchQuery.Type;

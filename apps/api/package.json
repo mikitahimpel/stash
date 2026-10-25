@@ -14,6 +14,7 @@
   "dependencies": {
     "@stash/backend-auth": "workspace:*",
     "@stash/backend-platform": "workspace:*",
+    "@stash/backend-search": "workspace:*",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
