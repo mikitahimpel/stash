@@ -78,6 +78,8 @@ beforeAll(async () => {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     STASH_API_PORT: String(port),
+    // The stack also starts the `Mcp` Worker. Keep it off the default dev port.
+    STASH_MCP_PORT: String(port + 1),
     STASH_WEB_ORIGIN: webOrigin,
   };
   // Prove that no Cloudflare credentials are needed.

@@ -167,6 +167,9 @@ catalogs:
     '@alchemy.run/cloudflare':
       specifier: 2.0.0-beta.84
       version: 2.0.0-beta.84
+    '@cloudflare/workers-oauth-provider':
+      specifier: 1.2.3
+      version: 1.2.3
     '@cloudflare/workers-types':
       specifier: 5.20261023.1
       version: 5.20261023.1
@@ -437,6 +440,40 @@ importers:
       plist:
         specifier: 'catalog:'
         version: 5.0.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  apps/mcp:
+    dependencies:
+      '@cloudflare/workers-oauth-provider':
+        specifier: 'catalog:'
+        version: 1.2.3
+      '@stash/mcp-platform':
+        specifier: workspace:*
+        version: link:../../packages/mcp/platform
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261023.1
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/config/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1126,6 +1163,9 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@cloudflare/workers-oauth-provider@1.2.3':
+    resolution: {integrity: sha512-40eGeA3DnTOEl2ijHYY5Z9yNIf0fdjgomoaA6GHPo4FyKQw0oXPuy4GVjTE/uNfS/MoFAvzsuVBRwTPKUki4hA==}
 
   '@cloudflare/workers-types@5.20261023.1':
     resolution: {integrity: sha512-jRaMsWUF/08dd0dWnX3zPGPOjakkkA2JPnK5vLsCQFmYC40kbMPZ02fvOPO8kqjqgljoMZrKsRiXpR1u1Lp0Qg==}
@@ -3408,6 +3448,8 @@ snapshots:
 
   '@cloudflare/workerd-windows-64@1.20261012.1':
     optional: true
+
+  '@cloudflare/workers-oauth-provider@1.2.3': {}
 
   '@cloudflare/workers-types@5.20261023.1': {}
 
