@@ -15,7 +15,8 @@ contracts. Contracts depend on no context.
 
 ## May depend on
 
-- `effect` (including `effect/unstable/httpapi` and the like for `api/`).
+- `effect` (including `effect/http-api` and `effect/http` for `api/`; in `effect@4.0.6` HttpApi lives
+  there, not under `effect/unstable/*`).
 - Other `@stash/contracts-*` packages. `api` depends on `domain`, never the other way.
 - In tests only: `vitest`, `@effect/vitest`.
 - `@stash/config-*` as devDependencies (tsconfig base).
@@ -42,6 +43,14 @@ and no implementations. Servers and clients live in their own contexts.
   the change.
 - Model errors as tagged error schemas in `domain` and attach them to endpoints in `api`.
 - Keep validation in schemas (brands, filters) so every client gets the same rules.
+
+## HTTP mapping (`api/`)
+
+- Domain errors carry no HTTP status. `api/src/error-statuses.ts` (private) annotates them
+  (`NotFound` 404, `Unauthorized` 401, `Conflict` 409, `RateLimited` 429), and
+  groups attach those annotated schemas to endpoints.
+- Every endpoint is guarded by `Authorization` from `./security` (bearer API token, then session
+  cookie), except `auth.githubLogin` and `auth.githubCallback`.
 
 ## Testing
 
