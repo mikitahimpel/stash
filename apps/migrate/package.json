@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
+    "import": "node src/main.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -12,6 +13,8 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
