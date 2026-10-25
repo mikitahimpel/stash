@@ -170,6 +170,9 @@ catalogs:
     '@cloudflare/workers-types':
       specifier: 5.20261023.1
       version: 5.20261023.1
+    '@effect/atom-vue':
+      specifier: 4.0.6
+      version: 4.0.6
     '@effect/platform-browser':
       specifier: 4.0.6
       version: 4.0.6
@@ -476,6 +479,46 @@ importers:
         specifier: 'catalog:'
         version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
 
+  packages/web/api-client:
+    dependencies:
+      '@effect/atom-vue':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vue@3.5.44(typescript@7.0.2))
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      '@stash/web-platform':
+        specifier: workspace:*
+        version: link:../platform
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+      vue:
+        specifier: 'catalog:'
+        version: 3.5.44(typescript@7.0.2)
+    devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
   packages/web/platform:
     dependencies:
       '@effect/platform-browser':
@@ -747,6 +790,12 @@ packages:
     resolution: {integrity: sha512-hO9Kqc91dq7SLBCagxlr2RDSTbp7/urqjfxNitSNaaOyKIsUr85llsADT/rS6H85ezOsGf2vSP5y1Qk0kQWLCg==}
     peerDependencies:
       effect: ^4.0.5
+
+  '@effect/atom-vue@4.0.6':
+    resolution: {integrity: sha512-JpbRYTBmVYyOBVVqnuzqgcoGbuBrw7r6skx6Al8YB2NFLUGskWqfJey+TY+fACr0qoUsGuDhlWYkzaiEm8/qmw==}
+    peerDependencies:
+      effect: ^4.0.6
+      vue: '>=3.5.39 <4.0.0'
 
   '@effect/platform-browser@4.0.6':
     resolution: {integrity: sha512-i4bf1+FlUnZypqK0pQ5cq46KhroTgqFGktFn2WorwIk+yc+RuZO6qsF+Sk6lY5uHwdHTOLGMlnlXSJ8u1UG42g==}
@@ -2621,6 +2670,11 @@ snapshots:
       '@distilled.cloud/core': 1.0.0-rc.17(effect@4.0.6)
       effect: 4.0.6
 
+  '@effect/atom-vue@4.0.6(effect@4.0.6)(vue@3.5.44(typescript@7.0.2))':
+    dependencies:
+      effect: 4.0.6
+      vue: 3.5.44(typescript@7.0.2)
+
   '@effect/platform-browser@4.0.6(effect@4.0.6)':
     dependencies:
       effect: 4.0.6
@@ -3899,6 +3953,16 @@ snapshots:
       '@vue/shared': 3.5.44
     optionalDependencies:
       typescript: 6.0.3
+
+  vue@3.5.44(typescript@7.0.2):
+    dependencies:
+      '@vue/compiler-dom': 3.5.44
+      '@vue/compiler-sfc': 3.5.44
+      '@vue/runtime-dom': 3.5.44
+      '@vue/server-renderer': 3.5.44
+      '@vue/shared': 3.5.44
+    optionalDependencies:
+      typescript: 7.0.2
 
   whatwg-mimetype@3.0.0: {}
 
