@@ -57,7 +57,7 @@ packages/
     api/              HttpApi definition (groups: links, search, tabs, devices)
   backend/            links/ enrichment/ search/ tabs/ auth/ digest/ platform/
   mcp/                tools-links/ tools-tabs/ tools-digest/ platform/
-  web/                links/ search/ open-tabs/ settings/ ui/ api-client/ platform/
+  web/                links/ search/ open-tabs/ settings/ auth/ ui/ api-client/ platform/
   extension/          capture/ tab-sync/ device-commands/ platform/
   config/             tsconfig/ (per-context bases) oxlint/ (shared config + boundary rules)
 ```
