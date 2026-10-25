@@ -29,10 +29,15 @@
       "dependsOn": ["//#format:check:root"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.json"]
     },
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "typecheck": {
+      "dependsOn": ["transit"],
       "inputs": ["$TURBO_DEFAULT$"]
     },
     "test": {
+      "dependsOn": ["transit"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.config.ts"]
     }
   }

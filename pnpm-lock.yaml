@@ -165,8 +165,8 @@ settings:
 catalogs:
   default:
     '@cloudflare/workers-types':
-      specifier: 5.20261025.1
-      version: 5.20261025.1
+      specifier: 5.20261023.1
+      version: 5.20261023.1
     '@types/firefox-webext-browser':
       specifier: 143.0.1
       version: 143.0.1
@@ -241,7 +241,7 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261025.1
+        version: 5.20261023.1
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -280,8 +280,8 @@ packages:
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
 
-  '@cloudflare/workers-types@5.20261025.1':
-    resolution: {integrity: sha512-tMRFCIZKRRieDIdAe38rpszuInDpG6ugnT8mHgJrBj8zR0EbdWeTkg8NunLhVfX3tpBatD0UXVbDuZfgZxe9Fg==}
+  '@cloudflare/workers-types@5.20261023.1':
+    resolution: {integrity: sha512-jRaMsWUF/08dd0dWnX3zPGPOjakkkA2JPnK5vLsCQFmYC40kbMPZ02fvOPO8kqjqgljoMZrKsRiXpR1u1Lp0Qg==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1159,7 +1159,7 @@ snapshots:
       '@babel/helper-string-parser': 7.29.11
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@cloudflare/workers-types@5.20261025.1': {}
+  '@cloudflare/workers-types@5.20261023.1': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
