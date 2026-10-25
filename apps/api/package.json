@@ -11,8 +11,16 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@stash/backend-auth": "workspace:*",
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
     "@stash/config-tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "oxfmt": "catalog:",

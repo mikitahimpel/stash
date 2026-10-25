@@ -3,10 +3,10 @@
 // The local-dev smoke test covers the same files applied by Alchemy to its D1 simulator.
 import * as Fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import * as Path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
-const migrationsDir = fileURLToPath(new URL("../migrations/", import.meta.url));
+const migrationsDir = `${Path.resolve(import.meta.dirname, "../migrations")}/`;
 
 // Alchemy orders by the numeric prefix, then by name.
 const prefix = (name: string): number => Number(/^(\d+)/.exec(name)?.[1] ?? Number.NaN);

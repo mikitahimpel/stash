@@ -30,13 +30,28 @@ export default Alchemy.Stack(
     const host = yield* Config.String("STASH_API_HOST").pipe(Config.withDefault("0.0.0.0"));
     // The `/_smoke/*` routes exist only under `alchemy dev` (see apps/api/src/smoke-routes.ts).
     const dev = yield* Alchemy.ALCHEMY_DEV;
+    // Personal values come from env. Local dev gets placeholders; a deploy requires real ones.
+    // `dev_only` can never be a GitHub login (GitHub allows no underscores).
+    const devDefault = (config: Config.Config<string>, value: string) =>
+      dev ? config.pipe(Config.withDefault(value)) : config;
+    const allowedGithubLogin = yield* devDefault(
+      Config.String("STASH_ALLOWED_GITHUB_LOGIN"),
+      "dev_only",
+    );
+    const webOrigin = yield* devDefault(Config.String("STASH_WEB_ORIGIN"), "http://localhost:5173");
 
     const db = yield* Database;
     const queue = yield* EnrichmentQueue;
 
     const api = yield* Cloudflare.Worker("Api", {
       main: "./apps/api/src/worker.ts",
-      env: { DB: db, ENRICHMENT_QUEUE: queue, SMOKE_ROUTES: dev ? "on" : "off" },
+      env: {
+        DB: db,
+        ENRICHMENT_QUEUE: queue,
+        ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
+        WEB_ORIGIN: webOrigin,
+        SMOKE_ROUTES: dev ? "on" : "off",
+      },
       dev: { host, port, strictPort: true },
     });
 

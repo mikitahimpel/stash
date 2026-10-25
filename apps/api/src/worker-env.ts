@@ -1,12 +1,11 @@
-// Bindings declared for the `Api` Worker in the root `alchemy.run.ts`. Keep the two in sync.
-export interface WorkerEnv {
-  readonly DB: D1Database;
-  readonly ENRICHMENT_QUEUE: Queue<EnrichmentMessage>;
+import type * as Live from "@stash/backend-platform/live";
+import type * as StashConfig from "@stash/backend-platform/stash-config";
+
+// Bindings and vars declared for the `Api` Worker in the root `alchemy.run.ts`. Keep the two in
+// sync. Only the bindings the composed features use are declared: Vectorize and Workers AI have no
+// local emulation in `alchemy dev` (see docs/alchemy.md).
+export interface WorkerEnv
+  extends StashConfig.Env, Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE"> {
   /** `"on"` only under `alchemy dev`; enables the `/_smoke/*` routes. */
   readonly SMOKE_ROUTES: string;
-}
-
-/** Placeholder body until the enrichment contract exists. */
-export interface EnrichmentMessage {
-  readonly id: string;
 }

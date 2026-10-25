@@ -1,4 +1,7 @@
 {
   "extends": "@stash/config-tsconfig/node.json",
-  "include": [".", "../vitest.config.ts"]
+  "compilerOptions": {
+    "types": ["node", "@cloudflare/workers-types"]
+  },
+  "include": [".", "../src", "../vitest.config.ts"]
 }
