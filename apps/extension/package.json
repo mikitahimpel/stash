@@ -17,6 +17,7 @@
     "@stash/contracts-api": "workspace:*",
     "@stash/ext-device-commands": "workspace:*",
     "@stash/ext-platform": "workspace:*",
+    "@stash/ext-tab-sync": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:"
   },

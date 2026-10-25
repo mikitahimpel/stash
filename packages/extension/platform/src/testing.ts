@@ -41,7 +41,7 @@ export class TestTabs extends Context.Service<
   {
     /** Every open tab, in order. */
     readonly all: Effect.Effect<ReadonlyArray<Tab>>;
-    /** Replaces the open tabs, as if the user opened or closed some. */
+    /** Replaces the open tabs, as if the user opened or closed some. Emits `Tabs.changed`. */
     readonly set: (tabs: ReadonlyArray<Tab>) => Effect.Effect<void>;
     /** Focuses another window. */
     readonly focus: (windowId: number) => Effect.Effect<void>;
@@ -67,6 +67,9 @@ export const layerTabs = (
     Effect.gen(function* () {
       const initial = options.tabs ?? [];
       const tabs = yield* Ref.make(initial);
+      const changed = yield* PubSub.unbounded<void>();
+      const setTabs = (value: ReadonlyArray<Tab>) =>
+        Ref.set(tabs, value).pipe(Effect.andThen(PubSub.publish(changed, undefined)));
       const current = yield* Ref.make(options.currentWindowId ?? initial[0]?.windowId ?? 1);
 
       const query = (filter: TabsFilter = {}) =>
@@ -85,12 +88,10 @@ export const layerTabs = (
         remove: (ids) =>
           Effect.flatMap(Ref.get(tabs), (all) =>
             ids.every((id) => all.some((tab) => tab.id === id))
-              ? Ref.set(
-                  tabs,
-                  all.filter((tab) => !ids.includes(tab.id)),
-                )
+              ? setTabs(all.filter((tab) => !ids.includes(tab.id)))
               : Effect.fail(new BrowserError({ api: "tabs.remove", cause: "No such tab" })),
           ),
+        changed: Stream.fromPubSub(changed),
       }).pipe(
         Context.add(Windows, {
           list: Effect.map(Effect.all([windowIds, Ref.get(current)]), ([ids, focused]) =>
@@ -102,13 +103,15 @@ export const layerTabs = (
           remove: (id) =>
             Effect.flatMap(windowIds, (ids) =>
               ids.includes(id)
-                ? Ref.update(tabs, (all) => all.filter((tab) => tab.windowId !== id))
+                ? Effect.flatMap(Ref.get(tabs), (all) =>
+                    setTabs(all.filter((tab) => tab.windowId !== id)),
+                  )
                 : Effect.fail(new BrowserError({ api: "windows.remove", cause: "No such window" })),
             ),
         }),
         Context.add(TestTabs, {
           all: Ref.get(tabs),
-          set: (value) => Ref.set(tabs, value),
+          set: setTabs,
           focus: (windowId) => Ref.set(current, windowId),
         }),
       );
