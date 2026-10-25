@@ -1,0 +1,25 @@
+{
+  "name": "stash",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "turbo run lint",
+    "lint:root": "oxlint --ignore-pattern 'apps/**' --ignore-pattern 'packages/**' .",
+    "format": "oxfmt .",
+    "format:check": "turbo run format:check",
+    "format:check:root": "oxfmt --check . '!apps/**' '!packages/**'",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.15.0"
+}

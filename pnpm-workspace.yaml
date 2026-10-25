@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*/*
+
+catalog:
+  effect: 4.0.6
+  "@effect/ai-anthropic": 4.0.6
+  "@effect/atom-vue": 4.0.6
+  "@effect/platform-browser": 4.0.6
+  "@effect/platform-node": 4.0.6
+  "@effect/vitest": 4.0.6
+  "@cloudflare/workers-types": 5.20261025.1
+  "@types/firefox-webext-browser": 143.0.1
+  "@types/node": 24.19.2
+  oxfmt: 0.74.0
+  oxlint: 1.89.0
+  turbo: 2.11.10
+  typescript: 7.0.2
+  vitest: 5.0.5
+  vue: 3.5.44
+  vue-tsc: 3.3.13
+
+minimumReleaseAgeExclude:
+  - "@cloudflare/workers-types@5.20261025.1"
