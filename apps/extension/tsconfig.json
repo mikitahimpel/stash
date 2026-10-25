@@ -1,0 +1,11 @@
+{
+  "extends": "@stash/config-tsconfig/extension.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "vue"
+  },
+  "vueCompilerOptions": {
+    "strictTemplates": true
+  },
+  "include": ["entrypoints", "test", "wxt.config.ts", "vitest.config.ts"]
+}
