@@ -1,0 +1,33 @@
+{
+  "name": "@stash/web-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./live": "./src/live.ts",
+    "./network": "./src/network.ts",
+    "./share": "./src/share.ts",
+    "./testing": "./src/testing.ts",
+    "./visibility": "./src/visibility.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "catalog:",
+    "effect": "catalog:",
+    "fake-indexeddb": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
