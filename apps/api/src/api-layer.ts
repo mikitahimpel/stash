@@ -1,8 +1,12 @@
 import * as ApiTokensRepo from "@stash/backend-auth/api-tokens-repo";
 import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as SessionVerifier from "@stash/backend-auth/session-verifier";
+import type * as Ai from "@stash/backend-platform/ai";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import * as StashConfig from "@stash/backend-platform/stash-config";
+import type * as Vectors from "@stash/backend-platform/vectors";
+import * as SearchRepo from "@stash/backend-search/search-repo";
+import * as SearchService from "@stash/backend-search/search-service";
 import * as Api from "@stash/contracts-api/api";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -13,7 +17,7 @@ import * as Layer from "effect/Layer";
 import * as Handlers from "./handlers.ts";
 
 /** The platform services the composed API needs. The Worker builds them from `env`. */
-export type Requirements = D1Database.Database | StashConfig.StashConfig;
+export type Requirements = D1Database.Database | StashConfig.StashConfig | Ai.Ai | Vectors.Vectors;
 
 /** Unauthenticated liveness probe. */
 const health = HttpRouter.add("GET", "/health", HttpServerResponse.jsonUnsafe({ status: "ok" }));
@@ -43,6 +47,8 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(AuthorizationLive.layer),
       Layer.provide(SessionVerifier.layerDenyAll),
       Layer.provide(ApiTokensRepo.layer),
+      Layer.provide(SearchService.layer),
+      Layer.provide(SearchRepo.layer),
     ),
     health,
     cors,

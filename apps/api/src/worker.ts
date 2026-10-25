@@ -1,5 +1,7 @@
+import * as Ai from "@stash/backend-platform/ai";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as StashConfig from "@stash/backend-platform/stash-config";
+import * as Vectors from "@stash/backend-platform/vectors";
 import { env } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -13,9 +15,21 @@ import type { WorkerEnv } from "./worker-env.ts";
 
 const workerEnv = env as unknown as WorkerEnv;
 
+/** Stands in for a binding the Worker was deployed without: every call rejects. */
+const missingBinding = (name: string) => () =>
+  Promise.reject(new Error(`binding ${name} is not configured`));
+
 const platform = Layer.mergeAll(
   D1Database.layer(workerEnv.DB),
   StashConfig.layerFromEnv(workerEnv),
+  Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
+  Vectors.layer(
+    workerEnv.VECTORS ?? {
+      upsert: missingBinding("VECTORS"),
+      query: missingBinding("VECTORS"),
+      deleteByIds: missingBinding("VECTORS"),
+    },
+  ),
 );
 
 // Built once per isolate at module scope, as Workers require: fibers started inside `fetch` would

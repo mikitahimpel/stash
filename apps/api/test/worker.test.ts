@@ -1,5 +1,6 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
-// routed behind `Authorization`, unimplemented groups answer 501, and CORS follows the web origin.
+// routed behind `Authorization`, search is served, unimplemented groups answer 501, and CORS follows
+// the web origin.
 // D1 is the in-memory platform layer with this package's migrations applied. The same checks run
 // against the real Worker in workerd in `local-dev-smoke.test.ts`.
 import * as ApiTokenSecret from "@stash/backend-auth/api-token-secret";
@@ -32,6 +33,7 @@ const layerDatabase = Layer.effectDiscard(
     yield* db.batch([
       D1Database.sql`INSERT INTO devices (id, name, kind) VALUES ('device-1', 'Synthetic Zen', 'zen')`,
       D1Database.sql`INSERT INTO api_tokens (id, device_id, hash) VALUES ('token-1', 'device-1', ${hash})`,
+      D1Database.sql`INSERT INTO links (id, url, title, type) VALUES ('link-1', 'https://example.com/a', 'Economics explained', 'article')`,
     ]);
   }).pipe(Effect.orDie),
 ).pipe(Layer.provideMerge(Testing.layerD1Database));
@@ -40,6 +42,8 @@ const app = HttpRouter.toWebHandler(
   ApiLayer.layer.pipe(
     Layer.provide(layerDatabase),
     Layer.provide(Testing.layerStashConfig({ webOrigin })),
+    Layer.provide(Testing.layerAi()),
+    Layer.provide(Testing.layerVectors),
   ),
   { disableLogger: true },
 );
@@ -82,6 +86,23 @@ describe("composed API", () => {
     expect(await response.json()).toEqual([
       expect.objectContaining({ id: "token-1", deviceId: "device-1", revokedAt: null }),
     ]);
+  });
+
+  it("serves the search group from FTS5 (hybrid by default) with filters", async () => {
+    const response = await request("GET", "/search?q=economics", bearer);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      hits: [
+        {
+          link: expect.objectContaining({ id: "link-1", title: "Economics explained", tags: [] }),
+          score: expect.any(Number),
+        },
+      ],
+    });
+
+    const filtered = await request("GET", "/search?q=economics&mode=keyword&type=video", bearer);
+    expect(filtered.status).toBe(200);
+    expect(await filtered.json()).toEqual({ hits: [] });
   });
 
   it("answers 501 NotImplemented for groups that have not landed", async () => {

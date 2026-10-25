@@ -134,6 +134,16 @@ describe("alchemy dev (local, no credentials)", () => {
     expect(links.status).toBe(501);
     expect(JSON.parse(links.body)).toEqual({ _tag: "NotImplemented", endpoint: "links.list" });
 
+    // `alchemy dev` has no Vectorize or Workers AI: hybrid search answers from FTS5 alone, and
+    // semantic search fails.
+    const hybrid = await call("GET", "/search?q=smoke", { headers: { authorization } });
+    expect(hybrid.status).toBe(200);
+    expect(JSON.parse(hybrid.body)).toEqual({ hits: [] });
+    const semantic = await call("GET", "/search?q=smoke&mode=semantic", {
+      headers: { authorization },
+    });
+    expect(semantic.status).toBe(500);
+
     const wrong = await call("GET", "/tokens", { headers: { authorization: `${authorization}x` } });
     expect(wrong.status).toBe(401);
   });
