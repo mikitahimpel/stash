@@ -1,0 +1,38 @@
+{
+  "name": "@stash/backend-enrichment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./content-http": "./src/content-http.ts",
+    "./content-text": "./src/content-text.ts",
+    "./detect-language": "./src/detect-language.ts",
+    "./fetch-content": "./src/fetch-content.ts",
+    "./fetch-page-text": "./src/fetch-page-text.ts",
+    "./fetch-youtube-transcript": "./src/fetch-youtube-transcript.ts",
+    "./html-text": "./src/html-text.ts",
+    "./store-text": "./src/store-text.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
