@@ -29,7 +29,7 @@ run it, and what to watch for.
 |---|---|---|
 | `Database` | `Cloudflare.D1.Database`, `migrations: ./apps/api/migrations` | `DB` (`D1Database`) |
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
-| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `SMOKE_ROUTES` |
+| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_OAUTH_CLIENT_ID`, `SMOKE_ROUTES`; secret `GITHUB_OAUTH_CLIENT_SECRET` |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
@@ -47,7 +47,7 @@ run it, and what to watch for.
   before the folder exists). A remote state store (`Cloudflare.state()`) is a decision for the
   deploy issue.
 
-Config read by the stack (all optional, none secret):
+Config read by the stack (optional under `alchemy dev`; only the OAuth client secret is secret):
 
 | Env var | Default | Meaning |
 |---|---|---|
@@ -55,6 +55,8 @@ Config read by the stack (all optional, none secret):
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
 | `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, **required** for deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` |
+| `GITHUB_OAUTH_CLIENT_ID` | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_ID` on `Api` |
+| `GITHUB_OAUTH_CLIENT_SECRET` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_OAUTH_CLIENT_SECRET` on `Api`, read with `Config.Redacted` so it is bound as `secret_text` |
 | `ALCHEMY_STAGE` | `dev_$USER` (dev), `live_$USER` (deploy) | stage, which also sets physical names and the state folder |
 
 ## Local development (no credentials)

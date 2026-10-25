@@ -1,3 +1,4 @@
+import * as AuthHandlers from "@stash/backend-auth/auth-handlers";
 import * as TokensHandlers from "@stash/backend-auth/tokens-handlers";
 import * as SearchHandlers from "@stash/backend-search/search-handlers";
 import * as Api from "@stash/contracts-api/api";
@@ -36,6 +37,6 @@ export const layer = Layer.mergeAll(
   notImplemented("tabs"),
   notImplemented("devices"),
   TokensHandlers.layer,
-  notImplemented("auth"),
+  AuthHandlers.layer,
   notImplemented("digest"),
 );

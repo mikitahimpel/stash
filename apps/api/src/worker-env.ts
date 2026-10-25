@@ -1,3 +1,4 @@
+import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
 import type * as Live from "@stash/backend-platform/live";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
 
@@ -9,6 +10,7 @@ import type * as StashConfig from "@stash/backend-platform/stash-config";
 export interface WorkerEnv
   extends
     StashConfig.Env,
+    GithubOAuthConfig.Env,
     Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE">,
     Partial<Pick<Live.PlatformEnv, "VECTORS" | "AI">> {
   /** `"on"` only under `alchemy dev`; enables the `/_smoke/*` routes. */

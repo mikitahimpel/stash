@@ -36,8 +36,9 @@ Never import `@stash/backend-*`, `@stash/mcp-*` or `@stash/web-*`. oxlint enforc
 ## Platform
 
 `@stash/ext-platform` is the only package that touches `browser`, `chrome`, `fetch` or other
-runtime globals. It wraps `browser.tabs`, `browser.storage`, `browser.alarms` and
-`browser.commands` as Effect services, provides the authenticated api client (per-device API
+runtime globals. It wraps `browser.tabs`, `browser.storage`, `browser.alarms`,
+`browser.commands` and the toolbar button (`browser.browserAction` / `browser.action`) as Effect
+services, provides the authenticated api client (per-device API
 token), and exports in-memory layers as `./testing`. Differences between browsers, including the
 future Safari port, live only here.
 

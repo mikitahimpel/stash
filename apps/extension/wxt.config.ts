@@ -28,6 +28,16 @@ export default defineConfig({
     // `tabs`, `storage` and `alarms` for the `@stash/ext-platform` services. The API origin is
     // entered on the options page, so any http(s) origin may be the API.
     permissions: ["tabs", "storage", "alarms", "https://*/*", "http://*/*"],
+    // The toolbar button saves the current tab and shows the result as a badge. No popup, so a
+    // click reaches the background page.
+    browser_action: { default_title: "Save to Stash" },
+    // The names match the `commandName` of each feature in `@stash/ext-capture`.
+    commands: {
+      "save-current-tab": {
+        suggested_key: { default: "Alt+Shift+S" },
+        description: "Save the current tab to Stash",
+      },
+    },
     browser_specific_settings: {
       gecko: {
         id: "stash@extension",

@@ -1,5 +1,7 @@
 import * as Ai from "@stash/backend-platform/ai";
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as Vectors from "@stash/backend-platform/vectors";
 import { env } from "cloudflare:workers";
@@ -22,6 +24,8 @@ const missingBinding = (name: string) => () =>
 const platform = Layer.mergeAll(
   D1Database.layer(workerEnv.DB),
   StashConfig.layerFromEnv(workerEnv),
+  GithubOAuthConfig.layerFromEnv(workerEnv),
+  HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
   Vectors.layer(
     workerEnv.VECTORS ?? {

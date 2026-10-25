@@ -9,6 +9,10 @@ export class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthoriz
   message: Schema.String,
 }) {}
 
+export class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
+  message: Schema.String,
+}) {}
+
 export class RateLimited extends Schema.TaggedError<RateLimited>()("RateLimited", {
   retryAfterSeconds: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0))),
 }) {}

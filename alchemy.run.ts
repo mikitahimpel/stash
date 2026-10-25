@@ -9,6 +9,7 @@ import * as Alchemy from "alchemy";
 import * as State from "alchemy/State";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 
 // Migrations are applied in order on every reconcile (`alchemy dev` and deploy). Bookkeeping lives
 // in Alchemy's `__alchemy_migrations` table. Paths resolve from the repo root.
@@ -32,13 +33,21 @@ export default Alchemy.Stack(
     const dev = yield* Alchemy.ALCHEMY_DEV;
     // Personal values come from env. Local dev gets placeholders; a deploy requires real ones.
     // `dev_only` can never be a GitHub login (GitHub allows no underscores).
-    const devDefault = (config: Config.Config<string>, value: string) =>
+    const devDefault = <A>(config: Config.Config<A>, value: A) =>
       dev ? config.pipe(Config.withDefault(value)) : config;
     const allowedGithubLogin = yield* devDefault(
       Config.String("STASH_ALLOWED_GITHUB_LOGIN"),
       "dev_only",
     );
     const webOrigin = yield* devDefault(Config.String("STASH_WEB_ORIGIN"), "http://localhost:5173");
+    // The GitHub OAuth app (pass:// references in .env.example). Local dev gets placeholders, so
+    // the login redirect works but GitHub rejects it. The secret is Redacted, so Alchemy binds it
+    // as `secret_text`, never as a plain var.
+    const githubClientId = yield* devDefault(Config.String("GITHUB_OAUTH_CLIENT_ID"), "dev_only");
+    const githubClientSecret = yield* devDefault(
+      Config.Redacted("GITHUB_OAUTH_CLIENT_SECRET"),
+      Redacted.make("dev_only"),
+    );
 
     const db = yield* Database;
     const queue = yield* EnrichmentQueue;
@@ -50,6 +59,8 @@ export default Alchemy.Stack(
         ENRICHMENT_QUEUE: queue,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: webOrigin,
+        GITHUB_OAUTH_CLIENT_ID: githubClientId,
+        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
         SMOKE_ROUTES: dev ? "on" : "off",
       },
       dev: { host, port, strictPort: true },

@@ -47,8 +47,8 @@ and no implementations. Servers and clients live in their own contexts.
 ## HTTP mapping (`api/`)
 
 - Domain errors carry no HTTP status. `api/src/error-statuses.ts` (private) annotates them
-  (`NotFound` 404, `Unauthorized` 401, `Conflict` 409, `RateLimited` 429), and
-  groups attach those annotated schemas to endpoints.
+  (`ValidationError` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409,
+  `RateLimited` 429), and groups attach those annotated schemas to endpoints.
 - Every endpoint is guarded by `Authorization` from `./security` (bearer API token, then session
   cookie), except `auth.githubLogin` and `auth.githubCallback`.
 
