@@ -111,9 +111,28 @@ behind services.
 
 - The repo is public. Never commit secrets, tokens, account IDs, domains, real e-mail addresses or
   GitHub logins. Personal values come from env.
-- Secrets live in Proton Pass. `.env` holds `pass://<vault>/<item>/<field>` references and is
-  gitignored, while `.env.example` (with placeholders only) is committed. Run commands that need
-  secrets as `pp run --env-file .env -- <cmd>`.
+- Never hardcode, log or print secrets.
+
+## Secrets
+
+- Project secrets live in the Proton Pass vault **`Stash`**. There is one item per service, and
+  each field is named after the env var it feeds (`ANTHROPIC_API_KEY` →
+  `pass://Stash/anthropic/api_key`).
+- The committed root `.env.example` lists every reference. Copy it to `.env`, which is gitignored
+  and must stay that way. Both files hold only `pass://` references, never real values.
+
+  | Env var | Reference | Status |
+  |---|---|---|
+  | `ANTHROPIC_API_KEY` | `pass://Stash/anthropic/api_key` | exists |
+  | `GITHUB_OAUTH_CLIENT_ID` | `pass://Stash/github-oauth/client_id` | planned |
+  | `GITHUB_OAUTH_CLIENT_SECRET` | `pass://Stash/github-oauth/client_secret` | planned |
+  | `CLOUDFLARE_ACCOUNT_ID` | `pass://Stash/cloudflare/account_id` | planned |
+  | `CLOUDFLARE_API_TOKEN` | `pass://Stash/cloudflare/api_token` | planned |
+  | `SESSION_SECRET` | `pass://Stash/app/session_secret` | planned |
+
+- Run commands that need secrets as `pp run --env-file .env -- <cmd>`.
+- A new secret gets an item (or a field on the service's existing item) in `Stash`, plus a line
+  in `.env.example` and in this table.
 - User data never enters git. Test fixtures are synthetic: invented URLs (`https://example.com/...`),
   titles and devices. Migration dumps go to the gitignored `data/` folder.
 - `.alchemy/`, `.wrangler/` and `.env*` are gitignored. Keep them that way.
