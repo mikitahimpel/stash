@@ -11,7 +11,7 @@ export interface WorkerEnv
   extends
     StashConfig.Env,
     GithubOAuthConfig.Env,
-    Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE">,
+    Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE" | "KV">,
     Partial<Pick<Live.PlatformEnv, "VECTORS" | "AI">> {
   /** `"on"` only under `alchemy dev`; enables the `/_smoke/*` routes. */
   readonly SMOKE_ROUTES: string;

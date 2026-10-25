@@ -29,6 +29,7 @@ run it, and what to watch for.
 |---|---|---|
 | `Database` | `Cloudflare.D1.Database`, `migrations: ./apps/api/migrations` | `DB` (`D1Database`) |
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
+| `Kv` | `Cloudflare.KV.Namespace` (save rate limits) | `KV` (`KVNamespace`) |
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_OAUTH_CLIENT_ID`, `SMOKE_ROUTES`; secret `GITHUB_OAUTH_CLIENT_SECRET` |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
@@ -79,6 +80,7 @@ so the plan shows `create (local)` for all of them and makes **no Cloudflare API
 - `Api` runs in **workerd** (not Miniflare, though it is Miniflare-compatible) at
   `http://0.0.0.0:8787`, and hot reloads when `apps/api/src/**` changes.
 - D1 is a local SQLite simulator under `.alchemy/local/d1/`.
+- KV is a local simulator.
 - The queue is a local broker with batching, retry and dead-letter semantics. The consumer
   resource wires it to `Api`'s `queue()` handler in the same workerd.
 - Worker logs go to the terminal and to `.alchemy/log/<stage>/Api/*.log`.
@@ -95,7 +97,8 @@ variable removed and `STASH_API_PORT=8788` (or `STASH_SMOKE_PORT`). It then chec
 1. `GET /health` returns 200 `{"status":"ok"}` without credentials.
 2. The `StashApi`: `GET /links` without a credential answers 401. `POST /_smoke/api-token` seeds
    a device and the SHA-256 hash of a synthetic token, and that bearer token then lists itself on
-   `GET /tokens` and gets 501 `NotImplemented` from `GET /links`. A CORS preflight from
+   `GET /tokens`, saves a link twice on `POST /links` (the second save returns the same link),
+   finds it on `GET /links`, and gets 501 `NotImplemented` from `GET /devices`. A CORS preflight from
    `STASH_WEB_ORIGIN` (set by the test) is allowed with credentials, and other origins are not.
 3. `POST /_smoke/d1` inserts a row into D1 and reads it back.
    `GET /_smoke/schema` lists the tables, which shows the migrations in `apps/api/migrations` were
@@ -161,7 +164,6 @@ Check them again when you add them.
 | Need | Declare | Bind on the async `Api` Worker | Local in dev? |
 |---|---|---|---|
 | R2 bucket (page text, transcripts) | `Cloudflare.R2.Bucket("PageText")` | `env: { PAGE_TEXT: bucket }` → `R2Bucket` | yes, simulator |
-| KV namespace (OAuth state) | `Cloudflare.KV.Namespace("OAuthState")` | `env: { OAUTH_STATE: ns }` → `KVNamespace` | yes, simulator |
 | Vectorize index | `Cloudflare.Vectorize.Index("Embeddings", { dimensions: 1024, metric: "cosine" })` (bge-m3 is 1024-d) | documented only for Effect-native Workers (`Cloudflare.Vectorize.SearchIndex(index)`). `InferEnv` has no Vectorize case in beta.84, so async `env` support is unconfirmed | **no**, needs credentials |
 | Workers AI | — | `env: { AI: Cloudflare.Workers.AI() }` → `Ai` | **no**, needs credentials |
 | Cron triggers | `crons: ["0 3 * * *"]` prop on `Cloudflare.Worker` | export `scheduled()` from `worker.ts` | yes, fires on schedule; trigger manually via `/cdn-cgi/handler/scheduled` |

@@ -311,6 +311,9 @@ importers:
       '@stash/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@stash/backend-links':
+        specifier: workspace:*
+        version: link:../../packages/backend/links
       '@stash/backend-platform':
         specifier: workspace:*
         version: link:../../packages/backend/platform
