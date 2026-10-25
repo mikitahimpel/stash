@@ -1,0 +1,54 @@
+{
+  "version": ["sessionrestore", 1],
+  "spaces": [
+    { "uuid": "{space-work}", "name": "Work", "icon": "W" },
+    { "uuid": "{space-reading}", "name": "Reading" }
+  ],
+  "windows": [
+    {
+      "selected": 2,
+      "tabs": [
+        {
+          "entries": [
+            { "url": "https://example.com/start", "title": "Start page" },
+            { "url": "https://example.com/docs/guide", "title": "Example guide" }
+          ],
+          "index": 2,
+          "lastAccessed": 1767323045000,
+          "pinned": true,
+          "zenWorkspace": "{space-work}",
+          "hidden": false
+        },
+        {
+          "entries": [{ "url": "https://example.org/articles/economics-video", "title": "" }],
+          "index": 1,
+          "lastAccessed": 1767409445000,
+          "zenWorkspace": "{space-reading}"
+        },
+        {
+          "entries": [],
+          "lastAccessed": 1767409445000
+        }
+      ]
+    },
+    {
+      "spaces": [{ "uuid": "{space-unnamed}" }],
+      "tabs": [
+        {
+          "entries": [
+            { "url": "https://example.net/first", "title": "First" },
+            { "url": "https://example.net/second", "title": "Second" }
+          ],
+          "zenWorkspace": "{space-unnamed}"
+        },
+        {
+          "entries": [{ "url": "https://example.net/no-workspace", "title": "No workspace" }],
+          "index": 1,
+          "lastAccessed": 0
+        }
+      ]
+    }
+  ],
+  "_closedWindows": [],
+  "session": { "lastUpdate": 1767409445000 }
+}
