@@ -19,6 +19,7 @@
     "@lucide/vue": "catalog:",
     "@stash/web-api-client": "workspace:*",
     "@stash/web-platform": "workspace:*",
+    "@stash/web-search": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",
