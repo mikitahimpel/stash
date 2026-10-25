@@ -317,6 +317,12 @@ importers:
 
   apps/mac-agent:
     dependencies:
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(redis@6.3.0)
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../packages/contracts/api
       '@stash/contracts-domain':
         specifier: workspace:*
         version: link:../../packages/contracts/domain

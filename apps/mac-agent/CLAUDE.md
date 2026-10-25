@@ -45,6 +45,6 @@ a fake API layer.
 
 ## File naming
 
-- `src/main.ts`, `src/cloud-tabs-reader.ts`, `src/snapshot-poster.ts`
+- `src/main.ts`, `src/cloud-tabs-reader.ts`, `src/post-snapshots.ts`, `src/device-map.ts`
 - `launchd/com.example.stash-mac-agent.plist`
-- `test/cloud-tabs-reader.test.ts`
+- `test/cloud-tabs-reader.test.ts`, `test/fixtures/stub-api.ts`
