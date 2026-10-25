@@ -1,3 +1,4 @@
+import * as SaveCurrentTab from "@stash/ext-capture/save-current-tab";
 import * as CommandsPoller from "@stash/ext-device-commands/commands-poller";
 import * as Live from "@stash/ext-platform/live";
 import * as TabSync from "@stash/ext-tab-sync/tab-sync";
@@ -10,6 +11,7 @@ import { defineBackground } from "wxt/utils/define-background";
  * `@stash/ext-tab-sync`, `@stash/ext-device-commands`) merges its layer in here.
  */
 export const layer: Layer.Layer<never, never, Live.Services> = Layer.mergeAll(
+  SaveCurrentTab.layer,
   CommandsPoller.layer,
   TabSync.layer(),
 );

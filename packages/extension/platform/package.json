@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./browser-action": "./src/browser-action.ts",
     "./browser-alarms": "./src/browser-alarms.ts",
     "./browser-commands": "./src/browser-commands.ts",
     "./browser-error": "./src/browser-error.ts",

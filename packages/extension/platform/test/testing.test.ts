@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
+import * as ToolbarAction from "../src/browser-action.ts";
 import * as Alarms from "../src/browser-alarms.ts";
 import * as Commands from "../src/browser-commands.ts";
 import * as Storage from "../src/browser-storage.ts";
@@ -151,5 +152,23 @@ describe("testing layers", () => {
       expect(yield* workspaces.tabIds(research)).toEqual([1, 2]);
       expect(yield* workspaces.tabIds({ id: "ws-2", name: "Other" })).toEqual([]);
     }).pipe(Effect.provide(Testing.layerWorkspaces())),
+  );
+
+  it.effect("ToolbarAction records badges and emits clicks", () =>
+    Effect.gen(function* () {
+      const action = yield* ToolbarAction.ToolbarAction;
+      const test = yield* Testing.TestToolbarAction;
+      expect(yield* test.badge).toEqual(Option.none());
+      const saved = { text: "OK", color: "#2e7d32", title: null };
+      yield* action.setBadge(saved);
+      expect(yield* test.badge).toEqual(Option.some(saved));
+      yield* action.setBadge(null);
+      expect(yield* test.badge).toEqual(Option.none());
+      expect(yield* test.history).toEqual([saved, null]);
+      const fiber = yield* action.clicked.pipe(Stream.take(1), Stream.runCollect, Effect.forkChild);
+      yield* settle;
+      yield* test.click;
+      expect(yield* Fiber.join(fiber)).toEqual([undefined]);
+    }).pipe(Effect.provide(Testing.layerToolbarAction)),
   );
 });
