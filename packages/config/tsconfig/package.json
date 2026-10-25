@@ -1,0 +1,29 @@
+{
+  "name": "@stash/config-tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./base.json": "./base.json",
+    "./workers.json": "./workers.json",
+    "./web.json": "./web.json",
+    "./extension.json": "./extension.json",
+    "./node.json": "./node.json"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@types/firefox-webext-browser": "catalog:",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

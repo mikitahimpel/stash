@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "//#lint:root": {
+      "inputs": ["$TURBO_ROOT$/*.{ts,mts,js,mjs,json}", "$TURBO_ROOT$/.oxlintrc.json"]
+    },
+    "//#format:check:root": {
+      "inputs": [
+        "$TURBO_ROOT$/*",
+        "$TURBO_ROOT$/.*",
+        "$TURBO_ROOT$/docs/**",
+        "$TURBO_ROOT$/.github/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["//#lint:root"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxlintrc.json"]
+    },
+    "format:check": {
+      "dependsOn": ["//#format:check:root"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.oxfmtrc.json"]
+    },
+    "typecheck": {
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.config.ts"]
+    }
+  }
+}
