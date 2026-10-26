@@ -173,6 +173,9 @@ catalogs:
     '@cloudflare/workers-types':
       specifier: 5.20261023.1
       version: 5.20261023.1
+    '@effect/ai-anthropic':
+      specifier: 4.0.6
+      version: 4.0.6
     '@effect/atom-vue':
       specifier: 4.0.6
       version: 4.0.6
@@ -320,6 +323,9 @@ importers:
       '@stash/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@stash/backend-enrichment':
+        specifier: workspace:*
+        version: link:../../packages/backend/enrichment
       '@stash/backend-links':
         specifier: workspace:*
         version: link:../../packages/backend/links
@@ -651,6 +657,9 @@ importers:
 
   packages/backend/enrichment:
     dependencies:
+      '@effect/ai-anthropic':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)
       '@stash/backend-platform':
         specifier: workspace:*
         version: link:../platform
@@ -667,6 +676,9 @@ importers:
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/backend-links':
+        specifier: workspace:*
+        version: link:../links
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
@@ -1530,6 +1542,11 @@ packages:
     resolution: {integrity: sha512-hO9Kqc91dq7SLBCagxlr2RDSTbp7/urqjfxNitSNaaOyKIsUr85llsADT/rS6H85ezOsGf2vSP5y1Qk0kQWLCg==}
     peerDependencies:
       effect: ^4.0.5
+
+  '@effect/ai-anthropic@4.0.6':
+    resolution: {integrity: sha512-hGMzHIWCgUN0r02wWAIjaaIHK6HU+BXRVZiRbsT/zWwG0BwdYu0YPNuPOQwoqwOUANa7T2bhF+ghHaWcPfL9Xg==}
+    peerDependencies:
+      effect: ^4.0.6
 
   '@effect/atom-vue@4.0.6':
     resolution: {integrity: sha512-JpbRYTBmVYyOBVVqnuzqgcoGbuBrw7r6skx6Al8YB2NFLUGskWqfJey+TY+fACr0qoUsGuDhlWYkzaiEm8/qmw==}
@@ -3982,6 +3999,10 @@ snapshots:
   '@distilled.cloud/iceberg@1.0.0-rc.17(effect@4.0.6)':
     dependencies:
       '@distilled.cloud/core': 1.0.0-rc.17(effect@4.0.6)
+      effect: 4.0.6
+
+  '@effect/ai-anthropic@4.0.6(effect@4.0.6)':
+    dependencies:
       effect: 4.0.6
 
   '@effect/atom-vue@4.0.6(effect@4.0.6)(vue@3.5.44(typescript@6.0.3))':
