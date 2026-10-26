@@ -12,6 +12,7 @@ const digest: Digest.Digest = {
   generatedAt: DateTime.makeUnsafe("2026-01-08T00:00:00.000Z"),
   totals: { saved: 3, seen: 2, done: 1, archived: 0 },
   topTags: [{ name: Tag.TagName.make("economics"), count: 2 }],
+  topTypes: [{ type: "video", count: 1 }],
   highlights: [
     {
       linkId: Link.LinkId.make("link-1"),
@@ -44,6 +45,7 @@ describe("get_latest_digest", () => {
           generatedAt: "2026-01-08T00:00:00.000Z",
           totals: { saved: 3, seen: 2, done: 1, archived: 0 },
           topTags: [{ name: "economics", count: 2 }],
+          topTypes: [{ type: "video", count: 1 }],
           highlights: [
             {
               linkId: "link-1",
