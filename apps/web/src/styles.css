@@ -2,3 +2,6 @@
 
 /* The app shell lives in this package, so Tailwind scans it from here. */
 @source "./";
+
+/* Feature packages live in node_modules from here, so scan their sources explicitly. */
+@source "../node_modules/@stash/web-open-tabs/src";
