@@ -144,10 +144,11 @@ describe("alchemy dev (local, no credentials)", () => {
       items: expect.arrayContaining([expect.objectContaining({ id: link.id })]),
     });
 
-    // Groups whose feature has not landed answer 501.
+    // The digest group is served. Local D1 state persists across runs, so a digest a cron built in
+    // an earlier session may exist; otherwise it answers 404 until the first one is built.
     const digest = await call("GET", "/digest/latest", { headers: { authorization } });
-    expect(digest.status).toBe(501);
-    expect(JSON.parse(digest.body)).toEqual({ _tag: "NotImplemented", endpoint: "digest.latest" });
+    expect([200, 404]).toContain(digest.status);
+    if (digest.status === 404) expect(JSON.parse(digest.body)).toMatchObject({ _tag: "NotFound" });
 
     // `alchemy dev` has no Vectorize or Workers AI: hybrid search answers from FTS5 alone, and
     // semantic search fails.

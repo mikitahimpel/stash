@@ -1,9 +1,8 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
 // routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), links
-// search, tabs and devices are served, unimplemented groups answer 501, and CORS follows the web origin. D1 is
-// the in-memory platform layer with this package's migrations applied, and GitHub is never called.
-// The same checks run
-// against the real Worker in workerd in `local-dev-smoke.test.ts`.
+// search, tabs, devices and the digest are served, and CORS follows the web origin. D1 is the
+// in-memory platform layer with this package's migrations applied, and GitHub is never called.
+// The same checks run against the real Worker in workerd in `local-dev-smoke.test.ts`.
 import * as ApiTokenSecret from "@stash/backend-auth/api-token-secret";
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionToken from "@stash/backend-auth/session-token";
@@ -191,10 +190,10 @@ describe("composed API", () => {
     expect((await request("GET", "/devices", bearer)).status).toBe(200);
   });
 
-  it("answers 501 NotImplemented for groups that have not landed", async () => {
+  it("serves the digest group: 404 until the first digest is built", async () => {
     const response = await request("GET", "/digest/latest", bearer);
-    expect(response.status).toBe(501);
-    expect(await response.json()).toEqual({ _tag: "NotImplemented", endpoint: "digest.latest" });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ _tag: "NotFound", resource: "digest" });
   });
 
   it("starts the GitHub login without credentials", async () => {
