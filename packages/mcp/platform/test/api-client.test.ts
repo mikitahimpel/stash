@@ -12,6 +12,7 @@ const digest = {
   generatedAt: "2026-01-08T00:00:00.000Z",
   totals: { saved: 3, seen: 2, done: 1, archived: 0 },
   topTags: [],
+  topTypes: [],
   highlights: [],
 };
 

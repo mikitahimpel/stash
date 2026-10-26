@@ -83,6 +83,9 @@ export default Alchemy.Stack(
         GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
         SMOKE_ROUTES: dev ? "on" : "off",
       },
+      // Auto-archive of stale Zen tabs (daily) and the weekly digest (Mondays), in UTC. Must match
+      // the expressions in apps/api/src/scheduled-handler.ts, which dispatches on them.
+      crons: ["0 3 * * *", "0 6 * * 1"],
       dev: { host, port, strictPort: true },
     });
 

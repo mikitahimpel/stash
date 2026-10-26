@@ -45,9 +45,10 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
 ## File naming
 
 - `src/worker.ts` (entry), `src/api-layer.ts`, `src/queue-handler.ts`, `src/scheduled-handler.ts`
-- `src/handlers.ts`: one handler layer per `StashApi` group. A group whose feature has not landed
-  is `notImplemented("<group>")` (501, `src/not-implemented.ts`). A feature replaces its line with
-  its package's handler layer and adds the package to `dependencies`.
+- `src/handlers.ts`: one handler layer per `StashApi` group, each from its feature package (listed
+  in `dependencies`).
+- `src/scheduled-handler.ts`: the cron expressions and the job each one runs. Keep them in sync
+  with `crons` on the `Api` Worker in the root `alchemy.run.ts`.
 - `src/smoke-routes.ts`: dev-only `/_smoke/*` routes (on only under `alchemy dev`).
 - `src/worker-env.ts`: binding types. Keep it in sync with the `Api` Worker's `env` in the root
   `alchemy.run.ts` (see [docs/alchemy.md](../../docs/alchemy.md)).

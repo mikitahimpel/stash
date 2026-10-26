@@ -3,6 +3,7 @@ import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
+import * as DigestsRepo from "@stash/backend-digest/digests-repo";
 import type * as Ai from "@stash/backend-platform/ai";
 import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
@@ -70,6 +71,7 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(SearchService.layer),
       Layer.provide(SearchRepo.layer),
       Layer.provide(Layer.mergeAll(DevicesRepo.layer, OpenTabsRepo.layer, CommandsRepo.layer)),
+      Layer.provide(DigestsRepo.layer),
       Layer.provide(LinksRepo.layer),
       Layer.provide(SaveRateLimiter.layer()),
     ),
