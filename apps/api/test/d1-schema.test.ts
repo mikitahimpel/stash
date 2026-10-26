@@ -109,6 +109,13 @@ describe("D1 migrations", () => {
     });
   });
 
+  it("records when a device's tabs snapshot was taken", () => {
+    db.exec("INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen')");
+    expect(db.prepare("SELECT tabs_taken_at FROM devices WHERE id = 'd1'").get()).toEqual({
+      tabs_taken_at: null,
+    });
+  });
+
   it("removes a link's tags when the link is deleted", () => {
     db.exec(`
       INSERT INTO links (id, url) VALUES ('l1', 'https://example.com/a');

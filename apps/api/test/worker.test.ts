@@ -1,6 +1,6 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
 // routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), links
-// and search are served, unimplemented groups answer 501, and CORS follows the web origin. D1 is
+// search, tabs and devices are served, unimplemented groups answer 501, and CORS follows the web origin. D1 is
 // the in-memory platform layer with this package's migrations applied, and GitHub is never called.
 // The same checks run
 // against the real Worker in workerd in `local-dev-smoke.test.ts`.
@@ -39,6 +39,7 @@ const layerDatabase = Layer.effectDiscard(
     const sessionId = yield* SessionToken.hash(Redacted.make(session));
     yield* db.batch([
       D1Database.sql`INSERT INTO devices (id, name, kind) VALUES ('device-1', 'Synthetic Zen', 'zen')`,
+      D1Database.sql`INSERT INTO devices (id, name, kind) VALUES ('device-2', 'Other Zen', 'zen')`,
       D1Database.sql`INSERT INTO api_tokens (id, device_id, hash) VALUES ('token-1', 'device-1', ${hash})`,
       D1Database.sql`INSERT INTO links (id, url, title, type) VALUES ('link-1', 'https://example.com/a', 'Economics explained', 'article')`,
       D1Database.sql`INSERT INTO sessions (id, github_login, expires_at)
@@ -161,10 +162,39 @@ describe("composed API", () => {
     expect(response.status).toBe(400);
   });
 
+  it("serves the tabs and devices groups, keeping a device to its own tabs and commands", async () => {
+    const tabs = { takenAt: "2026-01-01T00:00:00.000Z", tabs: [] };
+    expect((await request("PUT", "/devices/device-1/tabs", bearer, tabs)).status).toBe(204);
+    const other = await request("PUT", "/devices/device-2/tabs", bearer, tabs);
+    expect(other.status).toBe(403);
+    expect(await other.json()).toMatchObject({ _tag: "Forbidden" });
+    expect((await request("GET", "/devices/device-2/commands", bearer)).status).toBe(403);
+    expect((await request("PUT", "/devices/device-1/tabs", {}, tabs)).status).toBe(401);
+
+    const listed = await request("GET", "/tabs", cookie);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({
+      devices: expect.arrayContaining([
+        expect.objectContaining({ device: expect.objectContaining({ id: "device-1" }) }),
+      ]),
+    });
+
+    const sent = await request("POST", "/devices/device-1/commands", cookie, {
+      kind: "close-tab",
+      url: "https://example.com/tab",
+    });
+    expect(sent.status).toBe(201);
+    const command = (await sent.json()) as { id: string };
+    const ack = await request("POST", `/commands/${command.id}/ack`, bearer, { status: "done" });
+    expect(ack.status).toBe(200);
+    expect(await ack.json()).toMatchObject({ id: command.id, status: "done" });
+    expect((await request("GET", "/devices", bearer)).status).toBe(200);
+  });
+
   it("answers 501 NotImplemented for groups that have not landed", async () => {
-    const response = await request("GET", "/devices", bearer);
+    const response = await request("GET", "/digest/latest", bearer);
     expect(response.status).toBe(501);
-    expect(await response.json()).toEqual({ _tag: "NotImplemented", endpoint: "devices.list" });
+    expect(await response.json()).toEqual({ _tag: "NotImplemented", endpoint: "digest.latest" });
   });
 
   it("starts the GitHub login without credentials", async () => {

@@ -42,12 +42,13 @@ export type ArchivedTab = typeof ArchivedTab.Type;
 
 export class TabsGroup extends HttpApiGroup.make("tabs")
   .add(
-    // Replaces the device's previous snapshot.
+    // Replaces the device's previous snapshot. `Forbidden` when a device token reports for a
+    // device it may not write.
     HttpApiEndpoint.put("report", "/devices/:id/tabs", {
       params: { id: Device.DeviceId },
       payload: ReportTabs,
       success: HttpApiSchema.NoContent,
-      error: ErrorStatuses.NotFound,
+      error: [ErrorStatuses.NotFound, ErrorStatuses.Forbidden],
     }),
     HttpApiEndpoint.get("list", "/tabs", {
       success: AllTabs,
