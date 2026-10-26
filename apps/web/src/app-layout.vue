@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { AppWindow, Link, Search, Settings } from "@lucide/vue";
-import { RouterLink, RouterView } from "vue-router";
+import LogoutButton from "@stash/web-auth/logout-button";
+import * as Auth from "@stash/web-auth/routes";
+import { RouterLink, RouterView, useRoute } from "vue-router";
+
+const route = useRoute();
 
 const nav = [
   { name: "links", label: "Links", icon: Link },
@@ -11,7 +15,9 @@ const nav = [
 </script>
 
 <template>
-  <div class="flex min-h-dvh flex-col bg-background text-foreground">
+  <!-- The login page brings its own full-screen layout, without the nav. -->
+  <RouterView v-if="Auth.isPublic(route)" />
+  <div v-else class="flex min-h-dvh flex-col bg-background text-foreground">
     <header
       class="sticky top-0 z-10 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur"
     >
@@ -28,6 +34,7 @@ const nav = [
             {{ item.label }}
           </RouterLink>
         </nav>
+        <LogoutButton class="ml-auto" />
       </div>
     </header>
 

@@ -6,7 +6,9 @@ import * as AppRegistry from "./app-registry.ts";
 import * as AppRouter from "./app-router.ts";
 import "./styles.css";
 
+const registry = AppRegistry.make();
+
 createApp(AppLayout)
-  .provide(AtomVue.registryKey, AppRegistry.make())
-  .use(AppRouter.make(createWebHistory(import.meta.env.BASE_URL)))
+  .provide(AtomVue.registryKey, registry)
+  .use(AppRouter.make(createWebHistory(import.meta.env.BASE_URL), registry))
   .mount("#app");

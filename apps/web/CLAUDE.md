@@ -4,9 +4,10 @@ Read the root [CLAUDE.md](../../CLAUDE.md) and [packages/web/CLAUDE.md](../../pa
 
 ## Purpose
 
-The Vue 3 SPA shell: Vite config, router, layout, login and auth guard, and the PWA manifest. It is
-served as Workers Static Assets. It mounts the routes exported by `packages/web/*` and provides the
-live layers. It holds no feature logic.
+The Vue 3 SPA shell: Vite config, router, layout and the PWA manifest. It is served as Workers
+Static Assets. It mounts the routes exported by `packages/web/*` (including the login route) and
+provides the live layers. `src/app-router.ts` installs the auth guard from `@stash/web-auth`. It
+holds no feature logic.
 
 ## May depend on
 
@@ -43,7 +44,7 @@ Feature behavior is tested in `packages/web/*`.
 
 ## File naming
 
-- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`, `src/login-page.vue`, `src/auth-guard.ts`
+- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`
 - `src/app-registry.ts` (the atom registry with the live layers), `src/placeholder-routes.ts` and
   `src/placeholder-page.vue` (stand-ins until each feature package exports its `./routes`)
 - `vite.config.ts`, `public/manifest.webmanifest`, `public/icons/*`

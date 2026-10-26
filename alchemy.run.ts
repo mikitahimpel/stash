@@ -21,6 +21,8 @@ export const EnrichmentQueue = Cloudflare.Queues.Queue("EnrichmentQueue");
 
 // OAuth clients, grants and tokens of the MCP server (`@cloudflare/workers-oauth-provider`).
 export const OAuthState = Cloudflare.KV.Namespace("OAuthState");
+// Save rate limits of the `Api` Worker.
+export const Kv = Cloudflare.KV.Namespace("Kv");
 
 export default Alchemy.Stack(
   "stash",
@@ -67,12 +69,14 @@ export default Alchemy.Stack(
     const db = yield* Database;
     const queue = yield* EnrichmentQueue;
     const oauthState = yield* OAuthState;
+    const kv = yield* Kv;
 
     const api = yield* Cloudflare.Worker("Api", {
       main: "./apps/api/src/worker.ts",
       env: {
         DB: db,
         ENRICHMENT_QUEUE: queue,
+        KV: kv,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: webOrigin,
         GITHUB_OAUTH_CLIENT_ID: githubClientId,

@@ -4,8 +4,12 @@ import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
 import type * as Ai from "@stash/backend-platform/ai";
+import * as LinksRepo from "@stash/backend-links/links-repo";
+import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as D1Database from "@stash/backend-platform/d1-database";
+import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import type * as Kv from "@stash/backend-platform/kv";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as Vectors from "@stash/backend-platform/vectors";
 import * as SearchRepo from "@stash/backend-search/search-repo";
@@ -23,6 +27,8 @@ import * as Handlers from "./handlers.ts";
 /** The platform services the composed API needs. The Worker builds them from `env`. */
 export type Requirements =
   | D1Database.Database
+  | EnrichmentQueue.EnrichmentQueue
+  | Kv.Kv
   | StashConfig.StashConfig
   | GithubOAuthConfig.GithubOAuthConfig
   | HttpClient.HttpClient
@@ -60,6 +66,8 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, SessionsRepo.layer)),
       Layer.provide(SearchService.layer),
       Layer.provide(SearchRepo.layer),
+      Layer.provide(LinksRepo.layer),
+      Layer.provide(SaveRateLimiter.layer()),
     ),
     health,
     cors,

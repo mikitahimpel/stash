@@ -131,10 +131,23 @@ describe("alchemy dev (local, no credentials)", () => {
       expect.arrayContaining([expect.objectContaining({ id: tokenId, revokedAt: null })]),
     );
 
-    // Past the middleware, groups whose feature has not landed answer 501.
+    // Past the middleware, the links group saves into D1 (deduping) and lists.
+    const body = { url: `https://example.com/smoke/${tokenId}` };
+    const saved = await call("POST", "/links", { headers: { authorization }, body });
+    expect(saved.status).toBe(201);
+    const link = JSON.parse(saved.body) as { id: string };
+    const again = await call("POST", "/links", { headers: { authorization }, body });
+    expect(JSON.parse(again.body)).toMatchObject({ id: link.id });
     const links = await call("GET", "/links", { headers: { authorization } });
-    expect(links.status).toBe(501);
-    expect(JSON.parse(links.body)).toEqual({ _tag: "NotImplemented", endpoint: "links.list" });
+    expect(links.status).toBe(200);
+    expect(JSON.parse(links.body)).toMatchObject({
+      items: expect.arrayContaining([expect.objectContaining({ id: link.id })]),
+    });
+
+    // Groups whose feature has not landed answer 501.
+    const devices = await call("GET", "/devices", { headers: { authorization } });
+    expect(devices.status).toBe(501);
+    expect(JSON.parse(devices.body)).toEqual({ _tag: "NotImplemented", endpoint: "devices.list" });
 
     // `alchemy dev` has no Vectorize or Workers AI: hybrid search answers from FTS5 alone, and
     // semantic search fails.

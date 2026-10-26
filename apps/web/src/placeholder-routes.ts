@@ -13,8 +13,6 @@ const placeholder = (path: string, name: string, title: string): RouteRecordRaw 
 
 export const links: ReadonlyArray<RouteRecordRaw> = [placeholder("/links", "links", "Links")];
 
-export const search: ReadonlyArray<RouteRecordRaw> = [placeholder("/search", "search", "Search")];
-
 export const settings: ReadonlyArray<RouteRecordRaw> = [
   placeholder("/settings", "settings", "Settings"),
 ];
