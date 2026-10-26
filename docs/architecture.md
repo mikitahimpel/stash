@@ -134,7 +134,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 - `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, source_device_id, created_at, enriched_at
 - `tags`, `link_tags`
-- `devices`: id, name, kind (`zen` / `ios` / `mac-agent`)
+- `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)
 - `commands`: id, device_id, kind (`close-tab`, …), payload, status
 - `api_tokens`: id, device_id, hash, created_at, revoked_at

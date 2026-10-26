@@ -1,0 +1,46 @@
+{
+  "name": "@stash/backend-tabs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./device-access": "./src/device-access.ts",
+    "./archive-tab": "./src/archive-tab.ts",
+    "./tabs-handlers": "./src/tabs-handlers.ts",
+    "./devices-handlers": "./src/devices-handlers.ts",
+    "./devices-repo": "./src/devices/devices-repo.ts",
+    "./register-device": "./src/devices/register-device.ts",
+    "./list-devices": "./src/devices/list-devices.ts",
+    "./open-tabs-repo": "./src/snapshots/open-tabs-repo.ts",
+    "./replace-tabs-snapshot": "./src/snapshots/replace-tabs-snapshot.ts",
+    "./list-open-tabs": "./src/snapshots/list-open-tabs.ts",
+    "./commands-repo": "./src/commands/commands-repo.ts",
+    "./enqueue-command": "./src/commands/enqueue-command.ts",
+    "./list-pending-commands": "./src/commands/list-pending-commands.ts",
+    "./ack-command": "./src/commands/ack-command.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-links": "workspace:*",
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

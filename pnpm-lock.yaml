@@ -329,6 +329,9 @@ importers:
       '@stash/backend-search':
         specifier: workspace:*
         version: link:../../packages/backend/search
+      '@stash/backend-tabs':
+        specifier: workspace:*
+        version: link:../../packages/backend/tabs
       '@stash/contracts-api':
         specifier: workspace:*
         version: link:../../packages/contracts/api
@@ -768,6 +771,49 @@ importers:
 
   packages/backend/search:
     dependencies:
+      '@stash/backend-platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261023.1
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/backend/tabs:
+    dependencies:
+      '@stash/backend-links':
+        specifier: workspace:*
+        version: link:../links
       '@stash/backend-platform':
         specifier: workspace:*
         version: link:../platform
