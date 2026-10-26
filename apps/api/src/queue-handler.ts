@@ -1,10 +1,11 @@
+import * as EnrichLink from "@stash/backend-enrichment/enrich-link";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-/** Handles one enrichment message. The enrichment feature provides the real layer. */
+/** Handles one enrichment message. */
 export class EnrichmentConsumer extends Context.Service<
   EnrichmentConsumer,
   {
@@ -12,10 +13,35 @@ export class EnrichmentConsumer extends Context.Service<
   }
 >()("@stash/api/EnrichmentConsumer") {}
 
-/** Logs each message and does nothing else, until enrichment lands. */
+const received = (message: EnrichmentQueue.EnrichmentMessage) =>
+  Effect.log(`enrichment: received ${message.linkId}`);
+
+/** Logs each message and does nothing else. */
 export const layerNoop: Layer.Layer<EnrichmentConsumer> = Layer.succeed(EnrichmentConsumer)({
-  consume: (message) => Effect.log(`enrichment: received ${message.linkId}`),
+  consume: received,
 });
+
+/**
+ * Runs the enrichment pipeline for each message. Permanent failures are marked on the link and
+ * succeed, so only transient failures reach `handleBatch` and are retried.
+ */
+export const layer: Layer.Layer<EnrichmentConsumer, never, EnrichLink.Requirements> = Layer.effect(
+  EnrichmentConsumer,
+)(
+  Effect.gen(function* () {
+    const context = yield* Effect.context<EnrichLink.Requirements>();
+    return {
+      consume: (message) =>
+        received(message).pipe(
+          Effect.andThen(EnrichLink.enrichLink(message.linkId)),
+          Effect.tap((outcome) =>
+            Effect.log(`enrichment: ${message.linkId} ${outcome._tag.toLowerCase()}`),
+          ),
+          Effect.provideContext(context),
+        ),
+    };
+  }),
+);
 
 /** The part of a queue message this handler uses. `Message` satisfies it. */
 export interface QueueMessage {

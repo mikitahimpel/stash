@@ -23,6 +23,7 @@
     "@stash/web-open-tabs": "workspace:*",
     "@stash/web-platform": "workspace:*",
     "@stash/web-search": "workspace:*",
+    "@stash/web-settings": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",

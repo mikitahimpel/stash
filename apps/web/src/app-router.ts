@@ -5,14 +5,14 @@ import * as Links from "@stash/web-links/routes";
 import * as OpenTabs from "@stash/web-open-tabs/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Search from "@stash/web-search/routes";
-import * as Placeholder from "./placeholder-routes.ts";
+import * as Settings from "@stash/web-settings/routes";
 
 /** The routes of every feature package, mounted at the top level. */
 export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Links.routes,
   ...Search.routes,
   ...OpenTabs.routes,
-  ...Placeholder.settings,
+  ...Settings.routes,
 ];
 
 export const routes: ReadonlyArray<RouteRecordRaw> = [

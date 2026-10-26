@@ -145,9 +145,9 @@ describe("alchemy dev (local, no credentials)", () => {
     });
 
     // Groups whose feature has not landed answer 501.
-    const devices = await call("GET", "/devices", { headers: { authorization } });
-    expect(devices.status).toBe(501);
-    expect(JSON.parse(devices.body)).toEqual({ _tag: "NotImplemented", endpoint: "devices.list" });
+    const digest = await call("GET", "/digest/latest", { headers: { authorization } });
+    expect(digest.status).toBe(501);
+    expect(JSON.parse(digest.body)).toEqual({ _tag: "NotImplemented", endpoint: "digest.latest" });
 
     // `alchemy dev` has no Vectorize or Workers AI: hybrid search answers from FTS5 alone, and
     // semantic search fails.

@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@stash/backend-auth": "workspace:*",
+    "@stash/backend-enrichment": "workspace:*",
     "@stash/backend-links": "workspace:*",
     "@stash/backend-platform": "workspace:*",
     "@stash/backend-search": "workspace:*",
+    "@stash/backend-tabs": "workspace:*",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"

@@ -2,6 +2,8 @@ import * as AuthHandlers from "@stash/backend-auth/auth-handlers";
 import * as LinksHandlers from "@stash/backend-links/links-handlers";
 import * as TokensHandlers from "@stash/backend-auth/tokens-handlers";
 import * as SearchHandlers from "@stash/backend-search/search-handlers";
+import * as DevicesHandlers from "@stash/backend-tabs/devices-handlers";
+import * as TabsHandlers from "@stash/backend-tabs/tabs-handlers";
 import * as Api from "@stash/contracts-api/api";
 import type * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
@@ -35,8 +37,8 @@ const notImplemented = <const Name extends GroupName>(
 export const layer = Layer.mergeAll(
   LinksHandlers.layer,
   SearchHandlers.layer,
-  notImplemented("tabs"),
-  notImplemented("devices"),
+  TabsHandlers.layer,
+  DevicesHandlers.layer,
   TokensHandlers.layer,
   AuthHandlers.layer,
   notImplemented("digest"),
