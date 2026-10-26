@@ -1,4 +1,8 @@
+import * as ClassifyLink from "@stash/backend-enrichment/classify-link";
+import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as Ai from "@stash/backend-platform/ai";
+import * as AnthropicConfig from "@stash/backend-platform/anthropic-config";
+import * as Blobs from "@stash/backend-platform/blobs";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
@@ -40,6 +44,30 @@ const platform = Layer.mergeAll(
   ),
 );
 
+// The enrichment consumer's services. The Anthropic key is a Worker secret. Without it, or without
+// the R2 bucket, every message fails and is retried, and nothing is marked as failed.
+const enrichment = QueueHandler.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      EnrichmentRepo.layer,
+      workerEnv.ANTHROPIC_API_KEY === undefined
+        ? ClassifyLink.layerMissingKey
+        : ClassifyLink.layerAnthropic.pipe(
+            Layer.provide(AnthropicConfig.layerFromEnv(workerEnv)),
+            Layer.orDie,
+          ),
+      Blobs.layer(
+        workerEnv.BLOBS ?? {
+          put: missingBinding("BLOBS"),
+          get: missingBinding("BLOBS"),
+          delete: missingBinding("BLOBS"),
+        },
+      ),
+    ),
+  ),
+  Layer.provide(platform),
+);
+
 // Built once per isolate at module scope, as Workers require: fibers started inside `fetch` would
 // capture that request's context. Global scope allows no timers, so fibers run on a sync scheduler.
 const syncScheduler = Layer.succeed(Scheduler.Scheduler)(new Scheduler.MixedScheduler("sync"));
@@ -54,7 +82,7 @@ export default {
 
   async queue(batch): Promise<void> {
     await Effect.runPromise(
-      QueueHandler.handleBatch(batch.messages).pipe(Effect.provide(QueueHandler.layerNoop)),
+      QueueHandler.handleBatch(batch.messages).pipe(Effect.provide(enrichment)),
     );
   },
 

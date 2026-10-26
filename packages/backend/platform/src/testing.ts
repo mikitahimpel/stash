@@ -7,6 +7,7 @@ import * as Queue from "effect/Queue";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Ai from "./ai.ts";
+import * as AnthropicConfig from "./anthropic-config.ts";
 import * as Blobs from "./blobs.ts";
 import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
@@ -210,6 +211,11 @@ export const layerGithubOAuthConfig: Layer.Layer<GithubOAuthConfig.GithubOAuthCo
     clientId: "synthetic-client-id",
     clientSecret: Redacted.make("synthetic-client-secret"),
   });
+
+/** A synthetic Anthropic key. It is a placeholder, not a real secret. */
+export const layerAnthropicConfig: Layer.Layer<AnthropicConfig.AnthropicConfig> = Layer.succeed(
+  AnthropicConfig.AnthropicConfig,
+)({ apiKey: Redacted.make("synthetic-anthropic-key") });
 
 /** Every service from `./live`, in memory, plus the queue's consumer side. */
 export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue> = Layer.mergeAll(

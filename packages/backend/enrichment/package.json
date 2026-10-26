@@ -5,9 +5,14 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./classify-link": "./src/classify-link.ts",
     "./content-http": "./src/content-http.ts",
     "./content-text": "./src/content-text.ts",
     "./detect-language": "./src/detect-language.ts",
+    "./embed-link": "./src/embed-link.ts",
+    "./enrich-link": "./src/enrich-link.ts",
+    "./enrich-policy": "./src/enrich-policy.ts",
+    "./enrichment-repo": "./src/enrichment-repo.ts",
     "./fetch-content": "./src/fetch-content.ts",
     "./fetch-page-text": "./src/fetch-page-text.ts",
     "./fetch-youtube-transcript": "./src/fetch-youtube-transcript.ts",
@@ -21,6 +26,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@effect/ai-anthropic": "catalog:",
     "@stash/backend-platform": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
@@ -28,6 +34,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
+    "@stash/backend-links": "workspace:*",
     "@stash/config-tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "oxfmt": "catalog:",

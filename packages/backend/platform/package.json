@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./ai": "./src/ai.ts",
+    "./anthropic-config": "./src/anthropic-config.ts",
     "./blobs": "./src/blobs.ts",
     "./d1-database": "./src/d1-database.ts",
     "./enrichment-queue": "./src/enrichment-queue.ts",
