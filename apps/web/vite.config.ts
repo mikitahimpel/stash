@@ -22,9 +22,19 @@ const checkManifest = (): Plugin => {
   };
 };
 
+// Vite rejects requests whose Host header isn't on its allowlist, which blocks opening the dev
+// server by hostname from another machine. `STASH_DEV_ALLOWED_HOSTS` (comma-separated) adds hosts
+// to it. Unset or empty keeps Vite's default.
+const allowedHosts = (process.env["STASH_DEV_ALLOWED_HOSTS"] ?? "")
+  .split(",")
+  .map((host) => host.trim())
+  .filter((host) => host.length > 0);
+const hostsConfig = allowedHosts.length > 0 ? { allowedHosts } : {};
+
 // `pnpm dev` binds 0.0.0.0 through `--host` in package.json, so the dev server opens from other
 // machines.
 export default defineConfig({
   plugins: [vue(), tailwindcss(), checkManifest()],
-  server: { port: 5173 },
+  server: { port: 5173, ...hostsConfig },
+  preview: hostsConfig,
 });

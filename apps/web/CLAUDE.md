@@ -31,6 +31,11 @@ app shell doesn't use them either.
 ## Rules
 
 - Dev server: `vite --host 0.0.0.0` so it opens from other machines.
+- Vite blocks requests whose `Host` header isn't on its allowlist. To open the dev or preview
+  server by hostname (for example a Tailscale name), list the extra hosts in
+  `STASH_DEV_ALLOWED_HOSTS` (comma-separated): `STASH_DEV_ALLOWED_HOSTS=myhost pnpm dev:web`.
+  `vite.config.ts` reads it into `server.allowedHosts` and `preview.allowedHosts`. Unset keeps
+  Vite's default. Never hardcode machine names.
 - The API base URL comes from Vite env (`import.meta.env`), never hardcoded.
 - Adding a page means adding a route export in a feature package and mounting it here: in
   `src/app-router.ts`, replace the feature's placeholder from `src/placeholder-routes.ts` with
