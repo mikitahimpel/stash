@@ -30,6 +30,7 @@ const mountApp = async (path = "/", signedIn = true) => {
 describe("app router", () => {
   it.each([
     ["/links", "links"],
+    ["/links/link-1", "link-details"],
     ["/search", "search"],
     ["/open-now", "open-tabs"],
     ["/settings", "settings"],

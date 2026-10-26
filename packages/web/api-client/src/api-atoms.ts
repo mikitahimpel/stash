@@ -5,7 +5,9 @@ import * as HttpClientError from "effect/http/HttpClientError";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import type * as Atom from "effect/reactivity/Atom";
 import * as Reactivity from "effect/reactivity/Reactivity";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { StashApiClient } from "./stash-api-client.ts";
 
 /** The typed client: one object per api group, one method per endpoint. */
@@ -68,5 +70,38 @@ export const mutation = <Arg, A, E>(
   StashApiClient.runtime.fn<Arg>()((arg) =>
     dieOnDefect(StashApiClient.use((client) => run(client, arg))).pipe(
       Reactivity.mutation(invalidates),
+    ),
+  );
+
+/** One page of a cursor-paginated endpoint. `nextCursor` is null on the last page. */
+export interface Page<A> {
+  readonly items: ReadonlyArray<A>;
+  readonly nextCursor: string | null;
+}
+
+/**
+ * A pull atom over a cursor-paginated endpoint, for infinite scroll. Reading it loads the first
+ * page; each write (`set(atom, undefined)`) appends the next one. `done` turns true on the pull
+ * after the last page, which answers without a request. `run` gets the cursor of the page to load (`undefined` for the first). Like `query`, it
+ * starts over from the first page whenever one of `keys` is invalidated. An empty result fails
+ * with `NoSuchElementError`.
+ *
+ * ```ts
+ * const recent = ApiAtoms.pages(["links"], (client, cursor) =>
+ *   client.links.list({ query: { sort: "recent", ...(cursor ? { cursor } : {}) } }),
+ * );
+ * ```
+ */
+export const pages = <A, E>(
+  keys: Keys,
+  run: (client: Client, cursor: string | undefined) => Effect.Effect<Page<A>, E>,
+): Atom.Writable<Atom.PullResult<A, Exclude<E, Defect>>, void> =>
+  StashApiClient.runtime.factory.withReactivity(keys)(
+    StashApiClient.runtime.pull(
+      Stream.paginate(undefined as string | undefined, (cursor) =>
+        dieOnDefect(StashApiClient.use((client) => run(client, cursor))).pipe(
+          Effect.map((page) => [page.items, Option.fromNullishOr(page.nextCursor)] as const),
+        ),
+      ),
     ),
   );
