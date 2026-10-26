@@ -4,6 +4,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import * as UrlParams from "effect/http/UrlParams";
 import * as Option from "effect/Option";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as ApiAtoms from "../src/api-atoms.ts";
@@ -155,6 +156,61 @@ describe("ApiAtoms.mutation", () => {
       yield* AtomRegistry.getResult(reg, recent, { suspendOnWaiting: true });
       expect(lists).toBe(1);
       unmount();
+    }),
+  );
+});
+
+describe("ApiAtoms.pages", () => {
+  let requests = 0;
+  // Three links, two per page; the cursor is the index of the next page's first link.
+  const routes: Testing.Routes = {
+    "GET /links": (request) => {
+      requests++;
+      const ids = ["a", "b", "c"];
+      const start = Number(
+        Option.getOrElse(UrlParams.getFirst(request.urlParams, "cursor"), () => 0),
+      );
+      const next = start + 2 < ids.length ? String(start + 2) : null;
+      return Testing.json({
+        items: ids.slice(start, start + 2).map((id) => Fixtures.link(id)),
+        nextCursor: next,
+      });
+    },
+  };
+  const all = ApiAtoms.pages(["links"], (client, cursor) =>
+    client.links.list({ query: cursor === undefined ? {} : { cursor } }),
+  );
+
+  it.effect("loads the first page, then appends the next one on each pull", () =>
+    Effect.gen(function* () {
+      requests = 0;
+      const reg = use(routes);
+      const unmount = reg.mount(all);
+
+      const first = yield* AtomRegistry.getResult(reg, all);
+      expect(first.items.map((link) => link.id)).toEqual(["a", "b"]);
+      expect(first.done).toBe(false);
+
+      reg.set(all, undefined);
+      const second = yield* AtomRegistry.getResult(reg, all, { suspendOnWaiting: true });
+      expect(second.items.map((link) => link.id)).toEqual(["a", "b", "c"]);
+      expect(second.done).toBe(false);
+
+      // The last page had no cursor, so this pull ends the stream without a request.
+      reg.set(all, undefined);
+      const last = yield* AtomRegistry.getResult(reg, all, { suspendOnWaiting: true });
+      expect(last.items.map((link) => link.id)).toEqual(["a", "b", "c"]);
+      expect(last.done).toBe(true);
+      expect(requests).toBe(2);
+      unmount();
+    }),
+  );
+
+  it.effect("fails with NoSuchElementError when there are no items", () =>
+    Effect.gen(function* () {
+      const reg = use({ "GET /links": () => Testing.json(Fixtures.page()) });
+      const error = yield* Effect.flip(AtomRegistry.getResult(reg, all));
+      expect(error._tag).toBe("NoSuchElementError");
     }),
   );
 });
