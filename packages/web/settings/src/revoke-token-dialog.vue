@@ -14,7 +14,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 
 <template>
   <Dialog :open="deviceName !== undefined" @update:open="(open) => open || emit('cancel')">
-    <DialogContent role="alertdialog">
+    <DialogContent v-bind="{ role: 'alertdialog' }">
       <DialogHeader>
         <DialogTitle>Revoke token?</DialogTitle>
         <DialogDescription>
@@ -26,13 +26,15 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
         <DialogClose as-child>
           <Button variant="outline" data-test="cancel-revoke">Cancel</Button>
         </DialogClose>
-        <Button
-          variant="destructive"
-          data-test="confirm-revoke"
-          :disabled="pending"
-          @click="emit('confirm')"
-        >
-          {{ pending ? "Revoking…" : "Revoke" }}
+        <Button as-child variant="destructive">
+          <button
+            type="button"
+            data-test="confirm-revoke"
+            :disabled="pending"
+            @click="emit('confirm')"
+          >
+            {{ pending ? "Revoking…" : "Revoke" }}
+          </button>
         </Button>
       </DialogFooter>
     </DialogContent>

@@ -14,6 +14,7 @@ app can be installed to the iPhone home screen.
 | `search/` | `@stash/web-search` | Search page (semantic and keyword) |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Devices and API tokens |
+| `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, logout |
 | `ui/` | `@stash/web-ui` | Tailwind and shadcn-vue base components |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
 | `platform/` | `@stash/web-platform` | Web APIs as Effect services |

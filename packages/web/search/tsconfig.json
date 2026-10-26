@@ -1,0 +1,13 @@
+{
+  "extends": "@stash/config-tsconfig/web.json",
+  "compilerOptions": {
+    // `@stash/web-api-client` reads `import.meta.env`.
+    "types": ["vite/client"]
+  },
+  "include": ["src", "test", "vitest.config.ts"],
+  "vueCompilerOptions": {
+    // strictTemplates rejects unknown attributes; `@stash/web-ui` marks its parts with data-slot.
+    "strictTemplates": true,
+    "dataAttributes": ["data-*"]
+  }
+}

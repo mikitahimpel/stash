@@ -48,9 +48,7 @@ const submit = () => {
           Name
           <Input
             :model-value="name"
-            name="name"
-            placeholder="Work laptop"
-            maxlength="100"
+            v-bind="{ name: 'name', placeholder: 'Work laptop', maxlength: 100 }"
             @update:model-value="(value) => (name = String(value ?? ''))"
           />
         </label>
@@ -68,8 +66,10 @@ const submit = () => {
         </label>
         <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
         <DialogFooter>
-          <Button type="submit" :disabled="!valid || pending">
-            {{ pending ? "Creating…" : "Create device and token" }}
+          <Button as-child>
+            <button type="submit" :disabled="!valid || pending">
+              {{ pending ? "Creating…" : "Create device and token" }}
+            </button>
           </Button>
         </DialogFooter>
       </form>

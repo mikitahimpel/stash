@@ -1,13 +1,13 @@
 {
   "extends": "@stash/config-tsconfig/web.json",
+  "compilerOptions": {
+    // `@stash/web-api-client` reads `import.meta.env`.
+    "types": ["vite/client"]
+  },
   "include": ["src", "test", "vitest.config.ts"],
   "vueCompilerOptions": {
     // `@stash/web-ui` marks its parts with data-slot, which strictTemplates rejects by default.
     "strictTemplates": true,
-    "dataAttributes": ["data-*"],
-    // Kit components declare only their own props and pass the rest (`disabled`, `@click`, ...)
-    // through to the element they render, so attributes and events they don't declare are allowed.
-    "checkUnknownProps": false,
-    "checkUnknownEvents": false
+    "dataAttributes": ["data-*"]
   }
 }

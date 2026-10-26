@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./api-atoms": "./src/api-atoms.ts",
+    "./api-base-url": "./src/api-base-url.ts",
     "./stash-api-client": "./src/stash-api-client.ts",
     "./testing": "./src/testing.ts",
     "./unauthenticated": "./src/unauthenticated.ts"

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@stash/backend-auth": "workspace:*",
+    "@stash/backend-links": "workspace:*",
     "@stash/backend-platform": "workspace:*",
     "@stash/backend-search": "workspace:*",
     "@stash/contracts-api": "workspace:*",

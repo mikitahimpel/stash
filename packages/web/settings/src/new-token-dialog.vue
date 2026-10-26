@@ -36,10 +36,14 @@ const emit = defineEmits<{ copy: []; dismiss: [] }>();
         Couldn't copy. Select the token and copy it by hand.
       </p>
       <DialogFooter>
-        <Button variant="outline" data-test="copy-token" @click="emit('copy')">
-          {{ copy === "copied" ? "Copied" : "Copy" }}
+        <Button as-child variant="outline">
+          <button type="button" data-test="copy-token" @click="emit('copy')">
+            {{ copy === "copied" ? "Copied" : "Copy" }}
+          </button>
         </Button>
-        <Button data-test="dismiss-token" @click="emit('dismiss')">Done</Button>
+        <Button as-child>
+          <button type="button" data-test="dismiss-token" @click="emit('dismiss')">Done</button>
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

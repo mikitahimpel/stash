@@ -82,9 +82,11 @@ const confirmRevoke = async () => {
         <h1 class="text-2xl font-semibold">Settings</h1>
         <p class="text-sm text-muted-foreground">Devices and the API tokens they use.</p>
       </div>
-      <Button data-test="add-device" @click="openAddDevice(true)">
-        <Plus aria-hidden="true" />
-        Add device
+      <Button as-child>
+        <button type="button" data-test="add-device" @click="openAddDevice(true)">
+          <Plus aria-hidden="true" />
+          Add device
+        </button>
       </Button>
     </div>
 
@@ -118,15 +120,16 @@ const confirmRevoke = async () => {
                 Added {{ DeviceRows.formatDate(row.device.createdAt) }}
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              data-test="new-token"
-              :disabled="issuing"
-              @click="newToken(row)"
-            >
-              <KeyRound aria-hidden="true" />
-              New token
+            <Button as-child variant="outline" size="sm">
+              <button
+                type="button"
+                data-test="new-token"
+                :disabled="issuing"
+                @click="newToken(row)"
+              >
+                <KeyRound aria-hidden="true" />
+                New token
+              </button>
             </Button>
           </CardHeader>
           <CardContent>
@@ -148,14 +151,10 @@ const confirmRevoke = async () => {
                     </template>
                   </span>
                 </span>
-                <Button
-                  v-if="token.revokedAt === null"
-                  variant="ghost"
-                  size="sm"
-                  data-test="revoke-token"
-                  @click="askRevoke(row, token)"
-                >
-                  Revoke
+                <Button v-if="token.revokedAt === null" as-child variant="ghost" size="sm">
+                  <button type="button" data-test="revoke-token" @click="askRevoke(row, token)">
+                    Revoke
+                  </button>
                 </Button>
               </li>
             </ul>
