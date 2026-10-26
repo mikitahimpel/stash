@@ -4,6 +4,7 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Links from "@stash/web-links/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Search from "@stash/web-search/routes";
+import * as Settings from "@stash/web-settings/routes";
 import * as Placeholder from "./placeholder-routes.ts";
 
 /** The routes of every feature package, mounted at the top level. */
@@ -11,7 +12,7 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Links.routes,
   ...Search.routes,
   ...Placeholder.openTabs,
-  ...Placeholder.settings,
+  ...Settings.routes,
 ];
 
 export const routes: ReadonlyArray<RouteRecordRaw> = [

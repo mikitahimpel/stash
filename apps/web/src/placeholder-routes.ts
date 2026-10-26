@@ -14,7 +14,3 @@ const placeholder = (path: string, name: string, title: string): RouteRecordRaw 
 export const openTabs: ReadonlyArray<RouteRecordRaw> = [
   placeholder("/open-now", "open-tabs", "Open now"),
 ];
-
-export const settings: ReadonlyArray<RouteRecordRaw> = [
-  placeholder("/settings", "settings", "Settings"),
-];
