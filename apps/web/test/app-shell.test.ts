@@ -11,7 +11,7 @@ import AppLayout from "../src/app-layout.vue";
 import * as AppRegistry from "../src/app-registry.ts";
 import * as AppRouter from "../src/app-router.ts";
 import * as AppShortcuts from "../src/app-shortcuts.ts";
-import * as AppTheme from "../src/app-theme.ts";
+import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
 enableAutoUnmount(afterEach);
 
@@ -202,7 +202,7 @@ describe("theme toggle", () => {
     ] as const) {
       await toggle().trigger("click");
       await vi.waitFor(() =>
-        expect(registry.get(AppTheme.state)).toMatchObject({
+        expect(registry.get(ThemeAtoms.state)).toMatchObject({
           _tag: "Success",
           value: { preference, scheme },
         }),
@@ -238,7 +238,7 @@ describe("ui gallery", () => {
       .find((el) => el.text() === "Dark");
     await dark?.trigger("click");
     await vi.waitFor(() =>
-      expect(registry.get(AppTheme.state)).toMatchObject({
+      expect(registry.get(ThemeAtoms.state)).toMatchObject({
         _tag: "Success",
         value: { preference: "dark", scheme: "dark" },
       }),

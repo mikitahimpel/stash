@@ -24,7 +24,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
       <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
       <DialogFooter>
         <DialogClose as-child>
-          <Button variant="outline" data-test="cancel-revoke">Cancel</Button>
+          <Button data-test="cancel-revoke">Cancel</Button>
         </DialogClose>
         <Button as-child variant="destructive">
           <button

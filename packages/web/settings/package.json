@@ -6,7 +6,8 @@
   "sideEffects": false,
   "exports": {
     "./routes": "./src/routes.ts",
-    "./settings-atoms": "./src/settings-atoms.ts"
+    "./settings-atoms": "./src/settings-atoms.ts",
+    "./theme-atoms": "./src/theme-atoms.ts"
   },
   "scripts": {
     "lint": "oxlint .",

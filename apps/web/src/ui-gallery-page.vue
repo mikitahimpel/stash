@@ -33,13 +33,13 @@ import Toaster from "@stash/web-ui/toaster";
 import ToggleChip from "@stash/web-ui/toggle-chip";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, ref } from "vue";
-import * as AppTheme from "./app-theme.ts";
+import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
 // Dev-only: every primitive of @stash/web-ui in every state, with a theme switch. Mounted at /_ui
 // in dev only (see `devRoutes` in app-router.ts). All data here is made up.
 
-const theme = useAtomValue(() => AppTheme.state);
-const setPreference = useAtomSet(() => AppTheme.setPreference);
+const theme = useAtomValue(() => ThemeAtoms.state);
+const setPreference = useAtomSet(() => ThemeAtoms.setPreference);
 const preference = computed({
   get: (): Theme.Preference =>
     AsyncResult.isSuccess(theme.value) ? theme.value.value.preference : "system",

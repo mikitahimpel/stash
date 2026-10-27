@@ -4,19 +4,23 @@ import type * as Device from "@stash/contracts-domain/device";
 import Button from "@stash/web-ui/button";
 import Dialog from "@stash/web-ui/dialog";
 import DialogContent from "@stash/web-ui/dialog-content";
-import DialogDescription from "@stash/web-ui/dialog-description";
 import DialogFooter from "@stash/web-ui/dialog-footer";
 import DialogHeader from "@stash/web-ui/dialog-header";
 import DialogTitle from "@stash/web-ui/dialog-title";
 import Input from "@stash/web-ui/input";
+import SegmentedControl from "@stash/web-ui/segmented-control";
+import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
 import { computed, ref, watch } from "vue";
-import * as DeviceRows from "./device-rows.ts";
+import * as SettingsRows from "./settings-rows.ts";
 
 const props = defineProps<{ pending: boolean; error: string | undefined }>();
 const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{ submit: [device: Devices.RegisterDevice] }>();
 
-const kinds = Object.entries(DeviceRows.kindLabels) as ReadonlyArray<[Device.DeviceKind, string]>;
+const kinds = Object.entries(SettingsRows.kindLabels).map(([value, label]) => ({
+  value,
+  label,
+})) as ReadonlyArray<SegmentedControlOption<Device.DeviceKind>>;
 const name = ref("");
 const kind = ref<Device.DeviceKind>("zen");
 const trimmed = computed(() => name.value.trim());
@@ -36,15 +40,12 @@ const submit = () => {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent>
+    <DialogContent v-bind="{ 'aria-describedby': undefined }">
       <form class="grid gap-4" @submit.prevent="submit">
         <DialogHeader>
           <DialogTitle>Add device</DialogTitle>
-          <DialogDescription>
-            The device gets its own API token. You can revoke it at any time.
-          </DialogDescription>
         </DialogHeader>
-        <label class="grid gap-2 text-sm font-medium">
+        <label class="grid gap-1.5 text-[13px] font-medium">
           Name
           <Input
             :model-value="name"
@@ -52,21 +53,13 @@ const submit = () => {
             @update:model-value="(value) => (name = String(value ?? ''))"
           />
         </label>
-        <label class="grid gap-2 text-sm font-medium">
-          Kind
-          <select
-            v-model="kind"
-            name="kind"
-            class="h-10 rounded-md border border-input bg-transparent px-3 text-base sm:h-9 md:text-sm"
-          >
-            <option v-for="[value, label] in kinds" :key="value" :value="value">
-              {{ label }}
-            </option>
-          </select>
-        </label>
+        <div class="grid gap-1.5 text-[13px] font-medium">
+          <span aria-hidden="true">Kind</span>
+          <SegmentedControl v-model="kind" :options="kinds" label="Kind" class="w-full sm:w-fit" />
+        </div>
         <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
         <DialogFooter>
-          <Button as-child>
+          <Button as-child variant="primary">
             <button type="submit" :disabled="!valid || pending">
               {{ pending ? "Creating…" : "Create device and token" }}
             </button>

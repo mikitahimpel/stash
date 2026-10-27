@@ -1,28 +1,61 @@
 <script setup lang="ts">
 import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
-import { KeyRound, MonitorSmartphone, Plus } from "@lucide/vue";
+import { Plus } from "@lucide/vue";
 import type * as Devices from "@stash/contracts-api/devices";
-import type * as ApiToken from "@stash/contracts-domain/api-token";
-import Badge from "@stash/web-ui/badge";
+import type * as Device from "@stash/contracts-domain/device";
+import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
-import Card from "@stash/web-ui/card";
-import CardContent from "@stash/web-ui/card-content";
-import CardDescription from "@stash/web-ui/card-description";
-import CardHeader from "@stash/web-ui/card-header";
-import CardTitle from "@stash/web-ui/card-title";
 import EmptyState from "@stash/web-ui/empty-state";
+import ListRow from "@stash/web-ui/list-row";
+import SectionHeader from "@stash/web-ui/section-header";
+import SegmentedControl from "@stash/web-ui/segmented-control";
+import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
 import Skeleton from "@stash/web-ui/skeleton";
+import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import { computed, ref } from "vue";
 import AddDeviceDialog from "./add-device-dialog.vue";
-import * as DeviceRows from "./device-rows.ts";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
+import * as SettingsRows from "./settings-rows.ts";
+import * as ThemeAtoms from "./theme-atoms.ts";
+
+// Appearance: the theme preference, through the platform `Theme` service.
+const themeOptions: ReadonlyArray<SegmentedControlOption<Theme.Preference>> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+const theme = useAtomValue(() => ThemeAtoms.state);
+const setPreference = useAtomSet(() => ThemeAtoms.setPreference);
+const preference = computed({
+  get: () =>
+    AsyncResult.isSuccess(theme.value) ? theme.value.value.preference : Theme.defaultPreference,
+  set: (value) => setPreference(value),
+});
 
 const rows = useAtomValue(() => SettingsAtoms.rows);
+const now = DateTime.nowUnsafe();
+// Section counts, once the rows have loaded.
+const counts = computed(() =>
+  AsyncResult.isSuccess(rows.value)
+    ? {
+        devices: { count: rows.value.value.devices.length },
+        tokens: { count: rows.value.value.tokens.length },
+      }
+    : { devices: {}, tokens: {} },
+);
+const deviceNames = computed(
+  () =>
+    new Map(
+      AsyncResult.isSuccess(rows.value)
+        ? rows.value.value.devices.map((row) => [row.device.id, row.device.name])
+        : [],
+    ),
+);
 
 // Issuing: the plaintext lives only in the `issueToken` result, which is reset on dismiss.
 const [issued, issue] = useAtom(() => SettingsAtoms.issueToken);
@@ -41,8 +74,7 @@ const openAddDevice = (open: boolean) => {
   if (open) issue(Atom.Reset);
   addingDevice.value = open;
 };
-const newToken = (row: DeviceRows.DeviceRow) =>
-  issue({ _tag: "ExistingDevice", deviceId: row.device.id });
+const newToken = (deviceId: Device.DeviceId) => issue({ _tag: "ExistingDevice", deviceId });
 
 const copy = useAtomSet(() => SettingsAtoms.copyToken, { mode: "promiseExit" });
 const copyState = ref<"idle" | "copied" | "failed">("idle");
@@ -58,12 +90,12 @@ const dismissCreated = () => {
 
 // Revoking asks for confirmation first.
 const revoke = useAtomSet(() => SettingsAtoms.revokeToken, { mode: "promiseExit" });
-const revoking = ref<{ readonly token: ApiToken.ApiTokenInfo; readonly deviceName: string }>();
+const revoking = ref<SettingsRows.TokenRow>();
 const revokePending = ref(false);
 const revokeError = ref<string>();
-const askRevoke = (row: DeviceRows.DeviceRow, token: ApiToken.ApiTokenInfo) => {
+const askRevoke = (row: SettingsRows.TokenRow) => {
   revokeError.value = undefined;
-  revoking.value = { token, deviceName: row.device.name };
+  revoking.value = row;
 };
 const confirmRevoke = async () => {
   if (revoking.value === undefined) return;
@@ -76,92 +108,103 @@ const confirmRevoke = async () => {
 </script>
 
 <template>
-  <section class="grid gap-6">
-    <div class="flex items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold">Settings</h1>
-        <p class="text-sm text-muted-foreground">Devices and the API tokens they use.</p>
+  <div class="grid gap-10">
+    <h1 class="sr-only">Settings</h1>
+
+    <section aria-label="Appearance" class="grid gap-3">
+      <SectionHeader title="Appearance" />
+      <div class="flex flex-wrap items-center justify-between gap-3 px-3">
+        <span class="text-sm">Theme</span>
+        <SegmentedControl
+          v-model="preference"
+          :options="themeOptions"
+          label="Theme"
+          data-test="theme"
+        />
       </div>
-      <Button as-child>
-        <button type="button" data-test="add-device" @click="openAddDevice(true)">
-          <Plus aria-hidden="true" />
-          Add device
-        </button>
-      </Button>
-    </div>
+    </section>
 
-    <p v-if="!addingDevice && issueError" role="alert" class="text-sm text-destructive">
-      {{ issueError }}
-    </p>
+    <section aria-label="Devices" class="grid gap-3">
+      <SectionHeader title="Devices" v-bind="counts.devices">
+        <template #actions>
+          <Button as-child size="sm">
+            <button type="button" data-test="add-device" @click="openAddDevice(true)">
+              <Plus aria-hidden="true" />
+              Add device
+            </button>
+          </Button>
+        </template>
+      </SectionHeader>
 
-    <div v-if="AsyncResult.isInitial(rows)" class="grid gap-3" aria-busy="true">
-      <Skeleton v-for="n in 2" :key="n" class="h-28 w-full" />
-    </div>
-    <p v-else-if="AsyncResult.isFailure(rows)" role="alert" class="text-sm text-destructive">
-      Couldn't load devices. Reload the page to try again.
-    </p>
-    <EmptyState
-      v-else-if="rows.value.length === 0"
-      title="No devices yet"
-      description="Add the Zen extension, the iPhone Shortcut or the Mac agent as a device to give it an API token."
-    >
-      <template #icon><MonitorSmartphone /></template>
-    </EmptyState>
-    <ul v-else class="grid gap-3">
-      <li v-for="row in rows.value" :key="row.device.id" data-test="device">
-        <Card>
-          <CardHeader class="flex flex-row items-start justify-between gap-4">
-            <div class="grid gap-1">
-              <CardTitle class="flex items-center gap-2">
-                {{ row.device.name }}
-                <Badge variant="secondary">{{ DeviceRows.kindLabels[row.device.kind] }}</Badge>
-              </CardTitle>
-              <CardDescription>
-                Added {{ DeviceRows.formatDate(row.device.createdAt) }}
-              </CardDescription>
-            </div>
-            <Button as-child variant="outline" size="sm">
+      <p v-if="!addingDevice && issueError" role="alert" class="px-3 text-sm text-destructive">
+        {{ issueError }}
+      </p>
+
+      <div v-if="AsyncResult.isInitial(rows)" class="grid gap-2" aria-busy="true">
+        <Skeleton v-for="n in 2" :key="n" class="h-12 w-full" />
+      </div>
+      <p v-else-if="AsyncResult.isFailure(rows)" role="alert" class="px-3 text-sm text-destructive">
+        Couldn't load devices. Reload the page to try again.
+      </p>
+      <EmptyState v-else-if="rows.value.devices.length === 0" title="No devices" class="px-3" />
+      <ul v-else>
+        <ListRow v-for="row in rows.value.devices" :key="row.device.id" as="li" data-test="device">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span data-test="device-name" class="min-w-0 flex-1 truncate text-[15px]">
+              {{ row.device.name }}
+            </span>
+            <span class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+              <span>{{ SettingsRows.kindLabels[row.device.kind] }}</span>
+              <span :title="row.lastSeen ? SettingsRows.formatDate(row.lastSeen) : undefined">
+                {{ SettingsRows.formatLastSeen(row.lastSeen, now) }}
+              </span>
+            </span>
+            <Button as-child variant="ghost" size="sm">
               <button
                 type="button"
                 data-test="new-token"
                 :disabled="issuing"
-                @click="newToken(row)"
+                @click="newToken(row.device.id)"
               >
-                <KeyRound aria-hidden="true" />
                 New token
               </button>
             </Button>
-          </CardHeader>
-          <CardContent>
-            <p v-if="row.tokens.length === 0" class="text-sm text-muted-foreground">No tokens.</p>
-            <ul v-else class="grid gap-2">
-              <li
-                v-for="token in row.tokens"
-                :key="token.id"
-                data-test="token"
-                class="flex items-center justify-between gap-4 text-sm"
+          </div>
+        </ListRow>
+      </ul>
+    </section>
+
+    <section aria-label="API tokens" class="grid gap-3">
+      <SectionHeader title="API tokens" v-bind="counts.tokens" />
+      <template v-if="AsyncResult.isSuccess(rows)">
+        <p v-if="rows.value.tokens.length === 0" class="px-3 text-sm text-muted-foreground">
+          No tokens
+        </p>
+        <ul v-else>
+          <ListRow v-for="row in rows.value.tokens" :key="row.token.id" as="li" data-test="token">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span
+                class="min-w-0 flex-1 truncate text-sm"
+                :class="row.token.revokedAt !== null && 'text-muted-foreground'"
               >
-                <span class="flex items-center gap-2">
-                  <Badge v-if="token.revokedAt === null">Active</Badge>
-                  <Badge v-else variant="outline">Revoked</Badge>
-                  <span class="text-muted-foreground">
-                    Created {{ DeviceRows.formatDate(token.createdAt) }}
-                    <template v-if="token.revokedAt !== null">
-                      · revoked {{ DeviceRows.formatDate(token.revokedAt) }}
-                    </template>
-                  </span>
+                {{ row.deviceName ?? "Unknown device" }}
+              </span>
+              <span class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+                <span>created {{ SettingsRows.formatDate(row.token.createdAt) }}</span>
+                <span v-if="row.token.revokedAt !== null" data-test="revoked">
+                  revoked {{ SettingsRows.formatDate(row.token.revokedAt) }}
                 </span>
-                <Button v-if="token.revokedAt === null" as-child variant="ghost" size="sm">
-                  <button type="button" data-test="revoke-token" @click="askRevoke(row, token)">
-                    Revoke
-                  </button>
-                </Button>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-      </li>
-    </ul>
+              </span>
+              <Button v-if="row.token.revokedAt === null" as-child variant="ghost" size="sm">
+                <button type="button" data-test="revoke-token" @click="askRevoke(row)">
+                  Revoke
+                </button>
+              </Button>
+            </div>
+          </ListRow>
+        </ul>
+      </template>
+    </section>
 
     <AddDeviceDialog
       :open="addingDevice && created === undefined"
@@ -172,16 +215,17 @@ const confirmRevoke = async () => {
     />
     <NewTokenDialog
       :token="created"
+      :device-name="created ? deviceNames.get(created.deviceId) : undefined"
       :copy="copyState"
       @copy="copyCreated"
       @dismiss="dismissCreated"
     />
     <RevokeTokenDialog
-      :device-name="revoking?.deviceName"
+      :device-name="revoking ? (revoking.deviceName ?? 'This device') : undefined"
       :pending="revokePending"
       :error="revokeError"
       @confirm="confirmRevoke"
       @cancel="revoking = undefined"
     />
-  </section>
+  </div>
 </template>

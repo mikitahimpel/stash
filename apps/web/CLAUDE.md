@@ -53,8 +53,9 @@ Feature behavior is tested in `packages/web/*`.
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`, `src/app-header.vue` (wordmark,
   nav, sync status, search, theme toggle, sign out)
-- `src/app-theme.ts` (theme atoms over `@stash/web-platform/theme`; `main.ts` mounts its state, which
-  applies the stored theme as the app starts)
+- The theme atoms live in `@stash/web-settings/theme-atoms`, shared by the header toggle and the
+  Settings Appearance section so both drive one `Theme` service. `app-registry.ts` provides its
+  layer, and `main.ts` mounts its state, which applies the stored theme as the app starts.
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
   dropped from the production build) showing every `@stash/web-ui` primitive with a theme switch
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and

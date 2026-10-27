@@ -14,7 +14,7 @@ import { computed, nextTick, onMounted } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import * as AppNetwork from "./app-network.ts";
 import * as AppShortcuts from "./app-shortcuts.ts";
-import * as AppTheme from "./app-theme.ts";
+import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
 const route = useRoute();
 const router = useRouter();
@@ -47,8 +47,8 @@ const status = computed(() =>
   AsyncResult.isSuccess(online.value) ? (online.value.value ? "online" : "offline") : "",
 );
 
-const theme = useAtomValue(() => AppTheme.state);
-const setPreference = useAtomSet(() => AppTheme.setPreference);
+const theme = useAtomValue(() => ThemeAtoms.state);
+const setPreference = useAtomSet(() => ThemeAtoms.setPreference);
 const preference = computed(() =>
   AsyncResult.isSuccess(theme.value) ? theme.value.value.preference : Theme.defaultPreference,
 );
