@@ -43,7 +43,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`), and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`), and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 

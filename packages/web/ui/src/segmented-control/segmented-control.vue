@@ -2,6 +2,10 @@
 import { type ComponentPublicInstance, computed, type HTMLAttributes, ref } from "vue";
 import { cn } from "../cn";
 import type { SegmentedControlOption } from "./segmented-control-option";
+import {
+  segmentedControlItemVariants,
+  segmentedControlVariants,
+} from "./segmented-control-variants";
 
 const props = defineProps<{
   options: ReadonlyArray<SegmentedControlOption<T>>;
@@ -54,12 +58,7 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
     role="radiogroup"
     data-slot="segmented-control"
     :aria-label="label"
-    :class="
-      cn(
-        'inline-flex h-10 items-stretch gap-0.5 rounded-lg p-[3px] tactile-sunken sm:h-9',
-        props.class,
-      )
-    "
+    :class="cn(segmentedControlVariants(), props.class)"
   >
     <button
       v-for="(option, index) in options"
@@ -71,12 +70,7 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
       :data-state="option.value === model ? 'on' : 'off'"
       :aria-checked="option.value === model"
       :tabindex="index === tabStop ? 0 : -1"
-      :class="
-        cn(
-          'inline-flex items-center justify-center rounded-md border border-transparent px-3 text-[13px] font-medium whitespace-nowrap transition-[background,box-shadow,color]',
-          option.value === model ? 'tactile-raised' : 'text-muted-foreground hover:text-foreground',
-        )
-      "
+      :class="segmentedControlItemVariants({ active: option.value === model })"
       @click="model = option.value"
       @keydown="onKeydown($event, index)"
     >
