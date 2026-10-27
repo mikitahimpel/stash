@@ -241,8 +241,8 @@ const groups = (state: State) => {
           return yield* Security.CurrentPrincipal;
         }),
       )
-      .handle("githubLogin", () => unsupported("auth.githubLogin"))
-      .handle("githubCallback", () => unsupported("auth.githubCallback"))
+      .handle("deviceStart", () => unsupported("auth.deviceStart"))
+      .handle("devicePoll", () => unsupported("auth.devicePoll"))
       .handle("logout", () => unsupported("auth.logout")),
   );
 

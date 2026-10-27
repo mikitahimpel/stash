@@ -3,32 +3,73 @@ import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 import * as ErrorStatuses from "./error-statuses.ts";
 import * as Security from "./security.ts";
 
-/** A redirect. The target is in the `Location` header. */
-export const Redirect = HttpApiSchema.Empty(302);
+/** Identifies one device flow. The GitHub `device_code` stays on the server, keyed by it. */
+export const DeviceFlowId = Schema.String.pipe(
+  Schema.check(Schema.isNonEmpty()),
+  Schema.brand("DeviceFlowId"),
+);
+export type DeviceFlowId = typeof DeviceFlowId.Type;
 
-export const GithubCallbackQuery = Schema.Struct({
-  code: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
-  state: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
+const Seconds = Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0)));
+
+/** What the user needs to authorize the flow on GitHub, and how often the client may poll. */
+export const DeviceFlowStarted = Schema.Struct({
+  flowId: DeviceFlowId,
+  /** The code the user types at `verificationUri`. */
+  userCode: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
+  verificationUri: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
+  /** Seconds until the flow expires. */
+  expiresIn: Seconds,
+  /** Minimum seconds between two polls. */
+  interval: Seconds,
 });
-export type GithubCallbackQuery = typeof GithubCallbackQuery.Type;
+export type DeviceFlowStarted = typeof DeviceFlowStarted.Type;
+
+export const PollDeviceFlow = Schema.Struct({
+  flowId: DeviceFlowId,
+});
+export type PollDeviceFlow = typeof PollDeviceFlow.Type;
+
+/** The user has not authorized yet. Poll again after `interval` seconds. */
+export const DeviceFlowPending = Schema.Struct({ status: Schema.Literal("pending") });
+/** Polled too fast. Add 5 seconds to the interval, then poll again. */
+export const DeviceFlowSlowDown = Schema.Struct({ status: Schema.Literal("slow_down") });
+/** Signed in. The response also sets the session cookie. */
+export const DeviceFlowComplete = Schema.Struct({
+  status: Schema.Literal("complete"),
+  me: Security.UserPrincipal,
+});
+
+/** The state of a device flow, discriminated by `status`. */
+export const DeviceFlowStatus = Schema.Union([
+  DeviceFlowPending,
+  DeviceFlowSlowDown,
+  DeviceFlowComplete,
+]);
+export type DeviceFlowStatus = typeof DeviceFlowStatus.Type;
 
 /**
- * The GitHub OAuth flow. `login` and `callback` run before a session exists, so only `me` and
- * `logout` are guarded. On success `callback` sets the session cookie and redirects to the app.
- * `callback` answers `ValidationError` (400) when the OAuth state does not match, `Unauthorized`
- * when GitHub rejects the code, and `Forbidden` when the GitHub login is not allowlisted.
+ * Login by the GitHub OAuth Device Flow, which needs no client secret. `deviceStart` and
+ * `devicePoll` run before a session exists, so only `me` and `logout` are guarded. The client
+ * shows `userCode` and `verificationUri`, then polls `devicePoll` every `interval` seconds until it
+ * answers `complete` (with the session cookie) or fails with `DeviceFlowExpired` (410),
+ * `DeviceFlowDenied` (403) or `LoginNotAllowed` (403, the GitHub login is not allowlisted).
  */
 export class AuthGroup extends HttpApiGroup.make("auth").add(
   HttpApiEndpoint.get("me", "/auth/me", {
     success: Security.Principal,
   }).middleware(Security.Authorization),
-  HttpApiEndpoint.get("githubLogin", "/auth/github/login", {
-    success: Redirect,
+  HttpApiEndpoint.post("deviceStart", "/auth/device/start", {
+    success: DeviceFlowStarted,
   }),
-  HttpApiEndpoint.get("githubCallback", "/auth/github/callback", {
-    query: GithubCallbackQuery,
-    success: Redirect,
-    error: [ErrorStatuses.ValidationError, ErrorStatuses.Unauthorized, ErrorStatuses.Forbidden],
+  HttpApiEndpoint.post("devicePoll", "/auth/device/poll", {
+    payload: PollDeviceFlow,
+    success: DeviceFlowStatus,
+    error: [
+      ErrorStatuses.DeviceFlowExpired,
+      ErrorStatuses.DeviceFlowDenied,
+      ErrorStatuses.LoginNotAllowed,
+    ],
   }),
   HttpApiEndpoint.post("logout", "/auth/logout", {
     success: HttpApiSchema.NoContent,

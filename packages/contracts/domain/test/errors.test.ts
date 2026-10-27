@@ -10,6 +10,9 @@ describe("tagged errors", () => {
     ["RateLimited", Errors.RateLimited, { retryAfterSeconds: 30 }],
     ["ValidationError", Errors.ValidationError, { message: "Invalid url" }],
     ["Conflict", Errors.Conflict, { message: "Already saved" }],
+    ["DeviceFlowExpired", Errors.DeviceFlowExpired, { message: "Device code expired" }],
+    ["DeviceFlowDenied", Errors.DeviceFlowDenied, { message: "Authorization denied" }],
+    ["LoginNotAllowed", Errors.LoginNotAllowed, { message: "Login not allowed" }],
   ] as const;
 
   it.each(cases)("%s round-trips with its _tag", (tag, schema, fields) => {

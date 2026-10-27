@@ -48,9 +48,9 @@ and no implementations. Servers and clients live in their own contexts.
 
 - Domain errors carry no HTTP status. `api/src/error-statuses.ts` (private) annotates them
   (`ValidationError` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409,
-  `RateLimited` 429), and groups attach those annotated schemas to endpoints.
+  `RateLimited` 429, `DeviceFlowExpired` 410, `DeviceFlowDenied` and `LoginNotAllowed` 403), and groups attach those annotated schemas to endpoints.
 - Every endpoint is guarded by `Authorization` from `./security` (bearer API token, then session
-  cookie), except `auth.githubLogin` and `auth.githubCallback`.
+  cookie), except `auth.deviceStart` and `auth.devicePoll` (GitHub Device Flow login).
 
 ## Testing
 

@@ -8,6 +8,7 @@ import * as Tag from "@stash/contracts-domain/tag";
 import { DateTime, Effect, Layer, Option, Redacted, Schema } from "effect";
 import { HttpClientRequest, HttpServer } from "effect/http";
 import { HttpApiBuilder, HttpApiMiddleware, HttpApiTest } from "effect/http-api";
+import * as Auth from "../src/auth-group.ts";
 import * as Api from "../src/stash-api.ts";
 import * as Security from "../src/security.ts";
 
@@ -134,7 +135,40 @@ const TabsStub = HttpApiBuilder.group(Api.StashApi, "tabs", (handlers) =>
     ),
 );
 
-const ServerStub = Layer.mergeAll(LinksStub, TabsStub).pipe(
+// Each synthetic flow id answers with one fixed outcome.
+const flowId = Auth.DeviceFlowId.make("flow-1");
+const AuthStub = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
+  handlers
+    .handle("me", () => Effect.service(Security.CurrentPrincipal))
+    .handle("deviceStart", () =>
+      Effect.succeed({
+        flowId,
+        userCode: "ABCD-1234",
+        verificationUri: "https://example.com/login/device",
+        expiresIn: 900,
+        interval: 5,
+      }),
+    )
+    .handle("devicePoll", ({ payload }) => {
+      switch (payload.flowId) {
+        case "flow-pending":
+          return Effect.succeed({ status: "pending" as const });
+        case "flow-slow":
+          return Effect.succeed({ status: "slow_down" as const });
+        case "flow-denied":
+          return Effect.fail(new Errors.DeviceFlowDenied({ message: "Authorization denied" }));
+        case "flow-not-allowed":
+          return Effect.fail(new Errors.LoginNotAllowed({ message: "Login not allowed" }));
+        case flowId:
+          return Effect.succeed({ status: "complete" as const, me: { kind: "user" as const } });
+        default:
+          return Effect.fail(new Errors.DeviceFlowExpired({ message: "Unknown or expired flow" }));
+      }
+    })
+    .handle("logout", () => Effect.void),
+);
+
+const ServerStub = Layer.mergeAll(LinksStub, TabsStub, AuthStub).pipe(
   Layer.provideMerge(AuthorizationStub),
   Layer.merge(HttpServer.layerServices),
 );
@@ -146,7 +180,7 @@ const withToken = (token: string) =>
     next(HttpClientRequest.bearerToken(request, token)),
   );
 
-const makeClient = HttpApiTest.groups(Api.StashApi, ["links", "tabs"]);
+const makeClient = HttpApiTest.groups(Api.StashApi, ["links", "tabs", "auth"]);
 
 const url = (value: string) => Schema.decodeUnknownSync(Link.Url)(value);
 
@@ -260,6 +294,56 @@ layer(ServerStub)("HttpApiClient round-trip", (it) => {
         assert.deepStrictEqual(archived.command.payload, { kind: "close-tab", url: tab.url });
         assert.strictEqual(archived.command.status, "pending");
       }).pipe(Effect.provide(withToken(deviceToken))),
+    );
+  });
+
+  describe("auth device flow", () => {
+    const poll = (id: string) =>
+      Effect.flatMap(makeClient, (client) =>
+        client.auth.devicePoll({ payload: { flowId: Auth.DeviceFlowId.make(id) } }),
+      );
+
+    it.effect("starts a flow without credentials", () =>
+      Effect.gen(function* () {
+        const client = yield* makeClient;
+        const started = yield* client.auth.deviceStart();
+        assert.deepStrictEqual(started, {
+          flowId,
+          userCode: "ABCD-1234",
+          verificationUri: "https://example.com/login/device",
+          expiresIn: 900,
+          interval: 5,
+        });
+      }).pipe(Effect.provide(withToken(""))),
+    );
+
+    it.effect("decodes every poll status", () =>
+      Effect.gen(function* () {
+        assert.deepStrictEqual(yield* poll("flow-pending"), { status: "pending" });
+        assert.deepStrictEqual(yield* poll("flow-slow"), { status: "slow_down" });
+        assert.deepStrictEqual(yield* poll(flowId), {
+          status: "complete",
+          me: { kind: "user" },
+        });
+      }).pipe(Effect.provide(withToken(""))),
+    );
+
+    it.effect("decodes the typed poll errors", () =>
+      Effect.gen(function* () {
+        assert.instanceOf(yield* Effect.flip(poll("flow-expired")), Errors.DeviceFlowExpired);
+        assert.instanceOf(yield* Effect.flip(poll("flow-denied")), Errors.DeviceFlowDenied);
+        assert.instanceOf(yield* Effect.flip(poll("flow-not-allowed")), Errors.LoginNotAllowed);
+      }).pipe(Effect.provide(withToken(""))),
+    );
+
+    it.effect("rejects an empty flow id before it reaches the server", () =>
+      Effect.gen(function* () {
+        const client = yield* makeClient;
+        const error = yield* client.auth
+          .devicePoll({ payload: { flowId: "" as Auth.DeviceFlowId } })
+          .pipe(Effect.flip);
+        assert.strictEqual(error._tag, "SchemaError");
+      }).pipe(Effect.provide(withToken(""))),
     );
   });
 });

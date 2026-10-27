@@ -25,8 +25,8 @@ const routes = [
   ["tokens", "create", "POST", "/tokens"],
   ["tokens", "revoke", "DELETE", "/tokens/:id"],
   ["auth", "me", "GET", "/auth/me"],
-  ["auth", "githubLogin", "GET", "/auth/github/login"],
-  ["auth", "githubCallback", "GET", "/auth/github/callback"],
+  ["auth", "deviceStart", "POST", "/auth/device/start"],
+  ["auth", "devicePoll", "POST", "/auth/device/poll"],
   ["auth", "logout", "POST", "/auth/logout"],
   ["digest", "latest", "GET", "/digest/latest"],
 ] as const;
@@ -84,11 +84,11 @@ describe("StashApi", () => {
     expect(all.sort()).toEqual(routes.map(([group, name]) => `${group}.${name}`).sort());
   });
 
-  it("guards every endpoint except the OAuth login flow", () => {
+  it("guards every endpoint except the device login flow", () => {
     const open = routes
       .filter(([group, name]) => !isGuarded(group, name))
       .map(([group, name]) => `${group}.${name}`);
-    expect(open).toEqual(["auth.githubLogin", "auth.githubCallback"]);
+    expect(open).toEqual(["auth.deviceStart", "auth.devicePoll"]);
   });
 
   it.each([
@@ -102,8 +102,9 @@ describe("StashApi", () => {
     ["devices", "listCommands", ["200", "401", "403", "404"]],
     ["devices", "ackCommand", ["200", "401", "403", "404", "409"]],
     ["tokens", "create", ["201", "401", "404"]],
-    ["auth", "githubLogin", ["302"]],
-    ["auth", "githubCallback", ["302", "401", "403"]],
+    ["auth", "deviceStart", ["200"]],
+    ["auth", "devicePoll", ["200", "403", "410"]],
+    ["auth", "logout", ["204", "401"]],
     ["digest", "latest", ["200", "401", "404"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);

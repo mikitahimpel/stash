@@ -164,18 +164,6 @@ describe("alchemy dev (local, no credentials)", () => {
     expect(wrong.status).toBe(401);
   });
 
-  it("starts the GitHub login with the placeholder OAuth client", async () => {
-    const response = await call("GET", "/auth/github/login");
-    expect(response.status).toBe(302);
-    const location = new URL(response.headers.location ?? "");
-    expect(location.origin).toBe("https://github.com");
-    expect(location.searchParams.get("client_id")).toBe("dev_only");
-    expect(location.searchParams.get("redirect_uri")).toBe(`${baseUrl}/auth/github/callback`);
-    expect(response.headers["set-cookie"]).toEqual([
-      expect.stringMatching(/^stash_oauth_state=.*HttpOnly; Secure; SameSite=Lax$/),
-    ]);
-  });
-
   it("allows CORS from the web origin only", async () => {
     const preflight = (origin: string) =>
       call("OPTIONS", "/links", {
