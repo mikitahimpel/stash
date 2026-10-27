@@ -1,10 +1,12 @@
-# Enrichment classifier smoke test
+# Enrichment smoke tests
+
+## Classifier (Anthropic)
 
 An opt-in check of `classifyLink` (`packages/backend/enrichment/src/classify-link.ts`) against the
 real Anthropic API (`claude-haiku-5-5`). It is not part of `test` and never runs in CI. Unit tests
 keep using the fake `LanguageModel`.
 
-## Running it
+### Running it
 
 The key comes only from Proton Pass. Copy `.env.example` to `.env` (gitignored), which holds
 `ANTHROPIC_API_KEY=pass://Stash/Anthropic/api_key`, then from the repo root:
@@ -21,7 +23,7 @@ token usage and latency per case. It exits 1 if any classification fails. Type o
 mismatches against the expected values are flagged in the table but do not fail the run. It never
 prints the key. A failure prints only the error's reason tag.
 
-## Results
+### Results
 
 Run on 2026-10-27 from the dev machine through `pp run` (exit 0). Latency is wall-clock per call
 from the dev machine and includes network time.
@@ -41,7 +43,7 @@ Model: `claude-haiku-5-5`
 
 Total tokens: 7340 in / 1121 out. Failures: 0. Type or language mismatches: 0.
 
-### Findings
+#### Findings
 
 - Type and language match the expected values in all 8 cases. RU summaries are in Russian and EN
   summaries in English, as the prompt asks.
@@ -54,7 +56,115 @@ Total tokens: 7340 in / 1121 out. Failures: 0. Type or language mismatches: 0.
   details.
 - About 900 input and 100 to 160 output tokens per link, 1.5 to 3.5 s per call.
 
-### Prompt changes
+#### Prompt changes
 
 None. The results show no problems, so `classify-link.ts` is unchanged and there is no
 before/after comparison.
+
+## Embeddings and full pipeline (Workers AI)
+
+An opt-in check of embeddings against real Workers AI (`@cf/baai/bge-m3`), plus the full real
+pipeline: `fetchContent` → `classifyLink` (real Anthropic) → `embeddingText` → Workers AI. Like the
+classifier smoke test it is not part of `test` and never runs in CI.
+
+### Running it
+
+It needs the Anthropic key and a Cloudflare API token with Workers AI access. `.env` (copied from
+`.env.example`) holds only `pass://` references:
+
+```sh
+ANTHROPIC_API_KEY=pass://Stash/Anthropic/api_key
+CLOUDFLARE_ACCOUNT_ID=pass://Stash/Cloudflare/account_id
+CLOUDFLARE_API_TOKEN=pass://Stash/Cloudflare/api_token
+```
+
+From the repo root:
+
+```sh
+PROTON_PASS_AGENT_REASON="stash embeddings smoke test" \
+  pp run --env-file .env -- pnpm --filter @stash/backend-enrichment smoke:embed
+```
+
+The script (`packages/backend/enrichment/scripts/smoke-embed.ts`) calls the Workers AI REST API
+(`POST /accounts/{account}/ai/run/@cf/baai/bge-m3`) through the platform `HttpClient` and wraps it
+with `Ai.make`, so the same response decoding as the Worker binding runs. It checks:
+
+- **Dimension**: every vector has `Ai.embeddingDimensions` (1024) values, the size the Vectorize
+  index is created with.
+- **Cross-language similarity**: 4 synthetic topics, each written once in RU and once in EN. Every
+  same-topic RU ↔ EN pair must score a higher cosine than every pair of different topics (in any
+  language). The same check runs on the pipeline's vectors, where the RU and EN Wikipedia articles
+  on one topic must beat every unrelated pair.
+- **Latency** per Workers AI call, and per step (fetch / classify / embed) in the pipeline.
+
+It exits 1 if any call fails or any check fails. Credentials are read into `Redacted` values and
+never printed. The account id is part of the request URL, so errors print only their tag or an
+HTTP status, never the request or its cause.
+
+### Results
+
+Run on 2026-10-27 from the dev machine through `pp run` (exit 0). Latency is wall-clock from the
+dev machine and includes network time. Output as printed by the script:
+
+Embedding model: `@cf/baai/bge-m3`. Classifier: `claude-haiku-5-5`.
+
+#### Synthetic texts
+
+| text | dimension | latency |
+|---|---|---|
+| en-crdt | 1024 | 250 ms |
+| ru-crdt | 1024 | 147 ms |
+| en-rates | 1024 | 134 ms |
+| ru-rates | 1024 | 114 ms |
+| en-postgres | 1024 | 90 ms |
+| ru-postgres | 1024 | 79 ms |
+| en-sourdough | 1024 | 73 ms |
+| ru-sourdough | 1024 | 101 ms |
+
+Expected dimension (Vectorize index, `Ai.embeddingDimensions`): 1024. Latency per call: min 73 ms, median 114 ms, max 250 ms.
+
+#### Cross-language similarity (synthetic)
+
+| same-topic RU ↔ EN pair | cosine |
+|---|---|
+| en-crdt ↔ ru-crdt | 0.927 |
+| en-rates ↔ ru-rates | 0.927 |
+| en-postgres ↔ ru-postgres | 0.877 |
+| en-sourdough ↔ ru-sourdough | 0.766 |
+
+Highest unrelated pair: ru-crdt ↔ ru-postgres (0.517). Lowest same-topic pair: 0.766. Margin: 0.249. Cross-language check: PASS.
+
+#### Full pipeline (fetch → classify → embed)
+
+| page | fetched chars | type | lang | tags | dimension | fetch / classify / embed |
+|---|---|---|---|---|---|---|
+| en-wiki-postgres | 99985 | article | en | postgresql, relational databases, sql, open source software, database management systems | 1024 | 315 / 3228 / 128 ms |
+| ru-wiki-postgres | 36849 | article | ru | postgresql, relational database, sql, database management system, open source | 1024 | 255 / 3426 / 112 ms |
+| en-wiki-inflation | 99993 | article | en | macroeconomics, monetary economics, inflation, price index, economic history | 1024 | 961 / 1720 / 140 ms |
+| ru-wiki-inflation | 35026 | article | ru | inflation, monetary economics, economics, money supply, deflation | 1024 | 1531 / 1951 / 132 ms |
+| en-repo-effect | 4900 | repo | en | typescript, effect, functional programming, concurrency, dependency injection | 1024 | 1085 / 1344 / 150 ms |
+
+#### Cross-language similarity (pipeline)
+
+| same-topic RU ↔ EN pair | cosine |
+|---|---|
+| en-wiki-postgres ↔ ru-wiki-postgres | 0.824 |
+| en-wiki-inflation ↔ ru-wiki-inflation | 0.838 |
+
+Highest unrelated pair: en-wiki-postgres ↔ en-repo-effect (0.597). Lowest same-topic pair: 0.824. Margin: 0.227. Cross-language check: PASS.
+
+Failed checks: 0.
+
+#### Findings
+
+- All 13 vectors have 1024 values, which matches the Vectorize index (`dimensions: 1024`).
+- bge-m3 maps RU and EN text on one topic close together: 0.77 to 0.93 for the synthetic pairs and
+  about 0.83 for the Wikipedia pairs, against at most 0.52 (synthetic) and 0.60 (pipeline) for
+  unrelated pairs. Margins of about 0.25 and 0.23 mean a RU query should find EN links on the same
+  topic and the other way round.
+- The highest unrelated scores are between two technical texts (CRDT vs PostgreSQL, PostgreSQL vs
+  the Effect repo), as expected for neighbouring topics.
+- A Workers AI call takes about 70 to 250 ms. In the pipeline the classifier dominates (1.3 to
+  3.5 s), and fetching takes 0.3 to 1.5 s.
+- The classifier tags RU Wikipedia pages with English tags that overlap the EN page's tags
+  (`postgresql`, `sql`, `monetary economics`), as the prompt asks.
