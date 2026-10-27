@@ -45,6 +45,10 @@ Feature behavior is tested in `packages/web/*`.
 ## File naming
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`
+- `src/app-theme.ts` (theme atoms over `@stash/web-platform/theme`; `main.ts` mounts its state, which
+  applies the stored theme as the app starts)
+- `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
+  dropped from the production build) showing every `@stash/web-ui` primitive with a theme switch
 - `src/app-registry.ts` (the atom registry with the live layers), `src/placeholder-routes.ts` and
   `src/placeholder-page.vue` (stand-ins until each feature package exports its `./routes`)
 - `vite.config.ts`, `public/manifest.webmanifest`, `public/icons/*`

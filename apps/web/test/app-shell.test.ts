@@ -1,11 +1,14 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
+import * as PlatformTesting from "@stash/web-platform/testing";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as Layer from "effect/Layer";
 import { createMemoryHistory } from "vue-router";
 import AppLayout from "../src/app-layout.vue";
 import * as AppRegistry from "../src/app-registry.ts";
 import * as AppRouter from "../src/app-router.ts";
+import * as AppTheme from "../src/app-theme.ts";
 
 enableAutoUnmount(afterEach);
 
@@ -16,8 +19,12 @@ const stubApi = (signedIn = true) =>
       signedIn ? ApiTesting.json({ kind: "user" }) : ApiTesting.unauthorized(),
   });
 
+// The real theme logic on a simulated page, with an empty in-memory store.
+const theme = () =>
+  PlatformTesting.layerTheme().pipe(Layer.provide(PlatformTesting.layerKeyValueStore));
+
 const mountApp = async (path = "/", signedIn = true) => {
-  const registry = AppRegistry.make(stubApi(signedIn));
+  const registry = AppRegistry.make(stubApi(signedIn), theme());
   const router = AppRouter.make(createMemoryHistory(), registry);
   await router.push(path);
   const wrapper = mount(AppLayout, {
@@ -87,5 +94,38 @@ describe("app shell", () => {
     });
     await flushPromises();
     expect(wrapper.find("main h1").text()).toBe("Search");
+  });
+});
+
+describe("ui gallery", () => {
+  it("opens /_ui in dev without a session and outside the app layout", async () => {
+    const { wrapper, router } = await mountApp("/_ui", false);
+    await vi.waitFor(() => expect(wrapper.find("h1").text()).toBe("stash / ui"), {
+      timeout: 10_000,
+    });
+    expect(router.currentRoute.value.name).toBe("ui-gallery");
+    expect(wrapper.find("nav[aria-label=Main]").exists()).toBe(false);
+  });
+
+  it("switches the theme from the gallery", async () => {
+    const registry = AppRegistry.make(stubApi(false), theme());
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push("/_ui");
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    await vi.waitFor(() => expect(wrapper.find("[role=radiogroup]").exists()).toBe(true), {
+      timeout: 10_000,
+    });
+    const dark = wrapper
+      .findAll("[aria-label=Theme] [role=radio]")
+      .find((el) => el.text() === "Dark");
+    await dark?.trigger("click");
+    await vi.waitFor(() =>
+      expect(registry.get(AppTheme.state)).toMatchObject({
+        _tag: "Success",
+        value: { preference: "dark", scheme: "dark" },
+      }),
+    );
   });
 });
