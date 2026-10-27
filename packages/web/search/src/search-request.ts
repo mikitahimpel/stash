@@ -18,11 +18,22 @@ export const modes: ReadonlyArray<{
   readonly label: string;
 }> = [
   { value: "hybrid", label: "Hybrid" },
-  { value: "keyword", label: "Keyword" },
-  { value: "semantic", label: "Semantic" },
+  { value: "semantic", label: "Meaning" },
+  { value: "keyword", label: "Keywords" },
 ];
 
+/** Whether the mode matches words, so the results highlight the query's terms. */
+export const matchesWords = (mode: SearchGroup.SearchMode): boolean => mode !== "semantic";
+
 export const types: ReadonlyArray<Link.LinkType> = Link.LinkType.literals;
+
+export const typeLabels: Readonly<Record<Link.LinkType, string>> = {
+  article: "Article",
+  video: "Video",
+  tool: "Tool",
+  repo: "Repo",
+  other: "Other",
+};
 
 const maxQueryLength = 500;
 const isTagName = Schema.is(Tag.TagName);
@@ -43,4 +54,25 @@ export const fromForm = (form: Form): SearchGroup.SearchQuery | undefined => {
     ...(isLinkType(form.type) ? { type: form.type } : {}),
     ...(isTagName(tag) ? { tag } : {}),
   };
+};
+
+/** How many tags the page offers as filters. */
+export const tagChipCount = 8;
+
+/**
+ * The tags to offer as filters: the most frequent among `links` (ties by name), and `selected`
+ * when it isn't one of them, so the active filter can always be turned off.
+ */
+export const topTags = (
+  links: ReadonlyArray<{ readonly tags: ReadonlyArray<string> }>,
+  selected: string,
+): ReadonlyArray<string> => {
+  const counts = new Map<string, number>();
+  for (const link of links)
+    for (const name of link.tags) counts.set(name, (counts.get(name) ?? 0) + 1);
+  const top = [...counts]
+    .toSorted(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .slice(0, tagChipCount)
+    .map(([name]) => name);
+  return selected === "" || top.includes(selected) ? top : [...top, selected];
 };

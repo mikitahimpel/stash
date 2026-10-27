@@ -40,3 +40,29 @@ describe("fromForm", () => {
     expect(SearchRequest.fromForm(form({ q: "a".repeat(600) }))?.q).toHaveLength(500);
   });
 });
+
+describe("topTags", () => {
+  const links = [{ tags: ["rust", "go"] }, { tags: ["rust"] }, { tags: ["effect", "go", "rust"] }];
+
+  it("offers the most frequent tags first, ties by name", () => {
+    expect(SearchRequest.topTags(links, "")).toEqual(["rust", "go", "effect"]);
+  });
+
+  it("keeps the selected tag even when it isn't frequent", () => {
+    expect(SearchRequest.topTags(links, "zig")).toEqual(["rust", "go", "effect", "zig"]);
+    expect(SearchRequest.topTags([], "zig")).toEqual(["zig"]);
+  });
+
+  it("offers at most a handful", () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ tags: [`tag-${i}`] }));
+    expect(SearchRequest.topTags(many, "")).toHaveLength(SearchRequest.tagChipCount);
+  });
+});
+
+describe("matchesWords", () => {
+  it("highlights terms in keyword and hybrid mode only", () => {
+    expect(SearchRequest.matchesWords("keyword")).toBe(true);
+    expect(SearchRequest.matchesWords("hybrid")).toBe(true);
+    expect(SearchRequest.matchesWords("semantic")).toBe(false);
+  });
+});
