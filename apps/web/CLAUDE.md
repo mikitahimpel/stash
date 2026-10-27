@@ -37,10 +37,12 @@ app shell doesn't use them either.
   `vite.config.ts` reads it into `server.allowedHosts` and `preview.allowedHosts`. Unset keeps
   Vite's default. Never hardcode machine names.
 - The API base URL comes from Vite env (`import.meta.env`), never hardcoded.
-- Adding a page means adding a route export in a feature package and mounting it here: in
-  `src/app-router.ts`, replace the feature's placeholder from `src/placeholder-routes.ts` with
-  `import { routes } from "@stash/web-<feature>/routes"`. Keep the route names (`links`,
-  `search`, `open-tabs`, `settings`), because the layout nav links to them.
+- Adding a page means adding a route export in a feature package and mounting it here, in
+  `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `search`, `open-tabs`,
+  `settings`), because the header nav links to them.
+- Shortcuts: ⌘K / Ctrl+K opens the search page and `/` focuses the current page's field. Both
+  focus the first `main input[type=search]` (`AppShortcuts.pageSearchField`), so a page marks its
+  search or filter field by making it a search input (`<SearchField />` from `@stash/web-ui`).
 
 ## Testing
 
@@ -49,11 +51,13 @@ Feature behavior is tested in `packages/web/*`.
 
 ## File naming
 
-- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`
+- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`, `src/app-header.vue` (wordmark,
+  nav, sync status, search, theme toggle, sign out)
 - `src/app-theme.ts` (theme atoms over `@stash/web-platform/theme`; `main.ts` mounts its state, which
   applies the stored theme as the app starts)
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
   dropped from the production build) showing every `@stash/web-ui` primitive with a theme switch
-- `src/app-registry.ts` (the atom registry with the live layers), `src/placeholder-routes.ts` and
-  `src/placeholder-page.vue` (stand-ins until each feature package exports its `./routes`)
+- `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
+  `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
+- `src/app-registry.ts` (the atom registry with the live layers)
 - `vite.config.ts`, `public/manifest.webmanifest`, `public/icons/*`

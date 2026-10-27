@@ -115,7 +115,7 @@ not a text color for body copy. Keep color tokens as `#rrggbb` so the test can r
 | Spec | `@stash/web-ui` export |
 |---|---|
 | Button (`raised`, `primary`, `ghost`) | `button`, `button-variants` |
-| SegmentedControl | `segmented-control` (radio group; arrow keys, Home and End move the selection) |
+| SegmentedControl | `segmented-control` (radio group; arrow keys, Home and End move the selection), `segmented-control-variants` (its classes, for a nav of links such as the app header) |
 | ToggleChip | `toggle-chip` (`v-model:pressed`, `aria-pressed`) |
 | Input / SearchField | `input`, `search-field` (`shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
