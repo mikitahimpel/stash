@@ -72,6 +72,18 @@ describe("search atoms", () => {
     ]);
   });
 
+  it("applies a tag change at once, without waiting", async () => {
+    const reg = start();
+    reg.set(SearchAtoms.q, "rust");
+    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+    reg.set(SearchAtoms.tag, "async");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toEqual([
+      { q: "rust", mode: "hybrid" },
+      { q: "rust", mode: "hybrid", tag: "async" },
+    ]);
+  });
+
   it("holds the decoded hits", async () => {
     const reg = start();
     reg.set(SearchAtoms.q, "rust");
