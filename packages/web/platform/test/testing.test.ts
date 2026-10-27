@@ -8,6 +8,7 @@ import * as KeyValueStore from "effect/persistence/KeyValueStore";
 import * as Network from "../src/network.ts";
 import * as Share from "../src/share.ts";
 import * as Testing from "../src/testing.ts";
+import * as Theme from "../src/theme.ts";
 import * as Visibility from "../src/visibility.ts";
 
 describe("testing layers", () => {
@@ -95,6 +96,8 @@ describe("testing layers", () => {
       yield* Testing.TestNetwork;
       yield* Testing.TestVisibility;
       yield* Testing.TestShare;
+      expect((yield* (yield* Theme.Theme).current).preference).toBe("system");
+      yield* Testing.TestTheme;
     }).pipe(Effect.provide(Testing.layer)),
   );
 });
