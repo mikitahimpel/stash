@@ -15,6 +15,7 @@ import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import type * as Live from "./live.ts";
 import { Network } from "./network.ts";
 import { Share, ShareError, type ShareData } from "./share.ts";
+import * as Theme from "./theme.ts";
 import { Visibility, type VisibilityState } from "./visibility.ts";
 
 // In-memory layers for every service in `./live`. Each build starts from empty state, so a test
@@ -154,15 +155,54 @@ export const layerVisibility = (
     }),
   );
 
-/** Every service from `./live`, in memory, plus the test controls. */
-export const layer: Layer.Layer<Live.Services | TestShare | TestNetwork | TestVisibility> =
-  Layer.mergeAll(
-    layerKeyValueStore,
-    layerIndexedDb,
-    layerClipboard,
-    layerPermissions(),
-    layerHttpClient(),
-    layerShare(),
-    layerNetwork(),
-    layerVisibility(),
+/** Test controls for the in-memory `Theme`: a simulated OS scheme and `<html>` class list. */
+export class TestTheme extends Context.Service<
+  TestTheme,
+  {
+    /** Simulates a `prefers-color-scheme` change. */
+    readonly setSystemScheme: (scheme: Theme.Scheme) => Effect.Effect<void>;
+    /** Whether the simulated `<html>` has the `dark` class. */
+    readonly isDark: Effect.Effect<boolean>;
+  }
+>()("@stash/web-platform/TestTheme") {}
+
+/**
+ * The real theme logic on a simulated page. The OS scheme starts `"light"` unless told otherwise.
+ * It keeps the preference in the provided `KeyValueStore`, so two builds that share a store see
+ * the same preference.
+ */
+export const layerTheme = (
+  options: { readonly system?: Theme.Scheme } = {},
+): Layer.Layer<Theme.Theme | TestTheme, never, KeyValueStore.KeyValueStore> =>
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const system = yield* SubscriptionRef.make<Theme.Scheme>(options.system ?? "light");
+      const dark = yield* Ref.make(false);
+      const theme = yield* Theme.make({
+        systemScheme: SubscriptionRef.get(system),
+        // Skips the current value: the host reports changes only.
+        systemChanges: SubscriptionRef.changes(system).pipe(Stream.drop(1)),
+        apply: (scheme) => Ref.set(dark, scheme === "dark"),
+      });
+      return Context.make(Theme.Theme, theme).pipe(
+        Context.add(TestTheme, {
+          setSystemScheme: (scheme) => SubscriptionRef.set(system, scheme),
+          isDark: Ref.get(dark),
+        }),
+      );
+    }),
   );
+
+/** Every service from `./live`, in memory, plus the test controls. */
+export const layer: Layer.Layer<
+  Live.Services | TestShare | TestNetwork | TestVisibility | TestTheme
+> = Layer.mergeAll(
+  layerTheme().pipe(Layer.provideMerge(layerKeyValueStore)),
+  layerIndexedDb,
+  layerClipboard,
+  layerPermissions(),
+  layerHttpClient(),
+  layerShare(),
+  layerNetwork(),
+  layerVisibility(),
+);

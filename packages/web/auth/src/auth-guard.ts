@@ -20,7 +20,7 @@ const signedIn = (registry: AtomRegistry.AtomRegistry): Promise<boolean | undefi
 };
 
 /**
- * Protects every route but the login page:
+ * Protects every route but the public ones (`Routes.isPublic`):
  *
  * - before each navigation it asks the api who is signed in (`me`) and redirects to the login page
  *   when nobody is, or away from it when somebody is;
@@ -35,6 +35,8 @@ export const install = (router: Router, registry: AtomRegistry.AtomRegistry): ((
   let checks = 0;
 
   const removeGuard = router.beforeEach(async (to) => {
+    // Public pages other than the login page open either way, without asking the api.
+    if (Routes.isPublic(to) && to.name !== Routes.login) return true;
     checks++;
     const status = await signedIn(registry).finally(() => checks--);
     if (Routes.isPublic(to)) return status === true ? "/" : true;

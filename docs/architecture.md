@@ -118,7 +118,7 @@ Example:
 
 Only a context's `platform` package may touch runtime globals. Features depend on Effect services, and apps provide the live layers.
 
-- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`). It exports `./testing` with in-memory layers.
+- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`, `theme`). It exports `./testing` with in-memory layers.
 - `packages/extension/platform` wraps `browser.*` (`tabs`, `storage`, `alarms`, `commands`). Any browser differences, such as the future Safari port, live here.
 - `packages/backend/platform` exposes Cloudflare bindings (D1, Queue, Vectorize, R2, KV, AI) as Effect services built from `env`.
 - `packages/mcp/platform` exposes the Service Binding to the api as a typed client.

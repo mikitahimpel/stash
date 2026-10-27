@@ -25,6 +25,7 @@ const setup = (session: { me: () => Response }, routes: ApiTesting.Routes = {}) 
       { path: "/", redirect: "/links" },
       { path: "/links", name: "links", component: Page },
       { path: "/search", name: "search", component: Page },
+      { path: "/gallery", name: "gallery", component: Page, meta: { public: true } },
       ...Routes.routes,
     ],
   });
@@ -86,6 +87,15 @@ describe("auth guard", () => {
     await router.push("/login");
     expect(router.currentRoute.value.name).toBe("links");
     registry.dispose();
+  });
+
+  it.each([
+    ["signed in", user],
+    ["signed out", ApiTesting.unauthorized],
+  ])("opens other public routes without redirecting when %s", async (_, me) => {
+    const { router } = setup({ me });
+    await router.push("/gallery");
+    expect(router.currentRoute.value.name).toBe("gallery");
   });
 
   it("goes to the login page on any later 401", async () => {

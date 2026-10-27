@@ -9,6 +9,7 @@
     "./network": "./src/network.ts",
     "./share": "./src/share.ts",
     "./testing": "./src/testing.ts",
+    "./theme": "./src/theme.ts",
     "./visibility": "./src/visibility.ts"
   },
   "scripts": {

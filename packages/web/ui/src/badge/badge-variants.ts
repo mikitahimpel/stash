@@ -1,16 +1,18 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
+/**
+ * Quiet mono labels: hierarchy comes from spacing, not fills. `default` and `secondary` are plain
+ * metadata, `outline` adds a hairline border, `destructive` uses the destructive color.
+ */
 export const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-[5px] border px-1.5 py-px font-mono text-xs transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-        destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 dark:bg-destructive/60",
-        outline: "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        default: "border-transparent text-foreground [a&]:hover:bg-accent",
+        secondary: "border-transparent text-muted-foreground [a&]:hover:text-foreground",
+        destructive: "border-transparent text-destructive [a&]:hover:bg-accent",
+        outline: "border-hairline text-muted-foreground [a&]:hover:text-foreground",
       },
     },
     defaultVariants: {

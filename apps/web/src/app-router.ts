@@ -15,10 +15,27 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Settings.routes,
 ];
 
+/**
+ * Dev-only pages. `import.meta.env.DEV` is `false` in the production build, which drops them and
+ * their chunks; there `/_ui` falls through to the catch-all redirect.
+ */
+export const devRoutes: ReadonlyArray<RouteRecordRaw> = import.meta.env.DEV
+  ? [
+      {
+        path: "/_ui",
+        name: "ui-gallery",
+        component: () => import("./ui-gallery-page.vue"),
+        // Opens without a session, outside the app layout.
+        meta: { public: true },
+      },
+    ]
+  : [];
+
 export const routes: ReadonlyArray<RouteRecordRaw> = [
   { path: "/", redirect: { name: "links" } },
   ...Auth.routes,
   ...featureRoutes,
+  ...devRoutes,
   { path: "/:pathMatch(.*)*", redirect: "/links" },
 ];
 

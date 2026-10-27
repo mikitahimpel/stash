@@ -1,65 +1,178 @@
 /*
- * Tailwind preset for the web app. apps/web imports it once:
+ * Tailwind preset for the web app: the "Stash tactile" design system (docs/design.md).
+ * apps/web imports it once:
  *   @import "@stash/web-ui/styles.css";
  * Mobile-first: unprefixed utilities target phones, `sm:` / `md:` / `lg:` widen the layout.
- * Dark mode: add the `dark` class to <html>; `dark:` utilities and the tokens below follow it.
+ * Dark mode: add the `dark` class to <html> (`@stash/web-platform/theme` does); `dark:` utilities
+ * and the tokens below follow it. `:root` holds the light theme.
  */
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Self-hosted Geist (UI text) and Geist Mono (metadata), bundled by the app build. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 /* The package lives in node_modules from the app's point of view, so scan its sources explicitly. */
 @source "./";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Every color is a hex value so test/contrast.test.ts can check text / background pairs.
+ * Spec tokens: background, surface, foreground, muted-foreground, hairline, hairline-row, signal
+ * (the spec's "accent": stale / unread / match, never decoration). The shadcn names (card, popover,
+ * primary, secondary, muted, accent, border, input, ring, destructive) stay as aliases so existing
+ * components keep working; `accent` is shadcn's neutral hover surface, not the spec's accent.
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --radius: 10px;
+
+  --background: #f7f7f8;
+  --surface: #ffffff;
+  --foreground: #111113;
+  --muted-foreground: #6b6b70;
+  --hairline: #e4e4e7;
+  --hairline-row: #ededf0;
+  --signal: #c2570c;
+  --destructive: #c42b2b;
+  --destructive-foreground: #ffffff;
+
+  /* Tactile surfaces (docs/design.md). `-from` / `-to` are gradient stops. */
+  --raised-from: #ffffff;
+  --raised-to: #f3f3f4;
+  --raised-hover-from: #fbfbfb;
+  --raised-hover-to: #ededef;
+  --raised-active: #ebebed;
+  --raised-border: #d4d4d8;
+  --raised-foreground: #111113;
+  --raised-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 1px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --raised-active-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12);
+
+  --key-primary-from: #2a2a2d;
+  --key-primary-to: #161618;
+  --key-primary-hover-from: #333337;
+  --key-primary-hover-to: #1c1c1f;
+  --key-primary-active: #161618;
+  --key-primary-border: #0b0b0c;
+  --key-primary-foreground: #ffffff;
+  --key-primary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 1px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.1);
+  --key-primary-active-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+
+  --sunken: #efeff1;
+  --sunken-border: #d4d4d8;
+  --sunken-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(255, 255, 255, 0.8);
+
+  --pressed: #e9e9ec;
+  --pressed-border: #d4d4d8;
+  --pressed-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.8);
+
+  --key-from: #ffffff;
+  --key-to: #f3f3f4;
+  --key-border: #d4d4d8;
+  --key-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  --row-selected-from: #ffffff;
+  --row-selected-to: #fcfcfd;
+  --row-selected-border: #e4e4e7;
+  --row-selected-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  --link-underline: #c4c4c8;
+  --overlay: rgba(0, 0, 0, 0.3);
+  --popover-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #0c0c0d;
+  --surface: #18181a;
+  --foreground: #ededed;
+  --muted-foreground: #8f8f8f;
+  --hairline: #1f1f21;
+  --hairline-row: #161618;
+  --signal: #ff8a3d;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #111111;
+
+  --raised-from: #262629;
+  --raised-to: #1d1d1f;
+  --raised-hover-from: #2b2b2e;
+  --raised-hover-to: #202023;
+  --raised-active: #19191b;
+  --raised-border: #080809;
+  --raised-foreground: #ededed;
+  --raised-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 1px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --raised-active-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+
+  --key-primary-from: #f6f6f6;
+  --key-primary-to: #dbdbdb;
+  --key-primary-hover-from: #fbfbfb;
+  --key-primary-hover-to: #e2e2e2;
+  --key-primary-active: #d6d6d6;
+  --key-primary-border: #808080;
+  --key-primary-foreground: #111111;
+  --key-primary-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 #c2c2c2, 0 1px 1px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+  --key-primary-active-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
+
+  --sunken: #09090a;
+  --sunken-border: #1c1c1e;
+  --sunken-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  --pressed: #141416;
+  --pressed-border: #080809;
+  --pressed-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.65), 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  --key-from: #2a2a2d;
+  --key-to: #1f1f22;
+  --key-border: #080809;
+  --key-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  --row-selected-from: #1a1a1c;
+  --row-selected-to: #171719;
+  --row-selected-border: #0b0b0c;
+  --row-selected-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1px 3px rgba(0, 0, 0, 0.35);
+
+  --link-underline: #3a3a3c;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --popover-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* shadcn aliases, on both selectors so a nested `.dark` resolves them against its own tokens. */
+:root,
+.dark {
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--foreground);
+  --primary: var(--key-primary-to);
+  --primary-foreground: var(--key-primary-foreground);
+  --secondary: var(--pressed);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--sunken);
+  --accent: var(--pressed);
+  --accent-foreground: var(--foreground);
+  --border: var(--hairline);
+  --input: var(--sunken-border);
+  --ring: var(--foreground);
 }
 
 @theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-hairline: var(--hairline);
+  --color-hairline-row: var(--hairline-row);
+  --color-signal: var(--signal);
+  --color-sunken: var(--sunken);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -77,15 +190,93 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Buttons 8px (md), inputs and trays 10px (lg). Chips (9px) and keys (5px) use their own. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Tactile surfaces. Components compose these; see docs/design.md for the approved values. */
+@utility tactile-raised {
+  background: linear-gradient(180deg, var(--raised-from) 0%, var(--raised-to) 100%);
+  border: 1px solid var(--raised-border);
+  box-shadow: var(--raised-shadow);
+  color: var(--raised-foreground);
+  &:hover:not(:disabled) {
+    background: linear-gradient(180deg, var(--raised-hover-from) 0%, var(--raised-hover-to) 100%);
+  }
+  &:active:not(:disabled) {
+    background: var(--raised-active);
+    box-shadow: var(--raised-active-shadow);
+    transform: translateY(0.5px);
+  }
+}
+
+@utility tactile-primary {
+  background: linear-gradient(180deg, var(--key-primary-from) 0%, var(--key-primary-to) 100%);
+  border: 1px solid var(--key-primary-border);
+  box-shadow: var(--key-primary-shadow);
+  color: var(--key-primary-foreground);
+  &:hover:not(:disabled) {
+    background: linear-gradient(
+      180deg,
+      var(--key-primary-hover-from) 0%,
+      var(--key-primary-hover-to) 100%
+    );
+  }
+  &:active:not(:disabled) {
+    background: var(--key-primary-active);
+    box-shadow: var(--key-primary-active-shadow);
+    transform: translateY(0.5px);
+  }
+}
+
+@utility tactile-sunken {
+  background: var(--sunken);
+  border: 1px solid var(--sunken-border);
+  box-shadow: var(--sunken-shadow);
+}
+
+@utility tactile-pressed {
+  background: var(--pressed);
+  border: 1px solid var(--pressed-border);
+  box-shadow: var(--pressed-shadow);
+  color: var(--foreground);
+}
+
+@utility tactile-key {
+  background: linear-gradient(180deg, var(--key-from), var(--key-to));
+  border: 1px solid var(--key-border);
+  border-bottom-width: 2.5px;
+  box-shadow: var(--key-shadow);
+}
+
+@utility tactile-row-selected {
+  background: linear-gradient(180deg, var(--row-selected-from), var(--row-selected-to));
+  border: 1px solid var(--row-selected-border);
+  border-radius: 10px;
+  box-shadow: var(--row-selected-shadow);
+}
+
+/* Links: a faint underline that brightens on hover. */
+@utility link-underline {
+  text-decoration-line: underline;
+  text-decoration-color: var(--link-underline);
+  text-underline-offset: 4px;
+  &:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+  /* Focus: a 2px ring in the foreground at 40%, never removed. */
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 40%, transparent);
+    outline-offset: 2px;
   }
   html {
     color-scheme: light;
@@ -94,6 +285,6 @@
     color-scheme: dark;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-sm text-foreground antialiased;
   }
 }

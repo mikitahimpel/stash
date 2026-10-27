@@ -12,7 +12,7 @@ const delegated = useForwardedProps(props, ["class"]);
   <DialogTitle
     data-slot="dialog-title"
     v-bind="delegated"
-    :class="cn('text-lg leading-none font-semibold', props.class)"
+    :class="cn('text-[15px] leading-tight font-medium', props.class)"
   >
     <slot />
   </DialogTitle>

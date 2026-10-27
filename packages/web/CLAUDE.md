@@ -15,7 +15,7 @@ app can be installed to the iPhone home screen.
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Devices and API tokens |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, logout |
-| `ui/` | `@stash/web-ui` | Tailwind and shadcn-vue base components |
+| `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): tokens, Geist, primitives |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
 | `platform/` | `@stash/web-platform` | Web APIs as Effect services |
 
@@ -43,7 +43,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`), and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`), and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 
