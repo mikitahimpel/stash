@@ -49,13 +49,47 @@ describe("Keyboard (live)", () => {
       const composing = keydown(doc, { key: "/", isComposing: true });
       const slash = keydown(doc, { key: "/" });
       expect(yield* Fiber.join(fiber)).toEqual([
-        { key: "/", metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, typing: false },
+        {
+          key: "/",
+          metaKey: false,
+          ctrlKey: false,
+          altKey: false,
+          shiftKey: false,
+          typing: false,
+          control: false,
+          handled: false,
+        },
       ]);
       expect([other, typed, composing, slash].map((event) => event.defaultPrevented)).toEqual([
         false,
         false,
         false,
         true,
+      ]);
+    }).pipe(Effect.provide(Keyboard.layer));
+  });
+
+  it.effect("tells presses on controls and presses already handled apart", () => {
+    const doc = new EventTarget();
+    vi.stubGlobal("document", doc);
+    const button = { matches: (selector: string) => selector.includes("button") };
+    return Effect.gen(function* () {
+      const keyboard = yield* Keyboard.Keyboard;
+      const fiber = yield* keyboard
+        .presses((press) => press.key === "Enter")
+        .pipe(Stream.take(3), Stream.runCollect, Effect.forkChild);
+      yield* settle;
+      keydown(doc, { key: "Enter" }, button);
+      const handled = Object.assign(new Event("keydown", { cancelable: true }), { key: "Enter" });
+      handled.preventDefault();
+      doc.dispatchEvent(handled);
+      keydown(doc, { key: "Enter" });
+      expect(
+        (yield* Fiber.join(fiber)).map(({ control, handled }) => ({ control, handled })),
+      ).toEqual([
+        { control: true, handled: false },
+        { control: false, handled: true },
+        { control: false, handled: false },
       ]);
     }).pipe(Effect.provide(Keyboard.layer));
   });

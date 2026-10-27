@@ -103,7 +103,7 @@ describe("app shell", () => {
     const { wrapper } = await mountApp();
     const labels = wrapper.findAll("nav").map((nav) => nav.findAll("a").map((a) => a.text()));
     expect(labels).toEqual([["Inbox", "Open now", "Search", "Settings"]]);
-    expect(wrapper.find("main h1").text()).toBe("Links");
+    expect(wrapper.find("main h1").text()).toBe("Inbox");
   });
 
   it.each([

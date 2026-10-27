@@ -10,7 +10,7 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Feeds (recent, not yet seen), tag and type filters, status actions |
+| `links/` | `@stash/web-links` | Inbox: feeds (not yet seen, recent, all), 30-day saved/read chart, tag and type filters, status actions and keys |
 | `search/` | `@stash/web-search` | Search page (semantic and keyword) |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Devices and API tokens |

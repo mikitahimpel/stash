@@ -14,6 +14,13 @@ export interface KeyPress {
   readonly shiftKey: boolean;
   /** Whether the focus is in a field that takes text, where a plain key types instead. */
   readonly typing: boolean;
+  /**
+   * Whether the focus is on a control that acts on keys itself, such as a link or a button (Enter
+   * follows or presses it) or a radio (arrow keys move it).
+   */
+  readonly control: boolean;
+  /** Whether an element under the page already handled the key (`event.defaultPrevented`). */
+  readonly handled: boolean;
 }
 
 /**
@@ -36,11 +43,15 @@ export class Keyboard extends Context.Service<
 const textField =
   "input:not([type=button],[type=checkbox],[type=radio],[type=reset],[type=submit]), textarea, select, [contenteditable]:not([contenteditable=false])";
 
-const isTyping = (target: EventTarget | null): boolean =>
+// Controls that act on keys themselves: Enter follows a link or presses a button.
+const control =
+  "a[href], button, summary, [role=button], [role=link], [role=radio], [role=tab], [role=checkbox], [role=menuitem], [role=option]";
+
+const matches = (target: EventTarget | null, selector: string): boolean =>
   target !== null &&
   "matches" in target &&
   typeof target.matches === "function" &&
-  target.matches(textField) === true;
+  target.matches(selector) === true;
 
 /**
  * The live service, backed by `keydown` on `document` and `document.querySelector`.
@@ -57,7 +68,9 @@ export const layer: Layer.Layer<Keyboard> = Layer.succeed(Keyboard)({
           ctrlKey: event.ctrlKey,
           altKey: event.altKey,
           shiftKey: event.shiftKey,
-          typing: isTyping(event.target),
+          typing: matches(event.target, textField),
+          control: matches(event.target, control),
+          handled: event.defaultPrevented,
         };
         if (!match(press)) return;
         event.preventDefault();

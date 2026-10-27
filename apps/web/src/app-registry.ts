@@ -1,4 +1,5 @@
 import * as StashApiClient from "@stash/web-api-client/stash-api-client";
+import * as InboxShortcuts from "@stash/web-links/inbox-shortcuts";
 import type * as Keyboard from "@stash/web-platform/keyboard";
 import * as WebPlatform from "@stash/web-platform/live";
 import type * as Network from "@stash/web-platform/network";
@@ -21,7 +22,7 @@ export interface Layers {
 /**
  * The atom registry of the app. It provides the live layers: the api client talks to the api
  * through the browser's `fetch`, the theme lives in `localStorage` and on `<html>`, and the network
- * state and shortcuts come from `navigator` and `document`, all from `@stash/web-platform`. Tests
+ * state and shortcuts (the app's and the Inbox's) come from `navigator` and `document`, all from `@stash/web-platform`. Tests
  * pass a stub `transport` (`@stash/web-api-client/testing`) and in-memory platform layers
  * (`@stash/web-platform/testing`).
  */
@@ -32,5 +33,6 @@ export const make = (layers: Layers = {}): AtomRegistry.AtomRegistry =>
       [AppTheme.layer, layers.theme ?? WebPlatform.layerTheme],
       [AppNetwork.layer, layers.network ?? WebPlatform.layerNetwork],
       [AppShortcuts.layer, layers.keyboard ?? WebPlatform.layerKeyboard],
+      [InboxShortcuts.keyboard, layers.keyboard ?? WebPlatform.layerKeyboard],
     ],
   });

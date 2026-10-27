@@ -7,7 +7,7 @@
   "exports": {
     "./routes": "./src/routes.ts",
     "./links-atoms": "./src/links-atoms.ts",
-    "./link-card": "./src/link-card.vue"
+    "./inbox-shortcuts": "./src/list/inbox-shortcuts.ts"
   },
   "scripts": {
     "lint": "oxlint .",
@@ -21,6 +21,7 @@
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "@stash/web-api-client": "workspace:*",
+    "@stash/web-platform": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",

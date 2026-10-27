@@ -43,6 +43,8 @@ app shell doesn't use them either.
 - Shortcuts: ⌘K / Ctrl+K opens the search page and `/` focuses the current page's field. Both
   focus the first `main input[type=search]` (`AppShortcuts.pageSearchField`), so a page marks its
   search or filter field by making it a search input (`<SearchField />` from `@stash/web-ui`).
+  The Inbox keys (↑/↓, ↵, S, D, E) live in `@stash/web-links/inbox-shortcuts`; `src/app-registry.ts`
+  gives its `keyboard` atom the same live layer.
 
 ## Testing
 
