@@ -16,8 +16,8 @@ export const layer: Atom.Writable<Layer.Layer<Theme.Theme>> = Atom.make(
 const runtime = Atom.runtime((get) => get(layer));
 
 /**
- * The theme preference and the scheme on screen. It is kept alive, so the service keeps
- * following the OS scheme once `main.ts` mounts it.
+ * The theme preference and the scheme on screen, read by the Appearance section and the app
+ * header. It is kept alive, so the service keeps following the OS scheme once `apps/web` mounts it.
  */
 export const state = runtime
   .atom(Stream.unwrap(Theme.Theme.use((theme) => Effect.succeed(theme.changes))))

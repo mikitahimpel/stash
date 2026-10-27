@@ -13,7 +13,7 @@ app can be installed to the iPhone home screen.
 | `links/` | `@stash/web-links` | Feeds (recent, not yet seen), tag and type filters, status actions |
 | `search/` | `@stash/web-search` | Search page (semantic and keyword) |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
-| `settings/` | `@stash/web-settings` | Devices and API tokens |
+| `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, logout |
 | `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): tokens, Geist, primitives |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |

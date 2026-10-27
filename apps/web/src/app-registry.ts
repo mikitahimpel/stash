@@ -8,7 +8,7 @@ import type * as Layer from "effect/Layer";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as AppNetwork from "./app-network.ts";
 import * as AppShortcuts from "./app-shortcuts.ts";
-import * as AppTheme from "./app-theme.ts";
+import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
 /** The layers the app runs on. Each defaults to the browser's. */
 export interface Layers {
@@ -29,7 +29,7 @@ export const make = (layers: Layers = {}): AtomRegistry.AtomRegistry =>
   AtomRegistry.make({
     initialValues: [
       [StashApiClient.transport, layers.transport ?? WebPlatform.layerHttpClient],
-      [AppTheme.layer, layers.theme ?? WebPlatform.layerTheme],
+      [ThemeAtoms.layer, layers.theme ?? WebPlatform.layerTheme],
       [AppNetwork.layer, layers.network ?? WebPlatform.layerNetwork],
       [AppShortcuts.layer, layers.keyboard ?? WebPlatform.layerKeyboard],
     ],
