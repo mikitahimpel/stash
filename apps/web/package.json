@@ -20,6 +20,7 @@
     "@stash/web-api-client": "workspace:*",
     "@stash/web-auth": "workspace:*",
     "@stash/web-links": "workspace:*",
+    "@stash/web-open-tabs": "workspace:*",
     "@stash/web-platform": "workspace:*",
     "@stash/web-search": "workspace:*",
     "@stash/web-settings": "workspace:*",

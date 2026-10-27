@@ -1,3 +1,5 @@
+import * as DigestsRepo from "@stash/backend-digest/digests-repo";
+import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as ClassifyLink from "@stash/backend-enrichment/classify-link";
 import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as Ai from "@stash/backend-platform/ai";
@@ -10,6 +12,9 @@ import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as Kv from "@stash/backend-platform/kv";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as Vectors from "@stash/backend-platform/vectors";
+import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
+import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
+import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
 import { env } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -68,6 +73,20 @@ const enrichment = QueueHandler.layer.pipe(
   Layer.provide(platform),
 );
 
+// The cron jobs: auto-archive of stale Zen tabs and the weekly digest.
+const scheduledJobs = ScheduledHandler.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      OpenTabsRepo.layer,
+      CommandsRepo.layer,
+      DevicesRepo.layer,
+      LinksRepo.layer,
+      DigestsRepo.layer,
+    ),
+  ),
+  Layer.provideMerge(platform),
+);
+
 // Built once per isolate at module scope, as Workers require: fibers started inside `fetch` would
 // capture that request's context. Global scope allows no timers, so fibers run on a sync scheduler.
 const syncScheduler = Layer.succeed(Scheduler.Scheduler)(new Scheduler.MixedScheduler("sync"));
@@ -88,9 +107,7 @@ export default {
 
   async scheduled(controller): Promise<void> {
     await Effect.runPromise(
-      ScheduledHandler.handleScheduled(controller.cron).pipe(
-        Effect.provide(ScheduledHandler.layerNoop),
-      ),
+      ScheduledHandler.handleScheduled(controller.cron).pipe(Effect.provide(scheduledJobs)),
     );
   },
 } satisfies ExportedHandler<WorkerEnv>;

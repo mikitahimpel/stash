@@ -1,30 +1,17 @@
 <script setup lang="ts">
-import { LogIn } from "@lucide/vue";
 import Button from "@stash/web-ui/button";
-import Card from "@stash/web-ui/card";
-import CardContent from "@stash/web-ui/card-content";
-import CardDescription from "@stash/web-ui/card-description";
-import CardHeader from "@stash/web-ui/card-header";
-import CardTitle from "@stash/web-ui/card-title";
 import * as LoginUrl from "./login-url.ts";
 </script>
 
 <template>
-  <div class="flex min-h-dvh items-center justify-center bg-background p-4 text-foreground">
-    <Card class="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Stash</CardTitle>
-        <CardDescription>Sign in to see your links and open tabs.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <!-- A full page load: the api runs the OAuth flow and redirects back with a session. -->
-        <Button as-child class="w-full">
-          <a :href="LoginUrl.github">
-            <LogIn aria-hidden="true" />
-            Sign in with GitHub
-          </a>
-        </Button>
-      </CardContent>
-    </Card>
-  </div>
+  <main
+    class="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background px-4 text-foreground"
+  >
+    <h1 class="text-[15px] font-semibold tracking-tight">stash</h1>
+    <!-- A full page load: the api runs the OAuth flow and redirects back with a session. -->
+    <Button as-child variant="primary" size="lg">
+      <a :href="LoginUrl.github">Sign in with GitHub</a>
+    </Button>
+    <p class="font-mono text-xs text-muted-foreground">continues on github.com</p>
+  </main>
 </template>

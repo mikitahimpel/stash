@@ -118,7 +118,7 @@ Example:
 
 Only a context's `platform` package may touch runtime globals. Features depend on Effect services, and apps provide the live layers.
 
-- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`). It exports `./testing` with in-memory layers.
+- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`, `theme`). It exports `./testing` with in-memory layers.
 - `packages/extension/platform` wraps `browser.*` (`tabs`, `storage`, `alarms`, `commands`). Any browser differences, such as the future Safari port, live here.
 - `packages/backend/platform` exposes Cloudflare bindings (D1, Queue, Vectorize, R2, KV, AI) as Effect services built from `env`.
 - `packages/mcp/platform` exposes the Service Binding to the api as a typed client.
@@ -134,7 +134,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 - `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, source_device_id, created_at, enriched_at
 - `tags`, `link_tags`
-- `devices`: id, name, kind (`zen` / `ios` / `mac-agent`)
+- `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)
 - `commands`: id, device_id, kind (`close-tab`, …), payload, status
 - `api_tokens`: id, device_id, hash, created_at, revoked_at

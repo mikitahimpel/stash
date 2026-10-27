@@ -1,126 +1,192 @@
 <script setup lang="ts">
-import { useAtom, useAtomValue } from "@effect/atom-vue";
+import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
 import type * as SearchGroup from "@stash/contracts-api/search";
 import type * as Link from "@stash/contracts-domain/link";
 import EmptyState from "@stash/web-ui/empty-state";
-import Input from "@stash/web-ui/input";
+import Kbd from "@stash/web-ui/kbd";
+import SearchField from "@stash/web-ui/search-field";
+import SectionHeader from "@stash/web-ui/section-header";
+import SegmentedControl from "@stash/web-ui/segmented-control";
 import Skeleton from "@stash/web-ui/skeleton";
-import Tabs from "@stash/web-ui/tabs";
-import TabsList from "@stash/web-ui/tabs-list";
-import TabsTrigger from "@stash/web-ui/tabs-trigger";
-import { SearchX, Search } from "@lucide/vue";
+import ToggleChip from "@stash/web-ui/toggle-chip";
+import * as DateTime from "effect/DateTime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
+import SearchResultRow from "./results/search-result-row.vue";
 import * as SearchAtoms from "./search-atoms.ts";
 import * as SearchRequest from "./search-request.ts";
-import SearchResultCard from "./search-result-card.vue";
+import MatchTimeline from "./timeline/match-timeline.vue";
 
 const [q, setQ] = useAtom(() => SearchAtoms.q);
 const [mode, setMode] = useAtom(() => SearchAtoms.mode);
 const [type, setType] = useAtom(() => SearchAtoms.type);
 const [tag, setTag] = useAtom(() => SearchAtoms.tag);
 const results = useAtomValue(() => SearchAtoms.results);
+const saved = useAtomValue(() => SearchAtoms.saved);
+const markSeen = useAtomSet(() => SearchAtoms.markSeen);
 
-const qModel = computed({
-  get: () => q.value,
-  set: (value: string | number | undefined) => setQ(`${value ?? ""}`),
-});
-const tagModel = computed({
-  get: () => tag.value,
-  set: (value: string | number | undefined) => setTag(`${value ?? ""}`),
-});
+const qModel = computed({ get: () => q.value, set: setQ });
 const modeModel = computed({
   get: () => mode.value,
-  set: (value: string | number) => setMode(value as SearchGroup.SearchMode),
-});
-const typeModel = computed({
-  get: () => type.value,
-  set: (value: Link.LinkType | "") => setType(value),
+  set: (value: SearchGroup.SearchMode) => setMode(value),
 });
 
 const hits = computed(() =>
   results.value !== null && AsyncResult.isSuccess(results.value) ? results.value.value.hits : null,
 );
 const loading = computed(() => results.value !== null && AsyncResult.isInitial(results.value));
+const countProp = computed(() =>
+  hits.value === null
+    ? {}
+    : { count: `${hits.value.length} ${hits.value.length === 1 ? "result" : "results"}` },
+);
 const failed = computed(() => results.value !== null && AsyncResult.isFailure(results.value));
+
+// The background of the timeline and the tag chips. Without it both still work, just emptier.
+const savedLinks = computed(() =>
+  AsyncResult.isSuccess(saved.value) ? saved.value.value.items : [],
+);
+const tags = computed(() => SearchRequest.topTags(savedLinks.value, tag.value));
+const highlight = computed(() => (SearchRequest.matchesWords(mode.value) ? q.value : ""));
+
+const toPoint = (link: Link.Link) => ({
+  id: link.id,
+  createdAt: DateTime.toEpochMillis(link.createdAt),
+});
+const now = Date.now();
+const matchPoints = computed(() => (hits.value ?? []).map((hit) => toPoint(hit.link)));
+const savedPoints = computed(() => savedLinks.value.map(toPoint));
+
+// The keyboard moves through the results by focusing their links, so ↵ opens one natively and S
+// (outside the search field) marks it seen. ↑ on the first result goes back to the field.
+const selectedId = ref<Link.LinkId | null>(null);
+const selectedIndex = computed(() =>
+  (hits.value ?? []).findIndex((hit) => hit.link.id === selectedId.value),
+);
+watch(hits, () => {
+  if (selectedIndex.value === -1) selectedId.value = null;
+});
+
+const list = ref<HTMLElement | null>(null);
+const field = ref<HTMLElement | null>(null);
+const resultLink = (index: number) =>
+  list.value?.querySelectorAll<HTMLElement>("a[data-result-link]")[index];
+
+const select = async (index: number) => {
+  const hit = hits.value?.[index];
+  if (hit === undefined) return;
+  selectedId.value = hit.link.id;
+  await nextTick();
+  resultLink(index)?.focus();
+};
+
+const isTextField = (target: EventTarget | null) =>
+  target instanceof HTMLElement && target.matches("input, textarea, select, [contenteditable]");
+
+const onKeydown = (event: KeyboardEvent) => {
+  // The mode control uses the arrow keys itself.
+  if (event.defaultPrevented || event.altKey || event.metaKey || event.ctrlKey) return;
+  const inField = isTextField(event.target);
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    void select(inField ? 0 : selectedIndex.value + 1);
+  } else if (event.key === "ArrowUp" && !inField) {
+    event.preventDefault();
+    if (selectedIndex.value <= 0) {
+      selectedId.value = null;
+      field.value?.querySelector<HTMLElement>("input")?.focus();
+    } else void select(selectedIndex.value - 1);
+  } else if (event.key === "Enter" && inField && hits.value?.length) {
+    event.preventDefault();
+    resultLink(Math.max(0, selectedIndex.value))?.click();
+  } else if (event.key.toLowerCase() === "s" && !inField && selectedId.value !== null) {
+    event.preventDefault();
+    markSeen(selectedId.value);
+  }
+};
+
+const onFocusin = (event: FocusEvent) => {
+  const row = (event.target as HTMLElement | null)?.closest?.("[data-hit]");
+  const id = row?.getAttribute("data-hit");
+  if (id) selectedId.value = id as Link.LinkId;
+};
 </script>
 
 <template>
-  <section class="flex flex-col gap-4">
-    <h1 class="text-xl font-semibold">Search</h1>
+  <section class="flex flex-col gap-5" @keydown="onKeydown" @focusin="onFocusin">
+    <SectionHeader as="h1" title="Search" v-bind="countProp" />
 
     <!-- Kit components declare only their props, so strictTemplates rejects plain attributes on
-         them. Attributes that fall through to the root element go in a `v-bind` object. -->
+         them. Attributes that fall through to the input go in a `v-bind` object. -->
     <form class="flex flex-col gap-3" role="search" @submit.prevent>
-      <Input
-        v-model="qModel"
-        v-bind="{
-          type: 'search',
-          'aria-label': 'Search links',
-          placeholder: 'Search by meaning or keywords',
-          autofocus: true,
-        }"
-      />
-      <div class="flex flex-wrap items-center gap-2">
-        <Tabs v-model="modeModel">
-          <TabsList v-bind="{ 'aria-label': 'Search mode' }">
-            <TabsTrigger
-              v-for="option in SearchRequest.modes"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <select
-          v-model="typeModel"
-          aria-label="Type"
-          class="h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-input/30"
-        >
-          <option value="">Any type</option>
-          <option v-for="option in SearchRequest.types" :key="option" :value="option">
-            {{ option }}
-          </option>
-        </select>
-        <Input
-          v-model="tagModel"
-          v-bind="{ 'aria-label': 'Tag', placeholder: 'Tag' }"
-          class="w-32"
+      <div ref="field">
+        <SearchField
+          v-model="qModel"
+          class="h-12 sm:h-12"
+          v-bind="{ 'aria-label': 'Search links', autofocus: true }"
         />
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <SegmentedControl v-model="modeModel" :options="SearchRequest.modes" label="Search mode" />
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Type">
+          <ToggleChip
+            v-for="option in SearchRequest.types"
+            :key="option"
+            :pressed="type === option"
+            @update:pressed="(on: boolean) => setType(on ? option : '')"
+          >
+            {{ SearchRequest.typeLabels[option] }}
+          </ToggleChip>
+        </div>
+        <div v-if="tags.length > 0" class="flex flex-wrap gap-2" role="group" aria-label="Tag">
+          <ToggleChip
+            v-for="name in tags"
+            :key="name"
+            class="font-mono text-xs"
+            :pressed="tag === name"
+            @update:pressed="(on: boolean) => setTag(on ? name : '')"
+          >
+            #{{ name }}
+          </ToggleChip>
+        </div>
       </div>
     </form>
 
-    <EmptyState
-      v-if="results === null"
-      title="Find a link"
-      description="Type a few words. Hybrid search matches both meaning and keywords."
-    >
-      <template #icon><Search /></template>
-    </EmptyState>
-
-    <div v-else-if="loading" data-testid="search-loading" class="flex flex-col gap-3">
-      <Skeleton v-for="i in 3" :key="i" class="h-20 w-full" />
-    </div>
-
-    <EmptyState
-      v-else-if="failed"
-      title="Search failed"
-      description="Something went wrong. Try again in a moment."
+    <MatchTimeline
+      :now="now"
+      :matches="matchPoints"
+      :saved="savedPoints"
+      :selected="selectedId ?? undefined"
     />
 
-    <EmptyState
-      v-else-if="hits !== null && hits.length === 0"
-      title="No matches"
-      description="Try other words, another mode or fewer filters."
-    >
-      <template #icon><SearchX /></template>
-    </EmptyState>
+    <EmptyState v-if="results === null" title="Find a link" />
 
-    <ul v-else-if="hits !== null" class="flex flex-col gap-3" aria-label="Results">
-      <li v-for="hit in hits" :key="hit.link.id">
-        <SearchResultCard :link="hit.link" />
-      </li>
+    <div v-else-if="loading" data-testid="search-loading" class="flex flex-col gap-3">
+      <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
+    </div>
+
+    <EmptyState v-else-if="failed" title="Search failed" />
+
+    <EmptyState v-else-if="hits !== null && hits.length === 0" title="No matches" />
+
+    <ul v-else-if="hits !== null" ref="list" class="flex flex-col" aria-label="Results">
+      <SearchResultRow
+        v-for="(hit, index) in hits"
+        :key="hit.link.id"
+        :link="hit.link"
+        :rank="index + 1"
+        :selected="hit.link.id === selectedId"
+        :highlight="highlight"
+        v-bind="{ 'data-hit': hit.link.id }"
+      />
     </ul>
+
+    <footer
+      class="hidden flex-wrap items-center gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground sm:flex"
+    >
+      <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
+      <span class="flex items-center gap-1.5"><Kbd>↵</Kbd> open</span>
+      <span class="flex items-center gap-1.5"><Kbd>S</Kbd> seen</span>
+    </footer>
   </section>
 </template>

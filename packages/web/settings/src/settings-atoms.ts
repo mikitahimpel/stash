@@ -9,18 +9,25 @@ import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
-import * as DeviceRows from "./device-rows.ts";
+import * as SettingsRows from "./settings-rows.ts";
 
 export const devices = ApiAtoms.query(["devices"], (client) => client.devices.list());
 
 export const tokens = ApiAtoms.query(["tokens"], (client) => client.tokens.list());
 
-/** Every device with its tokens, once both lists have loaded. */
-export const rows = Atom.make((get) =>
-  AsyncResult.map(AsyncResult.all([get(devices), get(tokens)]), ([devices, tokens]) =>
-    DeviceRows.make(devices, tokens),
-  ),
-);
+/** Every device's latest tab report, for when it was last seen. */
+export const reports = ApiAtoms.query(["tabs"], (client) => client.tabs.list());
+
+/**
+ * The devices and tokens, once both lists have loaded. The last-seen times follow when the tab
+ * reports load; the rows don't wait for them or fail with them.
+ */
+export const rows = Atom.make((get) => {
+  const all = get(reports);
+  return AsyncResult.map(AsyncResult.all([get(devices), get(tokens)]), ([devices, tokens]) =>
+    SettingsRows.make(devices, tokens, AsyncResult.isSuccess(all) ? all.value.devices : undefined),
+  );
+});
 
 /** What to issue a token for: a device registered on the spot, or one that already exists. */
 export type IssueToken =

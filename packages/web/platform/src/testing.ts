@@ -8,13 +8,16 @@ import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
 import * as KeyValueStore from "effect/persistence/KeyValueStore";
+import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import type * as Live from "./live.ts";
+import { Keyboard, type KeyPress } from "./keyboard.ts";
 import { Network } from "./network.ts";
 import { Share, ShareError, type ShareData } from "./share.ts";
+import * as Theme from "./theme.ts";
 import { Visibility, type VisibilityState } from "./visibility.ts";
 
 // In-memory layers for every service in `./live`. Each build starts from empty state, so a test
@@ -154,15 +157,107 @@ export const layerVisibility = (
     }),
   );
 
-/** Every service from `./live`, in memory, plus the test controls. */
-export const layer: Layer.Layer<Live.Services | TestShare | TestNetwork | TestVisibility> =
-  Layer.mergeAll(
-    layerKeyValueStore,
-    layerIndexedDb,
-    layerClipboard,
-    layerPermissions(),
-    layerHttpClient(),
-    layerShare(),
-    layerNetwork(),
-    layerVisibility(),
+/** Test controls for the in-memory `Theme`: a simulated OS scheme and `<html>` class list. */
+export class TestTheme extends Context.Service<
+  TestTheme,
+  {
+    /** Simulates a `prefers-color-scheme` change. */
+    readonly setSystemScheme: (scheme: Theme.Scheme) => Effect.Effect<void>;
+    /** Whether the simulated `<html>` has the `dark` class. */
+    readonly isDark: Effect.Effect<boolean>;
+  }
+>()("@stash/web-platform/TestTheme") {}
+
+/**
+ * The real theme logic on a simulated page. The OS scheme starts `"light"` unless told otherwise.
+ * It keeps the preference in the provided `KeyValueStore`, so two builds that share a store see
+ * the same preference.
+ */
+export const layerTheme = (
+  options: { readonly system?: Theme.Scheme } = {},
+): Layer.Layer<Theme.Theme | TestTheme, never, KeyValueStore.KeyValueStore> =>
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const system = yield* SubscriptionRef.make<Theme.Scheme>(options.system ?? "light");
+      const dark = yield* Ref.make(false);
+      const theme = yield* Theme.make({
+        systemScheme: SubscriptionRef.get(system),
+        // Skips the current value: the host reports changes only.
+        systemChanges: SubscriptionRef.changes(system).pipe(Stream.drop(1)),
+        apply: (scheme) => Ref.set(dark, scheme === "dark"),
+      });
+      return Context.make(Theme.Theme, theme).pipe(
+        Context.add(TestTheme, {
+          setSystemScheme: (scheme) => SubscriptionRef.set(system, scheme),
+          isDark: Ref.get(dark),
+        }),
+      );
+    }),
   );
+
+/** Test controls for the in-memory `Keyboard`. */
+export class TestKeyboard extends Context.Service<
+  TestKeyboard,
+  {
+    /**
+     * Simulates a key press. Modifiers, `typing`, `control` and `handled` default to `false`. Answers whether a `presses`
+     * stream took it.
+     */
+    readonly press: (press: Partial<KeyPress> & Pick<KeyPress, "key">) => Effect.Effect<boolean>;
+    /** Every selector `focus` was called with, oldest first. */
+    readonly focused: Effect.Effect<ReadonlyArray<string>>;
+  }
+>()("@stash/web-platform/TestKeyboard") {}
+
+/** Takes simulated key presses. `focus` records the selector and finds an element for any. */
+export const layerKeyboard: Layer.Layer<Keyboard | TestKeyboard> = Layer.effectContext(
+  Effect.gen(function* () {
+    const listeners = new Set<(press: KeyPress) => boolean>();
+    const focused = yield* Ref.make<ReadonlyArray<string>>([]);
+    return Context.make(Keyboard, {
+      presses: (match) =>
+        Stream.callback<KeyPress>((queue) => {
+          const listener = (press: KeyPress) => match(press) && Queue.offerUnsafe(queue, press);
+          return Effect.acquireRelease(
+            Effect.sync(() => listeners.add(listener)),
+            () => Effect.sync(() => listeners.delete(listener)),
+          );
+        }),
+      focus: (selector) => Ref.update(focused, (all) => [...all, selector]).pipe(Effect.as(true)),
+    }).pipe(
+      Context.add(TestKeyboard, {
+        press: (press) =>
+          Effect.sync(() => {
+            const full: KeyPress = {
+              metaKey: false,
+              ctrlKey: false,
+              altKey: false,
+              shiftKey: false,
+              typing: false,
+              control: false,
+              handled: false,
+              ...press,
+            };
+            // Every listener sees the press, as with `addEventListener`.
+            return [...listeners].map((listener) => listener(full)).includes(true);
+          }),
+        focused: Ref.get(focused),
+      }),
+    );
+  }),
+);
+
+/** Every service from `./live`, in memory, plus the test controls. */
+export const layer: Layer.Layer<
+  Live.Services | TestShare | TestNetwork | TestVisibility | TestTheme | TestKeyboard
+> = Layer.mergeAll(
+  layerTheme().pipe(Layer.provideMerge(layerKeyValueStore)),
+  layerIndexedDb,
+  layerClipboard,
+  layerPermissions(),
+  layerHttpClient(),
+  layerShare(),
+  layerNetwork(),
+  layerVisibility(),
+  layerKeyboard,
+);

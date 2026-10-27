@@ -7,6 +7,7 @@ import * as KeyValueStore from "effect/persistence/KeyValueStore";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import * as Live from "../src/live.ts";
 import * as Network from "../src/network.ts";
+import * as Theme from "../src/theme.ts";
 import * as Visibility from "../src/visibility.ts";
 
 // Synthetic stand-ins for the browser globals the live layers read.
@@ -34,9 +35,22 @@ describe("live layer", () => {
     const writes: Array<string> = [];
     vi.stubGlobal(
       "window",
-      Object.assign(new EventTarget(), { indexedDB: new IDBFactory(), IDBKeyRange }),
+      Object.assign(new EventTarget(), {
+        indexedDB: new IDBFactory(),
+        IDBKeyRange,
+        matchMedia: () => Object.assign(new EventTarget(), { matches: true }),
+      }),
     );
-    vi.stubGlobal("document", Object.assign(new EventTarget(), { visibilityState: "hidden" }));
+    const classes = new Set<string>();
+    vi.stubGlobal(
+      "document",
+      Object.assign(new EventTarget(), {
+        visibilityState: "hidden",
+        documentElement: {
+          classList: { toggle: (name: string, force: boolean) => force && !!classes.add(name) },
+        },
+      }),
+    );
     vi.stubGlobal("navigator", {
       onLine: true,
       clipboard: { writeText: async (text: string) => void writes.push(text) },
@@ -59,6 +73,9 @@ describe("live layer", () => {
 
       expect(yield* (yield* Network.Network).isOnline).toBe(true);
       expect(yield* (yield* Visibility.Visibility).current).toBe("hidden");
+
+      expect(yield* (yield* Theme.Theme).current).toEqual({ preference: "system", scheme: "dark" });
+      expect(classes.has("dark")).toBe(true);
     }).pipe(Effect.provide(Live.layer));
   });
 });

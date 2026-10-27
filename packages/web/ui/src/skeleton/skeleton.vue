@@ -9,6 +9,6 @@ const props = defineProps<{ class?: HTMLAttributes["class"] }>();
   <div
     data-slot="skeleton"
     aria-hidden="true"
-    :class="cn('animate-pulse rounded-md bg-accent', props.class)"
+    :class="cn('animate-pulse rounded-md bg-hairline', props.class)"
   />
 </template>

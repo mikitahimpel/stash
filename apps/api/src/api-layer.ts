@@ -3,6 +3,7 @@ import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
+import * as DigestsRepo from "@stash/backend-digest/digests-repo";
 import type * as Ai from "@stash/backend-platform/ai";
 import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
@@ -14,6 +15,9 @@ import * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as Vectors from "@stash/backend-platform/vectors";
 import * as SearchRepo from "@stash/backend-search/search-repo";
 import * as SearchService from "@stash/backend-search/search-service";
+import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
+import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
+import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
 import * as Api from "@stash/contracts-api/api";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -66,6 +70,8 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, SessionsRepo.layer)),
       Layer.provide(SearchService.layer),
       Layer.provide(SearchRepo.layer),
+      Layer.provide(Layer.mergeAll(DevicesRepo.layer, OpenTabsRepo.layer, CommandsRepo.layer)),
+      Layer.provide(DigestsRepo.layer),
       Layer.provide(LinksRepo.layer),
       Layer.provide(SaveRateLimiter.layer()),
     ),

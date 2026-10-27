@@ -24,10 +24,16 @@ const signOut = async () => {
 </script>
 
 <template>
-  <Button as-child variant="ghost" size="sm">
-    <button type="button" :disabled="pending" @click="signOut">
+  <!-- An icon key, so it fits the app header next to search and the theme toggle on phones. -->
+  <Button as-child variant="ghost" size="icon">
+    <button
+      type="button"
+      aria-label="Sign out"
+      title="Sign out"
+      :disabled="pending"
+      @click="signOut"
+    >
       <LogOut aria-hidden="true" />
-      Sign out
     </button>
   </Button>
 </template>

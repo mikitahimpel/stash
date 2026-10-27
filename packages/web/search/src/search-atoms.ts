@@ -22,9 +22,8 @@ export const tag: Atom.Writable<string> = Atom.make(SearchRequest.emptyForm.tag)
   Atom.keepAlive,
 );
 
-// Typing is debounced. Mode and filter changes apply at once.
+// Typing is debounced. Mode and filter changes (chips) apply at once.
 const debouncedQ = Atom.debounce(q, debounceMillis);
-const debouncedTag = Atom.debounce(tag, debounceMillis);
 
 /** The parameters of the current search, or `undefined` while the query is blank. */
 export const request: Atom.Atom<SearchGroup.SearchQuery | undefined> = Atom.make((get) =>
@@ -32,7 +31,7 @@ export const request: Atom.Atom<SearchGroup.SearchQuery | undefined> = Atom.make
     q: get(debouncedQ),
     mode: get(mode),
     type: get(type),
-    tag: get(debouncedTag),
+    tag: get(tag),
   }),
 );
 
@@ -47,3 +46,19 @@ export const results = Atom.make((get) => {
   const query = get(request);
   return query === undefined ? null : get(search(query));
 });
+
+/** How many recent links the timeline draws behind the matches: one page of `GET /links`. */
+export const savedLimit = 100;
+
+/**
+ * The most recent saved links, for the timeline's background dots and the tag chips. One page of
+ * an existing endpoint keeps it cheap.
+ */
+export const saved = ApiAtoms.query(["links"], (client) =>
+  client.links.list({ query: { sort: "recent", limit: savedLimit } }),
+);
+
+/** Marks a link as seen. The results refresh, since a links change invalidates the search. */
+export const markSeen = ApiAtoms.mutation(["links"], (client, id: Link.LinkId) =>
+  client.links.update({ params: { id }, payload: { status: "seen" } }),
+);

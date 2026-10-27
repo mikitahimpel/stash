@@ -14,7 +14,7 @@ const delegated = useForwardedProps(props, ["class"]);
     v-bind="delegated"
     :class="
       cn(
-        'inline-flex h-10 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground sm:h-9',
+        'inline-flex h-10 w-fit items-stretch justify-center gap-0.5 rounded-lg p-[3px] text-muted-foreground tactile-sunken sm:h-9',
         props.class,
       )
     "

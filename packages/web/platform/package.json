@@ -5,10 +5,12 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./keyboard": "./src/keyboard.ts",
     "./live": "./src/live.ts",
     "./network": "./src/network.ts",
     "./share": "./src/share.ts",
     "./testing": "./src/testing.ts",
+    "./theme": "./src/theme.ts",
     "./visibility": "./src/visibility.ts"
   },
   "scripts": {

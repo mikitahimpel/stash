@@ -39,19 +39,21 @@ export class DevicesGroup extends HttpApiGroup.make("devices")
       success: Command.Command.pipe(HttpApiSchema.status(201)),
       error: ErrorStatuses.NotFound,
     }),
-    // Devices poll this with `?status=pending`.
+    // Devices poll this with `?status=pending`. `Forbidden` when a device token asks for another
+    // device's commands.
     HttpApiEndpoint.get("listCommands", "/devices/:id/commands", {
       params: DeviceIdParams,
       query: ListCommandsQuery,
       success: Schema.Array(Command.Command),
-      error: ErrorStatuses.NotFound,
+      error: [ErrorStatuses.NotFound, ErrorStatuses.Forbidden],
     }),
-    // `Conflict` when the command is no longer pending.
+    // `Conflict` when the command is no longer pending. `Forbidden` when a device token acks
+    // another device's command.
     HttpApiEndpoint.post("ackCommand", "/commands/:id/ack", {
       params: { id: Command.CommandId },
       payload: AckCommand,
       success: Command.Command,
-      error: [ErrorStatuses.NotFound, ErrorStatuses.Conflict],
+      error: [ErrorStatuses.NotFound, ErrorStatuses.Forbidden, ErrorStatuses.Conflict],
     }),
   )
   .middleware(Security.Authorization) {}

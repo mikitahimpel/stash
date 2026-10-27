@@ -4,6 +4,7 @@ import type * as Device from "@stash/contracts-domain/device";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -37,6 +38,7 @@ const fakeApi = () => {
       return ApiTesting.json(device, 201);
     },
     "GET /tokens": () => ApiTesting.json(tokens),
+    "GET /tabs": () => ApiTesting.json(Fixtures.reports([["d1", "2026-01-05T00:00:00.000Z"]])),
     "POST /tokens": (request) => {
       const { deviceId } = Fixtures.body(request) as { deviceId: string };
       calls.push(`create token ${deviceId}`);
@@ -55,13 +57,41 @@ const fakeApi = () => {
 };
 
 describe("SettingsAtoms.rows", () => {
-  it.effect("loads devices with their tokens", () =>
+  it.effect("loads devices and tokens", () =>
     Effect.gen(function* () {
       const reg = use(fakeApi().routes);
       const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows);
-      expect(rows.map((row) => [row.device.name, row.tokens.map((token) => token.id)])).toEqual([
-        ["Work laptop", ["t1"]],
+      expect(rows.devices.map((row) => row.device.name)).toEqual(["Work laptop"]);
+      expect(rows.tokens.map((row) => [row.token.id, row.deviceName])).toEqual([
+        ["t1", "Work laptop"],
       ]);
+    }),
+  );
+
+  it.effect("adds when each device was last seen once the tab reports load", () =>
+    Effect.gen(function* () {
+      const reg = use(fakeApi().routes);
+      const unmount = reg.mount(SettingsAtoms.rows);
+      yield* AtomRegistry.getResult(reg, SettingsAtoms.reports);
+      const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows);
+      expect(rows.devices[0]?.lastSeen && DateTime.formatIso(rows.devices[0].lastSeen)).toBe(
+        "2026-01-05T00:00:00.000Z",
+      );
+      unmount();
+    }),
+  );
+
+  it.effect("still loads when the tab reports fail", () =>
+    Effect.gen(function* () {
+      const { "GET /tabs": _, ...routes } = fakeApi().routes;
+      const reg = use(routes);
+      const unmount = reg.mount(SettingsAtoms.rows);
+      yield* AtomRegistry.getResult(reg, SettingsAtoms.reports).pipe(Effect.exit);
+      const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows);
+      expect(rows.devices.map((row) => [row.device.name, row.lastSeen])).toEqual([
+        ["Work laptop", undefined],
+      ]);
+      unmount();
     }),
   );
 });
@@ -88,9 +118,10 @@ describe("SettingsAtoms.issueToken", () => {
       const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows, {
         suspendOnWaiting: true,
       });
-      expect(rows.map((row) => [row.device.name, row.tokens.map((token) => token.id)])).toEqual([
-        ["Work laptop", ["t1"]],
-        ["iPhone", ["t2"]],
+      expect(rows.devices.map((row) => row.device.name)).toEqual(["Work laptop", "iPhone"]);
+      expect(rows.tokens.map((row) => [row.token.id, row.deviceName])).toEqual([
+        ["t1", "Work laptop"],
+        ["t2", "iPhone"],
       ]);
       unmount();
     }),
@@ -140,10 +171,10 @@ describe("SettingsAtoms.revokeToken", () => {
       yield* AtomRegistry.getResult(reg, SettingsAtoms.revokeToken, { suspendOnWaiting: true });
 
       expect(api.calls).toEqual(["revoke t1"]);
-      const [row] = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows, {
+      const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows, {
         suspendOnWaiting: true,
       });
-      expect(row?.tokens[0]?.revokedAt).not.toBeNull();
+      expect(rows.tokens[0]?.token.revokedAt).not.toBeNull();
       unmount();
     }),
   );

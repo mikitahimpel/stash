@@ -188,6 +188,12 @@ catalogs:
     '@effect/vitest':
       specifier: 4.0.6
       version: 4.0.6
+    '@fontsource-variable/geist':
+      specifier: 5.3.0
+      version: 5.3.0
+    '@fontsource-variable/geist-mono':
+      specifier: 5.3.0
+      version: 5.3.0
     '@lucide/vue':
       specifier: 1.61.0
       version: 1.61.0
@@ -323,6 +329,9 @@ importers:
       '@stash/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@stash/backend-digest':
+        specifier: workspace:*
+        version: link:../../packages/backend/digest
       '@stash/backend-enrichment':
         specifier: workspace:*
         version: link:../../packages/backend/enrichment
@@ -335,6 +344,9 @@ importers:
       '@stash/backend-search':
         specifier: workspace:*
         version: link:../../packages/backend/search
+      '@stash/backend-tabs':
+        specifier: workspace:*
+        version: link:../../packages/backend/tabs
       '@stash/contracts-api':
         specifier: workspace:*
         version: link:../../packages/contracts/api
@@ -565,6 +577,9 @@ importers:
       '@stash/web-links':
         specifier: workspace:*
         version: link:../../packages/web/links
+      '@stash/web-open-tabs':
+        specifier: workspace:*
+        version: link:../../packages/web/open-tabs
       '@stash/web-platform':
         specifier: workspace:*
         version: link:../../packages/web/platform
@@ -632,6 +647,52 @@ importers:
       '@stash/backend-platform':
         specifier: workspace:*
         version: link:../platform
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261023.1
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/backend/digest:
+    dependencies:
+      '@stash/backend-links':
+        specifier: workspace:*
+        version: link:../links
+      '@stash/backend-platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@stash/backend-tabs':
+        specifier: workspace:*
+        version: link:../tabs
       '@stash/contracts-api':
         specifier: workspace:*
         version: link:../../contracts/api
@@ -786,6 +847,49 @@ importers:
 
   packages/backend/search:
     dependencies:
+      '@stash/backend-platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261023.1
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/backend/tabs:
+    dependencies:
+      '@stash/backend-links':
+        specifier: workspace:*
+        version: link:../links
       '@stash/backend-platform':
         specifier: workspace:*
         version: link:../platform
@@ -1319,6 +1423,73 @@ importers:
       '@stash/web-api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@stash/web-platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@stash/web-ui':
+        specifier: workspace:*
+        version: link:../ui
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+      vue:
+        specifier: 'catalog:'
+        version: 3.5.44(typescript@6.0.3)
+      vue-router:
+        specifier: 'catalog:'
+        version: 5.4.0(@vue/compiler-sfc@3.5.44)(rolldown@1.2.13)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+    devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      '@vitejs/plugin-vue':
+        specifier: 'catalog:'
+        version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+      '@vue/test-utils':
+        specifier: 'catalog:'
+        version: 2.5.1(@vue/compiler-dom@3.5.44)(@vue/server-renderer@3.5.44)(vue@3.5.44(typescript@6.0.3))
+      happy-dom:
+        specifier: 'catalog:'
+        version: 21.0.4
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: catalog:vue
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+      vue-tsc:
+        specifier: 'catalog:'
+        version: 3.3.13(typescript@6.0.3)
+
+  packages/web/open-tabs:
+    dependencies:
+      '@effect/atom-vue':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vue@3.5.44(typescript@6.0.3))
+      '@lucide/vue':
+        specifier: 'catalog:'
+        version: 1.61.0(vue@3.5.44(typescript@6.0.3))
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      '@stash/web-api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@stash/web-platform':
+        specifier: workspace:*
+        version: link:../platform
       '@stash/web-ui':
         specifier: workspace:*
         version: link:../ui
@@ -1530,6 +1701,12 @@ importers:
 
   packages/web/ui:
     dependencies:
+      '@fontsource-variable/geist':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@fontsource-variable/geist-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@lucide/vue':
         specifier: 'catalog:'
         version: 1.61.0(vue@3.5.44(typescript@6.0.3))
@@ -1864,6 +2041,12 @@ packages:
     resolution: {integrity: sha512-043dyEKD9TDSfz080YH2vobubgg+NIo/9Fw4RAl7sEMpD8Am1DNrrSTl/GpMBjyGHoD/FbJY2QLawY+HSQsEIA==}
     peerDependencies:
       vue: '>=3.3.0'
+
+  '@fontsource-variable/geist-mono@5.3.0':
+    resolution: {integrity: sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw==}
+
+  '@fontsource-variable/geist@5.3.0':
+    resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -4329,6 +4512,10 @@ snapshots:
       '@floating-ui/dom': 1.8.0
       '@floating-ui/utils': 0.2.12
       vue: 3.5.44(typescript@6.0.3)
+
+  '@fontsource-variable/geist-mono@5.3.0': {}
+
+  '@fontsource-variable/geist@5.3.0': {}
 
   '@img/colour@1.1.0': {}
 

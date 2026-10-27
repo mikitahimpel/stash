@@ -6,8 +6,10 @@ import * as Permissions from "@effect/platform-browser/Permissions";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import type * as KeyValueStore from "effect/persistence/KeyValueStore";
+import * as Keyboard from "./keyboard.ts";
 import * as Network from "./network.ts";
 import * as Share from "./share.ts";
+import * as Theme from "./theme.ts";
 import * as Visibility from "./visibility.ts";
 
 /**
@@ -16,7 +18,8 @@ import * as Visibility from "./visibility.ts";
  * - `KeyValueStore` (`effect/persistence/KeyValueStore`): backed by `localStorage`.
  * - `IndexedDb`, `Clipboard`, `Permissions` (`@effect/platform-browser/*`).
  * - `HttpClient` (`effect/http/HttpClient`): backed by `fetch`.
- * - `Share`, `Network`, `Visibility` (this package).
+ * - `Share`, `Network`, `Visibility`, `Theme`, `Keyboard` (this package). `Theme` keeps its preference in
+ *   `localStorage`.
  *
  * Use the individual layers below to swap one piece, for example
  * `layerSessionKeyValueStore` or `layerIndexedDbKeyValueStore`.
@@ -29,7 +32,9 @@ export type Services =
   | HttpClient.HttpClient
   | Share.Share
   | Network.Network
-  | Visibility.Visibility;
+  | Visibility.Visibility
+  | Theme.Theme
+  | Keyboard.Keyboard;
 
 export const layerKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore> =
   BrowserKeyValueStore.layerLocalStorage;
@@ -51,6 +56,14 @@ export const layerPermissions: Layer.Layer<Permissions.Permissions> = Permission
 
 export const layerHttpClient: Layer.Layer<HttpClient.HttpClient> = BrowserHttpClient.layerFetch;
 
+export const layerTheme: Layer.Layer<Theme.Theme> = Theme.layer.pipe(
+  Layer.provide(layerKeyValueStore),
+);
+
+export const layerNetwork: Layer.Layer<Network.Network> = Network.layer;
+
+export const layerKeyboard: Layer.Layer<Keyboard.Keyboard> = Keyboard.layer;
+
 export const layer: Layer.Layer<Services> = Layer.mergeAll(
   layerKeyValueStore,
   layerIndexedDb,
@@ -60,4 +73,6 @@ export const layer: Layer.Layer<Services> = Layer.mergeAll(
   Share.layer,
   Network.layer,
   Visibility.layer,
+  layerTheme,
+  Keyboard.layer,
 );

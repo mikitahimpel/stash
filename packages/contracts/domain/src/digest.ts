@@ -18,6 +18,12 @@ export const DigestTag = Schema.Struct({
 });
 export type DigestTag = typeof DigestTag.Type;
 
+export const DigestType = Schema.Struct({
+  type: Link.LinkType,
+  count: Count,
+});
+export type DigestType = typeof DigestType.Type;
+
 export const DigestHighlight = Schema.Struct({
   linkId: Link.LinkId,
   url: Link.Url,
@@ -33,6 +39,8 @@ export const Digest = Schema.Struct({
   generatedAt: Schema.DateTimeUtcFromString,
   totals: DigestTotals,
   topTags: Schema.Array(DigestTag),
+  /** Links of the period by type, most first. Links not classified yet are left out. */
+  topTypes: Schema.Array(DigestType),
   highlights: Schema.Array(DigestHighlight),
 });
 export type Digest = typeof Digest.Type;

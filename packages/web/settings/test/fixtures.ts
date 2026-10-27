@@ -31,3 +31,11 @@ export const created = (id: string, deviceId: string) => ({
 /** The JSON body of a stubbed request. */
 export const body = (request: HttpClientRequest.HttpClientRequest): unknown =>
   request.body._tag === "Uint8Array" ? JSON.parse(new TextDecoder().decode(request.body.body)) : {};
+
+/** The body of `GET /tabs`: each device with its latest snapshot taken at `takenAt`, or none. */
+export const reports = (entries: ReadonlyArray<readonly [id: string, takenAt: string | null]>) => ({
+  devices: entries.map(([id, takenAt]) => ({
+    device: device(id),
+    snapshot: takenAt === null ? null : { deviceId: id, takenAt, tabs: [] },
+  })),
+});

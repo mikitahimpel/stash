@@ -2,23 +2,40 @@ import * as AuthGuard from "@stash/web-auth/auth-guard";
 import * as Auth from "@stash/web-auth/routes";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Links from "@stash/web-links/routes";
+import * as OpenTabs from "@stash/web-open-tabs/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Search from "@stash/web-search/routes";
 import * as Settings from "@stash/web-settings/routes";
-import * as Placeholder from "./placeholder-routes.ts";
 
 /** The routes of every feature package, mounted at the top level. */
 export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Links.routes,
   ...Search.routes,
-  ...Placeholder.openTabs,
+  ...OpenTabs.routes,
   ...Settings.routes,
 ];
+
+/**
+ * Dev-only pages. `import.meta.env.DEV` is `false` in the production build, which drops them and
+ * their chunks; there `/_ui` falls through to the catch-all redirect.
+ */
+export const devRoutes: ReadonlyArray<RouteRecordRaw> = import.meta.env.DEV
+  ? [
+      {
+        path: "/_ui",
+        name: "ui-gallery",
+        component: () => import("./ui-gallery-page.vue"),
+        // Opens without a session, outside the app layout.
+        meta: { public: true },
+      },
+    ]
+  : [];
 
 export const routes: ReadonlyArray<RouteRecordRaw> = [
   { path: "/", redirect: { name: "links" } },
   ...Auth.routes,
   ...featureRoutes,
+  ...devRoutes,
   { path: "/:pathMatch(.*)*", redirect: "/links" },
 ];
 

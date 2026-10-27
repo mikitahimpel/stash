@@ -5,9 +5,11 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as KeyValueStore from "effect/persistence/KeyValueStore";
+import * as Keyboard from "../src/keyboard.ts";
 import * as Network from "../src/network.ts";
 import * as Share from "../src/share.ts";
 import * as Testing from "../src/testing.ts";
+import * as Theme from "../src/theme.ts";
 import * as Visibility from "../src/visibility.ts";
 
 describe("testing layers", () => {
@@ -95,6 +97,10 @@ describe("testing layers", () => {
       yield* Testing.TestNetwork;
       yield* Testing.TestVisibility;
       yield* Testing.TestShare;
+      expect((yield* (yield* Theme.Theme).current).preference).toBe("system");
+      yield* Testing.TestTheme;
+      yield* Keyboard.Keyboard;
+      yield* Testing.TestKeyboard;
     }).pipe(Effect.provide(Testing.layer)),
   );
 });

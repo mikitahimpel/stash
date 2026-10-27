@@ -39,7 +39,16 @@
     "./toast-message": "./src/toast/toast-message.ts",
     "./toaster": "./src/toast/toaster.vue",
     "./skeleton": "./src/skeleton/skeleton.vue",
-    "./empty-state": "./src/empty-state/empty-state.vue"
+    "./empty-state": "./src/empty-state/empty-state.vue",
+    "./kbd": "./src/kbd/kbd.vue",
+    "./list-row": "./src/list-row/list-row.vue",
+    "./search-field": "./src/search-field/search-field.vue",
+    "./section-header": "./src/section-header/section-header.vue",
+    "./segmented-control": "./src/segmented-control/segmented-control.vue",
+    "./segmented-control-option": "./src/segmented-control/segmented-control-option.ts",
+    "./segmented-control-variants": "./src/segmented-control/segmented-control-variants.ts",
+    "./text-link": "./src/text-link/text-link.vue",
+    "./toggle-chip": "./src/toggle-chip/toggle-chip.vue"
   },
   "scripts": {
     "lint": "oxlint .",
@@ -48,6 +57,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "catalog:",
+    "@fontsource-variable/geist-mono": "catalog:",
     "@lucide/vue": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",

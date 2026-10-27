@@ -5,7 +5,7 @@ import { Tool } from "effect/ai";
 
 export const tool = Tool.make("get_latest_digest", {
   description:
-    "Get the latest digest: link totals, top tags and highlights for the last period " +
+    "Get the latest digest: link totals, top tags and types, and highlights for the last period " +
     "(weekly by default).",
   success: Schema.Struct({
     digest: Schema.NullOr(Digest.Digest).annotate({

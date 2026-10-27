@@ -1,0 +1,38 @@
+{
+  "name": "@stash/backend-digest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./auto-archive-tabs": "./src/auto-archive-tabs.ts",
+    "./build-weekly-digest": "./src/build-weekly-digest.ts",
+    "./digests-repo": "./src/digests-repo.ts",
+    "./get-latest-digest": "./src/get-latest-digest.ts",
+    "./digest-handlers": "./src/digest-handlers.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-links": "workspace:*",
+    "@stash/backend-platform": "workspace:*",
+    "@stash/backend-tabs": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
