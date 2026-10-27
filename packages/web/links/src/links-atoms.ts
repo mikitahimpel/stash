@@ -6,8 +6,11 @@ import * as Option from "effect/Option";
 import * as Atom from "effect/reactivity/Atom";
 import * as Schema from "effect/Schema";
 
-/** `recent` lists every link, newest first. `unseen` lists the links still in status `new`. */
-export const Feed = Schema.Literals(["recent", "unseen"]);
+/**
+ * `unseen` lists the links still in status `new`, `recent` every link but the archived ones, and
+ * `all` every link. Each is newest first.
+ */
+export const Feed = Schema.Literals(["unseen", "recent", "all"]);
 export type Feed = typeof Feed.Type;
 
 /** What the list page shows. It lives in the URL query (`?feed=unseen&tag=go&type=video`). */
@@ -57,6 +60,13 @@ export const listQuery = (filters: Filters, cursor?: string): LinksGroup.ListLin
   ...(cursor === undefined ? {} : { cursor }),
 });
 
+/**
+ * Whether `link` belongs on the page of `filters`. `GET /links` can't leave out one status, so the
+ * `recent` feed drops the archived links from each page it loads.
+ */
+export const shows = (filters: Filters, link: Link.Link): boolean =>
+  filters.feed !== "recent" || link.status !== "archived";
+
 // Families memoize by argument, and objects compare by reference, so the feed is keyed by the
 // serialized filters.
 const feedByKey = Atom.family((key: string) => {
@@ -84,6 +94,9 @@ export const setStatus = ApiAtoms.mutation(
   (client, { id, status }: { readonly id: Link.LinkId; readonly status: Link.LinkStatus }) =>
     client.links.update({ params: { id }, payload: { status } }),
 );
+
+/** The devices, for the source device of each link. */
+export const devices = ApiAtoms.query(["devices"], (client) => client.devices.list());
 
 /** Deletes a link. */
 export const remove = ApiAtoms.mutation(["links"], (client, id: Link.LinkId) =>

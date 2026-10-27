@@ -27,7 +27,7 @@ onBeforeUnmount(() => observer?.disconnect());
   <div ref="sentinel" class="flex justify-center py-4">
     <button
       type="button"
-      :class="buttonVariants({ variant: 'outline' })"
+      :class="buttonVariants({ variant: 'raised' })"
       :disabled="loading"
       data-action="load-more"
       @click="more"

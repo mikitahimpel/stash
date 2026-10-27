@@ -16,7 +16,7 @@ export const link = (id: string, overrides: Record<string, unknown> = {}) => ({
   tags: ["economics"],
   sourceDeviceId: null,
   createdAt: "2026-01-01T00:00:00.000Z",
-  enrichedAt: null,
+  enrichedAt: "2026-01-01T00:01:00.000Z",
   ...overrides,
 });
 
