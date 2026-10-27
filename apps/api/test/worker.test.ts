@@ -4,7 +4,6 @@
 // in-memory platform layer with this package's migrations applied, and GitHub is never called.
 // The same checks run against the real Worker in workerd in `local-dev-smoke.test.ts`.
 import * as ApiTokenSecret from "@stash/backend-auth/api-token-secret";
-import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionToken from "@stash/backend-auth/session-token";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
@@ -194,22 +193,6 @@ describe("composed API", () => {
     const response = await request("GET", "/digest/latest", bearer);
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ _tag: "NotFound", resource: "digest" });
-  });
-
-  it("starts the GitHub login without credentials", async () => {
-    const login = await request("GET", "/auth/github/login");
-    expect(login.status).toBe(302);
-    expect(login.headers.get("location")).toMatch(
-      new RegExp(`^${GithubClient.authorizeEndpoint}\\?client_id=synthetic-client-id&`),
-    );
-    expect(login.headers.getSetCookie()).toEqual([
-      expect.stringMatching(/^stash_oauth_state=[\w-]+; .*HttpOnly; Secure; SameSite=Lax$/),
-    ]);
-  });
-
-  it("rejects a callback without the state cookie with 400", async () => {
-    const response = await request("GET", "/auth/github/callback?code=c&state=s");
-    expect(response.status).toBe(400);
   });
 
   it("authenticates a session cookie and logs it out", async () => {

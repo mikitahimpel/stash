@@ -24,3 +24,19 @@ export class ValidationError extends Schema.TaggedError<ValidationError>()("Vali
 export class Conflict extends Schema.TaggedError<Conflict>()("Conflict", {
   message: Schema.String,
 }) {}
+
+/** The device flow is unknown or GitHub expired its code. The client starts a new flow. */
+export class DeviceFlowExpired extends Schema.TaggedError<DeviceFlowExpired>()(
+  "DeviceFlowExpired",
+  { message: Schema.String },
+) {}
+
+/** The user declined the authorization on GitHub. */
+export class DeviceFlowDenied extends Schema.TaggedError<DeviceFlowDenied>()("DeviceFlowDenied", {
+  message: Schema.String,
+}) {}
+
+/** GitHub authenticated a login that is not on the allowlist. */
+export class LoginNotAllowed extends Schema.TaggedError<LoginNotAllowed>()("LoginNotAllowed", {
+  message: Schema.String,
+}) {}
