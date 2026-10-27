@@ -16,24 +16,16 @@ defineSlots<{
 </script>
 
 <template>
-  <div
-    data-slot="empty-state"
-    :class="
-      cn(
-        'flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center',
-        props.class,
-      )
-    "
-  >
+  <div data-slot="empty-state" :class="cn('flex flex-col items-start gap-2 py-10', props.class)">
     <div
       v-if="$slots.icon"
       data-slot="empty-state-icon"
-      class="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-6"
+      class="text-muted-foreground [&_svg]:size-5"
     >
       <slot name="icon" />
     </div>
-    <h3 class="text-base font-semibold">{{ title }}</h3>
-    <p v-if="description" class="max-w-sm text-sm text-muted-foreground">{{ description }}</p>
+    <h3 class="text-sm font-medium">{{ title }}</h3>
+    <p v-if="description" class="max-w-prose text-sm text-muted-foreground">{{ description }}</p>
     <slot />
     <div v-if="$slots.action" data-slot="empty-state-action" class="mt-2">
       <slot name="action" />

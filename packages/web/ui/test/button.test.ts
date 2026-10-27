@@ -3,14 +3,30 @@ import { describe, expect, it } from "vitest";
 import Button from "../src/button/button.vue";
 
 describe("Button", () => {
-  it("renders a button with the variant classes", () => {
-    const wrapper = mount(Button, {
-      props: { variant: "destructive" },
-      slots: { default: "Delete" },
-    });
+  it("renders a raised key by default", () => {
+    const wrapper = mount(Button, { slots: { default: "Save" } });
 
     expect(wrapper.element.tagName).toBe("BUTTON");
-    expect(wrapper.classes()).toContain("bg-destructive");
+    expect(wrapper.text()).toBe("Save");
+    expect(wrapper.classes()).toContain("tactile-raised");
+  });
+
+  it.each([
+    ["raised", "tactile-raised"],
+    ["primary", "tactile-primary"],
+    ["ghost", "hover:bg-accent"],
+    ["destructive", "text-destructive"],
+  ] as const)("renders the %s variant", (variant, expected) => {
+    const wrapper = mount(Button, { props: { variant }, slots: { default: "Go" } });
+
+    expect(wrapper.classes()).toContain(expected);
+  });
+
+  it("keeps the older variants working as raised keys", () => {
+    for (const variant of ["default", "outline", "secondary"] as const) {
+      const wrapper = mount(Button, { props: { variant }, slots: { default: "Go" } });
+      expect(wrapper.classes()).toContain("tactile-raised");
+    }
   });
 
   it("styles its child instead with as-child", () => {
@@ -21,6 +37,6 @@ describe("Button", () => {
 
     expect(wrapper.element.tagName).toBe("A");
     expect(wrapper.attributes("href")).toBe("https://example.com/article");
-    expect(wrapper.classes()).toContain("underline-offset-4");
+    expect(wrapper.classes()).toContain("link-underline");
   });
 });

@@ -1,28 +1,36 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
+/**
+ * `raised` (the default) is the everyday key, `primary` the one main action of a view, `ghost` a
+ * quiet action inside rows and toolbars. The other variants are kept for existing callers:
+ * `default`, `outline` and `secondary` render as `raised`, `destructive` is a raised key with
+ * destructive text, and `link` is a text link.
+ */
 export const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-[13px] font-medium transition-[background,box-shadow,color,transform] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
-        secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+        raised: "tactile-raised",
+        primary: "tactile-primary",
+        ghost: "text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent",
+        default: "tactile-raised",
+        outline: "tactile-raised",
+        secondary: "tactile-raised",
+        destructive: "tactile-raised text-destructive",
+        link: "px-0 text-foreground link-underline has-[>svg]:px-0",
       },
+      // Controls are at least 34px; phones get 40px touch targets.
       size: {
-        default: "h-10 px-4 py-2 has-[>svg]:px-3 sm:h-9",
-        sm: "h-9 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5 sm:h-8",
-        lg: "h-11 rounded-md px-6 has-[>svg]:px-4 sm:h-10",
+        default: "h-10 px-3.5 has-[>svg]:px-3 sm:h-9",
+        sm: "h-10 gap-1.5 px-3 has-[>svg]:px-2.5 sm:h-[34px]",
+        lg: "h-11 px-5 has-[>svg]:px-4 sm:h-10",
         icon: "size-10 sm:size-9",
       },
     },
+    compoundVariants: [{ variant: "link", class: "h-auto px-0 sm:h-auto" }],
     defaultVariants: {
-      variant: "default",
+      variant: "raised",
       size: "default",
     },
   },

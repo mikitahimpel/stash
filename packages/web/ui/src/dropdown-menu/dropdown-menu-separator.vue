@@ -12,6 +12,6 @@ const delegated = useForwardedProps(props, ["class"]);
   <DropdownMenuSeparator
     data-slot="dropdown-menu-separator"
     v-bind="delegated"
-    :class="cn('-mx-1 my-1 h-px bg-border', props.class)"
+    :class="cn('-mx-1 my-1 h-px bg-hairline', props.class)"
   />
 </template>

@@ -32,6 +32,31 @@ describe("Tailwind preset", () => {
     expect(css).toMatch(/\.dark\s*{[^}]*--background:/);
   });
 
+  it("defines the tactile surfaces as utilities with hover and active states", async () => {
+    const { css } = await build([
+      "tactile-raised",
+      "tactile-primary",
+      "tactile-sunken",
+      "tactile-key",
+    ]);
+
+    expect(css).toMatch(/\.tactile-raised\s*{[^}]*linear-gradient\(180deg, var\(--raised-from\)/);
+    expect(css).toMatch(
+      /\.tactile-raised\s*{[\s\S]*?&:active:not\(:disabled\)|\.tactile-raised:active/,
+    );
+    expect(css).toMatch(/\.tactile-key\s*{[^}]*border-bottom-width: 2\.5px/);
+  });
+
+  it("self-hosts Geist and Geist Mono and uses them as the font stacks", async () => {
+    const { css } = await build(["font-mono"]);
+
+    expect(css).toContain("font-family: 'Geist Variable'");
+    expect(css).toContain("font-family: 'Geist Mono Variable'");
+    expect(css).toMatch(/url\(\.\/files\/geist-latin-wght-normal\.woff2\)/);
+    expect(css).not.toMatch(/url\(["']?https?:/);
+    expect(css).toMatch(/\.font-mono\s*{\s*font-family: "Geist Mono Variable"/);
+  });
+
   it("keeps Tailwind's mobile-first breakpoints", async () => {
     const { css } = await build(["h-10", "sm:h-9"]);
 
