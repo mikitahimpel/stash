@@ -1,5 +1,6 @@
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import { StashApiClient } from "@stash/web-api-client/stash-api-client";
+import type * as Device from "@stash/contracts-domain/device";
 import type { ToastMessage } from "@stash/web-ui/toast-message";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -33,6 +34,30 @@ export const view: Atom.Atom<
   AsyncResult.AsyncResult<ReadonlyArray<OpenTabsView.DeviceGroup>, unknown>
 > = Atom.make((get) =>
   AsyncResult.map(get(tabs), (all) => OpenTabsView.group(all, get(hidden), DateTime.nowUnsafe())),
+);
+
+/** The text in the filter field. */
+export const query: Atom.Writable<string> = Atom.make("");
+
+/** The device chip that is on, `null` for All. */
+export const device: Atom.Writable<Device.DeviceId | null> = Atom.make<Device.DeviceId | null>(
+  null,
+);
+
+/** The groups that match the filter text, on every device: what the device chips count. */
+export const searched: Atom.Atom<
+  AsyncResult.AsyncResult<ReadonlyArray<OpenTabsView.DeviceGroup>, unknown>
+> = Atom.make((get) =>
+  AsyncResult.map(get(view), (groups) => OpenTabsView.search(groups, get(query))),
+);
+
+/** The groups the page shows: the filter text and the device chip applied. */
+export const shown: Atom.Atom<
+  AsyncResult.AsyncResult<ReadonlyArray<OpenTabsView.DeviceGroup>, unknown>
+> = Atom.make((get) =>
+  AsyncResult.map(get(view), (groups) =>
+    OpenTabsView.apply(groups, { device: get(device), query: get(query) }),
+  ),
 );
 
 let toastCount = 0;
