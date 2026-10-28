@@ -50,9 +50,9 @@ export type DeviceFlowStatus = typeof DeviceFlowStatus.Type;
 
 /**
  * Login by the GitHub OAuth Device Flow, which needs no client secret. `deviceStart` and
- * `devicePoll` run before a session exists, so only `me` and `logout` are guarded. The client
- * shows `userCode` and `verificationUri`, then polls `devicePoll` every `interval` seconds until it
- * answers `complete` (with the session cookie) or fails with `DeviceFlowExpired` (410),
+ * `devicePoll` run before a session exists, so only `me` and `logout` are guarded; `deviceStart` is
+ * rate limited per client IP (`RateLimited`, 429). The client shows `userCode` and
+ * `verificationUri`, then polls `devicePoll` every `interval` seconds until it answers `complete` (with the session cookie) or fails with `DeviceFlowExpired` (410),
  * `DeviceFlowDenied` (403) or `LoginNotAllowed` (403, the GitHub login is not allowlisted).
  */
 export class AuthGroup extends HttpApiGroup.make("auth").add(
@@ -61,6 +61,7 @@ export class AuthGroup extends HttpApiGroup.make("auth").add(
   }).middleware(Security.Authorization),
   HttpApiEndpoint.post("deviceStart", "/auth/device/start", {
     success: DeviceFlowStarted,
+    error: ErrorStatuses.RateLimited,
   }),
   HttpApiEndpoint.post("devicePoll", "/auth/device/poll", {
     payload: PollDeviceFlow,

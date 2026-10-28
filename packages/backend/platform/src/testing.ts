@@ -11,7 +11,7 @@ import * as AnthropicConfig from "./anthropic-config.ts";
 import * as Blobs from "./blobs.ts";
 import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
-import * as GithubOAuthConfig from "./github-oauth-config.ts";
+import * as GithubConfig from "./github-config.ts";
 import * as Kv from "./kv.ts";
 import type * as Live from "./live.ts";
 import * as SqliteD1 from "./sqlite-d1.ts";
@@ -205,12 +205,10 @@ export const layerStashConfig = (
     ...overrides,
   });
 
-/** Synthetic OAuth app credentials. They are placeholders, not real secrets. */
-export const layerGithubOAuthConfig: Layer.Layer<GithubOAuthConfig.GithubOAuthConfig> =
-  Layer.succeed(GithubOAuthConfig.GithubOAuthConfig)({
-    clientId: "synthetic-client-id",
-    clientSecret: Redacted.make("synthetic-client-secret"),
-  });
+/** A synthetic OAuth app client id. */
+export const layerGithubConfig: Layer.Layer<GithubConfig.GithubConfig> = Layer.succeed(
+  GithubConfig.GithubConfig,
+)({ clientId: "synthetic-client-id" });
 
 /** A synthetic Anthropic key. It is a placeholder, not a real secret. */
 export const layerAnthropicConfig: Layer.Layer<AnthropicConfig.AnthropicConfig> = Layer.succeed(
@@ -226,5 +224,5 @@ export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue> = Layer.mer
   layerKv,
   layerAi(),
   layerStashConfig(),
-  layerGithubOAuthConfig,
+  layerGithubConfig,
 );

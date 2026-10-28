@@ -102,7 +102,7 @@ describe("StashApi", () => {
     ["devices", "listCommands", ["200", "401", "403", "404"]],
     ["devices", "ackCommand", ["200", "401", "403", "404", "409"]],
     ["tokens", "create", ["201", "401", "404"]],
-    ["auth", "deviceStart", ["200"]],
+    ["auth", "deviceStart", ["200", "429"]],
     ["auth", "devicePoll", ["200", "403", "410"]],
     ["auth", "logout", ["204", "401"]],
     ["digest", "latest", ["200", "401", "404"]],

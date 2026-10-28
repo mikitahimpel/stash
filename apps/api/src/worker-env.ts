@@ -1,5 +1,5 @@
 import type * as AnthropicConfig from "@stash/backend-platform/anthropic-config";
-import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import type * as GithubConfig from "@stash/backend-platform/github-config";
 import type * as Live from "@stash/backend-platform/live";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
 
@@ -12,7 +12,7 @@ import type * as StashConfig from "@stash/backend-platform/stash-config";
 export interface WorkerEnv
   extends
     StashConfig.Env,
-    GithubOAuthConfig.Env,
+    GithubConfig.Env,
     Partial<AnthropicConfig.Env>,
     Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE" | "KV">,
     Partial<Pick<Live.PlatformEnv, "VECTORS" | "AI" | "BLOBS">> {

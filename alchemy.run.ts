@@ -47,20 +47,15 @@ export default Alchemy.Stack(
       "dev_only",
     );
     const webOrigin = yield* devDefault(Config.String("STASH_WEB_ORIGIN"), "http://localhost:5173");
-    // The GitHub OAuth app (pass:// references in .env.example). Local dev gets placeholders, so
-    // the login redirect works but GitHub rejects it. The secret is Redacted, so Alchemy binds it
-    // as `secret_text`, never as a plain var.
-    const githubClientId = yield* devDefault(Config.String("GITHUB_OAUTH_CLIENT_ID"), "dev_only");
-    const githubClientSecret = yield* devDefault(
-      Config.Redacted("GITHUB_OAUTH_CLIENT_SECRET"),
-      Redacted.make("dev_only"),
-    );
+    // The GitHub OAuth app's client id. The Device Flow login needs no client secret, and the id
+    // is public, so it is bound as a plain var. Local dev gets a placeholder that GitHub rejects.
+    const githubClientId = yield* devDefault(Config.String("GITHUB_CLIENT_ID"), "dev_only");
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
     const mcpOrigin = yield* devDefault(
       Config.String("STASH_MCP_ORIGIN"),
       `http://localhost:${mcpPort}`,
     );
-    // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text` too.
+    // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text`.
     const mcpApiToken = yield* devDefault(
       Config.Redacted("STASH_MCP_API_TOKEN"),
       Redacted.make("dev_only"),
@@ -79,8 +74,7 @@ export default Alchemy.Stack(
         KV: kv,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: webOrigin,
-        GITHUB_OAUTH_CLIENT_ID: githubClientId,
-        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
+        GITHUB_CLIENT_ID: githubClientId,
         SMOKE_ROUTES: dev ? "on" : "off",
       },
       // Auto-archive of stale Zen tabs (daily) and the weekly digest (Mondays), in UTC. Must match
@@ -95,7 +89,8 @@ export default Alchemy.Stack(
       settings: { batchSize: 10, maxWaitTimeMs: 1000 },
     });
 
-    // Bindings must match apps/mcp/src/worker-env.ts.
+    // Bindings must match apps/mcp/src/worker-env.ts. The mcp's GitHub sign-in moves to the Device
+    // Flow in #117; until then it has no client secret, so its redirect login cannot complete.
     const mcp = yield* Cloudflare.Worker("Mcp", {
       main: "./apps/mcp/src/worker.ts",
       env: {
@@ -104,7 +99,6 @@ export default Alchemy.Stack(
         OAUTH_KV: oauthState,
         MCP_ORIGIN: mcpOrigin,
         GITHUB_OAUTH_CLIENT_ID: githubClientId,
-        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
       },
       dev: { host, port: mcpPort, strictPort: true },

@@ -1,5 +1,5 @@
 // Wiring tests for the composed API on Node: the layer builds, `/health` is public, every group is
-// routed behind `Authorization`, the auth group is wired (GitHub redirect, session cookies), links
+// routed behind `Authorization`, the auth group is wired (device flow, session cookies), links
 // search, tabs, devices and the digest are served, and CORS follows the web origin. D1 is the
 // in-memory platform layer with this package's migrations applied, and GitHub is never called.
 // The same checks run against the real Worker in workerd in `local-dev-smoke.test.ts`.
@@ -57,7 +57,7 @@ const app = HttpRouter.toWebHandler(
     Layer.provide(Testing.layerStashConfig({ webOrigin })),
     Layer.provide(Testing.layerAi()),
     Layer.provide(Testing.layerVectors),
-    Layer.provide(Testing.layerGithubOAuthConfig),
+    Layer.provide(Testing.layerGithubConfig),
     Layer.provide(layerNoNetwork),
     Layer.provide(Testing.layerEnrichmentQueue),
     Layer.provide(Testing.layerKv),
@@ -102,6 +102,13 @@ describe("composed API", () => {
     const response = await request(method, path);
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ _tag: "Unauthorized" });
+  });
+
+  it("routes the device flow without a credential", async () => {
+    // An unknown flow is answered from KV, so GitHub is not called.
+    const response = await request("POST", "/auth/device/poll", {}, { flowId: "unknown-flow" });
+    expect(response.status).toBe(410);
+    expect(await response.json()).toMatchObject({ _tag: "DeviceFlowExpired" });
   });
 
   it("rejects an unknown bearer token", async () => {
