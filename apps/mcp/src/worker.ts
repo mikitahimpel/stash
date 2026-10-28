@@ -1,6 +1,6 @@
 import * as ApiClient from "@stash/mcp-platform/api-client";
 import { env } from "cloudflare:workers";
-import { Layer, Redacted, Scheduler } from "effect";
+import { Layer, Scheduler } from "effect";
 import { FetchHttpClient, HttpRouter } from "effect/http";
 import * as GitHub from "./github-identity.ts";
 import * as McpServer from "./mcp-server.ts";
@@ -16,11 +16,8 @@ const mcp = HttpRouter.toWebHandler(
   McpServer.layer(ApiClient.layer(workerEnv)).pipe(Layer.provideMerge(syncScheduler)),
 );
 
-const github = GitHub.layer({
-  clientId: workerEnv.GITHUB_OAUTH_CLIENT_ID,
-  clientSecret: Redacted.make(workerEnv.GITHUB_OAUTH_CLIENT_SECRET, {
-    label: "GITHUB_OAUTH_CLIENT_SECRET",
-  }),
-}).pipe(Layer.provide(FetchHttpClient.layer));
+const github = GitHub.layer({ clientId: workerEnv.GITHUB_CLIENT_ID }).pipe(
+  Layer.provide(FetchHttpClient.layer),
+);
 
 export default OAuthProvider.make({ env: workerEnv, mcp: mcp.handler, github });

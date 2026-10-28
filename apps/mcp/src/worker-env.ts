@@ -7,9 +7,8 @@ export interface WorkerEnv extends ApiClient.ApiEnv {
   readonly OAUTH_KV: KVNamespace;
   /** Public origin of this Worker (`https://…`, or `http://localhost:<port>` in dev). */
   readonly MCP_ORIGIN: string;
-  readonly GITHUB_OAUTH_CLIENT_ID: string;
-  /** A Worker secret. */
-  readonly GITHUB_OAUTH_CLIENT_SECRET: string;
+  /** The GitHub OAuth App's client ID for the Device Flow. A plain var: it is public. */
+  readonly GITHUB_CLIENT_ID: string;
   /** The only GitHub login that may authorize a client. */
   readonly ALLOWED_GITHUB_LOGIN: string;
 }

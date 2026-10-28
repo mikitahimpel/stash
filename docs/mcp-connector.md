@@ -24,19 +24,21 @@ them come from env, never from the repo.
 |---|---|---|
 | `STASH_MCP_ORIGIN` | `MCP_ORIGIN` | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash) |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `ALLOWED_GITHUB_LOGIN` | your GitHub login. It is the only account that can authorize a client (compared case-insensitively) |
-| `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` | same names | a GitHub OAuth App whose **Authorization callback URL** is `<STASH_MCP_ORIGIN>/callback` |
+| `GITHUB_CLIENT_ID` | same name | the client ID of a GitHub OAuth App with **Enable Device Flow** checked. It is public, so it is a plain var. There is no client secret |
 | `STASH_MCP_API_TOKEN` | `API_TOKEN` | an API token from `POST /tokens` on the api. The tools act as this token's principal |
 
 `MCP_ORIGIN` is the OAuth issuer and sets the protected resource (`<origin>/mcp`). On the first
 deploy you may not know the `workers.dev` host yet: deploy once, read `mcpUrl`, set
-`STASH_MCP_ORIGIN` and the GitHub callback URL, then deploy again.
+`STASH_MCP_ORIGIN`, then deploy again. Device flow has no callback URL, so the GitHub OAuth App
+does not depend on the origin.
 
 ## How OAuth works
 
 The connector uses the MCP authorization spec (OAuth 2.1 with PKCE). The `Mcp` Worker is both the
 authorization server and the protected resource, built on `@cloudflare/workers-oauth-provider`
 with its state (clients, grants, tokens) in the `OAUTH_KV` namespace. GitHub is only the upstream
-identity. Claude never sees a GitHub token, and the Worker keeps none.
+identity, reached with the **GitHub Device Flow**: the Worker needs only the public client ID, and
+GitHub never redirects back to it. Claude never sees a GitHub token, and the Worker keeps none.
 
 1. Claude calls `/mcp` without a token and gets `401` with
    `WWW-Authenticate: Bearer resource_metadata="<origin>/.well-known/oauth-protected-resource/mcp"`.
@@ -45,14 +47,22 @@ identity. Claude never sees a GitHub token, and the Worker keeps none.
 3. Claude registers itself at `/register` (Dynamic Client Registration, RFC 7591). You don't
    create a client ID by hand. Client ID Metadata Documents are not enabled.
 4. Your browser opens `/authorize`, a consent page that shows the client's name and where access
-   will be sent. **Continue with GitHub** sends you to GitHub (with its own PKCE challenge).
-   **Deny** returns `access_denied` to Claude.
-5. GitHub redirects to `/callback`. The Worker exchanges the code, reads your GitHub login and
-   compares it with `ALLOWED_GITHUB_LOGIN`. Any other account gets `access_denied`.
-6. Claude exchanges its code at `/token` for an access token (1 hour) and a refresh token
+   will be sent. **Deny** returns `access_denied` to Claude.
+5. **Continue with GitHub** starts a device flow (`POST github.com/login/device/code`, scope
+   `read:user`) and opens `/authorize/device`, which shows a user code such as `WDJB-MJHT` and a
+   link to `github.com/login/device`. Open the link, sign in to GitHub, enter the code and
+   authorize. Keep the Stash tab open: it polls `/authorize/poll`, and the Worker polls GitHub at
+   the interval GitHub asks for (5 seconds more after each `slow_down`). The approved request and
+   the device code wait in `OAUTH_KV`, bound to your browser by a cookie, for at most 10 minutes.
+6. When GitHub returns a token, the Worker reads your login with it once, drops the token, and
+   compares the login with `ALLOWED_GITHUB_LOGIN` (case-insensitively). The allowlisted login gets
+   a grant, and the tab returns you to Claude with a code. Any other account sees "This GitHub
+   account may not use this server", gets no grant, and Claude gets `access_denied`. An expired
+   code or **Cancel** on GitHub ends the same way.
+7. Claude exchanges its code at `/token` for an access token (1 hour) and a refresh token
    (30 days from sign-in, the provider defaults). Claude refreshes silently. After 30 days you
    sign in again.
-7. Every `/mcp` request carries `Authorization: Bearer <access token>`. The Worker then calls
+8. Every `/mcp` request carries `Authorization: Bearer <access token>`. The Worker then calls
    `apps/api` over the `API` Service Binding with `API_TOKEN`. The MCP server owns no data.
 
 You can check the metadata without signing in:
@@ -76,8 +86,9 @@ Desktop) and it shows up in Desktop and the iOS app too.
 2. Name: `Stash`. Remote MCP server URL: `https://<your-mcp>.workers.dev/mcp`.
 3. Leave the **Advanced settings** (OAuth Client ID and Secret) empty. Claude registers itself
    (step 3 above).
-4. Choose **Add**, then **Connect**. Approve the consent page and sign in with the allowlisted
-   GitHub account.
+4. Choose **Add**, then **Connect**. Approve the consent page, then enter the code it shows at
+   `github.com/login/device`, signed in as the allowlisted GitHub account. On iOS you can open
+   the GitHub link on any device; the Stash tab finishes on its own.
 5. In a chat, enable Stash from the tools menu. Claude asks before it runs a tool unless you
    allow it always.
 
@@ -89,16 +100,16 @@ claude mcp add --transport http stash https://<your-mcp>.workers.dev/mcp
 
 Add `--scope user` to have it in every project (the default scope is the current project only).
 Then run `/mcp` in Claude Code, pick `stash` and choose **Authenticate**. Claude Code opens the
-browser for the same consent and GitHub sign-in, and listens on a loopback redirect, so the
+browser for the same consent and device code sign-in, and listens on a loopback redirect, so the
 consent page warns that access goes to an app on your computer. `claude mcp list` shows whether
 the server is connected.
 
 ### Local dev
 
 `pnpm dev:api` also runs `Mcp` at `http://localhost:8790/mcp` (`STASH_MCP_PORT`). The metadata and
-the 401 challenge work there, but the GitHub values are the `dev_only` placeholders, so GitHub
-rejects the sign-in. A full sign-in needs a real GitHub OAuth App, which the repo does not have
-yet.
+the 401 challenge work there, but `GITHUB_CLIENT_ID` is the `dev_only` placeholder, so GitHub
+rejects the device code request and the consent page returns `server_error` to the client. Set
+`GITHUB_CLIENT_ID` to a real Device Flow client ID to sign in locally; no secret is needed.
 
 ## Tools
 
@@ -125,9 +136,10 @@ command, and the device closes it the next time it checks for commands.
 | Symptom | Likely cause | Check or fix |
 |---|---|---|
 | Claude says it cannot connect, or never opens a sign-in page | The URL lacks `/mcp`, or `MCP_ORIGIN` differs from the URL you added (other host, `http` vs `https`, trailing path) | Use `<origin>/mcp`. Run the two `curl` commands above: `issuer` and `resource` must match it. Redeploy with the right `STASH_MCP_ORIGIN` |
-| GitHub shows "The redirect_uri is not associated with this application" | The GitHub OAuth App's callback URL is not `<MCP_ORIGIN>/callback` | Fix the callback URL in the GitHub OAuth App settings |
-| Sign-in ends with "This GitHub account may not use this server" | You signed in with a GitHub account other than `ALLOWED_GITHUB_LOGIN` | Sign out of GitHub in that browser, or fix `STASH_ALLOWED_GITHUB_LOGIN` and redeploy |
-| Sign-in ends with "GitHub sign-in failed" | The code exchange failed: wrong client secret, or a client ID from another app | Check the `GITHUB_OAUTH_*` values in the vault and redeploy |
+| Continue with GitHub returns "GitHub sign-in failed" to Claude at once | GitHub refused the device code request: `GITHUB_CLIENT_ID` is wrong (or `dev_only`), or the OAuth App does not have **Enable Device Flow** checked | Check the client ID and the app setting, then redeploy |
+| Sign-in ends with "This GitHub account may not use this server" | You entered the code while signed in to a GitHub account other than `ALLOWED_GITHUB_LOGIN` | Switch GitHub accounts at `github.com/login/device`, or fix `STASH_ALLOWED_GITHUB_LOGIN` and redeploy |
+| The code page says the code expired, or "This sign-in expired" | More than 10 minutes passed, or the Stash tab was closed while waiting | Connect again from Claude for a new code |
+| The code page says the authorization was not started in this browser | The poll came without the browser-binding cookie (another browser, or cookies blocked) | Start and finish the sign-in in the same browser with cookies allowed |
 | The consent page says the request is invalid (400) | The client's registration was lost (KV cleared or a different stage) or the redirect does not match it | Remove the connector and add it again, so Claude registers anew |
 | "This app could not be verified." | The client sent a Client ID Metadata Document URL, which this server does not enable | Use a client that supports Dynamic Client Registration (claude.ai, Desktop and Claude Code do) |
 | Connected, but every tool call fails with an internal error | `API_TOKEN` is wrong or revoked, or the `API` Service Binding is broken. The api's 401 is a defect, not a tool result | Issue a new token with `POST /tokens`, update `STASH_MCP_API_TOKEN` and redeploy. Check `alchemy logs` for `Mcp` and `Api` |

@@ -6,8 +6,9 @@ Read the root [CLAUDE.md](../../CLAUDE.md) and [packages/mcp/CLAUDE.md](../../pa
 
 The Cloudflare Worker that serves the remote MCP server, which users add to Claude as a custom
 connector. It implements OAuth 2.1 for connectors with `@cloudflare/workers-oauth-provider`
-(state in KV, GitHub as the upstream identity, one allowlisted login from env), registers the tools
-from `packages/mcp/*`, and calls `apps/api` through a Service Binding. It owns no data.
+(state in KV, GitHub as the upstream identity through the Device Flow, one allowlisted login from
+env), registers the tools from `packages/mcp/*`, and calls `apps/api` through a Service Binding. It
+owns no data.
 
 ## May depend on
 
@@ -30,8 +31,9 @@ Never import `@stash/backend-*`, `@stash/web-*` or `@stash/ext-*`. oxlint enforc
 ## Rules
 
 - Keep the entry small: OAuth provider, MCP transport, tool registration.
-- The GitHub client ID and secret, the allowlisted login and the KV namespace come from env. Never
-  commit them.
+- The GitHub client ID (public, a plain var), the allowlisted login and the KV namespace come from
+  env. Never commit them. Device Flow needs no client secret, so this Worker has none.
+- The GitHub access token is read once for the login and dropped. Never store or log it.
 
 ## Testing
 
@@ -43,9 +45,10 @@ behavior is tested in `packages/mcp/*`.
 
 - `src/worker.ts` (entry: reads `env`, builds the live layers), `src/worker-env.ts` (bindings,
   kept in sync with `alchemy.run.ts`)
-- `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent page, GitHub
-  redirect and callback, allowlist), `src/github-identity.ts` (GitHub code exchange over
-  `HttpClient`)
+- `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent, device code
+  page, poll endpoint, allowlist), `src/authorize-pages.ts` (the server-rendered HTML),
+  `src/device-flow-store.ts` (pending device flows in KV), `src/github-identity.ts` (GitHub Device
+  Flow over `HttpClient`)
 - `src/mcp-server.ts` (Streamable HTTP transport from `effect/ai/McpServer`, tool registration)
 - `test/oauth-handler.test.ts`, `test/cloudflare-workers-stub.ts` (Node stand-in for
   `cloudflare:workers`)

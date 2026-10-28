@@ -1,14 +1,15 @@
 // Wiring tests for the `Mcp` Worker on Node: OAuth 2.1 metadata, the bearer check on `/mcp`, the
-// GitHub sign-in with one allowlisted login, and MCP `initialize` + `tools/list` with the token the
-// flow issued. GitHub is a fake behind `HttpClient`, KV is in memory and the api is
-// `@stash/mcp-platform/testing`. All values are synthetic.
+// GitHub Device Flow sign-in with one allowlisted login, and MCP `initialize` + `tools/list` with
+// the token the flow issued. GitHub is a fake behind `HttpClient`, KV is in memory, the clock is the
+// test's and the api is `@stash/mcp-platform/testing`. All values are synthetic.
 import * as Testing from "@stash/mcp-platform/testing";
-import { Layer, Redacted } from "effect";
+import { Layer } from "effect";
 import { FetchHttpClient, HttpRouter } from "effect/http";
 import { createHash } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import * as GitHub from "../src/github-identity.ts";
 import * as McpServer from "../src/mcp-server.ts";
+import * as OAuthHandler from "../src/oauth-handler.ts";
 import * as OAuthProvider from "../src/oauth-provider.ts";
 import type { WorkerEnv } from "../src/worker-env.ts";
 
@@ -16,11 +17,13 @@ const origin = "https://mcp.example.com";
 const resource = `${origin}/mcp`;
 const allowedLogin = "synthetic-user";
 const clientRedirectUri = "https://client.example.com/callback";
-const githubCode = "synthetic-github-code";
+const clientId = "synthetic-client-id";
+const deviceCode = "synthetic-device-code";
+const userCode = "WDJB-MJHT";
+const githubToken = "synthetic-github-token";
 
 /** A KV namespace in memory. Covers what the provider uses: get (text/json), put, delete, list. */
-const makeKv = () => {
-  const store = new Map<string, string>();
+const makeKv = (store: Map<string, string>) => {
   const kv = {
     get: async (key: string, options?: unknown) => {
       const value = store.get(key);
@@ -45,40 +48,60 @@ const makeKv = () => {
 
 const base64Url = (value: Buffer) => value.toString("base64url");
 
-/** Fake GitHub: checks the PKCE pair and answers with whichever login the test signs in as. */
+type TokenAnswer = "authorization_pending" | "slow_down" | "expired_token" | "access_denied";
+
+/**
+ * Fake GitHub. The token endpoint answers from `answers` in order, then with a token. `bodies`
+ * records every form GitHub received, so tests can check that no client secret is ever sent.
+ */
 const github = {
   login: allowedLogin,
-  challenge: undefined as string | undefined,
-  verifiedPkce: false,
+  answers: [] as Array<TokenAnswer>,
+  tokenPolls: 0,
+  bodies: [] as Array<URLSearchParams>,
 };
 
 const fakeGitHubFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const request = new Request(input, init);
+  if (request.url === GitHub.deviceCodeUrl) {
+    const body = new URLSearchParams(await request.text());
+    github.bodies.push(body);
+    if (body.get("client_id") !== clientId || body.get("scope") !== "read:user") {
+      return Response.json({ error: "incorrect_client_credentials" });
+    }
+    return Response.json({
+      device_code: deviceCode,
+      user_code: userCode,
+      verification_uri: "https://github.com/login/device",
+      expires_in: 900,
+      interval: 5,
+    });
+  }
   if (request.url === GitHub.accessTokenUrl) {
     const body = new URLSearchParams(await request.text());
-    const verifier = body.get("code_verifier") ?? "";
-    github.verifiedPkce =
-      base64Url(createHash("sha256").update(verifier).digest()) === github.challenge;
+    github.bodies.push(body);
+    github.tokenPolls += 1;
     const ok =
-      body.get("code") === githubCode &&
-      body.get("client_secret") === "synthetic-client-secret" &&
-      github.verifiedPkce;
+      body.get("client_id") === clientId &&
+      body.get("device_code") === deviceCode &&
+      body.get("grant_type") === "urn:ietf:params:oauth:grant-type:device_code";
+    if (!ok) return Response.json({ error: "bad_verification_code" });
+    const answer = github.answers.shift();
     return Response.json(
-      ok ? { access_token: "synthetic-github-token", token_type: "bearer" } : { error: "bad" },
+      answer === undefined
+        ? { access_token: githubToken, token_type: "bearer" }
+        : { error: answer },
     );
   }
   if (request.url === GitHub.userUrl) {
-    return request.headers.get("authorization") === "Bearer synthetic-github-token"
+    return request.headers.get("authorization") === `Bearer ${githubToken}`
       ? Response.json({ login: github.login, id: 1 })
       : new Response("Unauthorized", { status: 401 });
   }
   return new Response("Not found", { status: 404 });
 }) as typeof globalThis.fetch;
 
-const githubLayer = GitHub.layer({
-  clientId: "synthetic-client-id",
-  clientSecret: Redacted.make("synthetic-client-secret"),
-}).pipe(
+const githubLayer = GitHub.layer({ clientId }).pipe(
   Layer.provide(FetchHttpClient.layer),
   Layer.provide(Layer.succeed(FetchHttpClient.Fetch)(fakeGitHubFetch)),
 );
@@ -99,18 +122,26 @@ const expectedTools = [
 const mcp = HttpRouter.toWebHandler(McpServer.layer(Testing.layer()), { disableLogger: true });
 afterAll(() => mcp.dispose());
 
+/** The test's clock, in epoch milliseconds. Polls advance it past GitHub's interval. */
+let clock = 0;
+
 const provider = OAuthProvider.make({
   env: { MCP_ORIGIN: origin, ALLOWED_GITHUB_LOGIN: allowedLogin },
   mcp: mcp.handler,
   github: githubLayer,
+  now: () => clock,
 });
 
+let kvStore: Map<string, string>;
 let env: WorkerEnv;
 beforeEach(() => {
-  env = { OAUTH_KV: makeKv() } as WorkerEnv;
+  kvStore = new Map();
+  env = { OAUTH_KV: makeKv(kvStore) } as WorkerEnv;
+  clock = Date.UTC(2026, 0, 1);
   github.login = allowedLogin;
-  github.challenge = undefined;
-  github.verifiedPkce = false;
+  github.answers = [];
+  github.tokenPolls = 0;
+  github.bodies = [];
 });
 
 const ctx = (): ExecutionContext =>
@@ -145,11 +176,11 @@ const registerClient = async () => {
 const clientVerifier = "synthetic-client-verifier-0123456789-abcdefghijklmnop";
 const clientChallenge = base64Url(createHash("sha256").update(clientVerifier).digest());
 
-/** Runs the browser part of the flow and returns the client's final redirect. */
-const authorize = async (clientId: string) => {
+/** Opens the consent page for a new authorization request and returns it with its form handle. */
+const consent = async (oauthClientId: string) => {
   const query = new URLSearchParams({
     response_type: "code",
-    client_id: clientId,
+    client_id: oauthClientId,
     redirect_uri: clientRedirectUri,
     state: "client-state",
     code_challenge: clientChallenge,
@@ -163,37 +194,78 @@ const authorize = async (clientId: string) => {
   expect(html).toContain("client.example.com");
   const handle = /name="handle" value="([^"]+)"/.exec(html)?.[1];
   expect(handle).toBeDefined();
+  return { page, handle: handle! };
+};
 
+/** Approves the consent page and opens the device code page. Returns the poll `state` + cookie. */
+const startDeviceFlow = async (oauthClientId: string) => {
+  const { page, handle } = await consent(oauthClientId);
   const approve = await send("/authorize", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookies(page) },
-    body: new URLSearchParams({ handle: handle!, decision: "approve" }),
+    body: new URLSearchParams({ handle, decision: "approve" }),
   });
-  expect(approve.status).toBe(302);
-  const toGitHub = new URL(approve.headers.get("location")!);
-  expect(`${toGitHub.origin}${toGitHub.pathname}`).toBe(GitHub.authorizeUrl);
-  expect(toGitHub.searchParams.get("client_id")).toBe("synthetic-client-id");
-  expect(toGitHub.searchParams.get("redirect_uri")).toBe(`${origin}/callback`);
-  expect(toGitHub.searchParams.get("code_challenge_method")).toBe("S256");
-  github.challenge = toGitHub.searchParams.get("code_challenge")!;
+  expect(approve.status).toBe(303);
+  const toDevice = new URL(approve.headers.get("location")!);
+  expect(`${toDevice.origin}${toDevice.pathname}`).toBe(`${origin}${OAuthHandler.devicePath}`);
+  const state = toDevice.searchParams.get("state")!;
 
-  const callback = new URLSearchParams({
-    code: githubCode,
-    state: toGitHub.searchParams.get("state")!,
-  });
-  const back = await send(`/callback?${callback}`, { headers: { cookie: cookies(approve) } });
-  expect(back.status).toBe(302);
-  return new URL(back.headers.get("location")!);
+  const device = await send(`${toDevice.pathname}${toDevice.search}`);
+  expect(device.status).toBe(200);
+  expect(device.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+  const html = await device.text();
+  expect(html).toContain(userCode);
+  expect(html).toContain('href="https://github.com/login/device"');
+  expect(html).toContain("prefers-color-scheme");
+  expect(html).not.toContain(deviceCode);
+  return { state, cookie: cookies(approve) };
 };
 
-const exchange = async (clientId: string, code: string) => {
+const pollOnce = async (state: string, cookie: string) => {
+  const response = await send(OAuthHandler.pollPath, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", cookie },
+    body: new URLSearchParams({ state }),
+  });
+  expect(response.status).toBe(200);
+  return (await response.json()) as OAuthHandler.PollResponse;
+};
+
+/** Polls as the device page does, waiting out each interval, until the flow ends. */
+const pollUntilDone = async (state: string, cookie: string) => {
+  const seen: Array<OAuthHandler.PollResponse> = [];
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const last = seen.at(-1);
+    clock += (last && "interval" in last ? last.interval : 5) * 1000;
+    const body = await pollOnce(state, cookie);
+    seen.push(body);
+    if (body.status !== "pending" && body.status !== "slow_down") return seen;
+  }
+  throw new Error("the device flow never ended");
+};
+
+/** Runs the browser part of the flow and returns the final poll answer and every answer before. */
+const authorize = async (oauthClientId: string) => {
+  const { state, cookie } = await startDeviceFlow(oauthClientId);
+  const seen = await pollUntilDone(state, cookie);
+  return { final: seen.at(-1)!, seen };
+};
+
+const redirectOf = (body: OAuthHandler.PollResponse) => {
+  expect("redirectTo" in body && body.redirectTo).toBeTruthy();
+  return new URL((body as { redirectTo: string }).redirectTo);
+};
+
+const grants = () => [...kvStore.keys()].filter((key) => key.startsWith("grant:"));
+
+const exchange = async (oauthClientId: string, code: string) => {
   const response = await send("/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      client_id: clientId,
+      client_id: oauthClientId,
       redirect_uri: clientRedirectUri,
       code_verifier: clientVerifier,
       resource,
@@ -206,9 +278,9 @@ const exchange = async (clientId: string, code: string) => {
 };
 
 const issueToken = async () => {
-  const clientId = await registerClient();
-  const redirect = await authorize(clientId);
-  return exchange(clientId, redirect.searchParams.get("code")!);
+  const oauthClientId = await registerClient();
+  const { final } = await authorize(oauthClientId);
+  return exchange(oauthClientId, redirectOf(final).searchParams.get("code")!);
 };
 
 /** One JSON-RPC message over Streamable HTTP. The reply may be JSON or a one-event SSE stream. */
@@ -280,34 +352,94 @@ describe("MCP endpoint", () => {
   });
 });
 
-describe("GitHub sign-in", () => {
-  it("issues a grant to the allowlisted login, with GitHub PKCE", async () => {
-    const clientId = await registerClient();
-    const redirect = await authorize(clientId);
-    expect(github.verifiedPkce).toBe(true);
+describe("GitHub Device Flow sign-in", () => {
+  it("issues a grant to the allowlisted login after pending and slow_down", async () => {
+    github.answers = ["authorization_pending", "slow_down"];
+    const oauthClientId = await registerClient();
+    const { final, seen } = await authorize(oauthClientId);
+    expect(seen.map((body) => body.status)).toEqual(["pending", "slow_down", "complete"]);
+    expect(seen[0]).toMatchObject({ interval: 5 });
+    expect(seen[1]).toMatchObject({ interval: 10 });
+    const redirect = redirectOf(final);
     expect(`${redirect.origin}${redirect.pathname}`).toBe(clientRedirectUri);
     expect(redirect.searchParams.get("state")).toBe("client-state");
     expect(redirect.searchParams.get("code")).toBeTruthy();
-    expect(await exchange(clientId, redirect.searchParams.get("code")!)).toBeTruthy();
+    expect(grants()).toHaveLength(1);
+    expect(await exchange(oauthClientId, redirect.searchParams.get("code")!)).toBeTruthy();
+  });
+
+  it("never sends a client secret and never stores the GitHub token", async () => {
+    await authorize(await registerClient());
+    expect(github.bodies.length).toBeGreaterThan(0);
+    for (const body of github.bodies) expect(body.has("client_secret")).toBe(false);
+    const stored = [...kvStore.entries()].flat().join("\n");
+    expect(stored).not.toContain(githubToken);
+    expect(stored).not.toContain(deviceCode);
+  });
+
+  it("does not poll GitHub before the interval has passed", async () => {
+    const { state, cookie } = await startDeviceFlow(await registerClient());
+    expect(await pollOnce(state, cookie)).toEqual({ status: "pending", interval: 5 });
+    expect(github.tokenPolls).toBe(0);
   });
 
   it("matches the allowlisted login case-insensitively, as GitHub does", async () => {
     github.login = "Synthetic-User";
-    const redirect = await authorize(await registerClient());
-    expect(redirect.searchParams.get("code")).toBeTruthy();
+    const { final } = await authorize(await registerClient());
+    expect(final.status).toBe("complete");
+    expect(redirectOf(final).searchParams.get("code")).toBeTruthy();
   });
 
-  it("denies any other GitHub login", async () => {
+  it("denies any other GitHub login without a grant", async () => {
     github.login = "someone-else";
-    const redirect = await authorize(await registerClient());
+    const { final } = await authorize(await registerClient());
+    expect(final).toMatchObject({
+      status: "not_allowed",
+      message: "This GitHub account may not use this server",
+    });
+    const redirect = redirectOf(final);
     expect(redirect.searchParams.get("error")).toBe("access_denied");
     expect(redirect.searchParams.get("state")).toBe("client-state");
     expect(redirect.searchParams.has("code")).toBe(false);
+    expect(grants()).toEqual([]);
   });
 
-  it("refuses the callback without the browser-binding cookie", async () => {
-    const response = await send(`/callback?code=${githubCode}&state=forged`);
-    expect(response.status).toBe(400);
+  it.each([
+    ["expired_token", "expired"],
+    ["access_denied", "denied"],
+  ] as const)("ends the flow on %s without a grant", async (answer, status) => {
+    github.answers = [answer];
+    const { final } = await authorize(await registerClient());
+    expect(final.status).toBe(status);
+    expect(redirectOf(final).searchParams.get("error")).toBe("access_denied");
+    expect(grants()).toEqual([]);
+  });
+
+  it("gives no grant to a poll without the browser-binding cookie", async () => {
+    const { state } = await startDeviceFlow(await registerClient());
+    clock += 5000;
+    const body = await pollOnce(state, "");
+    expect(body.status).toBe("failed");
+    expect("redirectTo" in body).toBe(false);
+    expect(grants()).toEqual([]);
+  });
+
+  it("answers expired to an unknown flow", async () => {
+    expect((await pollOnce("forged", "")).status).toBe("expired");
+    expect(github.tokenPolls).toBe(0);
+  });
+
+  it("returns access_denied to the client when consent is denied", async () => {
+    const { page, handle } = await consent(await registerClient());
+    const deny = await send("/authorize", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookies(page) },
+      body: new URLSearchParams({ handle, decision: "deny" }),
+    });
+    expect(deny.status).toBe(302);
+    const redirect = new URL(deny.headers.get("location")!);
+    expect(redirect.searchParams.get("error")).toBe("access_denied");
+    expect(github.bodies).toEqual([]);
   });
 });
 
