@@ -7,7 +7,7 @@ import * as AnthropicConfig from "@stash/backend-platform/anthropic-config";
 import * as Blobs from "@stash/backend-platform/blobs";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
-import * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import * as GithubConfig from "@stash/backend-platform/github-config";
 import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as Kv from "@stash/backend-platform/kv";
 import * as StashConfig from "@stash/backend-platform/stash-config";
@@ -37,7 +37,7 @@ const platform = Layer.mergeAll(
   EnrichmentQueue.layer(workerEnv.ENRICHMENT_QUEUE),
   Kv.layer(workerEnv.KV),
   StashConfig.layerFromEnv(workerEnv),
-  GithubOAuthConfig.layerFromEnv(workerEnv),
+  GithubConfig.layerFromEnv(workerEnv),
   HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
   Vectors.layer(

@@ -1,6 +1,6 @@
 // Boots the root `alchemy.run.ts` under `alchemy dev` (no Cloudflare credentials) and drives the
 // real Worker in workerd over HTTP: health, the HttpApi behind `Authorization` (401 without a
-// credential, a bearer token seeded by its hash), the GitHub login redirect, CORS, D1 and its migrations, and one queue
+// credential, a bearer token seeded by its hash), CORS, D1 and its migrations, and one queue
 // message through the consumer.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";

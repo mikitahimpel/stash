@@ -14,7 +14,7 @@ packages implement it.
 | `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text, YouTube transcripts to R2), classifier (Claude via `@effect/ai`), embedder, queue consumer |
 | `search/` | `@stash/backend-search` | FTS5 keyword search and Vectorize semantic search behind one `SearchService` (hybrid) |
 | `tabs/` | `@stash/backend-tabs` | Open-tab snapshots, devices, remote commands |
-| `auth/` | `@stash/backend-auth` | GitHub OAuth sessions, per-device API tokens (only hashes stored), auth middleware |
+| `auth/` | `@stash/backend-auth` | GitHub Device Flow login and sessions, per-device API tokens (only hashes stored), auth middleware |
 | `digest/` | `@stash/backend-digest` | Cron jobs: auto-archive old Zen tabs, weekly digest |
 | `platform/` | `@stash/backend-platform` | Cloudflare bindings as Effect services |
 

@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as SessionVerifier from "../authorization/session-verifier.ts";
-import * as GithubClient from "../github-oauth/github-client.ts";
+import * as GithubClient from "../device-flow/github-client.ts";
 import * as SessionToken from "./session-token.ts";
 import * as SessionsRepo from "./sessions-repo.ts";
 

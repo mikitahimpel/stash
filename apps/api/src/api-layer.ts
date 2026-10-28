@@ -1,5 +1,7 @@
 import * as ApiTokensRepo from "@stash/backend-auth/api-tokens-repo";
 import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
+import * as DeviceFlowsStore from "@stash/backend-auth/device-flows-store";
+import * as DeviceStartRateLimiter from "@stash/backend-auth/device-start-rate-limiter";
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
@@ -9,7 +11,7 @@ import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
-import type * as GithubOAuthConfig from "@stash/backend-platform/github-oauth-config";
+import type * as GithubConfig from "@stash/backend-platform/github-config";
 import type * as Kv from "@stash/backend-platform/kv";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as Vectors from "@stash/backend-platform/vectors";
@@ -34,7 +36,7 @@ export type Requirements =
   | EnrichmentQueue.EnrichmentQueue
   | Kv.Kv
   | StashConfig.StashConfig
-  | GithubOAuthConfig.GithubOAuthConfig
+  | GithubConfig.GithubConfig
   | HttpClient.HttpClient
   | Ai.Ai
   | Vectors.Vectors;
@@ -57,7 +59,7 @@ const cors = Layer.unwrap(
 );
 
 /**
- * `GET /health` and the `StashApi`, guarded by `Authorization` (API tokens, then GitHub OAuth
+ * `GET /health` and the `StashApi`, guarded by `Authorization` (API tokens, then GitHub Device Flow
  * sessions), with CORS for the web origin. Needs an `HttpRouter` and the platform services.
  */
 export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requirements> =
@@ -67,7 +69,14 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(AuthorizationLive.layer),
       Layer.provide(SessionVerifierLive.layer),
       Layer.provide(GithubClient.layer),
-      Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, SessionsRepo.layer)),
+      Layer.provide(
+        Layer.mergeAll(
+          ApiTokensRepo.layer,
+          SessionsRepo.layer,
+          DeviceFlowsStore.layer,
+          DeviceStartRateLimiter.layer(),
+        ),
+      ),
       Layer.provide(SearchService.layer),
       Layer.provide(SearchRepo.layer),
       Layer.provide(Layer.mergeAll(DevicesRepo.layer, OpenTabsRepo.layer, CommandsRepo.layer)),

@@ -21,7 +21,7 @@ Stash collects links and open tabs from every device into one searchable, AI-org
 Zen extension ─┐  API token
 iOS Shortcut ──┤  API token
 mac-agent ─────┤  API token          ┌─ D1 (links, tags, devices, open_tabs, commands, api_tokens, FTS5)
-web (SPA) ─────┤  GitHub OAuth ──► apps/api (Worker, Effect HttpApi) ─┼─ Vectorize (embeddings)
+web (SPA) ─────┤  GitHub login ──► apps/api (Worker, Effect HttpApi) ─┼─ Vectorize (embeddings)
                │                     ▲    │                          ├─ R2 (page text, transcripts)
 Claude ──OAuth──► apps/mcp (Worker) ─┘    └─ Queue ─► enrichment consumer
                     Service Binding               fetch text / transcript → Claude (tags, summary, type) → embedding
@@ -126,7 +126,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 ## Auth
 
-- **Web and MCP** use GitHub OAuth, with one allowlisted GitHub login from env. The MCP server implements OAuth 2.1 for Claude custom connectors via `@cloudflare/workers-oauth-provider` (state in KV).
+- **Web and MCP** sign in with the GitHub OAuth Device Flow (no client secret; the public client id comes from env), with one allowlisted GitHub login from env. The api keeps the pending flow in KV and never stores the GitHub access token. The MCP server implements OAuth 2.1 for Claude custom connectors via `@cloudflare/workers-oauth-provider` (state in KV).
 - **Extension, iOS Shortcut and mac-agent** use per-device API tokens. Only hashes are stored in D1. Tokens are revocable individually.
 - Every endpoint requires auth. Saving is rate limited.
 
