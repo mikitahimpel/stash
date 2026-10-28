@@ -1,43 +1,62 @@
-import { Context, Data, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Data, Effect, Layer, Schema } from "effect";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
-// GitHub is the upstream identity: the OAuth flow ends with the GitHub login of whoever signed in.
+// GitHub is the upstream identity, reached with the OAuth Device Flow: no client secret, no
+// redirect back to this Worker. The flow ends with the GitHub login of whoever entered the code.
+// The GitHub access token is used once to read that login and then dropped, never stored.
 // Requests go through `HttpClient`, so the entry provides the live fetch client and tests a fake.
 
-export const authorizeUrl = "https://github.com/login/oauth/authorize";
+export const deviceCodeUrl = "https://github.com/login/device/code";
 export const accessTokenUrl = "https://github.com/login/oauth/access_token";
 export const userUrl = "https://api.github.com/user";
+
+const deviceCodeGrant = "urn:ietf:params:oauth:grant-type:device_code";
 
 export class GitHubIdentityError extends Data.TaggedError("GitHubIdentityError")<{
   readonly message: string;
 }> {}
 
 export interface Config {
+  /** The GitHub OAuth App's client ID. Public: device flow needs no secret. */
   readonly clientId: string;
-  readonly clientSecret: Redacted.Redacted<string>;
 }
 
-export interface SignIn {
-  /** The GitHub `code` from the callback. */
-  readonly code: string;
-  /** The PKCE verifier whose S256 challenge was sent with the authorize redirect. */
-  readonly codeVerifier: string;
-  readonly redirectUri: string;
+/** A started device flow. `deviceCode` stays on the server; the user enters `userCode`. */
+export interface DeviceFlow {
+  readonly deviceCode: string;
+  readonly userCode: string;
+  readonly verificationUri: string;
+  /** Seconds until GitHub expires the codes. */
+  readonly expiresIn: number;
+  /** Seconds GitHub wants between polls. */
+  readonly interval: number;
 }
+
+/** One poll of the token endpoint. `SlowDown` means: add 5 seconds to the interval. */
+export type Poll =
+  | { readonly _tag: "Pending" }
+  | { readonly _tag: "SlowDown" }
+  | { readonly _tag: "Expired" }
+  | { readonly _tag: "Denied" }
+  | { readonly _tag: "SignedIn"; readonly login: string };
 
 export class GitHubIdentity extends Context.Service<
   GitHubIdentity,
   {
-    /** The URL that sends the browser to GitHub's consent screen. */
-    readonly authorizeUrl: (options: {
-      readonly state: string;
-      readonly codeChallenge: string;
-      readonly redirectUri: string;
-    }) => string;
-    /** Exchanges the callback `code` and returns the signed-in GitHub login. */
-    readonly login: (signIn: SignIn) => Effect.Effect<string, GitHubIdentityError>;
+    /** Asks GitHub for a device and user code (scope `read:user`). */
+    readonly start: Effect.Effect<DeviceFlow, GitHubIdentityError>;
+    /** Polls once for the token; on success reads the login and drops the token. */
+    readonly poll: (deviceCode: string) => Effect.Effect<Poll, GitHubIdentityError>;
   }
 >()("@stash/mcp/GitHubIdentity") {}
+
+const DeviceCodeResponse = Schema.Struct({
+  device_code: Schema.String,
+  user_code: Schema.String,
+  verification_uri: Schema.String,
+  expires_in: Schema.Number,
+  interval: Schema.Number,
+});
 
 const AccessTokenResponse = Schema.Struct({
   access_token: Schema.optional(Schema.String),
@@ -52,48 +71,63 @@ export const layer = (config: Config): Layer.Layer<GitHubIdentity, never, HttpCl
   Layer.effect(GitHubIdentity)(
     Effect.gen(function* () {
       const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
+
+      const readLogin = (accessToken: string) =>
+        HttpClientRequest.get(userUrl).pipe(
+          HttpClientRequest.bearerToken(accessToken),
+          HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
+          HttpClientRequest.setHeader("user-agent", "stash-mcp"),
+          client.execute,
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(UserResponse)),
+          Effect.map((user) => user.login),
+          Effect.mapError(fail("GitHub user lookup failed")),
+        );
+
       return GitHubIdentity.of({
-        authorizeUrl: ({ state, codeChallenge, redirectUri }) => {
-          const url = new URL(authorizeUrl);
-          url.search = new URLSearchParams({
-            client_id: config.clientId,
-            redirect_uri: redirectUri,
-            state,
-            code_challenge: codeChallenge,
-            code_challenge_method: "S256",
-            allow_signup: "false",
-          }).toString();
-          return url.toString();
-        },
-        login: ({ code, codeVerifier, redirectUri }) =>
+        start: HttpClientRequest.post(deviceCodeUrl).pipe(
+          HttpClientRequest.acceptJson,
+          HttpClientRequest.bodyUrlParams({ client_id: config.clientId, scope: "read:user" }),
+          client.execute,
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(DeviceCodeResponse)),
+          Effect.map((body): DeviceFlow => ({
+            deviceCode: body.device_code,
+            userCode: body.user_code,
+            verificationUri: body.verification_uri,
+            expiresIn: body.expires_in,
+            interval: body.interval,
+          })),
+          Effect.mapError(fail("GitHub device flow could not start")),
+        ),
+        poll: (deviceCode) =>
           Effect.gen(function* () {
             const token = yield* HttpClientRequest.post(accessTokenUrl).pipe(
               HttpClientRequest.acceptJson,
               HttpClientRequest.bodyUrlParams({
                 client_id: config.clientId,
-                client_secret: Redacted.value(config.clientSecret),
-                code,
-                code_verifier: codeVerifier,
-                redirect_uri: redirectUri,
+                device_code: deviceCode,
+                grant_type: deviceCodeGrant,
               }),
               client.execute,
               Effect.flatMap(HttpClientResponse.schemaBodyJson(AccessTokenResponse)),
-              Effect.mapError(fail("GitHub code exchange failed")),
+              Effect.mapError(fail("GitHub token poll failed")),
             );
-            if (token.access_token === undefined) {
-              return yield* new GitHubIdentityError({
-                message: `GitHub code exchange failed: ${token.error ?? "no access token"}`,
-              });
+            if (token.access_token !== undefined) {
+              return { _tag: "SignedIn", login: yield* readLogin(token.access_token) } as const;
             }
-            const user = yield* HttpClientRequest.get(userUrl).pipe(
-              HttpClientRequest.bearerToken(token.access_token),
-              HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
-              HttpClientRequest.setHeader("user-agent", "stash-mcp"),
-              client.execute,
-              Effect.flatMap(HttpClientResponse.schemaBodyJson(UserResponse)),
-              Effect.mapError(fail("GitHub user lookup failed")),
-            );
-            return user.login;
+            switch (token.error) {
+              case "authorization_pending":
+                return { _tag: "Pending" } as const;
+              case "slow_down":
+                return { _tag: "SlowDown" } as const;
+              case "expired_token":
+                return { _tag: "Expired" } as const;
+              case "access_denied":
+                return { _tag: "Denied" } as const;
+              default:
+                return yield* new GitHubIdentityError({
+                  message: `GitHub token poll failed: ${token.error ?? "no access token"}`,
+                });
+            }
           }),
       });
     }),

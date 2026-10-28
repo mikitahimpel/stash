@@ -13,25 +13,28 @@ export interface Options {
   /** Serves an authenticated MCP request. */
   readonly mcp: (request: Request) => Promise<Response>;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
+  /** Epoch milliseconds, for the device flow's poll interval. Tests pass their own clock. */
+  readonly now?: () => number;
 }
 
 /**
  * The Worker's `fetch`: OAuth 2.1 metadata, dynamic client registration and tokens from
- * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub sign-in pages.
+ * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub Device Flow sign-in pages.
  */
-export const make = ({ env, mcp, github }: Options) => {
+export const make = ({ env, mcp, github, now }: Options) => {
   const origin = new URL(env.MCP_ORIGIN).origin;
   const handleOAuth = OAuthHandler.make({
     origin,
     allowedLogin: env.ALLOWED_GITHUB_LOGIN,
     github,
+    ...(now === undefined ? {} : { now }),
   });
   return new OAuthProvider<ProviderEnv>({
     apiRoute: McpServer.path,
     apiHandler: { fetch: (request) => mcp(request) },
     defaultHandler: {
       fetch: (request, env) =>
-        handleOAuth(request as unknown as Request, env.OAUTH_PROVIDER) as never,
+        handleOAuth(request as unknown as Request, env.OAUTH_PROVIDER, env.OAUTH_KV) as never,
     },
     authorizeEndpoint: OAuthHandler.authorizePath,
     tokenEndpoint: "/token",

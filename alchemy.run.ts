@@ -55,6 +55,9 @@ export default Alchemy.Stack(
       Config.Redacted("GITHUB_OAUTH_CLIENT_SECRET"),
       Redacted.make("dev_only"),
     );
+    // `Mcp` signs in with the GitHub Device Flow, which needs only the public client ID: a plain
+    // var, no secret. Local dev gets the placeholder, so GitHub rejects the device code request.
+    const githubDeviceClientId = yield* devDefault(Config.String("GITHUB_CLIENT_ID"), "dev_only");
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
     const mcpOrigin = yield* devDefault(
       Config.String("STASH_MCP_ORIGIN"),
@@ -103,8 +106,7 @@ export default Alchemy.Stack(
         API_TOKEN: mcpApiToken,
         OAUTH_KV: oauthState,
         MCP_ORIGIN: mcpOrigin,
-        GITHUB_OAUTH_CLIENT_ID: githubClientId,
-        GITHUB_OAUTH_CLIENT_SECRET: githubClientSecret,
+        GITHUB_CLIENT_ID: githubDeviceClientId,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
       },
       dev: { host, port: mcpPort, strictPort: true },
