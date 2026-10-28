@@ -7,7 +7,7 @@ export default defineProject({
     name: "web-auth",
     include: ["test/**/*.test.ts"],
     environment: "happy-dom",
-    // A synthetic api origin, so tests can check where the login button points.
+    // A synthetic api origin. The stub api ignores it.
     env: { VITE_API_BASE_URL: "https://api.example.com" },
   },
 });

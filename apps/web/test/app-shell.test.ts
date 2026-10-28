@@ -87,7 +87,7 @@ describe("auth guard", () => {
       const { wrapper, router } = await mountApp(path, false);
       expect(router.currentRoute.value.name).toBe("login");
       expect(wrapper.find("nav").exists()).toBe(false);
-      expect(wrapper.find("a").text()).toBe("Sign in with GitHub");
+      expect(wrapper.find("main button").text()).toBe("Sign in with GitHub");
     },
   );
 
