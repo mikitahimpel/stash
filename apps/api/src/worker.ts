@@ -23,6 +23,7 @@ import * as Scheduler from "effect/Scheduler";
 import * as ApiLayer from "./api-layer.ts";
 import * as QueueHandler from "./queue-handler.ts";
 import * as ScheduledHandler from "./scheduled-handler.ts";
+import { handleLoginNotConfigured } from "./login-not-configured.ts";
 import { handleSmoke } from "./smoke-routes.ts";
 import type { WorkerEnv } from "./worker-env.ts";
 
@@ -37,7 +38,10 @@ const platform = Layer.mergeAll(
   EnrichmentQueue.layer(workerEnv.ENRICHMENT_QUEUE),
   Kv.layer(workerEnv.KV),
   StashConfig.layerFromEnv(workerEnv),
-  GithubConfig.layerFromEnv(workerEnv),
+  // Without a client id the login routes never reach GitHub (see `handleLoginNotConfigured`).
+  workerEnv.GITHUB_CLIENT_ID === undefined
+    ? Layer.succeed(GithubConfig.GithubConfig)({ clientId: "" })
+    : GithubConfig.layerFromEnv(workerEnv),
   HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
   Vectors.layer(
@@ -96,7 +100,11 @@ const app = HttpRouter.toWebHandler(
 
 export default {
   async fetch(request, env): Promise<Response> {
-    return (await handleSmoke(request, env)) ?? app.handler(request);
+    return (
+      (await handleSmoke(request, env)) ??
+      handleLoginNotConfigured(request, env) ??
+      app.handler(request)
+    );
   },
 
   async queue(batch): Promise<void> {
