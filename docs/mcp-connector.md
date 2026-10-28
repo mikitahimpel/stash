@@ -22,15 +22,16 @@ them come from env, never from the repo.
 
 | Env var | On `Mcp` as | Must be |
 |---|---|---|
-| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash) |
+| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash). A deploy derives it when unset |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `ALLOWED_GITHUB_LOGIN` | your GitHub login. It is the only account that can authorize a client (compared case-insensitively) |
 | `GITHUB_CLIENT_ID` | same name | the client ID of a GitHub OAuth App with **Enable Device Flow** checked. It is public, so it is a plain var. There is no client secret |
 | `STASH_MCP_API_TOKEN` | `API_TOKEN` | an API token from `POST /tokens` on the api. The tools act as this token's principal |
 
-`MCP_ORIGIN` is the OAuth issuer and sets the protected resource (`<origin>/mcp`). On the first
-deploy you may not know the `workers.dev` host yet: deploy once, read `mcpUrl`, set
-`STASH_MCP_ORIGIN`, then deploy again. Device flow has no callback URL, so the GitHub OAuth App
-does not depend on the origin.
+`MCP_ORIGIN` is the OAuth issuer and sets the protected resource (`<origin>/mcp`). A deploy
+derives it from the fixed Worker name and the account's `workers.dev` subdomain
+(`https://stash-mcp.<subdomain>.workers.dev`), so set `STASH_MCP_ORIGIN` only for another host.
+Until `GITHUB_CLIENT_ID` is set, `/authorize` answers 503. Device flow has no callback URL, so the
+GitHub OAuth App does not depend on the origin (see [deploy.md](deploy.md#github-oauth-app-46)).
 
 ## How OAuth works
 

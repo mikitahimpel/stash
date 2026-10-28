@@ -22,7 +22,7 @@ packages/
   web/                web features and UI kit                                           → packages/web/CLAUDE.md
   extension/          extension features                                                → packages/extension/CLAUDE.md
   config/             tsconfig/ (per-context bases), oxlint/ (shared config + boundary rules)
-docs/                 architecture.md, contributing.md (how to add a package)
+docs/                 architecture.md, contributing.md (how to add a package), deploy.md
 ```
 
 Workspace globs are `apps/*` and `packages/*/*`. A package is `packages/<context>/<name>`, and
@@ -38,6 +38,7 @@ pnpm --filter @stash/<package> test                                     # one pa
 pnpm format                                                             # oxfmt --write the whole repo
 pnpm dev:api                                                            # api Worker + D1 + Queue + web Static Assets locally via Alchemy (no credentials), see docs/alchemy.md
 pnpm dev:web                                                            # web SPA with hot reload (Vite on 0.0.0.0:5173)
+PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes  # real deploy to *.workers.dev, see docs/deploy.md
 ```
 
 - Lint is `oxlint`, format is `oxfmt` (`printWidth` 100; Markdown is not formatted), typecheck is
@@ -138,8 +139,12 @@ behind services.
   | `STASH_API_TOKEN` | `pass://Stash/migrate/api_token` | planned |
   | `STASH_MCP_API_TOKEN` | `pass://Stash/mcp/api_token` | planned |
 
+- The `Anthropic` and `Cloudflare` items exist and are all a deploy needs (see
+  [docs/deploy.md](docs/deploy.md)). Neither the Cloudflare account id nor any other value from
+  them may appear in a committed file.
 - GitHub needs no vault item: the Device Flow login has no client secret, and `GITHUB_CLIENT_ID`
-  is a public value from env.
+  is a public value from env. The GitHub OAuth App itself does not exist yet (#46), so deploys run
+  without `GITHUB_CLIENT_ID` and the login routes answer 503.
 - **Planned items (`app`, `migrate`, `mcp`) are not created in the vault
   yet.** Their item titles above are placeholders. They stay commented out in `.env.example`. When
   an item is created, uncomment its lines and change the reference to match the real item title

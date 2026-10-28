@@ -48,7 +48,8 @@ behavior is tested in `packages/mcp/*`.
 - `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent, device code
   page, poll endpoint, allowlist), `src/authorize-pages.ts` (the server-rendered HTML),
   `src/device-flow-store.ts` (pending device flows in KV), `src/github-identity.ts` (GitHub Device
-  Flow over `HttpClient`)
+  Flow over `HttpClient`), `src/login-not-configured.ts` (503 on `/authorize*` while
+  `GITHUB_CLIENT_ID` is unset)
 - `src/mcp-server.ts` (Streamable HTTP transport from `effect/ai/McpServer`, tool registration)
 - `test/oauth-handler.test.ts`, `test/cloudflare-workers-stub.ts` (Node stand-in for
   `cloudflare:workers`)

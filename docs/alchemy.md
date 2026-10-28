@@ -30,11 +30,14 @@ run it, and what to watch for.
 | `Database` | `Cloudflare.D1.Database`, `migrations: ./apps/api/migrations` | `DB` (`D1Database`) |
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
 | `Kv` | `Cloudflare.KV.Namespace` (save rate limits) | `KV` (`KVNamespace`) |
-| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID`, `SMOKE_ROUTES` |
+| `Blobs` | `Cloudflare.R2.Bucket` (page text, transcripts) | `BLOBS` (`R2Bucket`) |
+| `Vectors` | `Cloudflare.Vectorize.Index`, 1024-d, cosine. **Deploy only** (no local provider) | `VECTORS` (`Vectorize`) |
+| — | `Cloudflare.Workers.AI()`. **Deploy only** | `AI` (`Ai`) |
+| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
-| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID`, `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` |
-| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist` | — (assets-only Worker serving the SPA) |
+| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set), `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` (when set) |
+| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, deployed as `stash-web` | — (assets-only Worker serving the SPA). A deploy builds it with `VITE_API_BASE_URL` = the api's origin |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
   `scheduled`,
@@ -48,8 +51,12 @@ run it, and what to watch for.
   comes from `CLOUDFLARE_ACCOUNT_ID` or an Alchemy profile, and only `deploy` reads it.
 - State uses `State.localState()`, which writes it to `.alchemy/` on disk. `.alchemy` is
   gitignored (the pattern has no trailing slash, so `git check-ignore .alchemy` succeeds even
-  before the folder exists). A remote state store (`Cloudflare.state()`) is a decision for the
-  deploy issue.
+  before the folder exists). A deployed stage's state holds the account id and Worker secrets in
+  plaintext, so it must stay private. See [deploy.md](deploy.md#state).
+- Deployed Workers have fixed names (`stash-api`, `stash-mcp`, `stash-web` on stage `prod`, with
+  a `-<stage>` suffix on other stages), so the stack can derive their `workers.dev` origins from
+  the account subdomain before they exist. The api and the SPA need each other's origin, which
+  Alchemy outputs alone can't express without a cycle.
 
 Config read by the stack (optional under `alchemy dev`; only the MCP API
 token is secret):
@@ -58,14 +65,16 @@ token is secret):
 |---|---|---|
 | `STASH_API_PORT` | `8787` | local dev port of `Api` (`strictPort`: it fails instead of picking another) |
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
-| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, **required** for deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
+| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
-| `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`, **required** for deploy | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
+| `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`, optional on deploy (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
-| `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, **required** for deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
-| `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, **required** for deploy | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |
+| `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
+| `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, optional on deploy (unset: the tools get 401 from the api) | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |
 | `STASH_WEB_PORT` | `8791` | local dev port of `Web` (not strict: it picks the next free port when taken) |
 | `STASH_WEB_HOST` | `0.0.0.0` | local dev bind host of `Web` |
+| `ANTHROPIC_API_KEY` (secret) | never read by `alchemy dev`, optional on deploy | `ANTHROPIC_API_KEY` on `Api`: the classifier's key |
+| `CLOUDFLARE_WORKERS_SUBDOMAIN` | read from the Cloudflare API on deploy | the account's `workers.dev` subdomain, for the derived origins |
 | `ALCHEMY_STAGE` | `dev_$USER` (dev), `live_$USER` (deploy) | stage, which also sets physical names and the state folder |
 
 ## Local development (no credentials)
@@ -128,18 +137,18 @@ A cold run takes about 5 s on a laptop.
 
 ## What needs real credentials
 
-- `alchemy deploy`, `plan`, `destroy`, `logs` and `drift` against a live stage. These are out of
-  scope here and blocked on the `cloudflare` vault item (see root `CLAUDE.md` → Secrets).
+- `alchemy deploy`, `plan`, `destroy`, `logs` and `drift` against a live stage. See
+  [deploy.md](deploy.md).
 - Any resource **without** a local provider, even under `alchemy dev`. Alchemy then deploys it to
   the real cloud into the dev stage and needs credentials. As of beta.84 that includes
   **Vectorize** (its local client calls the Cloudflare HTTP API) and Workers AI inference. A
   resource wrapped in `.pipe(Alchemy.remote())` also counts. Keep such resources behind backend
   services so tests use fakes and `pnpm dev:api` stays credential-free as long as possible.
 
-When the `cloudflare` item exists, the plan is (unverified):
+The deploy command (first run in #45, details in [deploy.md](deploy.md)):
 
 ```sh
-PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod
+PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes
 ```
 
 `pp run` puts the resolved values into the process environment, and Alchemy prefers the shell
