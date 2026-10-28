@@ -7,7 +7,6 @@
   "exports": {
     "./auth-atoms": "./src/auth-atoms.ts",
     "./auth-guard": "./src/auth-guard.ts",
-    "./login-url": "./src/login-url.ts",
     "./logout-button": "./src/logout-button.vue",
     "./routes": "./src/routes.ts"
   },
@@ -19,9 +18,11 @@
   },
   "dependencies": {
     "@effect/atom-vue": "catalog:",
+    "@effect/platform-browser": "catalog:",
     "@lucide/vue": "catalog:",
     "@stash/contracts-api": "workspace:*",
     "@stash/web-api-client": "workspace:*",
+    "@stash/web-platform": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",

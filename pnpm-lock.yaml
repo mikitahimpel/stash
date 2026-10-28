@@ -1353,6 +1353,9 @@ importers:
       '@effect/atom-vue':
         specifier: 'catalog:'
         version: 4.0.6(effect@4.0.6)(vue@3.5.44(typescript@6.0.3))
+      '@effect/platform-browser':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)
       '@lucide/vue':
         specifier: 'catalog:'
         version: 1.61.0(vue@3.5.44(typescript@6.0.3))
@@ -1362,6 +1365,9 @@ importers:
       '@stash/web-api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@stash/web-platform':
+        specifier: workspace:*
+        version: link:../platform
       '@stash/web-ui':
         specifier: workspace:*
         version: link:../ui

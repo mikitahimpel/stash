@@ -24,7 +24,8 @@
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
     "test": "vitest run",
-    "smoke:classify": "node scripts/smoke-classify.ts"
+    "smoke:classify": "node scripts/smoke-classify.ts",
+    "smoke:embed": "node scripts/smoke-embed.ts"
   },
   "dependencies": {
     "@effect/ai-anthropic": "catalog:",

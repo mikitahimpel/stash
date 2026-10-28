@@ -89,8 +89,7 @@ export default Alchemy.Stack(
       settings: { batchSize: 10, maxWaitTimeMs: 1000 },
     });
 
-    // Bindings must match apps/mcp/src/worker-env.ts. The mcp's GitHub sign-in moves to the Device
-    // Flow in #117; until then it has no client secret, so its redirect login cannot complete.
+    // Bindings must match apps/mcp/src/worker-env.ts.
     const mcp = yield* Cloudflare.Worker("Mcp", {
       main: "./apps/mcp/src/worker.ts",
       env: {
@@ -98,7 +97,7 @@ export default Alchemy.Stack(
         API_TOKEN: mcpApiToken,
         OAUTH_KV: oauthState,
         MCP_ORIGIN: mcpOrigin,
-        GITHUB_OAUTH_CLIENT_ID: githubClientId,
+        GITHUB_CLIENT_ID: githubClientId,
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
       },
       dev: { host, port: mcpPort, strictPort: true },
