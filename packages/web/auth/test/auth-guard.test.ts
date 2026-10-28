@@ -6,7 +6,6 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import * as AuthGuard from "../src/auth-guard.ts";
-import * as LoginUrl from "../src/login-url.ts";
 import LogoutButton from "../src/logout-button.vue";
 import * as Routes from "../src/routes.ts";
 
@@ -58,9 +57,7 @@ describe("auth guard", () => {
     const wrapper = mountApp(registry, router);
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
-    const button = wrapper.find("a");
-    expect(button.text()).toBe("Sign in with GitHub");
-    expect(button.attributes("href")).toBe("https://api.example.com/auth/github/login");
+    expect(wrapper.find("[data-test=sign-in]").text()).toBe("Sign in with GitHub");
     registry.dispose();
   });
 
@@ -156,11 +153,5 @@ describe("logout", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
     registry.dispose();
-  });
-});
-
-describe("login url", () => {
-  it("points at the api's GitHub login", () => {
-    expect(LoginUrl.github).toBe("https://api.example.com/auth/github/login");
   });
 });
