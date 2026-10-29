@@ -1,19 +1,24 @@
 // Infrastructure for Stash, declared with Alchemy v2 (beta). See docs/alchemy.md.
 //
-// Nothing personal lives here: physical names are derived from the stack, the stage
-// (`--stage` or ALCHEMY_STAGE) and the logical ids below, and the Cloudflare account comes
-// from CLOUDFLARE_ACCOUNT_ID or the Alchemy profile, used only by `alchemy deploy`.
+// Physical names are derived from the stack, the stage (`--stage` or ALCHEMY_STAGE) and the logical
+// ids below, except on stage `prod`, which pins them (`PROD_NAMES`). The only personal value is the
+// owner's public GitHub login for `prod`, committed at the owner's request. The Cloudflare account
+// comes from CLOUDFLARE_ACCOUNT_ID or the Alchemy profile, used only by `alchemy deploy`.
 // `alchemy dev` emulates every resource here locally and needs no credentials.
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
+import * as D1State from "./alchemy-d1-state.ts";
 import * as State from "alchemy/State";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpIncomingMessage from "effect/http/HttpIncomingMessage";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
@@ -21,33 +26,43 @@ import * as Schema from "effect/Schema";
 // default for stage `prod`. See docs/deploy.md#github-oauth-app.
 const PROD_GITHUB_CLIENT_ID = "Ov23liVGZpbhL9oxUor1";
 
-// Migrations are applied in order on every reconcile (`alchemy dev` and deploy). Bookkeeping lives
-// in Alchemy's `__alchemy_migrations` table. Paths resolve from the repo root.
-export const Database = Cloudflare.D1.Database("Database", {
-  migrations: "./apps/api/migrations",
-});
+// The GitHub login allowed to sign in on stage `prod`, given by the owner. Env overrides it, and any
+// other deployed stage requires it in env.
+const PROD_ALLOWED_GITHUB_LOGIN = "mikitahimpel";
 
-export const EnrichmentQueue = Cloudflare.Queues.Queue("EnrichmentQueue");
+// Physical names of the prod storage, fixed to the resources the first deploys created (#46), so a
+// deploy adopts them by name even without state and never creates a second set. Other stages keep
+// Alchemy's derived names (`stash-<LogicalId>-<stage>-<hash>`).
+const PROD_NAMES = {
+  Database: "stash-Database-prod-mf7bdmx2cin6nqko",
+  EnrichmentQueue: "stash-enrichmentqueue-prod-xr6su4vb2weizt5f",
+  OAuthState: "stash-OAuthState-prod-wtlexz4tokrclmex",
+  Kv: "stash-Kv-prod-ddgdjqdf2o62pk44",
+  Blobs: "stash-blobs-prod-c44vgsaqvuv5q444",
+  Vectors: "stash-vectors-prod-7xiz3wsxkfqiiid4",
+} as const;
 
-// OAuth clients, grants and tokens of the MCP server (`@cloudflare/workers-oauth-provider`).
-export const OAuthState = Cloudflare.KV.Namespace("OAuthState");
-// Save rate limits of the `Api` Worker.
-export const Kv = Cloudflare.KV.Namespace("Kv");
-// Extracted page text and transcripts, written by the enrichment consumer.
-export const Blobs = Cloudflare.R2.Bucket("Blobs");
-// Link embeddings: `@cf/baai/bge-m3` vectors (1024-d), compared by cosine similarity. Vectorize has
-// no local provider, so only a deploy creates it (see docs/alchemy.md).
-export const Vectors = Cloudflare.Vectorize.Index("Vectors", {
-  dimensions: 1024,
-  metric: "cosine",
-});
+// Deployed stage `prod` keeps its state in D1 (see alchemy-d1-state.ts), so it no longer lives in
+// the checkout that deployed. `alchemy dev` and other stages keep it in the gitignored `.alchemy/`.
+const state = Layer.unwrap(
+  Effect.gen(function* () {
+    const stage = yield* Alchemy.Stage;
+    const dev = yield* Alchemy.ALCHEMY_DEV;
+    return stage === "prod" && !dev
+      ? (D1State.d1State({ databaseName: "stash-alchemy-state" }) as Layer.Layer<
+          State.State,
+          never,
+          HttpClient.HttpClient | FileSystem.FileSystem | Path.Path
+        >)
+      : State.localState();
+  }).pipe(Effect.orDie),
+);
 
 export default Alchemy.Stack(
   "stash",
   {
     providers: Cloudflare.providers(),
-    // State stays on disk in the gitignored `.alchemy/` folder.
-    state: State.localState(),
+    state,
   },
   Effect.gen(function* () {
     const port = yield* Config.Port("STASH_API_PORT").pipe(Config.withDefault(8787));
@@ -65,7 +80,11 @@ export default Alchemy.Stack(
     const devDefaultOption = <A>(config: Config.Config<A>, value: A) =>
       dev ? config.pipe(Config.withDefault(value), Config.map(Option.some)) : Config.option(config);
     const allowedGithubLogin = yield* devDefault(
-      Config.String("STASH_ALLOWED_GITHUB_LOGIN"),
+      stage === "prod"
+        ? Config.String("STASH_ALLOWED_GITHUB_LOGIN").pipe(
+            Config.withDefault(PROD_ALLOWED_GITHUB_LOGIN),
+          )
+        : Config.String("STASH_ALLOWED_GITHUB_LOGIN"),
       "dev_only",
     );
     // The GitHub OAuth app's client id. The Device Flow login needs no client secret, and the id
@@ -130,13 +149,34 @@ export default Alchemy.Stack(
         onSome: (a) => ({ [key]: a }),
       }) as { readonly [P in K]?: A };
 
-    const db = yield* Database;
-    const queue = yield* EnrichmentQueue;
-    const oauthState = yield* OAuthState;
-    const kv = yield* Kv;
-    const blobs = yield* Blobs;
-    // Vectorize and Workers AI have no local provider, so only a deploy binds them.
-    const vectors = dev ? undefined : yield* Vectors;
+    const prodName = <K extends keyof typeof PROD_NAMES>(id: K, key: "name" | "title" = "name") =>
+      stage === "prod" && !dev ? { [key]: PROD_NAMES[id] } : {};
+
+    // Migrations are applied in order on every reconcile (`alchemy dev` and deploy). Bookkeeping
+    // lives in Alchemy's `__alchemy_migrations` table. Paths resolve from the repo root.
+    const db = yield* Cloudflare.D1.Database("Database", {
+      migrations: "./apps/api/migrations",
+      ...prodName("Database"),
+    });
+    const queue = yield* Cloudflare.Queues.Queue("EnrichmentQueue", prodName("EnrichmentQueue"));
+    // OAuth clients, grants and tokens of the MCP server (`@cloudflare/workers-oauth-provider`).
+    const oauthState = yield* Cloudflare.KV.Namespace(
+      "OAuthState",
+      prodName("OAuthState", "title"),
+    );
+    // Save rate limits of the `Api` Worker.
+    const kv = yield* Cloudflare.KV.Namespace("Kv", prodName("Kv", "title"));
+    // Extracted page text and transcripts, written by the enrichment consumer.
+    const blobs = yield* Cloudflare.R2.Bucket("Blobs", prodName("Blobs"));
+    // Link embeddings: `@cf/baai/bge-m3` vectors (1024-d), compared by cosine similarity. Vectorize
+    // and Workers AI have no local provider, so only a deploy creates and binds them.
+    const vectors = dev
+      ? undefined
+      : yield* Cloudflare.Vectorize.Index("Vectors", {
+          dimensions: 1024,
+          metric: "cosine",
+          ...prodName("Vectors"),
+        });
 
     const api = yield* Cloudflare.Worker("Api", {
       main: "./apps/api/src/worker.ts",

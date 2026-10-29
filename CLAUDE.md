@@ -128,7 +128,8 @@ behind services.
 ## Public repo hygiene
 
 - The repo is public. Never commit secrets, tokens, account IDs, domains, real e-mail addresses or
-  GitHub logins. Personal values come from env.
+  GitHub logins. Personal values come from env. The one exception is the owner's GitHub login,
+  committed at the owner's request as the prod default in `alchemy.run.ts`.
 - Never hardcode, log or print secret values. That includes command output, test snapshots and
   error messages.
 - User data never enters git. Test fixtures are synthetic: invented URLs (`https://example.com/...`),

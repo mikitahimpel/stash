@@ -22,6 +22,7 @@
     "//#typecheck:root": {
       "inputs": [
         "$TURBO_ROOT$/alchemy.run.ts",
+        "$TURBO_ROOT$/alchemy-d1-state.ts",
         "$TURBO_ROOT$/tsconfig.json",
         "$TURBO_ROOT$/packages/config/tsconfig/*.json"
       ]
