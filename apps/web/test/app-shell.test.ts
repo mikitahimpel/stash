@@ -3,7 +3,7 @@ import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Layer from "effect/Layer";
 import { nextTick } from "vue";
@@ -313,17 +313,21 @@ describe("shortcuts", () => {
   });
 });
 
-describe("theme toggle", () => {
-  it("cycles system → light → dark → system through the theme service", async () => {
+describe("theme menu", () => {
+  it("picks system, light or dark through the theme service", async () => {
     const { wrapper, registry } = await mountApp("/links");
-    const toggle = () => wrapper.find("button[aria-label^='Theme:']");
-    expect(toggle().attributes("aria-label")).toBe("Theme: system");
-    for (const [preference, scheme] of [
-      ["light", "light"],
-      ["dark", "dark"],
-      ["system", "light"],
+    const trigger = () => wrapper.find("[data-test=theme-menu]");
+    expect(trigger().attributes("aria-label")).toBe("Theme: system");
+    for (const [preference, label, scheme] of [
+      ["light", "Light", "light"],
+      ["dark", "Dark", "dark"],
+      ["system", "System", "light"],
     ] as const) {
-      await toggle().trigger("click");
+      await trigger().trigger("keydown", { key: "Enter" });
+      const body = new DOMWrapper(wrapper.element.ownerDocument.body);
+      const options = body.findAll("[role=menuitemradio]");
+      expect(options.map((option) => option.text())).toEqual(["System", "Light", "Dark"]);
+      await options.find((option) => option.text() === label)?.trigger("click");
       await vi.waitFor(() =>
         expect(registry.get(ThemeAtoms.state)).toMatchObject({
           _tag: "Success",
@@ -331,8 +335,37 @@ describe("theme toggle", () => {
         }),
       );
       await flushPromises();
-      expect(toggle().attributes("aria-label")).toBe(`Theme: ${preference}`);
+      expect(trigger().attributes("aria-label")).toBe(`Theme: ${preference}`);
     }
+  });
+});
+
+describe("header controls", () => {
+  it("gives every icon-only control an accessible name and a tooltip", async () => {
+    const { wrapper } = await mountApp("/links");
+    const header = wrapper.find("header");
+    const controls = header.findAll("button, a");
+    expect(controls.length).toBeGreaterThan(0);
+    for (const control of controls) {
+      const name = control.attributes("aria-label") ?? control.text();
+      expect(name.trim(), control.html()).not.toBe("");
+      // A control that shows only an icon explains itself on hover.
+      if (control.find("svg").exists() && control.text().trim() === "") {
+        expect(control.attributes("title"), control.html()).toBeTruthy();
+      }
+    }
+  });
+
+  it("opens Settings from the account menu", async () => {
+    const { wrapper, router } = await mountApp("/links");
+    await wrapper.find("[data-test=account-menu]").trigger("keydown", { key: "Enter" });
+    const body = new DOMWrapper(wrapper.element.ownerDocument.body);
+    const items = body.findAll("[role=menuitem]");
+    expect(items.map((item) => item.text())).toEqual(["Settings", "Sign out"]);
+    await items[0]?.trigger("click");
+    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("settings"), {
+      timeout: 10_000,
+    });
   });
 });
 

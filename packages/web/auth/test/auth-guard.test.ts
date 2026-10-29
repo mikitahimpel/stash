@@ -1,18 +1,25 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as Unauthenticated from "@stash/web-api-client/unauthenticated";
-import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import * as Effect from "effect/Effect";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import * as AuthGuard from "../src/auth-guard.ts";
-import LogoutButton from "../src/logout-button.vue";
+import AccountMenu from "../src/account-menu.vue";
 import * as Routes from "../src/routes.ts";
 
 enableAutoUnmount(afterEach);
 
 const user = () => ApiTesting.json({ kind: "user" });
+
+// Opens the account menu and picks Sign out. The menu teleports to <body>.
+const signOut = async (wrapper: ReturnType<typeof mount>) => {
+  await wrapper.find("[data-test=account-menu]").trigger("keydown", { key: "Enter" });
+  const body = new DOMWrapper(wrapper.element.ownerDocument.body);
+  await body.find("[data-test=sign-out]").trigger("click");
+};
 
 const Page = { template: "<h1>Links</h1>" };
 
@@ -159,7 +166,7 @@ describe("auth guard", () => {
   });
 });
 
-describe("logout", () => {
+describe("logout from the account menu", () => {
   it("ends the session and shows the login page", async () => {
     const session = { me: user };
     let loggedOut = 0;
@@ -171,10 +178,11 @@ describe("logout", () => {
       },
     });
     await router.push("/links");
-    const wrapper = mount(LogoutButton, {
+    const wrapper = mount(AccountMenu, {
+      attachTo: "body",
       global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
     });
-    await wrapper.find("button").trigger("click");
+    await signOut(wrapper);
     await flushPromises();
     expect(loggedOut).toBe(1);
     expect(router.currentRoute.value.name).toBe("login");
@@ -188,10 +196,11 @@ describe("logout", () => {
     });
     await router.push("/links");
     session.me = () => ApiTesting.unauthorized();
-    const wrapper = mount(LogoutButton, {
+    const wrapper = mount(AccountMenu, {
+      attachTo: "body",
       global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
     });
-    await wrapper.find("button").trigger("click");
+    await signOut(wrapper);
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
     registry.dispose();
