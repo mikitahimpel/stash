@@ -42,6 +42,24 @@ describe("StashApiClient", () => {
     }),
   );
 
+  // The api's CORS allows only `authorization` and `content-type`: a trace header would fail the
+  // browser's preflight, and with it every request.
+  it.effect("sends no trace headers", () =>
+    Effect.gen(function* () {
+      const headers: Array<ReadonlyArray<string>> = [];
+      const reg = use({
+        "GET /links": (request) => {
+          headers.push(Object.keys(request.headers));
+          return Testing.json(Fixtures.page("a"));
+        },
+      });
+      yield* AtomRegistry.getResult(reg, recent);
+      expect(headers).toHaveLength(1);
+      expect(headers[0]).not.toContain("traceparent");
+      expect(headers[0]).not.toContain("b3");
+    }),
+  );
+
   it.effect("decodes responses against the contract", () =>
     Effect.gen(function* () {
       const reg = use({ "GET /links": () => Testing.json(Fixtures.page("a", "b")) });
