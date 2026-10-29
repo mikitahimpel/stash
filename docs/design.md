@@ -84,6 +84,73 @@ pair in both themes and requires ≥4.5:1, and ≥3:1 for the accent as a non-te
 accent `#c2570c` is 4.2:1 on the light background, so it marks things (ticks, dots, bars) and is
 not a text color for body copy. Keep color tokens as `#rrggbb` so the test can read them.
 
+## Layout rules (visual polish, #125)
+
+These refine the spec above. Where they differ (the page heading size, the header's right side),
+they win.
+
+### Spacing scale
+
+Every gap, padding and margin is one of **4 · 8 · 12 · 16 · 24 · 32 · 48 px** (Tailwind `1 · 2 · 3
+· 4 · 6 · 8 · 12`). Typical uses:
+
+| px | use |
+|---|---|
+| 4 | title and its subtitle, icon and label inside a control |
+| 8 | chips and buttons in a row, cluster items in the header |
+| 12 | row padding (`px-3`), a section header and its first row |
+| 16 | side padding on phones |
+| 24 | blocks on a page (`gap-6`), side padding from `sm` up |
+| 32 | top of the content under the header (`sm:pt-8`) |
+| 48 | between the sections of Settings, empty and error states (`py-12`) |
+
+### Page header
+
+Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as the page's only
+`h1`, **20px/600**, and under it one mono 12px line of counts in muted foreground
+(`17 tabs · 3 devices · 6 older than 7 days`). Sections inside a page keep `<SectionHeader>`
+(14px/500). The subtitle appears once the data has loaded; before that the title stands alone.
+
+### Rows
+
+List rows are at least **44px** tall (`ListRow` has `min-h-11`). On phones metadata wraps under
+the title instead of squeezing beside it.
+
+### Empty and error states
+
+`<EmptyState>` and `<ErrorState>` are centred in the content area with `py-12`: a 14px/500 title,
+one muted line that says why the area is empty or what failed, and, where there is one, an action
+(Retry, Clear filter, Add a device). No illustration beyond an optional 20px icon.
+
+### App header
+
+- Same max width (1040px) and side padding as `<main>`, 56px tall, sticky, hairline below.
+- Left: wordmark, then the nav (a SegmentedControl of links).
+- Right: **one cluster**, in this order: sync status (a 6px dot plus mono `online` / `offline`;
+  the dot turns accent when offline; a tooltip explains it), Search with `⌘K`, the theme menu
+  (System / Light / Dark as radio items, the trigger shows the current one's icon), and the
+  account menu (Settings, Sign out).
+- Every icon-only control has an accessible name (`aria-label`) and a tooltip (`title`).
+
+### Phone (< 640px)
+
+- No horizontal scroll at 390px on any page.
+- The nav moves to a **bottom bar**: the same SegmentedControl, full width, fixed above the home
+  indicator (`env(safe-area-inset-bottom)`). `<main>` pads its bottom so content clears it.
+- The header keeps the wordmark and the cluster: the sync status shows only its dot, and Search is
+  an icon key (its label stays for screen readers).
+- Keyboard shortcut footers are hidden.
+
+### Screenshots
+
+`pnpm --filter @stash/web screenshots` boots the api under `alchemy dev` (stage `screenshots`, no
+credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
+`/_smoke/session` routes, runs Vite against it and captures every page (Inbox, Open now, Search
+with results, Settings, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
+[`docs/screenshots/`](screenshots/). Pages longer than 2000px are cut there. It fails when a page
+scrolls sideways or a button has no accessible name. Chromium needs its system libraries
+(`pnpm --filter @stash/web exec playwright install-deps chromium` once per machine).
+
 ## In code
 
 | Spec | CSS variable | Tailwind |
@@ -120,5 +187,7 @@ not a text color for body copy. Keep color tokens as `#rrggbb` so the test can r
 | Input / SearchField | `input`, `search-field` (`shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (`selected`, `#actions` row action bar) |
+| PageHeader | `page-header` (`title`, `subtitle`, `#actions`): the page's `h1` |
 | SectionHeader | `section-header` (`title`, `count`, `#actions`) |
 | Link | `text-link` |
+| Menu | `dropdown-menu*`, with `dropdown-menu-radio-group` / `dropdown-menu-radio-item` for a choice (the header's theme menu) |
