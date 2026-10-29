@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
+import { injectRegistry, useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
 import type * as SearchGroup from "@stash/contracts-api/search";
 import type * as Link from "@stash/contracts-domain/link";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
 import SearchField from "@stash/web-ui/search-field";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import Skeleton from "@stash/web-ui/skeleton";
 import ToggleChip from "@stash/web-ui/toggle-chip";
+import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, nextTick, ref, watch } from "vue";
@@ -17,6 +19,7 @@ import * as SearchAtoms from "./search-atoms.ts";
 import * as SearchRequest from "./search-request.ts";
 import MatchTimeline from "./timeline/match-timeline.vue";
 
+const registry = injectRegistry();
 const [q, setQ] = useAtom(() => SearchAtoms.q);
 const [mode, setMode] = useAtom(() => SearchAtoms.mode);
 const [type, setType] = useAtom(() => SearchAtoms.type);
@@ -35,6 +38,9 @@ const hits = computed(() =>
   results.value !== null && AsyncResult.isSuccess(results.value) ? results.value.value.hits : null,
 );
 const loading = computed(() => results.value !== null && AsyncResult.isInitial(results.value));
+// The skeleton only shows when a search takes a while; results stay cached between visits.
+const skeleton = useDelayedLoading(loading);
+const retry = () => SearchAtoms.retry(registry);
 const countProp = computed(() =>
   hits.value === null
     ? {}
@@ -161,11 +167,13 @@ const onFocusin = (event: FocusEvent) => {
 
     <EmptyState v-if="results === null" title="Find a link" />
 
-    <div v-else-if="loading" data-testid="search-loading" class="flex flex-col gap-3">
-      <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
+    <div v-else-if="loading" class="flex flex-col gap-3" aria-busy="true">
+      <div v-if="skeleton" data-testid="search-loading" class="flex flex-col gap-3">
+        <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
+      </div>
     </div>
 
-    <EmptyState v-else-if="failed" title="Search failed" />
+    <ErrorState v-else-if="failed" title="Search failed" @retry="retry" />
 
     <EmptyState v-else-if="hits !== null && hits.length === 0" title="No matches" />
 

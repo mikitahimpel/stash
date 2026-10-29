@@ -7,6 +7,7 @@ import * as Layer from "effect/Layer";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
+import * as AuthAtoms from "../src/auth-atoms.ts";
 import * as DeviceLoginAtoms from "../src/device-login-atoms.ts";
 import LoginPage from "../src/login-page.vue";
 import * as Routes from "../src/routes.ts";
@@ -56,7 +57,10 @@ const wait = async (seconds: number) => {
 
 // Mounts the login page against a stub api. `answers` are the `devicePoll` responses in order; the
 // last one repeats. Every poll records the seconds since the flow started.
-const mountPage = async (answers: ReadonlyArray<() => Response>) => {
+const mountPage = async (
+  answers: ReadonlyArray<() => Response>,
+  options: { readonly start?: () => Response; readonly path?: string } = {},
+) => {
   const polls: Array<number> = [];
   const copied: Array<string> = [];
   let startedAt = 0;
@@ -66,7 +70,7 @@ const mountPage = async (answers: ReadonlyArray<() => Response>) => {
       "POST /auth/device/start": () => {
         starts++;
         startedAt = Date.now();
-        return ApiTesting.json({ ...started, flowId: `flow-${starts}` });
+        return options.start?.() ?? ApiTesting.json({ ...started, flowId: `flow-${starts}` });
       },
       "POST /auth/device/poll": () => {
         polls.push((Date.now() - startedAt) / 1000);
@@ -94,15 +98,16 @@ const mountPage = async (answers: ReadonlyArray<() => Response>) => {
     history: createMemoryHistory(),
     routes: [
       { path: "/", name: "links", component: { template: "<h1>Links</h1>" } },
+      { path: "/open-now", name: "open-tabs", component: { template: "<h1>Open now</h1>" } },
       ...Routes.routes,
     ],
   });
-  await router.push("/login");
+  await router.push(options.path ?? "/login");
   const wrapper = mount(LoginPage, {
     global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
   });
   await settle();
-  return { wrapper, router, polls, copied, starts: () => starts };
+  return { wrapper, router, registry: registry!, polls, copied, starts: () => starts };
 };
 
 const pending = () => ApiTesting.json({ status: "pending" });
@@ -209,6 +214,37 @@ describe("login page", () => {
     expect(wrapper.find("[role=alert]").text()).toContain(message);
     expect(wrapper.find("[data-test=restart]").text()).toBe(action);
     expect(router.currentRoute.value.name).toBe("login");
+  });
+
+  it("returns to the page the user wanted once signed in", async () => {
+    const {
+      wrapper,
+      router,
+      registry: reg,
+    } = await mountPage([complete], {
+      path: "/login?redirect=/open-now",
+    });
+    reg.set(AuthAtoms.signedOut, true);
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(5);
+    expect(router.currentRoute.value.fullPath).toBe("/open-now");
+    expect(reg.get(AuthAtoms.signedOut)).toBe(false);
+  });
+
+  it("says sign-in isn't configured when the api answers 503 NotConfigured", async () => {
+    const { wrapper, polls } = await mountPage([pending], {
+      start: () =>
+        ApiTesting.json({ _tag: "NotConfigured", message: "GitHub login is not configured" }, 503),
+    });
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(5);
+    const state = wrapper.find("[data-test=not-configured]");
+    expect(state.text()).toContain("Sign-in isn't configured on this deployment yet.");
+    expect(wrapper.find("[role=alert]").exists()).toBe(false);
+    expect(wrapper.find("[data-test=sign-in]").exists()).toBe(false);
+    expect(polls).toEqual([]);
   });
 
   it("offers to try again when the api can't be reached", async () => {

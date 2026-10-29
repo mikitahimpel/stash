@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
+import { injectRegistry, useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
 import { Plus } from "@lucide/vue";
 import type * as Devices from "@stash/contracts-api/devices";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import ListRow from "@stash/web-ui/list-row";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
 import Skeleton from "@stash/web-ui/skeleton";
+import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -37,7 +39,11 @@ const preference = computed({
   set: (value) => setPreference(value),
 });
 
+const registry = injectRegistry();
 const rows = useAtomValue(() => SettingsAtoms.rows);
+// The skeleton only shows on a first load that takes a while: the rows stay cached between visits.
+const loading = useDelayedLoading(() => AsyncResult.isInitial(rows.value));
+const retry = () => SettingsAtoms.refresh(registry);
 const now = DateTime.nowUnsafe();
 // Section counts, once the rows have loaded.
 const counts = computed(() =>
@@ -141,11 +147,16 @@ const confirmRevoke = async () => {
       </p>
 
       <div v-if="AsyncResult.isInitial(rows)" class="grid gap-2" aria-busy="true">
-        <Skeleton v-for="n in 2" :key="n" class="h-12 w-full" />
+        <template v-if="loading">
+          <Skeleton v-for="n in 2" :key="n" class="h-12 w-full" />
+        </template>
       </div>
-      <p v-else-if="AsyncResult.isFailure(rows)" role="alert" class="px-3 text-sm text-destructive">
-        Couldn't load devices. Reload the page to try again.
-      </p>
+      <ErrorState
+        v-else-if="AsyncResult.isFailure(rows)"
+        title="Couldn't load devices"
+        class="px-3"
+        @retry="retry"
+      />
       <EmptyState v-else-if="rows.value.devices.length === 0" title="No devices" class="px-3" />
       <ul v-else>
         <ListRow v-for="row in rows.value.devices" :key="row.device.id" as="li" data-test="device">

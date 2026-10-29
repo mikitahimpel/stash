@@ -19,6 +19,7 @@ import DropdownMenuLabel from "@stash/web-ui/dropdown-menu-label";
 import DropdownMenuSeparator from "@stash/web-ui/dropdown-menu-separator";
 import DropdownMenuTrigger from "@stash/web-ui/dropdown-menu-trigger";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import Input from "@stash/web-ui/input";
 import Kbd from "@stash/web-ui/kbd";
 import ListRow from "@stash/web-ui/list-row";
@@ -305,8 +306,9 @@ const swatches = [
       </section>
 
       <section class="flex flex-col gap-3">
-        <SectionHeader title="EmptyState · Skeleton" />
+        <SectionHeader title="EmptyState · ErrorState · Skeleton" />
         <EmptyState title="Nothing open" description="No device reported open tabs." />
+        <ErrorState title="Couldn't load open tabs" @retry="toast('default')" />
         <div class="flex flex-col gap-2" aria-busy="true">
           <Skeleton class="h-5 w-2/3" />
           <Skeleton class="h-4 w-1/3" />

@@ -6,6 +6,7 @@ import * as WebPlatform from "@stash/web-platform/live";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as HttpClientError from "effect/http/HttpClientError";
 import type * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Atom from "effect/reactivity/Atom";
@@ -21,6 +22,8 @@ export const slowDownSeconds = 5;
  *   milliseconds). The page polls every `interval` seconds meanwhile.
  * - `complete`: signed in, the session cookie is set.
  * - `expired`, `denied`, `notAllowed`: the flow is over. The user may start a new one.
+ * - `notConfigured`: this deployment has no GitHub login yet (the api answers 503 `NotConfigured`),
+ *   so there is nothing to start.
  */
 export type DeviceLogin =
   | {
@@ -33,7 +36,14 @@ export type DeviceLogin =
   | { readonly step: "complete" }
   | { readonly step: "expired" }
   | { readonly step: "denied" }
-  | { readonly step: "notAllowed" };
+  | { readonly step: "notAllowed" }
+  | { readonly step: "notConfigured" };
+
+// A deploy without `GITHUB_CLIENT_ID` answers the device flow routes with 503 `NotConfigured`. The
+// contract doesn't declare it (the Worker answers before the api runs), so it arrives as a status
+// code error.
+const isNotConfigured = (error: unknown): boolean =>
+  HttpClientError.isHttpClientError(error) && error.response?.status === 503;
 
 type Waiting = Extract<DeviceLogin, { step: "waiting" }>;
 const end = (login: DeviceLogin) => [[login], Option.none<number>()] as const;
@@ -75,7 +85,12 @@ export const deviceLogin = StashApiClient.runtime.fn<void>()(() =>
   Stream.unwrap(
     Effect.gen(function* () {
       const client = yield* StashApiClient;
-      const started = yield* client.auth.deviceStart();
+      const started = yield* client.auth
+        .deviceStart()
+        .pipe(Effect.catchIf(isNotConfigured, () => Effect.succeed(undefined)));
+      if (started === undefined) {
+        return Stream.succeed<DeviceLogin>({ step: "notConfigured" });
+      }
       const now = yield* Clock.currentTimeMillis;
       const waiting: Waiting = {
         step: "waiting",
@@ -84,7 +99,10 @@ export const deviceLogin = StashApiClient.runtime.fn<void>()(() =>
         expiresAt: now + started.expiresIn * 1000,
         interval: started.interval,
       };
-      return Stream.concat(Stream.succeed(waiting), poll(client, started.flowId, waiting));
+      return Stream.concat(
+        Stream.succeed<DeviceLogin>(waiting),
+        poll(client, started.flowId, waiting),
+      );
     }),
   ),
 );

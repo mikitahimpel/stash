@@ -2,8 +2,9 @@ import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as Unauthenticated from "@stash/web-api-client/unauthenticated";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import * as Effect from "effect/Effect";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import * as AuthGuard from "../src/auth-guard.ts";
 import LogoutButton from "../src/logout-button.vue";
@@ -16,7 +17,10 @@ const user = () => ApiTesting.json({ kind: "user" });
 const Page = { template: "<h1>Links</h1>" };
 
 // A stub api whose `GET /auth/me` answers with whatever `session.me` is at the time.
-const setup = (session: { me: () => Response }, routes: ApiTesting.Routes = {}) => {
+const setup = (
+  session: { me: () => Response | Effect.Effect<Response> },
+  routes: ApiTesting.Routes = {},
+) => {
   const registry = ApiTesting.makeRegistry({ "GET /auth/me": () => session.me(), ...routes });
   const router = createRouter({
     history: createMemoryHistory(),
@@ -61,14 +65,52 @@ describe("auth guard", () => {
     registry.dispose();
   });
 
-  it("asks the api again on every navigation", async () => {
-    const session = { me: user };
-    const { registry, router } = setup(session);
+  it("trusts a cached me, refreshes it in the background, and goes to login on its 401", async () => {
+    let asked = 0;
+    const session: { me: () => Response | Effect.Effect<Response> } = { me: user };
+    const { registry, router } = setup({
+      me: () => {
+        asked++;
+        return session.me();
+      },
+    });
     await router.push("/links");
-    expect(router.currentRoute.value.name).toBe("links");
-    session.me = () => ApiTesting.unauthorized();
+    expect(asked).toBe(1);
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    session.me = () => Effect.promise(() => answered.then(() => ApiTesting.unauthorized()));
+    // The cached answer lets the navigation through without waiting for the api.
     await router.push("/search");
+    expect(router.currentRoute.value.name).toBe("search");
+    // The refresh behind it answers 401.
+    answer();
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/search"),
+    );
+    expect(asked).toBe(2);
+    registry.dispose();
+  });
+
+  it("keeps the page the user wanted, and returns there once signed in", async () => {
+    const { registry, router } = setup({ me: () => ApiTesting.unauthorized() });
+    await router.push("/search?q=rust");
     expect(router.currentRoute.value.name).toBe("login");
+    expect(Routes.returnTo(router.currentRoute.value.query)).toBe("/search?q=rust");
+    registry.dispose();
+  });
+
+  it("stays on the login page after a 401 even while a cached me says signed in", async () => {
+    const { registry, router } = setup({ me: user });
+    await router.push("/links");
+    Unauthenticated.emit(registry);
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/links"),
+    );
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("login");
+    // Other guarded pages lead back to the login page too, until a sign-in completes.
+    await router.push("/search");
+    expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/search");
     registry.dispose();
   });
 
@@ -102,7 +144,7 @@ describe("auth guard", () => {
     session.me = () => ApiTesting.unauthorized();
     Unauthenticated.emit(registry);
     await flushPromises();
-    expect(router.currentRoute.value.name).toBe("login");
+    expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/links");
     registry.dispose();
   });
 
@@ -153,5 +195,17 @@ describe("logout", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
     registry.dispose();
+  });
+});
+
+describe("Routes.returnTo", () => {
+  it.each([
+    [{ redirect: "/open-now" }, "/open-now"],
+    [{}, "/"],
+    [{ redirect: "//evil.example.com" }, "/"],
+    [{ redirect: "https://evil.example.com" }, "/"],
+    [{ redirect: ["/a", "/b"] }, "/"],
+  ])("returns to %j as %s", (query, path) => {
+    expect(Routes.returnTo(query)).toBe(path);
   });
 });

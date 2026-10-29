@@ -3,12 +3,14 @@ import * as AtomVue from "@effect/atom-vue";
 import type * as Device from "@stash/contracts-domain/device";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
 import SearchField from "@stash/web-ui/search-field";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
 import Toaster from "@stash/web-ui/toaster";
 import ToggleChip from "@stash/web-ui/toggle-chip";
+import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, nextTick, onMounted, ref } from "vue";
 import ArchiveAllDialog from "./archive-all-dialog.vue";
@@ -28,6 +30,7 @@ const toasts = AtomVue.useAtomValue(() => OpenTabsAtoms.toasts);
 const archive = AtomVue.useAtomSet(() => OpenTabsAtoms.archive);
 const closeOnDevice = AtomVue.useAtomSet(() => OpenTabsAtoms.closeOnDevice);
 const listen = AtomVue.useAtomSet(() => OpenTabsKeys.listen);
+const retry = () => registry.refresh(OpenTabsAtoms.tabs);
 
 const dismiss = (id: string) => OpenTabsAtoms.dismissToast(registry, id);
 
@@ -35,6 +38,10 @@ const success = <A>(result: AsyncResult.AsyncResult<A, unknown>): A | undefined 
   AsyncResult.isSuccess(result) ? result.value : undefined;
 
 const all = computed(() => success(view.value));
+// The skeleton only shows on a first load that takes a while: the tabs stay cached between visits.
+const skeleton = useDelayedLoading(
+  () => all.value === undefined && !AsyncResult.isFailure(view.value),
+);
 const groups = computed(() => success(shown.value) ?? []);
 const chips = computed(() =>
   (success(searched.value) ?? []).map((group) => ({
@@ -114,27 +121,31 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
   <section class="flex flex-col gap-5">
     <SectionHeader as="h1" title="Open now" v-bind="all === undefined ? {} : { count: total }" />
 
-    <div v-if="all === undefined && AsyncResult.isFailure(view)" data-state="error">
-      <EmptyState title="Couldn't load open tabs" />
-    </div>
-    <div v-else-if="all === undefined" data-state="loading" class="flex flex-col gap-4">
-      <Skeleton class="h-10 w-full rounded-lg" />
-      <div class="flex gap-2">
-        <Skeleton v-for="i in 3" :key="i" class="h-[34px] w-20 rounded-[9px]" />
-      </div>
-      <Skeleton class="h-28 w-full" />
-      <div class="flex flex-col">
-        <div
-          v-for="i in 4"
-          :key="i"
-          class="flex items-baseline gap-4 border-b border-hairline-row px-3 py-3"
-        >
-          <Skeleton class="h-4 flex-1" />
-          <Skeleton class="h-3 w-24" />
-          <Skeleton class="h-3 w-10" />
+    <ErrorState
+      v-if="all === undefined && AsyncResult.isFailure(view)"
+      title="Couldn't load open tabs"
+      @retry="retry"
+    />
+    <template v-else-if="all === undefined">
+      <div v-if="skeleton" data-state="loading" class="flex flex-col gap-4">
+        <Skeleton class="h-10 w-full rounded-lg" />
+        <div class="flex gap-2">
+          <Skeleton v-for="i in 3" :key="i" class="h-[34px] w-20 rounded-[9px]" />
+        </div>
+        <Skeleton class="h-28 w-full" />
+        <div class="flex flex-col">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="flex items-baseline gap-4 border-b border-hairline-row px-3 py-3"
+          >
+            <Skeleton class="h-4 flex-1" />
+            <Skeleton class="h-3 w-24" />
+            <Skeleton class="h-3 w-10" />
+          </div>
         </div>
       </div>
-    </div>
+    </template>
     <EmptyState v-else-if="all.length === 0" data-state="empty" title="No devices" />
     <template v-else>
       <SearchField

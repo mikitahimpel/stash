@@ -4,8 +4,10 @@ import { ArrowLeft, ExternalLink } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import Skeleton from "@stash/web-ui/skeleton";
 import TextLink from "@stash/web-ui/text-link";
+import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed } from "vue";
@@ -14,21 +16,30 @@ import LinkActions from "../link-actions.vue";
 import * as LinkDisplay from "../link-display.ts";
 import * as LinksAtoms from "../links-atoms.ts";
 
+const registry = AtomVue.injectRegistry();
 const route = useRoute();
 const router = useRouter();
 
 // `/links/:id` only matches a non-empty id.
-const result = AtomVue.useAtomValue(() =>
-  LinksAtoms.details(String(route.params.id) as Link.LinkId),
-);
+const details = () => LinksAtoms.details(String(route.params.id) as Link.LinkId);
+const result = AtomVue.useAtomValue(details);
 
 const view = computed(() =>
   AsyncResult.match(result.value, {
     onInitial: () => ({ state: "loading" as const }),
-    onFailure: () => ({ state: "missing" as const }),
+    onFailure: (failure) =>
+      failure.cause.reasons.some(
+        (reason) => reason._tag === "Fail" && reason.error._tag === "NotFound",
+      )
+        ? { state: "missing" as const }
+        : { state: "error" as const },
     onSuccess: ({ value }) => ({ state: "link" as const, link: value }),
   }),
 );
+
+// The skeleton only shows on a first load that takes a while: the link stays cached.
+const loading = useDelayedLoading(() => view.value.state === "loading");
+const retry = () => registry.refresh(details());
 
 const formatDate = (date: DateTime.Utc) =>
   DateTime.format(DateTime.setZone(date, DateTime.zoneMakeLocal()), {
@@ -45,14 +56,17 @@ const formatDate = (date: DateTime.Utc) =>
     </Button>
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
-      <Skeleton class="h-6 w-2/3" />
-      <Skeleton class="h-16" />
+      <template v-if="loading">
+        <Skeleton class="h-6 w-2/3" />
+        <Skeleton class="h-16" />
+      </template>
     </div>
     <EmptyState
       v-else-if="view.state === 'missing'"
       title="Link not found"
       description="It may have been deleted."
     />
+    <ErrorState v-else-if="view.state === 'error'" title="Couldn't load the link" @retry="retry" />
     <article v-else class="flex flex-col gap-4">
       <header class="flex flex-col gap-2 border-b border-hairline pb-4">
         <h1 class="text-[15px] font-medium break-words">{{ LinkDisplay.title(view.link) }}</h1>

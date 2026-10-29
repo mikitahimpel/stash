@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as Layer from "effect/Layer";
+import { nextTick } from "vue";
 import { createMemoryHistory } from "vue-router";
 import AppLayout from "../src/app-layout.vue";
 import * as AppRegistry from "../src/app-registry.ts";
@@ -95,6 +96,128 @@ describe("auth guard", () => {
     const { wrapper, router } = await mountApp("/settings");
     expect(router.currentRoute.value.name).toBe("settings");
     expect(wrapper.find("main h1").text()).toBe("Settings");
+  });
+});
+
+describe("login gate", () => {
+  const user = () => ApiTesting.json({ kind: "user" });
+
+  const mountWith = async (routes: ApiTesting.Routes, path: string) => {
+    const registry = AppRegistry.make({ transport: ApiTesting.layer(routes), theme: theme() });
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push(path);
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    await flushPromises();
+    return { wrapper, router };
+  };
+
+  it("sends /open-now to the login page with a return URL when /auth/me answers 401", async () => {
+    const { wrapper, router } = await mountWith(
+      { "GET /auth/me": () => ApiTesting.unauthorized() },
+      "/open-now",
+    );
+    expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/open-now");
+    expect(wrapper.find("nav").exists()).toBe(false);
+  });
+
+  it("goes to the login page when GET /tabs answers 401 while /auth/me is cached as ok", async () => {
+    const { wrapper, router } = await mountWith(
+      { "GET /auth/me": user, "GET /tabs": () => ApiTesting.unauthorized() },
+      "/open-now",
+    );
+    await vi.waitFor(
+      () => expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/open-now"),
+      { timeout: 10_000 },
+    );
+    // It stays there, even though `me` still says signed in.
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("login");
+    await vi.waitFor(() =>
+      expect(wrapper.find("[data-test=sign-in]").text()).toBe("Sign in with GitHub"),
+    );
+  });
+});
+
+describe("cached pages", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const tabs = {
+    devices: [
+      {
+        device: {
+          id: "laptop",
+          name: "Laptop",
+          kind: "zen",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+        snapshot: {
+          deviceId: "laptop",
+          takenAt: "2026-01-10T12:00:00.000Z",
+          tabs: [
+            {
+              url: "https://example.com/a",
+              title: "Example a",
+              openedAt: "2026-01-10T11:00:00.000Z",
+              lastSeenAt: "2026-01-10T12:00:00.000Z",
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  it("shows cached rows at once on a second visit, without a skeleton", async () => {
+    let requests = 0;
+    let respond: () => void = () => {};
+    const registry = AppRegistry.make({
+      transport: ApiTesting.layer({
+        "GET /auth/me": () => ApiTesting.json({ kind: "user" }),
+        "GET /tabs": () => {
+          // The first load answers at once; later ones wait for `respond`.
+          if (++requests === 1) return ApiTesting.json(tabs);
+          return Effect.promise(
+            () =>
+              new Promise<Response>((resolve) => (respond = () => resolve(ApiTesting.json(tabs)))),
+          );
+        },
+        "GET /devices": () => ApiTesting.json([]),
+        "GET /tokens": () => ApiTesting.json([]),
+      }),
+      theme: theme(),
+    });
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push("/open-now");
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    const rows = () => wrapper.findAll("[data-slot=open-tab-title]").map((row) => row.text());
+    await vi.waitFor(() => expect(rows()).toEqual(["Example a"]), { timeout: 10_000 });
+
+    // A → B: Settings (loaded once, so its chunk is in place before the clock is faked).
+    await router.push("/settings");
+    await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Settings"), {
+      timeout: 10_000,
+    });
+
+    // The user stays on B a moment, long enough for A's atoms to lose their last reader.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // B → A: the cached rows render at once, while the refresh runs behind them.
+    await router.push("/open-now");
+    await nextTick();
+    expect(rows()).toEqual(["Example a"]);
+    expect(wrapper.find("[data-slot=skeleton]").exists()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rows()).toEqual(["Example a"]);
+    expect(wrapper.find("[data-slot=skeleton]").exists()).toBe(false);
+    // Open now, then Settings (it reads the tabs too), then the background refresh.
+    await vi.waitFor(() => expect(requests).toBe(3));
+    respond();
+    await flushPromises();
+    expect(rows()).toEqual(["Example a"]);
+    expect(wrapper.find("[data-slot=skeleton]").exists()).toBe(false);
   });
 });
 
