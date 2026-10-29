@@ -9,6 +9,7 @@ import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as SettingsRows from "./settings-rows.ts";
 
 export const devices = ApiAtoms.query(["devices"], (client) => client.devices.list());
@@ -30,6 +31,13 @@ export const rows = Atom.make((get) => {
 });
 
 /** What to issue a token for: a device registered on the spot, or one that already exists. */
+/** Loads the devices, tokens and tab reports again, for the page's Retry. */
+export const refresh = (registry: AtomRegistry.AtomRegistry): void => {
+  registry.refresh(devices);
+  registry.refresh(tokens);
+  registry.refresh(reports);
+};
+
 export type IssueToken =
   | { readonly _tag: "NewDevice"; readonly device: Devices.RegisterDevice }
   | { readonly _tag: "ExistingDevice"; readonly deviceId: Device.DeviceId };

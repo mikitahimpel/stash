@@ -53,6 +53,13 @@ layers.
   read atoms and call actions.
 - Each feature exports its routes (`./routes`) and the components other features may use.
   `apps/web` mounts the routes.
+- Api queries (`ApiAtoms.query`, `ApiAtoms.pages`) are cached and revalidated: they outlive the
+  page that reads them, so a page opened again shows its data at once and refreshes it in the
+  background. Pages show a skeleton only on a first load that takes over 200 ms
+  (`useDelayedLoading` from `@stash/web-ui/use-delayed-loading`), and a failed load with nothing
+  cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
+- Any 401 from the api sends the user to the login page, which returns to the page they wanted
+  (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
 - Shared visual components go in `@stash/web-ui`. Feature-specific components stay in the feature.
 - Component files are kebab-case too: `link-card.vue`, used as `<LinkCard />`.
 

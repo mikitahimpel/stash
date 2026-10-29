@@ -3,9 +3,11 @@ import * as AtomVue from "@effect/atom-vue";
 import { Inbox } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
 import EmptyState from "@stash/web-ui/empty-state";
+import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
+import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -20,6 +22,7 @@ import LoadMore from "./load-more.vue";
 import SavedReadChart from "./saved-read-chart.vue";
 import * as SavedRead from "./saved-read.ts";
 
+const registry = AtomVue.injectRegistry();
 const route = useRoute();
 const router = useRouter();
 
@@ -50,12 +53,17 @@ const view = computed(() =>
   }),
 );
 
+// Skeletons only on a first load that takes a while: the feed stays cached between visits.
+const loading = useDelayedLoading(() => view.value.state === "loading");
+const retry = () => registry.refresh(LinksAtoms.feed(filters.value));
+
 const links = computed(() => (view.value.state === "links" ? view.value.links : []));
 const groups = computed(() =>
   view.value.state === "links" ? LinkDays.groupByDay(view.value.links, view.value.now, zone) : [],
 );
 
 const recent = AtomVue.useAtomValue(() => SavedRead.recent);
+const chartLoading = useDelayedLoading(() => AsyncResult.isInitial(recent.value));
 const history = computed(() =>
   AsyncResult.isSuccess(recent.value)
     ? SavedRead.history(recent.value.value.links, recent.value.value.now, zone)
@@ -147,19 +155,19 @@ onMounted(() => listen({ run }));
   <section class="flex flex-col gap-5">
     <SectionHeader as="h1" title="Inbox" />
     <SavedReadChart v-if="history !== undefined" :history="history" />
-    <Skeleton v-else-if="AsyncResult.isInitial(recent)" class="h-[72px]" />
+    <Skeleton v-else-if="chartLoading" class="h-[72px]" />
 
     <LinksFilters :filters="filters" @change="setFilters" />
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
-      <Skeleton v-for="n in 3" :key="n" class="h-16" />
+      <template v-if="loading">
+        <Skeleton v-for="n in 3" :key="n" class="h-16" />
+      </template>
     </div>
     <EmptyState v-else-if="view.state === 'empty'" title="Nothing here" :description="emptyText">
       <template #icon><Inbox /></template>
     </EmptyState>
-    <p v-else-if="view.state === 'error'" role="alert" class="text-sm text-destructive">
-      Couldn't load links. Reload the page to try again.
-    </p>
+    <ErrorState v-else-if="view.state === 'error'" title="Couldn't load links" @retry="retry" />
     <template v-else>
       <p v-if="failed" role="alert" class="text-[13px] text-destructive">
         That didn't work. Try again.

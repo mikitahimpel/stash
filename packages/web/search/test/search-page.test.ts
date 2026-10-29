@@ -56,10 +56,26 @@ describe("SearchPage", () => {
     expect(wrapper.find("ul").exists()).toBe(false);
   });
 
-  it("shows a loading state while the search runs", async () => {
+  it("shows a loading state once the search has run for 200 ms", async () => {
     const wrapper = mountPage({ "GET /search": () => Effect.never });
     await type(wrapper, "rust");
+    expect(wrapper.find("[data-testid=search-loading]").exists()).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
     expect(wrapper.find("[data-testid=search-loading]").exists()).toBe(true);
+  });
+
+  it("shows the error state when the search fails, and Retry runs it again", async () => {
+    let requests = 0;
+    const wrapper = mountPage({
+      "GET /search": () =>
+        ++requests === 1 ? new Response("oops", { status: 500 }) : ApiTesting.json({ hits: [] }),
+    });
+    await type(wrapper, "rust");
+    await vi.waitFor(() => expect(wrapper.find("[data-state=error]").exists()).toBe(true));
+    expect(wrapper.find("[data-state=error] h3").text()).toBe("Search failed");
+    await wrapper.find("button[data-action=retry]").trigger("click");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("No matches"));
+    expect(requests).toBe(2);
   });
 
   it("lists the hits", async () => {

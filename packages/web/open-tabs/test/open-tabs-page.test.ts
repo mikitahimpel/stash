@@ -6,7 +6,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as OpenTabsKeys from "../src/open-tabs-keys.ts";
 import OpenTabsPage from "../src/open-tabs-page.vue";
 import * as Fixtures from "./fixtures.ts";
@@ -250,14 +250,51 @@ describe("open-tabs-page", () => {
     expect(empty.wrapper.find("[data-state=empty]").text()).toContain("No open tabs");
   });
 
-  it("shows a loading state, then an error state when the tabs can't load", async () => {
+  it("shows a skeleton after 200 ms, then an error state with Retry when the tabs can't load", async () => {
     let respond: () => void = () => {};
-    const responded = new Promise<void>((resolve) => (respond = resolve));
+    let responded = new Promise<void>((resolve) => (respond = resolve));
+    let requests = 0;
     const { wrapper } = await mountPage({
-      "GET /tabs": () => Effect.promise(() => responded.then(() => ApiTesting.unauthorized())),
+      "GET /tabs": () => {
+        requests++;
+        return Effect.promise(() =>
+          responded.then(() =>
+            requests === 1
+              ? new Response("oops", { status: 500 })
+              : ApiTesting.json(laptopAndPhone()),
+          ),
+        );
+      },
     });
-    expect(wrapper.find("[data-state=loading]").exists()).toBe(true);
+    expect(wrapper.find("[data-state=loading]").exists()).toBe(false);
+    await eventually(() => expect(wrapper.find("[data-state=loading]").exists()).toBe(true));
     respond();
     await eventually(() => expect(wrapper.find("[data-state=error]").exists()).toBe(true));
+    expect(wrapper.find("[data-state=error] h3").text()).toBe("Couldn't load open tabs");
+
+    responded = Promise.resolve();
+    await wrapper.find("[data-state=error] button[data-action=retry]").trigger("click");
+    await eventually(() => expect(titles(wrapper)).toHaveLength(4));
+    expect(requests).toBe(2);
+  });
+
+  describe("with fake timers", () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+    afterEach(() => vi.useRealTimers());
+
+    it("never shows the skeleton for a response faster than 200 ms", async () => {
+      let respond: () => void = () => {};
+      const responded = new Promise<void>((resolve) => (respond = resolve));
+      const { wrapper } = await mountPage({
+        "GET /tabs": () =>
+          Effect.promise(() => responded.then(() => ApiTesting.json(laptopAndPhone()))),
+      });
+      await vi.advanceTimersByTimeAsync(150);
+      expect(wrapper.find("[data-state=loading]").exists()).toBe(false);
+      respond();
+      await eventually(() => expect(titles(wrapper)).toHaveLength(4));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(wrapper.find("[data-state=loading]").exists()).toBe(false);
+    });
   });
 });

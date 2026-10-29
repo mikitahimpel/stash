@@ -2,6 +2,7 @@ import type * as SearchGroup from "@stash/contracts-api/search";
 import type * as Link from "@stash/contracts-domain/link";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as SearchRequest from "./search-request.ts";
 
 /** How long typing must pause before the query is sent. */
@@ -48,6 +49,12 @@ export const results = Atom.make((get) => {
 });
 
 /** How many recent links the timeline draws behind the matches: one page of `GET /links`. */
+/** Runs the current search again, for the page's Retry. */
+export const retry = (registry: AtomRegistry.AtomRegistry): void => {
+  const query = registry.get(request);
+  if (query !== undefined) registry.refresh(search(query));
+};
+
 export const savedLimit = 100;
 
 /**

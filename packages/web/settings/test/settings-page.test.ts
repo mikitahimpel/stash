@@ -89,6 +89,8 @@ const mountPage = async () => {
   });
   page = new DOMWrapper(wrapper.element.ownerDocument.body);
   await settle();
+  // Under load the stub can take more turns than `settle` gives it.
+  await vi.waitFor(() => expect(wrapper.find("[aria-busy=true]").exists()).toBe(false));
   return { wrapper, calls, copied };
 };
 
