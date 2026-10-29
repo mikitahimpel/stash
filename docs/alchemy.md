@@ -124,6 +124,10 @@ variable removed and `STASH_API_PORT=8788` (or `STASH_SMOKE_PORT`). It then chec
 4. `POST /_smoke/queue` sends one `EnrichmentMessage`. The (no-op) consumer logs
    `enrichment: received <linkId>`, and the test waits for that line in the `alchemy dev` output.
 
+`POST /_smoke/seed` (synthetic devices, links and open tabs, `apps/api/src/smoke-seed.ts`) and
+`POST /_smoke/session` (a web session from a token hash) serve the web screenshots
+(`pnpm --filter @stash/web screenshots`, see [design.md](design.md#screenshots)).
+
 The `/_smoke/*` routes are dev scaffolding (`apps/api/src/smoke-routes.ts`). They answer only
 when the `SMOKE_ROUTES` binding is `"on"`, which `alchemy.run.ts` sets only when `ALCHEMY_DEV` is
 true. `/_smoke/d1` creates its own table with `CREATE TABLE IF NOT EXISTS`. Remove the routes once

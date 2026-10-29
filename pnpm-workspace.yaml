@@ -32,6 +32,7 @@ catalog:
   fake-indexeddb: 6.2.5
   oxfmt: 0.74.0
   oxlint: 1.89.0
+  playwright: 1.64.1
   plist: 5.0.0
   oxlint-plugin-vue-sfc: 0.2.1
   reka-ui: 2.11.0

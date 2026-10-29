@@ -2,9 +2,11 @@
 import * as AtomVue from "@effect/atom-vue";
 import { Inbox } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
+import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
+import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
@@ -68,6 +70,11 @@ const history = computed(() =>
   AsyncResult.isSuccess(recent.value)
     ? SavedRead.history(recent.value.value.links, recent.value.value.now, zone)
     : undefined,
+);
+
+// The 30-day counts under the title, once the history has loaded. The chart below shows them.
+const subtitle = computed(() =>
+  history.value === undefined ? {} : { subtitle: SavedRead.summary(history.value) },
 );
 
 const devices = AtomVue.useAtomValue(() => LinksAtoms.devices);
@@ -152,8 +159,8 @@ onMounted(() => listen({ run }));
 </script>
 
 <template>
-  <section class="flex flex-col gap-5">
-    <SectionHeader as="h1" title="Inbox" />
+  <section class="flex flex-col gap-6">
+    <PageHeader title="Inbox" v-bind="subtitle" />
     <SavedReadChart v-if="history !== undefined" :history="history" />
     <Skeleton v-else-if="chartLoading" class="h-[72px]" />
 
@@ -166,15 +173,26 @@ onMounted(() => listen({ run }));
     </div>
     <EmptyState v-else-if="view.state === 'empty'" title="Nothing here" :description="emptyText">
       <template #icon><Inbox /></template>
+      <template v-if="filters.tag !== undefined || filters.type !== undefined" #action>
+        <Button as-child>
+          <button
+            type="button"
+            data-action="clear-filters"
+            @click="setFilters({ ...filters, tag: undefined, type: undefined })"
+          >
+            Clear filters
+          </button>
+        </Button>
+      </template>
     </EmptyState>
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load links" @retry="retry" />
     <template v-else>
       <p v-if="failed" role="alert" class="text-[13px] text-destructive">
         That didn't work. Try again.
       </p>
-      <div ref="list" class="flex flex-col gap-5">
+      <div ref="list" class="flex flex-col gap-6">
         <section v-for="group in groups" :key="group.key" data-slot="link-day">
-          <SectionHeader :title="group.label" :count="group.links.length" class="px-3" />
+          <SectionHeader :title="group.label" :count="group.links.length" />
           <ul class="flex flex-col">
             <LinkRow
               v-for="link in group.links"

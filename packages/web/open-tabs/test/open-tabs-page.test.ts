@@ -1,7 +1,7 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
-import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { enableAutoUnmount, flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
@@ -22,7 +22,8 @@ const mountPage = async (routes: ApiTesting.Routes) => {
   const wrapper = mount(OpenTabsPage, {
     // Toasts and dialogs teleport into <body>, so the page has to be attached to it.
     attachTo: "body",
-    global: { provide: { [AtomVue.registryKey]: registry } },
+    // The empty state links to Settings; the page is mounted without a router.
+    global: { provide: { [AtomVue.registryKey]: registry }, stubs: { RouterLink: RouterLinkStub } },
   });
   await flushPromises();
   const press = async (key: string, typing = false) => {

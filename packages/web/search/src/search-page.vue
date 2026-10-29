@@ -5,8 +5,8 @@ import type * as Link from "@stash/contracts-domain/link";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
+import PageHeader from "@stash/web-ui/page-header";
 import SearchField from "@stash/web-ui/search-field";
-import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import Skeleton from "@stash/web-ui/skeleton";
 import ToggleChip from "@stash/web-ui/toggle-chip";
@@ -41,16 +41,19 @@ const loading = computed(() => results.value !== null && AsyncResult.isInitial(r
 // The skeleton only shows when a search takes a while; results stay cached between visits.
 const skeleton = useDelayedLoading(loading);
 const retry = () => SearchAtoms.retry(registry);
-const countProp = computed(() =>
-  hits.value === null
-    ? {}
-    : { count: `${hits.value.length} ${hits.value.length === 1 ? "result" : "results"}` },
-);
 const failed = computed(() => results.value !== null && AsyncResult.isFailure(results.value));
 
 // The background of the timeline and the tag chips. Without it both still work, just emptier.
 const savedLinks = computed(() =>
   AsyncResult.isSuccess(saved.value) ? saved.value.value.items : [],
+);
+// The counts under the title: the results of the current search, or the links on the timeline.
+const subtitle = computed(() =>
+  hits.value !== null
+    ? { subtitle: `${hits.value.length} ${hits.value.length === 1 ? "result" : "results"}` }
+    : savedLinks.value.length > 0
+      ? { subtitle: `${savedLinks.value.length} recent links` }
+      : {},
 );
 const tags = computed(() => SearchRequest.topTags(savedLinks.value, tag.value));
 const highlight = computed(() => (SearchRequest.matchesWords(mode.value) ? q.value : ""));
@@ -119,8 +122,8 @@ const onFocusin = (event: FocusEvent) => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-5" @keydown="onKeydown" @focusin="onFocusin">
-    <SectionHeader as="h1" title="Search" v-bind="countProp" />
+  <section class="flex flex-col gap-6" @keydown="onKeydown" @focusin="onFocusin">
+    <PageHeader title="Search" v-bind="subtitle" />
 
     <!-- Kit components declare only their props, so strictTemplates rejects plain attributes on
          them. Attributes that fall through to the input go in a `v-bind` object. -->
@@ -165,7 +168,11 @@ const onFocusin = (event: FocusEvent) => {
       :selected="selectedId ?? undefined"
     />
 
-    <EmptyState v-if="results === null" title="Find a link" />
+    <EmptyState
+      v-if="results === null"
+      title="Find a link"
+      description="Search titles, summaries and page text of everything you saved."
+    />
 
     <div v-else-if="loading" class="flex flex-col gap-3" aria-busy="true">
       <div v-if="skeleton" data-testid="search-loading" class="flex flex-col gap-3">
@@ -175,7 +182,11 @@ const onFocusin = (event: FocusEvent) => {
 
     <ErrorState v-else-if="failed" title="Search failed" @retry="retry" />
 
-    <EmptyState v-else-if="hits !== null && hits.length === 0" title="No matches" />
+    <EmptyState
+      v-else-if="hits !== null && hits.length === 0"
+      title="No matches"
+      description="Try other words, or another mode or filter."
+    />
 
     <ul v-else-if="hits !== null" ref="list" class="flex flex-col" aria-label="Results">
       <SearchResultRow

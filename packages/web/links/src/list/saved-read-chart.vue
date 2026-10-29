@@ -29,19 +29,16 @@ const bars = computed(() => {
   });
 });
 
-const summary = computed(
-  () =>
-    `${props.history.saved} saved · ${props.history.read} read · ${props.history.unread} unread · last ${SavedRead.days} days`,
-);
+// The page subtitle shows the same line, so the chart only carries it in its label.
+const summary = computed(() => SavedRead.summary(props.history));
 </script>
 
 <template>
   <figure data-slot="saved-read-chart" class="flex flex-col gap-2">
     <figcaption
-      class="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground"
+      class="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground"
     >
-      <span data-slot="saved-read-summary">{{ summary }}</span>
-      <span class="ml-auto flex items-center gap-3" aria-hidden="true">
+      <span class="flex items-center gap-3" aria-hidden="true">
         <span class="flex items-center gap-1.5">
           <svg viewBox="0 0 8 8" class="size-2">
             <rect width="8" height="8" class="fill-muted-foreground opacity-35" />
@@ -53,6 +50,12 @@ const summary = computed(
             <rect width="8" height="8" class="fill-muted-foreground" />
           </svg>
           unread
+        </span>
+        <span class="flex items-center gap-1.5">
+          <svg viewBox="0 0 8 8" class="size-2">
+            <rect width="8" height="8" class="fill-signal opacity-45" />
+          </svg>
+          unread today
         </span>
       </span>
     </figcaption>

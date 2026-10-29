@@ -54,8 +54,17 @@ Feature behavior is tested in `packages/web/*`.
 ## File naming
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`, `src/app-header.vue` (wordmark,
-  nav, sync status, search, theme toggle, sign out)
-- The theme atoms live in `@stash/web-settings/theme-atoms`, shared by the header toggle and the
+  nav, and one right cluster: sync status, search, theme menu, account menu from
+  `@stash/web-auth/account-menu`). On phones the nav is a bottom bar. See "Layout rules" in
+  [docs/design.md](../../docs/design.md).
+- `src/styles.css`: imports the kit's styles and lists every `@stash/web-*` feature package with
+  templates under `@source`, or Tailwind drops the classes only that package uses.
+  `test/styles.test.ts` checks the list against `dependencies`.
+- `scripts/screenshots.ts` (`pnpm --filter @stash/web screenshots`): boots `alchemy dev` and Vite,
+  seeds synthetic data and a session, and writes every page in both themes at 1440 and 390 wide to
+  `docs/screenshots/`. It fails on horizontal scroll or a button without an accessible name.
+  Commit the PNGs with any visual change.
+- The theme atoms live in `@stash/web-settings/theme-atoms`, shared by the header theme menu and the
   Settings Appearance section so both drive one `Theme` service. `app-registry.ts` provides its
   layer, and `main.ts` mounts its state, which applies the stored theme as the app starts.
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,

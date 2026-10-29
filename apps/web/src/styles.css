@@ -3,6 +3,11 @@
 /* The app shell lives in this package, so Tailwind scans it from here. */
 @source "./";
 
-/* Feature packages live in node_modules from here, so scan their sources explicitly. */
-@source "../node_modules/@stash/web-open-tabs/src";
+/* Feature packages live in node_modules from here, so scan their sources explicitly. Every
+   `@stash/web-*` package with templates must be listed, or classes only it uses are never
+   generated. */
+@source "../node_modules/@stash/web-auth/src";
 @source "../node_modules/@stash/web-links/src";
+@source "../node_modules/@stash/web-open-tabs/src";
+@source "../node_modules/@stash/web-search/src";
+@source "../node_modules/@stash/web-settings/src";

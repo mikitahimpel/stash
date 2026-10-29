@@ -1,8 +1,15 @@
-/** How many months the timeline spans, ending with the current one. */
+/** The most months the timeline spans, ending with the current one. */
 export const monthCount = 12;
 
-// Number labels closer than this (a fraction of the width) go on separate lanes.
-const labelGap = 0.035;
+/** The fewest days it spans, so a fresh stash still has room between its dots. */
+export const minDays = 30;
+
+// Data newer than this many days gets a day axis with weekly ticks; older data, a month axis.
+const dayAxisMaxDays = 92;
+const day = 24 * 60 * 60 * 1000;
+
+// Number labels closer than this (a fraction of the width, ~18px on a phone) go on separate lanes.
+const labelGap = 0.05;
 const laneCount = 3;
 
 const monthNames = [
@@ -20,9 +27,10 @@ const monthNames = [
   "Dec",
 ] as const;
 
-export interface Month {
+export interface Tick {
+  /** `Oct` on a month axis, `Oct 5` on a day axis. */
   readonly label: string;
-  /** Where the month starts, from 0 (left edge) to 1 (right edge). */
+  /** Where the month or week starts, from 0 (left edge) to 1 (right edge). */
   readonly x: number;
 }
 
@@ -36,7 +44,7 @@ export interface Match {
 }
 
 export interface Layout {
-  readonly months: ReadonlyArray<Month>;
+  readonly ticks: ReadonlyArray<Tick>;
   /** Every other saved link, as a neutral dot. */
   readonly dots: ReadonlyArray<number>;
   readonly matches: ReadonlyArray<Match>;
@@ -52,36 +60,71 @@ export interface Point {
 
 const monthStart = (year: number, month: number): number => Date.UTC(year, month, 1);
 
+const dayStart = (time: number): number => Math.floor(time / day) * day;
+
+// The axis fits the data: from the oldest link shown (at most twelve months back, at least
+// `minDays`) to now. Weeks start on Monday (UTC).
+const axis = (now: number, times: ReadonlyArray<number>) => {
+  const today = new Date(now);
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+  const earliest = Math.min(
+    now,
+    ...times.filter((time) => time >= monthStart(year, month - (monthCount - 1)) && time <= now),
+  );
+  if (earliest < now - dayAxisMaxDays * day) {
+    const first = new Date(earliest);
+    const offset = (first.getUTCFullYear() - year) * 12 + first.getUTCMonth() - month;
+    const start = monthStart(year, month + offset);
+    const end = monthStart(year, month + 1);
+    const ticks = Array.from({ length: 1 - offset }, (_, i) => {
+      const time = monthStart(year, month + offset + i);
+      return { time, label: monthNames[new Date(time).getUTCMonth()] ?? "" };
+    });
+    return { start, end, ticks };
+  }
+  const start = dayStart(Math.min(earliest, now - (minDays - 1) * day));
+  const end = dayStart(now) + day;
+  // 1970-01-01 was a Thursday, so Mondays are 4 days after a multiple of 7 days.
+  const monday = (time: number) => Math.ceil((time - 4 * day) / (7 * day)) * 7 * day + 4 * day;
+  const ticks: Array<{ time: number; label: string }> = [];
+  for (let time = monday(start); time < end; time += 7 * day) {
+    const date = new Date(time);
+    ticks.push({ time, label: `${monthNames[date.getUTCMonth()]} ${date.getUTCDate()}` });
+  }
+  return { start, end, ticks };
+};
+
 /**
- * Places the last twelve months (UTC) up to `now` on a line. `matches` come in rank order and are
+ * Places the matches and saved links on a time axis that ends now and starts with the oldest of
+ * them, between `minDays` and twelve months (UTC) back. `matches` come in rank order and are
  * numbered from 1. `saved` are the links behind them; those that are also matches are left out.
- * Links outside the twelve months are not drawn.
+ * Links older than twelve months are not drawn.
  */
 export const layout = (input: {
   readonly now: number;
   readonly matches: ReadonlyArray<Point>;
   readonly saved: ReadonlyArray<Point>;
 }): Layout => {
-  const today = new Date(input.now);
-  const year = today.getUTCFullYear();
-  const month = today.getUTCMonth();
-  const start = monthStart(year, month - (monthCount - 1));
-  const end = monthStart(year, month + 1);
+  const {
+    start,
+    end,
+    ticks: times,
+  } = axis(
+    input.now,
+    [...input.matches, ...input.saved].map((point) => point.createdAt),
+  );
   const position = (time: number) => (time - start) / (end - start);
   const inRange = (time: number) => time >= start && time < end;
-
-  const months = Array.from({ length: monthCount }, (_, i) => {
-    const first = new Date(monthStart(year, month - (monthCount - 1) + i));
-    return { label: monthNames[first.getUTCMonth()] ?? "", x: position(first.getTime()) };
-  });
+  const ticks = times.map((tick) => ({ label: tick.label, x: position(tick.time) }));
 
   const matchIds = new Set(input.matches.map((point) => point.id));
   const dots = input.saved
     .filter((point) => !matchIds.has(point.id) && inRange(point.createdAt))
     .map((point) => position(point.createdAt));
 
-  // Each lane remembers where its last number sits; a number takes the lowest lane that is clear,
-  // or the first lane when none is.
+  // Each lane remembers where its numbers sit; a number takes the lowest lane that is clear, or,
+  // when none is, the lane whose nearest number is farthest away.
   const ranked = input.matches.map((point, i) => ({ ...point, rank: i + 1 }));
   const shown = ranked
     .filter((point) => inRange(point.createdAt))
@@ -89,18 +132,23 @@ export const layout = (input: {
   const lanes: Array<Array<number>> = Array.from({ length: laneCount }, () => []);
   const matches = shown.map((point): Match => {
     const free = lanes.findIndex((taken) => taken.every((x) => Math.abs(x - point.x) >= labelGap));
-    const lane = free === -1 ? 0 : free;
+    const room = (taken: ReadonlyArray<number>) =>
+      Math.min(Infinity, ...taken.map((x) => Math.abs(x - point.x)));
+    const lane =
+      free !== -1
+        ? free
+        : lanes.reduce((best, taken, i) => (room(taken) > room(lanes[best] ?? []) ? i : best), 0);
     lanes[lane]?.push(point.x);
     return { ...point, lane };
   });
 
-  return { months, dots, matches, older: ranked.length - shown.length };
+  return { ticks, dots, matches, older: ranked.length - shown.length };
 };
 
 /** What the timeline shows, in words, for its `aria-label`. */
 export const describe = (result: Layout): string => {
-  const first = result.months[0]?.label ?? "";
-  const last = result.months.at(-1)?.label ?? "";
+  const first = result.ticks[0]?.label ?? "";
+  const last = result.ticks.at(-1)?.label ?? "";
   const count = result.matches.length;
   const matches = `${count} ${count === 1 ? "match" : "matches"}`;
   const older = result.older > 0 ? `, ${result.older} older` : "";

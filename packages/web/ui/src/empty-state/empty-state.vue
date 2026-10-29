@@ -16,7 +16,10 @@ defineSlots<{
 </script>
 
 <template>
-  <div data-slot="empty-state" :class="cn('flex flex-col items-start gap-2 py-10', props.class)">
+  <div
+    data-slot="empty-state"
+    :class="cn('flex flex-col items-center gap-2 px-4 py-12 text-center', props.class)"
+  >
     <div
       v-if="$slots.icon"
       data-slot="empty-state-icon"
@@ -25,7 +28,7 @@ defineSlots<{
       <slot name="icon" />
     </div>
     <h3 class="text-sm font-medium">{{ title }}</h3>
-    <p v-if="description" class="max-w-prose text-sm text-muted-foreground">{{ description }}</p>
+    <p v-if="description" class="max-w-sm text-sm text-muted-foreground">{{ description }}</p>
     <slot />
     <div v-if="$slots.action" data-slot="empty-state-action" class="mt-2">
       <slot name="action" />

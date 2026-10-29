@@ -83,7 +83,7 @@ describe("inbox page", () => {
     });
     const { wrapper } = await mountAt("/links", api.routes);
 
-    expect(wrapper.find("[data-slot=saved-read-summary]").text()).toBe(
+    expect(wrapper.find("[data-slot=page-header-subtitle]").text()).toBe(
       "2 saved · 1 read · 1 unread · last 30 days",
     );
     expect(wrapper.find("svg[role=img]").attributes("aria-label")).toContain("2 saved");

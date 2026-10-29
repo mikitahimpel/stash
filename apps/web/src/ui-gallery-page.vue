@@ -16,6 +16,8 @@ import DropdownMenu from "@stash/web-ui/dropdown-menu";
 import DropdownMenuContent from "@stash/web-ui/dropdown-menu-content";
 import DropdownMenuItem from "@stash/web-ui/dropdown-menu-item";
 import DropdownMenuLabel from "@stash/web-ui/dropdown-menu-label";
+import DropdownMenuRadioGroup from "@stash/web-ui/dropdown-menu-radio-group";
+import DropdownMenuRadioItem from "@stash/web-ui/dropdown-menu-radio-item";
 import DropdownMenuSeparator from "@stash/web-ui/dropdown-menu-separator";
 import DropdownMenuTrigger from "@stash/web-ui/dropdown-menu-trigger";
 import EmptyState from "@stash/web-ui/empty-state";
@@ -24,6 +26,7 @@ import Input from "@stash/web-ui/input";
 import Kbd from "@stash/web-ui/kbd";
 import ListRow from "@stash/web-ui/list-row";
 import SearchField from "@stash/web-ui/search-field";
+import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
@@ -85,6 +88,7 @@ const rows = [
   },
 ] as const;
 const selected = ref(1);
+const sort = ref("recent");
 
 const toasts = ref<ReadonlyArray<ToastMessage>>([]);
 let toastCount = 0;
@@ -254,7 +258,8 @@ const swatches = [
       </section>
 
       <section class="flex flex-col gap-3">
-        <SectionHeader title="SectionHeader · TextLink · Badge" :count="4" />
+        <SectionHeader title="PageHeader · SectionHeader · TextLink · Badge" :count="4" />
+        <PageHeader title="Open now" subtitle="17 tabs · 3 devices · 6 older than 7 days" />
         <p class="text-sm">
           A <TextLink v-bind="{ href: 'https://example.com/' }">text link</TextLink> brightens its
           underline on hover.
@@ -297,6 +302,22 @@ const swatches = [
               <DropdownMenuItem disabled>Close on device</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button>Sort</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Sort</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                :model-value="sort"
+                @update:model-value="(value) => (sort = String(value))"
+              >
+                <DropdownMenuRadioItem value="recent">Recent</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="oldest">Oldest</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 

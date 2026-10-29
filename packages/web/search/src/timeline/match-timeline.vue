@@ -3,7 +3,7 @@ import { computed } from "vue";
 import * as MatchTimelineLayout from "./match-timeline-layout.ts";
 
 const props = defineProps<{
-  /** Epoch millis; the timeline ends with this month. */
+  /** Epoch millis; the timeline ends now. */
   now: number;
   /** The matches, best first. */
   matches: ReadonlyArray<MatchTimelineLayout.Point>;
@@ -33,16 +33,24 @@ const pct = (x: number) => `${(x * 100).toFixed(3)}%`;
     class="block overflow-visible font-mono text-xs"
   >
     <line x1="0" x2="100%" :y1="axis" :y2="axis" class="stroke-hairline" />
-    <g v-for="month in layout.months" :key="month.label">
+    <g v-for="(tick, i) in layout.ticks" :key="tick.label">
       <line
-        :x1="pct(month.x)"
-        :x2="pct(month.x)"
+        :x1="pct(tick.x)"
+        :x2="pct(tick.x)"
         :y1="axis - 6"
         :y2="axis + 6"
         class="stroke-hairline"
       />
-      <text :x="pct(month.x)" dx="4" :y="axis + 20" class="fill-muted-foreground">
-        {{ month.label }}
+      <!-- On phones every other label is left out once there are more than six, so they don't
+           run into each other. -->
+      <text
+        :x="pct(tick.x)"
+        dx="4"
+        :y="axis + 20"
+        class="fill-muted-foreground"
+        :class="layout.ticks.length > 6 && i % 2 === 1 && 'max-sm:hidden'"
+      >
+        {{ tick.label }}
       </text>
     </g>
     <circle
