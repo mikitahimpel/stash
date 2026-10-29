@@ -1,6 +1,7 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as ApiTesting from "@stash/web-api-client/testing";
+import * as WebPlatform from "@stash/web-platform/live";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -59,7 +60,11 @@ const wait = async (seconds: number) => {
 // last one repeats. Every poll records the seconds since the flow started.
 const mountPage = async (
   answers: ReadonlyArray<() => Response>,
-  options: { readonly start?: () => Response; readonly path?: string } = {},
+  options: {
+    readonly start?: () => Response;
+    readonly path?: string;
+    readonly clipboard?: Layer.Layer<Clipboard.Clipboard>;
+  } = {},
 ) => {
   const polls: Array<number> = [];
   const copied: Array<string> = [];
@@ -82,14 +87,15 @@ const mountPage = async (
       initialValues: [
         [
           DeviceLoginAtoms.clipboard,
-          Layer.succeed(Clipboard.Clipboard)(
-            Clipboard.make({
-              read: Effect.succeed([]),
-              readString: Effect.succeed(""),
-              write: () => Effect.void,
-              writeString: (text) => Effect.sync(() => void copied.push(text)),
-            }),
-          ),
+          options.clipboard ??
+            Layer.succeed(Clipboard.Clipboard)(
+              Clipboard.make({
+                read: Effect.succeed([]),
+                readString: Effect.succeed(""),
+                write: () => Effect.void,
+                writeString: (text) => Effect.sync(() => void copied.push(text)),
+              }),
+            ),
         ],
       ],
     },
@@ -247,12 +253,56 @@ describe("login page", () => {
     expect(polls).toEqual([]);
   });
 
-  it("offers to try again when the api can't be reached", async () => {
+  it("shows the error and Retry when a poll can't reach the api", async () => {
     const { wrapper } = await mountPage([() => new Response("oops", { status: 500 })]);
     await wrapper.find("[data-test=sign-in]").trigger("click");
     await settle();
     await wait(5);
-    expect(wrapper.find("[data-test=restart]").text()).toBe("Try again");
+    expect(wrapper.find("[role=alert]").text()).toContain("Couldn't reach stash");
+    expect(wrapper.find("[data-test=error-detail]").text()).toBe("the api answered 500");
+    expect(wrapper.find("[data-test=restart]").text()).toBe("Retry");
+  });
+
+  it("shows the error and Retry when the start fails, and Retry starts again", async () => {
+    let fail = true;
+    const { wrapper, starts } = await mountPage([pending], {
+      start: () => (fail ? new Response("oops", { status: 502 }) : ApiTesting.json({ ...started })),
+    });
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+
+    expect(starts()).toBe(1);
+    expect(wrapper.find("[data-test=user-code]").exists()).toBe(false);
+    expect(wrapper.find("[role=alert]").text()).toContain("Couldn't reach stash");
+    expect(wrapper.find("[data-test=error-detail]").text()).toBe("the api answered 502");
+    const retry = wrapper.find("[data-test=restart]");
+    expect(retry.text()).toBe("Retry");
+
+    fail = false;
+    await retry.trigger("click");
+    await settle();
+    expect(starts()).toBe(2);
+    expect(wrapper.find("[data-test=user-code]").text()).toBe("WDJB-MJHT");
+  });
+
+  it("shows the code when the browser has no clipboard API, and says to copy by hand", async () => {
+    // The live clipboard, on a browser without `navigator.clipboard` (iOS standalone, plain http).
+    const browser = globalThis.navigator;
+    Object.defineProperty(browser, "clipboard", { value: undefined, configurable: true });
+    try {
+      const { wrapper } = await mountPage([pending], { clipboard: WebPlatform.layerClipboard });
+      await wrapper.find("[data-test=sign-in]").trigger("click");
+      await settle();
+      expect(wrapper.find("[data-test=user-code]").text()).toBe("WDJB-MJHT");
+      expect(wrapper.find("[data-test=verification-link]").attributes("target")).toBe("_blank");
+
+      await wrapper.find("[data-test=copy-code]").trigger("click");
+      await settle();
+      expect(wrapper.find("[role=alert]").text()).toContain("copy it by hand");
+      expect(wrapper.find("[data-test=user-code]").text()).toBe("WDJB-MJHT");
+    } finally {
+      Reflect.deleteProperty(browser, "clipboard");
+    }
   });
 });
 

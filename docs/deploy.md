@@ -52,7 +52,7 @@ other stages the storage gets Alchemy's derived names (`stash-<LogicalId>-<stage
 |---|---|---|
 | `Api` | Worker `stash-api` | `fetch`, `queue` and `scheduled` handlers. Cron Triggers `0 3 * * *` and `0 6 * * 1` (UTC) |
 | `Mcp` | Worker `stash-mcp` | Service Binding `API` → `stash-api` |
-| `Web` | Worker `stash-web` | assets-only (Workers Static Assets), SPA fallback. Built with `VITE_API_BASE_URL` = the api's URL |
+| `Web` | Worker `stash-web` | Workers Static Assets with SPA fallback, and a Worker (`apps/web/src/web-worker.ts`) that runs only for `/api` and `/api/*`: it forwards them to `stash-api` through the Service Binding `API`, with the `/api` prefix stripped. The SPA calls `/api` on its own origin |
 | `Database` | D1 database | `apps/api/migrations` applied on every deploy, tracked in `__alchemy_migrations` |
 | `EnrichmentQueue` | Queue | producer on `Api` |
 | `EnrichmentConsumer` | Queue consumer | delivers to `Api`'s `queue()` (batch 10, max wait 1 s) |
@@ -61,6 +61,21 @@ other stages the storage gets Alchemy's derived names (`stash-<LogicalId>-<stage
 | `Kv` | KV namespace | api save rate limits |
 | `OAuthState` | KV namespace | mcp OAuth clients, grants, tokens |
 | — | Workers AI binding `AI` on `Api` | deploy only |
+
+### Same-origin api
+
+`*.workers.dev` is on the Public Suffix List, so `stash-web.<subdomain>.workers.dev` and
+`stash-api.<subdomain>.workers.dev` are **different sites**. A session cookie set by `stash-api` is
+then third-party to the web app: Safari blocks it, and a `SameSite=Lax` cookie is never sent on
+the web app's cross-site `fetch`, so a finished Device Flow never signs the user in. The web
+origin therefore serves the api itself under `/api`: `stash-web` forwards `/api/*` to `stash-api`
+through a Service Binding and **strips the prefix**, so `/api/auth/me` reaches the api's
+`/auth/me`. The api keeps its root paths for the extension, the Shortcut, mac-agent and mcp, which
+call `stash-api` directly with API tokens. The session cookie (`Secure; HttpOnly; SameSite=Lax;
+Path=/`, no `Domain`) is first-party on the web origin. The build needs no api URL
+(`VITE_API_BASE_URL` defaults to `/api`), and `pnpm dev:web` proxies `/api` to `alchemy dev` the
+same way. The api's CORS for `WEB_ORIGIN` stays only for a SPA built with a cross-origin
+`VITE_API_BASE_URL`.
 
 `Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`)
 and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets `ALLOWED_GITHUB_LOGIN`,
@@ -105,6 +120,24 @@ curl -s -o /dev/null -w '%{http_code}\n' https://stash-api.<subdomain>.workers.d
 curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://stash-web.<subdomain>.workers.dev/  # 200 text/html
 curl -s https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server     # 200, issuer = mcp origin
 curl -s -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start                  # 200 {"flowId",…,"userCode":"XXXX-XXXX","verificationUri":"https://github.com/login/device",…}
+curl -s -X POST https://stash-web.<subdomain>.workers.dev/api/auth/device/start              # the same, same-origin through the web Worker
+```
+
+`pnpm --filter @stash/web check:live` (`apps/web/scripts/live-session-check.ts`) checks the web
+origin end to end with scripted requests: `/api/auth/device/start` answers with a `userCode`, no
+bundled asset names a `stash-api.` origin, and the session cookie round-trips. A real session needs
+a person on github.com, so it seeds a synthetic one (only the hash of a random token) straight into
+the prod D1 `sessions` table with the deploy credentials, takes the cookie attributes from the
+`Set-Cookie` that `/api/auth/logout` answers on the web origin, and checks that an RFC 6265 cookie
+jar sends the cookie back on `/api/auth/me` (200) and never to `stash-api`. It then logs out and
+deletes the rows. Prod auth is unchanged: no route is added.
+
+```sh
+PROTON_PASS_AGENT_REASON="stash live session check" pp run --env-file .env -- env \
+  STASH_WEB_URL=https://stash-web.<subdomain>.workers.dev \
+  STASH_D1_DATABASE=<PROD_NAMES.Database in alchemy.run.ts> \
+  STASH_ALLOWED_GITHUB_LOGIN=<PROD_ALLOWED_GITHUB_LOGIN in alchemy.run.ts> \
+  pnpm --filter @stash/web check:live
 ```
 
 A `userCode` from `POST /auth/device/start` proves GitHub accepts the client id. On a stage
@@ -169,7 +202,7 @@ A full sign-in needs a person to enter the code on github.com, signed in as
 
 1. **Web.** Open `https://stash-web.<subdomain>.workers.dev`. The login gate shows a code and a
    link to `https://github.com/login/device`. Open it, enter the code, authorize the app. The
-   page signs in by itself within a few seconds (it polls `/auth/device/poll`) and shows your links.
+   page signs in by itself within a few seconds (it polls `/api/auth/device/poll`) and shows your links.
 2. **MCP.** Add `https://stash-mcp.<subdomain>.workers.dev/mcp` as a custom connector in Claude
    ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue with
    GitHub**, enter the code shown on github.com, keep the tab open, and it returns you to Claude.

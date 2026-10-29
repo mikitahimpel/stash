@@ -19,7 +19,12 @@ const login = computed(() =>
 );
 const waiting = computed(() => (login.value?.step === "waiting" ? login.value : undefined));
 const starting = computed(() => AsyncResult.isInitial(result.value) && result.value.waiting);
-const failed = computed(() => AsyncResult.isFailure(result.value));
+// A failed start or poll (no answer, or an unexpected one): the page shows why, with a Retry.
+const failure = computed(() =>
+  AsyncResult.isFailure(result.value)
+    ? DeviceLoginAtoms.failureText(result.value.cause)
+    : undefined,
+);
 
 // Signed in: the session cookie is set, and the guard lets the app through to the page the user
 // wanted.
@@ -61,9 +66,13 @@ const ended = computed(() => {
         action: "Use another account",
       };
     default:
-      return failed.value
-        ? { message: "Couldn't reach stash. Check the connection.", action: "Try again" }
-        : undefined;
+      return failure.value === undefined
+        ? undefined
+        : {
+            message: "Couldn't reach stash. Check the connection.",
+            detail: failure.value,
+            action: "Retry",
+          };
   }
 });
 </script>
@@ -131,6 +140,13 @@ const ended = computed(() => {
       data-test="ended"
     >
       <p role="alert" class="text-sm">{{ ended.message }}</p>
+      <p
+        v-if="'detail' in ended"
+        class="font-mono text-xs break-all text-muted-foreground"
+        data-test="error-detail"
+      >
+        {{ ended.detail }}
+      </p>
       <Button as-child variant="primary" size="lg">
         <button type="button" data-test="restart" @click="restart">{{ ended.action }}</button>
       </Button>
@@ -146,5 +162,9 @@ const ended = computed(() => {
         you'll get a code to enter on github.com
       </p>
     </template>
+
+    <p v-else class="text-sm text-muted-foreground" data-test="signed-in">
+      Signed in. Opening stash…
+    </p>
   </main>
 </template>

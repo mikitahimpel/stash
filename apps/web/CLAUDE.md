@@ -36,7 +36,16 @@ app shell doesn't use them either.
   `STASH_DEV_ALLOWED_HOSTS` (comma-separated): `STASH_DEV_ALLOWED_HOSTS=myhost pnpm dev:web`.
   `vite.config.ts` reads it into `server.allowedHosts` and `preview.allowedHosts`. Unset keeps
   Vite's default. Never hardcode machine names.
-- The API base URL comes from Vite env (`import.meta.env`), never hardcoded.
+- The api is same-origin under `/api` (see [docs/deploy.md](../../docs/deploy.md#same-origin-api)).
+  `src/web-worker.ts` is the `Web` Worker: it runs only for `/api` and `/api/*` and forwards them to
+  the api through the `API` Service Binding with the prefix stripped. A Workers entry may export
+  only handlers, so it exports nothing but `default` and types. The SPA's api base URL defaults to
+  `/api` (`@stash/web-api-client/api-base-url`) and `VITE_API_BASE_URL` overrides it, never a
+  hardcoded URL. The Vite dev and preview servers proxy `/api` to `STASH_DEV_API_URL` (default
+  `http://localhost:8787`, `alchemy dev`).
+- `scripts/live-session-check.ts` (`pnpm --filter @stash/web check:live`): the scripted check of a
+  deployed web origin (same-origin api, no `stash-api.` in the bundle, session cookie round-trip),
+  see [docs/deploy.md](../../docs/deploy.md#check-a-deploy).
 - Adding a page means adding a route export in a feature package and mounting it here, in
   `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `search`, `open-tabs`,
   `settings`), because the header nav links to them.
@@ -72,4 +81,5 @@ Feature behavior is tested in `packages/web/*`.
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
 - `src/app-registry.ts` (the atom registry with the live layers)
+- `src/web-worker.ts` (the `Web` Worker entry, see Rules)
 - `vite.config.ts`, `public/manifest.webmanifest`, `public/icons/*`

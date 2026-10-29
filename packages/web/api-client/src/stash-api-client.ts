@@ -27,9 +27,9 @@ const layerAuthorization = HttpApiMiddleware.layerClient(
   ({ request, next }) => next(request),
 );
 
-// Sends the session cookie cross-origin (`credentials: include`) and emits `unauthenticated` on
-// every 401. Trace headers (`traceparent`, `b3`) stay off: the api's CORS doesn't allow them, so a
-// cross-origin preflight would fail every request.
+// Sends the session cookie (`credentials: include`, which also covers an api on another origin set
+// by `VITE_API_BASE_URL`) and emits `unauthenticated` on every 401. Trace headers (`traceparent`,
+// `b3`) stay off: the api's CORS doesn't allow them, so a cross-origin preflight would fail.
 const withSession = (
   client: HttpClient.HttpClient,
   registry: AtomRegistry.AtomRegistry,

@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "screenshots": "playwright install chromium && node scripts/screenshots.ts",
+    "check:live": "node scripts/live-session-check.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",

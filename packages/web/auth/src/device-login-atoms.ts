@@ -3,6 +3,7 @@ import type * as AuthGroup from "@stash/contracts-api/auth";
 import type * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import { StashApiClient } from "@stash/web-api-client/stash-api-client";
 import * as WebPlatform from "@stash/web-platform/live";
+import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -106,6 +107,19 @@ export const deviceLogin = StashApiClient.runtime.fn<void>()(() =>
     }),
   ),
 );
+
+/**
+ * A short text for why the login failed (the request could not be sent, or the api answered with
+ * an unexpected status), shown on the login page under its message so a failure is never silent.
+ */
+export const failureText = (cause: Cause.Cause<unknown>): string => {
+  const error = Cause.squash(cause);
+  if (HttpClientError.isHttpClientError(error)) {
+    const status = error.response?.status;
+    return status === undefined ? `network error: ${error.message}` : `the api answered ${status}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+};
 
 /** `m:ss` left until `expiresAt`, never below `0:00`. */
 export const remaining = (expiresAt: number, now: number): string => {
