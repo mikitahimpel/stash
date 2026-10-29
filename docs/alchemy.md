@@ -46,13 +46,18 @@ run it, and what to watch for.
   types live in `apps/api/src/worker-env.ts` and must match `env` in `alchemy.run.ts`.
   (`Cloudflare.InferEnv<typeof Worker>` could derive them, but that would make `apps/api` import
   the root stack file. That crosses a package boundary, so we keep the interface by hand.)
-- **Nothing personal is hardcoded.** Physical names are derived from the stack (`stash`), the stage
-  and the logical id (for example `stash-enrichmentqueue-<stage>-<hash>`). The Cloudflare account
-  comes from `CLOUDFLARE_ACCOUNT_ID` or an Alchemy profile, and only `deploy` reads it.
-- State uses `State.localState()`, which writes it to `.alchemy/` on disk. `.alchemy` is
-  gitignored (the pattern has no trailing slash, so `git check-ignore .alchemy` succeeds even
+- **Physical names** are derived from the stack (`stash`), the stage and the logical id (for
+  example `stash-enrichmentqueue-<stage>-<hash>`). Stage `prod` pins them instead (`PROD_NAMES`
+  in `alchemy.run.ts`), so a deploy adopts the existing storage by name, see
+  [deploy.md](deploy.md#state). The Cloudflare account comes from `CLOUDFLARE_ACCOUNT_ID` or an
+  Alchemy profile, and only `deploy` reads it. The one personal value committed is the owner's
+  public GitHub login, the default `STASH_ALLOWED_GITHUB_LOGIN` on `prod`.
+- **State.** A deploy of stage `prod` keeps its state in the D1 database `stash-alchemy-state` of
+  the same account (`alchemy-d1-state.ts`, see [deploy.md](deploy.md#state)). `alchemy dev` and
+  every other stage use `State.localState()`, which writes it to `.alchemy/` on disk. `.alchemy`
+  is gitignored (the pattern has no trailing slash, so `git check-ignore .alchemy` succeeds even
   before the folder exists). A deployed stage's state holds the account id and Worker secrets in
-  plaintext, so it must stay private. See [deploy.md](deploy.md#state).
+  plaintext, so it must stay private.
 - Deployed Workers have fixed names (`stash-api`, `stash-mcp`, `stash-web` on stage `prod`, with
   a `-<stage>` suffix on other stages), so the stack can derive their `workers.dev` origins from
   the account subdomain before they exist. The api and the SPA need each other's origin, which
@@ -66,7 +71,7 @@ token is secret):
 | `STASH_API_PORT` | `8787` | local dev port of `Api` (`strictPort`: it fails instead of picking another) |
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
 | `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
-| `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
+| `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), the committed owner login on stage `prod`, **required** for any other deployed stage | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
 | `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`; on stage `prod` the committed `PROD_GITHUB_CLIENT_ID`; optional on other stages (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
 | `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |

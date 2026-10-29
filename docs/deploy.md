@@ -16,17 +16,11 @@ CLOUDFLARE_ACCOUNT_ID=pass://Stash/Cloudflare/account_id
 ANTHROPIC_API_KEY=pass://Stash/Anthropic/api_key
 ```
 
-Add the one personal value a deploy requires to the same `.env`. It is not a secret, but it is
-personal, so it never goes into git:
-
-```sh
-STASH_ALLOWED_GITHUB_LOGIN=<your GitHub login>
-```
-
-Everything else is optional on deploy:
+Nothing else is needed for stage `prod`. Everything else is optional there:
 
 | Env var | When unset |
 |---|---|
+| `STASH_ALLOWED_GITHUB_LOGIN` | stage `prod` uses the committed owner login (`PROD_ALLOWED_GITHUB_LOGIN` in [`alchemy.run.ts`](../alchemy.run.ts), public and committed at the owner's request). Any other deployed stage fails without it |
 | `GITHUB_CLIENT_ID` | stage `prod` uses the committed id of the project's OAuth App (see [below](#github-oauth-app)). Any other stage: the login routes answer **503** `NotConfigured` (`POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp), and everything else works |
 | `STASH_MCP_API_TOKEN` (secret) | `Mcp` gets no `API_TOKEN`, so the api answers the MCP tools with 401. OAuth still works |
 | `ANTHROPIC_API_KEY` (secret) | the enrichment consumer fails each message and the queue retries it |
@@ -50,9 +44,9 @@ PROTON_PASS_AGENT_REASON="stash deploy" \
 
 ## What gets created
 
-All names are generic. Workers are named `stash-<role>` on stage `prod` (`stash-<role>-<stage>`
-on any other stage). The other resources get Alchemy's derived names
-(`stash-<LogicalId>-<stage>-<hash>`).
+Workers are named `stash-<role>` on stage `prod` (`stash-<role>-<stage>` on any other stage). On
+other stages the storage gets Alchemy's derived names (`stash-<LogicalId>-<stage>-<hash>`). Stage
+`prod` pins them in `PROD_NAMES` (see [State](#state)).
 
 | Logical id | Cloudflare resource | Notes |
 |---|---|---|
@@ -76,14 +70,30 @@ The account's `workers.dev` subdomain itself is read, never changed.
 
 ## State
 
-State stays on disk in `.alchemy/state/stash/<stage>/` of the checkout that deployed (gitignored).
-It holds the account id and **the Worker secrets in plaintext** (the Anthropic key is in
-`Api.json`), so never commit, paste or share it. Deploy, plan and destroy from the checkout that
-holds the state. A checkout without it plans every resource as new and collides with the
-existing ones. Copy the folder to move it, or adopt a private remote state store
-(`Cloudflare.state()`, see [alchemy.md](alchemy.md)) in a later change.
+Stage `prod` keeps its Alchemy state in the D1 database **`stash-alchemy-state`** of the same
+account, never on disk. [`alchemy-d1-state.ts`](../alchemy-d1-state.ts) is a small state store
+over the Cloudflare REST API, using the deploy's own `CLOUDFLARE_API_TOKEN`. The first deploy
+creates the database. It is not part of the stack, so `alchemy destroy` keeps it. Any checkout
+can deploy, plan or destroy `prod`, and removing a worktree loses nothing. Other stages keep
+local state in `.alchemy/state/stash/<stage>/` (gitignored).
 
-There is no CI deploy job: with local state, a runner would not see the existing resources.
+The rows hold the account id and **the Worker secrets in plaintext** (the Anthropic key is in the
+`Api` row), the same as the local store, so never paste or share them. Anyone holding the deploy
+token can already read them, so storing them in D1 does not widen access.
+
+Alchemy's own `Cloudflare.state()` store is not used. It keeps its token and encryption key in
+the account's Secrets Store, which the deploy token cannot access (`/secrets_store/stores`
+answers `Authentication error`). The account's shared `alchemy-state-store` also runs store
+version 7, while the pinned beta.84 expects version 5, and `--yes` would redeploy it. To switch
+later, give the token **Secrets Store: Edit** and use `Cloudflare.state({ name: "stash" })` (its
+own Worker `alchemy-state-store-stash`).
+
+The physical names of the prod storage are pinned in `PROD_NAMES` to the resources the #46 deploy
+created, so a deploy adopts them by name even with empty state and never creates a second set.
+Every provider involved adopts by name (D1, Queue and KV by name or title, R2 and Vectorize with a
+`get`). Workers have fixed names and carry Alchemy's ownership tags.
+
+There is no CI deploy job yet: it would need the Cloudflare and Anthropic secrets in CI.
 
 ## Check a deploy
 
@@ -166,6 +176,36 @@ A full sign-in needs a person to enter the code on github.com, signed in as
 3. **MCP tools.** The tools call the api with `STASH_MCP_API_TOKEN`. Until it is set they get 401.
    Once signed in on the web, mint a token with `POST /tokens`, store it in Proton Pass (vault
    `Stash`, see root `CLAUDE.md` → Secrets), add its reference to `.env` and redeploy.
+
+## Last deployed
+
+Commit `c59da7a` on 2026-10-29, stage `prod`, from the #126 branch (`main` at `3ebaa69` plus the
+D1 state and `PROD_NAMES` change):
+
+```text
+$ PROTON_PASS_AGENT_REASON="…" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes
+Plan: 2 to update                     # Web/Build, Web (first deploy of this change: 5 created, 6 adopted)
+Done: 2 succeeded (7.9s)              # exit 0
+$ … alchemy plan --stage prod         # with no .alchemy/state on disk
+Plan: no changes
+$ curl -s https://stash-api.<subdomain>.workers.dev/health
+{"status":"ok"}                       # 200
+$ curl … https://stash-api.<subdomain>.workers.dev/links
+401
+$ curl … https://stash-web.<subdomain>.workers.dev/
+200 text/html
+$ curl … https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server
+200, issuer https://stash-mcp.<subdomain>.workers.dev
+$ curl -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start
+200 {"flowId":"…","userCode":"A333-8D28","verificationUri":"https://github.com/login/device",…}
+$ curl -s https://stash-web.<subdomain>.workers.dev/ | grep -o 'src="/assets/[^"]*"'
+src="/assets/index-DJfKt7Od.js"
+$ VITE_API_BASE_URL=https://stash-api.<subdomain>.workers.dev pnpm --filter @stash/web build
+src="/assets/index-DJfKt7Od.js"       # same entry hash
+```
+
+The local build needs the same `VITE_API_BASE_URL` the deploy sets: the api URL is inlined into
+the bundle, so a build without it has another entry hash.
 
 ## Tear down
 
