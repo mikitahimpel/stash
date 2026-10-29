@@ -17,6 +17,10 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 
+// Public client id of the project's GitHub OAuth App (Device Flow enabled, no client secret), the
+// default for stage `prod`. See docs/deploy.md#github-oauth-app.
+const PROD_GITHUB_CLIENT_ID = "Ov23liVGZpbhL9oxUor1";
+
 // Migrations are applied in order on every reconcile (`alchemy dev` and deploy). Bookkeeping lives
 // in Alchemy's `__alchemy_migrations` table. Paths resolve from the repo root.
 export const Database = Cloudflare.D1.Database("Database", {
@@ -66,8 +70,14 @@ export default Alchemy.Stack(
     );
     // The GitHub OAuth app's client id. The Device Flow login needs no client secret, and the id
     // is public, so it is bound as a plain var. Local dev gets a placeholder that GitHub rejects.
-    // Without it a deploy still succeeds, and the login routes answer 503 (see docs/deploy.md).
-    const githubClientId = yield* devDefaultOption(Config.String("GITHUB_CLIENT_ID"), "dev_only");
+    // Stage `prod` defaults to the committed id of the project's OAuth app. Any other stage without
+    // it still deploys, and the login routes answer 503 (see docs/deploy.md). Env always wins.
+    const githubClientId = yield* devDefaultOption(
+      stage === "prod"
+        ? Config.String("GITHUB_CLIENT_ID").pipe(Config.withDefault(PROD_GITHUB_CLIENT_ID))
+        : Config.String("GITHUB_CLIENT_ID"),
+      "dev_only",
+    );
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
     // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text`. Without it a
     // deploy still succeeds, and the api answers the tools' calls with 401.
