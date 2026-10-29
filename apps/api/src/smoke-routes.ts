@@ -1,3 +1,4 @@
+import { seed } from "./smoke-seed.ts";
 import type { WorkerEnv } from "./worker-env.ts";
 
 // Dev-only routes that let the local-dev smoke test reach D1 and the queue directly. They answer
@@ -50,6 +51,22 @@ export const handleSmoke = async (
       ),
     ]);
     return Response.json({ deviceId, tokenId }, { status: 201 });
+  }
+
+  // Seeds synthetic devices, links and open tabs for the web screenshots (see smoke-seed.ts).
+  if (request.method === "POST" && url.pathname === "/_smoke/seed") {
+    return Response.json(await seed(env), { status: 201 });
+  }
+
+  // Seeds a web session for the allowlisted login from the session token's SHA-256 hash (never the
+  // plaintext), so the screenshot script can sign in without GitHub. It sets the cookie itself.
+  if (request.method === "POST" && url.pathname === "/_smoke/session") {
+    const { hash } = await request.json<{ hash: string }>();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await env.DB.prepare("INSERT INTO sessions (id, github_login, expires_at) VALUES (?, ?, ?)")
+      .bind(hash, env.ALLOWED_GITHUB_LOGIN, expiresAt)
+      .run();
+    return Response.json({ expiresAt }, { status: 201 });
   }
 
   if (request.method === "POST" && url.pathname === "/_smoke/queue") {

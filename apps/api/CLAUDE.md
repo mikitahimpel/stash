@@ -49,7 +49,8 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
   in `dependencies`).
 - `src/scheduled-handler.ts`: the cron expressions and the job each one runs. Keep them in sync
   with `crons` on the `Api` Worker in the root `alchemy.run.ts`.
-- `src/smoke-routes.ts`: dev-only `/_smoke/*` routes (on only under `alchemy dev`).
+- `src/smoke-routes.ts`: dev-only `/_smoke/*` routes (on only under `alchemy dev`), with the
+  synthetic screenshot data in `src/smoke-seed.ts`.
 - `src/login-not-configured.ts`: 503 on the device flow routes while `GITHUB_CLIENT_ID` is unset.
 - `src/worker-env.ts`: binding types. Keep it in sync with the `Api` Worker's `env` in the root
   `alchemy.run.ts` (see [docs/alchemy.md](../../docs/alchemy.md)).
