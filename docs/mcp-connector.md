@@ -17,8 +17,8 @@ the OAuth endpoints.
 
 ## Before you connect
 
-The deploy must have these values set (see the config table in [alchemy.md](alchemy.md)). All of
-them come from env, never from the repo.
+The deploy must have these values set (see the config table in [alchemy.md](alchemy.md)). They
+come from env, except `GITHUB_CLIENT_ID`, which is public and committed for stage `prod`.
 
 | Env var | On `Mcp` as | Must be |
 |---|---|---|
@@ -30,8 +30,9 @@ them come from env, never from the repo.
 `MCP_ORIGIN` is the OAuth issuer and sets the protected resource (`<origin>/mcp`). A deploy
 derives it from the fixed Worker name and the account's `workers.dev` subdomain
 (`https://stash-mcp.<subdomain>.workers.dev`), so set `STASH_MCP_ORIGIN` only for another host.
-Until `GITHUB_CLIENT_ID` is set, `/authorize` answers 503. Device flow has no callback URL, so the
-GitHub OAuth App does not depend on the origin (see [deploy.md](deploy.md#github-oauth-app-46)).
+Stage `prod` gets the project's committed `GITHUB_CLIENT_ID`. On another stage, `/authorize`
+answers 503 until it is set. Device flow has no callback URL, so the
+GitHub OAuth App does not depend on the origin (see [deploy.md](deploy.md#github-oauth-app)).
 
 ## How OAuth works
 

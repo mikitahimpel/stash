@@ -369,6 +369,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -415,6 +418,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -464,6 +470,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -510,6 +519,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -547,6 +559,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -608,6 +623,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../packages/config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../packages/config/vitest
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -672,6 +690,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -718,6 +739,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -761,6 +785,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -801,6 +828,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -835,6 +865,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -875,6 +908,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -918,6 +954,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -943,6 +982,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../vitest
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -964,9 +1006,30 @@ importers:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20261023.1
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/config/vitest:
+    devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -998,6 +1061,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1023,6 +1089,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1057,6 +1126,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -1091,6 +1163,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -1125,6 +1200,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -1162,6 +1240,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@types/firefox-webext-browser':
         specifier: 'catalog:'
         version: 143.0.1
@@ -1199,6 +1280,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1233,6 +1317,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1270,6 +1357,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1307,6 +1397,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1341,6 +1434,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1390,6 +1486,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@vitejs/plugin-vue':
         specifier: 'catalog:'
         version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
@@ -1457,6 +1556,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@vitejs/plugin-vue':
         specifier: 'catalog:'
         version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
@@ -1521,6 +1623,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@vitejs/plugin-vue':
         specifier: 'catalog:'
         version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
@@ -1564,6 +1669,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
@@ -1613,6 +1721,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@vitejs/plugin-vue':
         specifier: 'catalog:'
         version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
@@ -1683,6 +1794,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@vitejs/plugin-vue':
         specifier: 'catalog:'
         version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
@@ -1747,6 +1861,9 @@ importers:
       '@stash/config-tsconfig':
         specifier: workspace:*
         version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
       '@tailwindcss/node':
         specifier: 'catalog:'
         version: 4.3.3

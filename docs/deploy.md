@@ -27,7 +27,7 @@ Everything else is optional on deploy:
 
 | Env var | When unset |
 |---|---|
-| `GITHUB_CLIENT_ID` | the login routes answer **503** `NotConfigured`: `POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp. Everything else works. Set it once the GitHub OAuth App exists (#46) |
+| `GITHUB_CLIENT_ID` | stage `prod` uses the committed id of the project's OAuth App (see [below](#github-oauth-app)). Any other stage: the login routes answer **503** `NotConfigured` (`POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp), and everything else works |
 | `STASH_MCP_API_TOKEN` (secret) | `Mcp` gets no `API_TOKEN`, so the api answers the MCP tools with 401. OAuth still works |
 | `ANTHROPIC_API_KEY` (secret) | the enrichment consumer fails each message and the queue retries it |
 | `STASH_WEB_ORIGIN`, `STASH_MCP_ORIGIN` | derived: `https://stash-web.<subdomain>.workers.dev`, `https://stash-mcp.<subdomain>.workers.dev` |
@@ -68,9 +68,9 @@ on any other stage). The other resources get Alchemy's derived names
 | `OAuthState` | KV namespace | mcp OAuth clients, grants, tokens |
 | — | Workers AI binding `AI` on `Api` | deploy only |
 
-`Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set)
+`Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`)
 and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets `ALLOWED_GITHUB_LOGIN`,
-`MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set) and the secret `API_TOKEN` (when set).
+`MCP_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`) and the secret `API_TOKEN` (when set).
 
 The account's `workers.dev` subdomain itself is read, never changed.
 
@@ -94,8 +94,12 @@ curl -sf https://stash-api.<subdomain>.workers.dev/health                       
 curl -s -o /dev/null -w '%{http_code}\n' https://stash-api.<subdomain>.workers.dev/links      # 401
 curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://stash-web.<subdomain>.workers.dev/  # 200 text/html
 curl -s https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server     # 200, issuer = mcp origin
-curl -s -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start                  # 503 until GITHUB_CLIENT_ID is set
+curl -s -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start                  # 200 {"flowId",…,"userCode":"XXXX-XXXX","verificationUri":"https://github.com/login/device",…}
 ```
+
+A `userCode` from `POST /auth/device/start` proves GitHub accepts the client id. On a stage
+without `GITHUB_CLIENT_ID` the same call answers 503 `NotConfigured`. The MCP side is checked in
+[GitHub OAuth App](#github-oauth-app).
 
 The applied D1 migrations (the database id is `attr.databaseId` in
 `.alchemy/state/stash/prod/Database.json`):
@@ -107,32 +111,61 @@ PROTON_PASS_AGENT_REASON="stash d1 check" pp run --env-file .env -- sh -c 'curl 
   -d "{\"sql\":\"SELECT name, applied_at FROM __alchemy_migrations ORDER BY id\"}"'
 ```
 
-## GitHub OAuth App (#46)
+## GitHub OAuth App
 
 Both logins use the GitHub **Device Flow**, so GitHub never redirects back to Stash and neither the
-api nor mcp has a callback route. One OAuth App serves both (the same public `GITHUB_CLIENT_ID` is
-bound on `Api` and `Mcp`). Create it at GitHub → Settings → Developer settings → OAuth Apps:
+api nor mcp has a callback route. One OAuth App serves both: the same public `GITHUB_CLIENT_ID` is
+bound on `Api` and `Mcp`. The app exists, with **Enable Device Flow** checked and no client secret
+(don't generate one). Its client id is public, so it is committed in
+[`alchemy.run.ts`](../alchemy.run.ts) as the default for stage `prod` (`PROD_GITHUB_CLIENT_ID`).
+A `GITHUB_CLIENT_ID` in env overrides it, on any stage.
+
+To make a new app (another account, or a fork), create it at GitHub → Settings → Developer
+settings → OAuth Apps:
 
 | Field | Value |
 |---|---|
 | Homepage URL | `https://stash-web.<subdomain>.workers.dev` |
-| Authorization callback URL (web login) | `https://stash-web.<subdomain>.workers.dev/` |
-| Authorization callback URL (MCP connector, if you make a second app) | `https://stash-mcp.<subdomain>.workers.dev/` |
+| Authorization callback URL | `https://stash-web.<subdomain>.workers.dev/` |
 | Enable Device Flow | **checked** |
 
-GitHub's form requires a callback URL even though the Device Flow never uses one, so it points at
-the origin each login starts from. There is no client secret: don't generate one.
+GitHub's form requires a callback URL even though the Device Flow never uses one. Then change
+`PROD_GITHUB_CLIENT_ID`, or deploy with `GITHUB_CLIENT_ID=<client id>` in `.env`.
 
-Then redeploy with the client id:
+### Check the MCP login
+
+The MCP `/authorize` page needs a registered client. Register a throwaway one (Dynamic Client
+Registration), open the consent page, approve it, and read the user code from the device page.
+`M` is the mcp URL the deploy printed:
 
 ```sh
-GITHUB_CLIENT_ID=<client id> PROTON_PASS_AGENT_REASON="stash deploy" \
-  pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes
+M=https://stash-mcp.<subdomain>.workers.dev; J=$(mktemp); R=http://localhost:9999/callback
+CID=$(curl -s -X POST $M/register -H 'content-type: application/json' \
+  -d "{\"client_name\":\"deploy-check\",\"redirect_uris\":[\"$R\"],\"token_endpoint_auth_method\":\"none\"}" \
+  | node -pe 'JSON.parse(require("fs").readFileSync(0)).client_id')
+CH=$(node -pe 'require("crypto").createHash("sha256").update("x".repeat(43)).digest("base64url")')
+Q="response_type=code&client_id=$CID&redirect_uri=$R&code_challenge=$CH&code_challenge_method=S256&state=check"
+H=$(curl -s -c $J -b $J "$M/authorize?$Q" | grep -o 'name="handle" value="[^"]*"' | cut -d'"' -f4)
+curl -s -c $J -b $J -L "$M/authorize?$Q" --data-urlencode "handle=$H" -d decision=approve \
+  | grep -o -E '[A-Z0-9]{4}-[A-Z0-9]{4}|https://github.com/login/device' | sort -u   # user code + GitHub link
 ```
 
-(or add `GITHUB_CLIENT_ID=<client id>` to `.env`). `POST /auth/device/start` then returns a
-`userCode`, and the MCP `/authorize` page shows one. [mcp-connector.md](mcp-connector.md) covers
-adding the connector to Claude.
+Don't pass `-X POST`: curl would keep POST on the 303 to `/authorize/device` and get a 404.
+
+### Sign in end to end (manual)
+
+A full sign-in needs a person to enter the code on github.com, signed in as
+`STASH_ALLOWED_GITHUB_LOGIN`. Any other account is refused after GitHub approves.
+
+1. **Web.** Open `https://stash-web.<subdomain>.workers.dev`. The login gate shows a code and a
+   link to `https://github.com/login/device`. Open it, enter the code, authorize the app. The
+   page signs in by itself within a few seconds (it polls `/auth/device/poll`) and shows your links.
+2. **MCP.** Add `https://stash-mcp.<subdomain>.workers.dev/mcp` as a custom connector in Claude
+   ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue with
+   GitHub**, enter the code shown on github.com, keep the tab open, and it returns you to Claude.
+3. **MCP tools.** The tools call the api with `STASH_MCP_API_TOKEN`. Until it is set they get 401.
+   Once signed in on the web, mint a token with `POST /tokens`, store it in Proton Pass (vault
+   `Stash`, see root `CLAUDE.md` → Secrets), add its reference to `.env` and redeploy.
 
 ## Tear down
 

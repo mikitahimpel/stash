@@ -18,7 +18,7 @@ so every package keeps `"lint": "oxlint ."`. Override globs are relative to the 
 
 | Files | May import `@stash/*` |
 |---|---|
-| `packages/contracts/**` | `contracts-*` only. Any other bare specifier except `effect`/`effect/*` is banned too. Test files may also import `vitest` and `@effect/vitest`. |
+| `packages/contracts/**` | `contracts-*` only. Any other bare specifier except `effect`/`effect/*` is banned too. Test files and `vitest.config.ts` may also import `vitest`, `@effect/vitest` and `@stash/config-vitest`. |
 | `packages/backend/**`, `apps/api/**` | `contracts-*`, `backend-*`, `config-*` |
 | `packages/mcp/**`, `apps/mcp/**` | `contracts-*`, `mcp-*`, `config-*` |
 | `packages/web/**`, `apps/web/**` | `contracts-*`, `web-*`, `config-*` |

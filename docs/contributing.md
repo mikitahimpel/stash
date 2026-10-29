@@ -45,6 +45,7 @@ inside another package. Its name is `@stash/<prefix>-<name>`, where the prefix i
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",
@@ -83,18 +84,24 @@ A package with `.vue` files typechecks with `vue-tsc --noEmit -p tsconfig.json` 
 
 ### 3. `vitest.config.ts`
 
-The root `vitest.config.ts` picks up every `packages/*/*/vitest.config.ts` as a project.
+The root `vitest.config.ts` picks up every `packages/*/*/vitest.config.ts` as a project. Merge the
+shared base from `@stash/config-vitest`, which caps the test workers (see "Resource limits" in the
+root `CLAUDE.md`), and never set `maxWorkers` yourself.
 
 ```ts
 // packages/backend/links/vitest.config.ts
-import { defineProject } from "vitest/config";
+import * as VitestBase from "@stash/config-vitest/vitest-base";
+import { defineProject, mergeConfig } from "vitest/config";
 
-export default defineProject({
-  test: {
-    name: "backend-links",
-    include: ["test/**/*.test.ts"],
-  },
-});
+export default mergeConfig(
+  VitestBase.base,
+  defineProject({
+    test: {
+      name: "backend-links",
+      include: ["test/**/*.test.ts"],
+    },
+  }),
+);
 ```
 
 ### 4. Source and tests

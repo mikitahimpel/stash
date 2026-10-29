@@ -33,10 +33,10 @@ run it, and what to watch for.
 | `Blobs` | `Cloudflare.R2.Bucket` (page text, transcripts) | `BLOBS` (`R2Bucket`) |
 | `Vectors` | `Cloudflare.Vectorize.Index`, 1024-d, cosine. **Deploy only** (no local provider) | `VECTORS` (`Vectorize`) |
 | — | `Cloudflare.Workers.AI()`. **Deploy only** | `AI` (`Ai`) |
-| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |
+| `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
-| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set), `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` (when set) |
+| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` (when set) |
 | `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, deployed as `stash-web` | — (assets-only Worker serving the SPA). A deploy builds it with `VITE_API_BASE_URL` = the api's origin |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
@@ -67,7 +67,7 @@ token is secret):
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
 | `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), **required** for deploy | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
-| `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`, optional on deploy (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
+| `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`; on stage `prod` the committed `PROD_GITHUB_CLIENT_ID`; optional on other stages (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
 | `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
 | `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, optional on deploy (unset: the tools get 401 from the api) | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |

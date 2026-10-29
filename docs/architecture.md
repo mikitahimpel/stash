@@ -59,7 +59,7 @@ packages/
   mcp/                tools-links/ tools-tabs/ tools-digest/ platform/
   web/                links/ search/ open-tabs/ settings/ auth/ ui/ api-client/ platform/
   extension/          capture/ tab-sync/ device-commands/ platform/
-  config/             tsconfig/ (per-context bases) oxlint/ (shared config + boundary rules)
+  config/             tsconfig/ (per-context bases) oxlint/ (shared config + boundary rules) vitest/ (shared base)
 ```
 
 Workspace globs are `apps/*` and `packages/*/*`. **Packages are never nested inside another package** (Turborepo rejects it, and it would break isolation).

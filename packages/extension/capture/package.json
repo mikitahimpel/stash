@@ -23,6 +23,7 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "@types/firefox-webext-browser": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

@@ -103,7 +103,9 @@
                   "!vitest",
                   "!vitest/**",
                   "!@effect/vitest",
-                  "!@effect/vitest/**"
+                  "!@effect/vitest/**",
+                  "!@stash/config-vitest",
+                  "!@stash/config-vitest/**"
                 ],
                 "message": "packages/contracts/* may only import effect and @stash/contracts-* (see Context isolation rules in docs/architecture.md)."
               }
