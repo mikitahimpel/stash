@@ -25,6 +25,7 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "@types/firefox-webext-browser": "catalog:",
     "@wxt-dev/module-vue": "catalog:",
     "oxfmt": "catalog:",

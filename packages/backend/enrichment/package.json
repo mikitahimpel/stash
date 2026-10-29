@@ -38,6 +38,7 @@
     "@effect/vitest": "catalog:",
     "@stash/backend-links": "workspace:*",
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "@types/node": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",

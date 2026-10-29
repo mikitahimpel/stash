@@ -27,6 +27,7 @@
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "@vitejs/plugin-vue": "catalog:",
     "@vue/test-utils": "catalog:",
     "happy-dom": "catalog:",

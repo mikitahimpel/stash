@@ -1,11 +1,15 @@
 import vue from "@vitejs/plugin-vue";
-import { defineProject } from "vitest/config";
+import * as VitestBase from "@stash/config-vitest/vitest-base";
+import { defineProject, mergeConfig } from "vitest/config";
 
-export default defineProject({
-  plugins: [vue()],
-  test: {
-    name: "web-open-tabs",
-    include: ["test/**/*.test.ts"],
-    environment: "happy-dom",
-  },
-});
+export default mergeConfig(
+  VitestBase.base,
+  defineProject({
+    plugins: [vue()],
+    test: {
+      name: "web-open-tabs",
+      include: ["test/**/*.test.ts"],
+      environment: "happy-dom",
+    },
+  }),
+);

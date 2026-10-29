@@ -1,8 +1,12 @@
-import { defineProject } from "vitest/config";
+import * as VitestBase from "@stash/config-vitest/vitest-base";
+import { defineProject, mergeConfig } from "vitest/config";
 
-export default defineProject({
-  test: {
-    name: "backend-search",
-    include: ["test/**/*.test.ts"],
-  },
-});
+export default mergeConfig(
+  VitestBase.base,
+  defineProject({
+    test: {
+      name: "backend-search",
+      include: ["test/**/*.test.ts"],
+    },
+  }),
+);
