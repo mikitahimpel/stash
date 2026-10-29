@@ -40,6 +40,8 @@
     "./toaster": "./src/toast/toaster.vue",
     "./skeleton": "./src/skeleton/skeleton.vue",
     "./empty-state": "./src/empty-state/empty-state.vue",
+    "./error-state": "./src/error-state/error-state.vue",
+    "./use-delayed-loading": "./src/delayed-loading/use-delayed-loading.ts",
     "./kbd": "./src/kbd/kbd.vue",
     "./list-row": "./src/list-row/list-row.vue",
     "./search-field": "./src/search-field/search-field.vue",
