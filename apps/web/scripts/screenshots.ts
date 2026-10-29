@@ -32,6 +32,8 @@ interface View {
   readonly signedIn: boolean;
   /** Brings the page into the state worth capturing, once it has loaded. */
   readonly prepare: (page: Page) => Promise<void>;
+  /** Where a long page is cut (px). The gallery is shown whole. */
+  readonly maxHeight?: number;
 }
 
 const views: ReadonlyArray<View> = [
@@ -72,6 +74,7 @@ const views: ReadonlyArray<View> = [
     name: "ui",
     path: "/_ui",
     signedIn: false,
+    maxHeight: Number.POSITIVE_INFINITY,
     prepare: (page) => page.locator("h1").first().waitFor(),
   },
 ];
@@ -130,7 +133,7 @@ const waitFor = async (what: string, url: string, logs: () => string, timeoutMs 
 // Run in the page, as a string so the script itself never names the DOM globals.
 const scrollWidth = "document.documentElement.scrollWidth";
 const scrollHeight = "document.documentElement.scrollHeight";
-const maxHeight = 2000;
+const defaultMaxHeight = 2000;
 // Buttons (and links styled as buttons) whose accessible name would be empty: no text, no
 // aria-label or aria-labelledby, no title.
 const unnamedButtons = `[...document.querySelectorAll('button, [role=button], a[href]')]
@@ -170,20 +173,25 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         await page.waitForLoadState("networkidle");
         await page.evaluate("document.fonts.ready");
         const file = `${view.name}-${theme}-${viewport.name}.png`;
-        // Long pages are cut off: the top shows the layout, and the rows below repeat it.
-        const height = Math.min((await page.evaluate(scrollHeight)) as number, maxHeight);
-        await page.screenshot({
-          path: Path.join(outDir, file),
-          fullPage: true,
-          clip: { x: 0, y: 0, width: viewport.width, height },
-        });
 
+        // Checked at the real viewport size.
         const width = (await page.evaluate(scrollWidth)) as number;
         if (width > viewport.width) {
           problems.push(`${file}: scrollWidth ${width} > ${viewport.width}`);
         }
         const unnamed = (await page.evaluate(unnamedButtons)) as Array<string>;
         for (const html of unnamed) problems.push(`${file}: control without a name: ${html}`);
+
+        // The viewport grows to the page's height (long pages are cut: the top shows the layout,
+        // and the rows below repeat it), so fixed parts such as the phone's bottom nav sit at the
+        // bottom of the picture, as on a screen, instead of being stamped mid-page.
+        const height = Math.min(
+          (await page.evaluate(scrollHeight)) as number,
+          view.maxHeight ?? defaultMaxHeight,
+        );
+        await page.setViewportSize({ width: viewport.width, height });
+        await page.screenshot({ path: Path.join(outDir, file) });
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
         console.log(`✓ ${file}`);
         await page.close();
       }

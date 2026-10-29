@@ -125,7 +125,7 @@ const pickTheme = (value: unknown) => {
         >
           <span
             aria-hidden="true"
-            class="size-1.5 rounded-full"
+            class="size-2 rounded-full"
             :class="status === 'offline' ? 'bg-signal' : 'bg-muted-foreground'"
           />
           <span aria-live="polite" class="sr-only sm:not-sr-only">{{ status }}</span>

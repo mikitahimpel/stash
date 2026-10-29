@@ -51,7 +51,7 @@ Radii: buttons 8px, inputs/trays 10px, chips 9px, keys 5px. Heights: controls �
 **Data graphics** (inline SVG Vue components, driven by real data, `role="img"` + an `aria-label` summarising the data; mono 12px labels; neutral marks, accent only for the highlighted category):
 - Open now: one lane per device; each tab is a 2×16 tick at x = age (0–14 days, older clamped to the end); region past 7 days hatched (45° pattern, hairline color) with a dashed 7d line; stale ticks in accent; the selected tab gets a taller tick and a `title · age` label.
 - Inbox: 30 bars, saved per day; the read part of each bar (now `seen`/`done`) drawn lighter from the baseline; today's unread part in accent at ~45% opacity; header line in mono: `N saved · N read · N unread · last 30 days`; legend read/unread.
-- Search: a 12-month timeline (month labels in mono), every saved link a small neutral dot, matches as accent dots numbered by rank.
+- Search: a timeline of up to 12 months (labels in mono; its axis fits the data, see "Data graphics" under Layout rules), every saved link a small neutral dot, matches as accent dots numbered by rank.
 
 ## Light mode (derived)
 
@@ -114,7 +114,17 @@ Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as
 ### Rows
 
 List rows are at least **44px** tall (`ListRow` has `min-h-11`). On phones metadata wraps under
-the title instead of squeezing beside it.
+the title instead of squeezing beside it. Section headers start at the content edge, like the page
+title; row content is inset by the `ListRow` padding (12px). Where a page has controls at the end
+of its rows (Settings), every row and section control ends on that same 12px inset.
+
+### Data graphics
+
+Each chart's summary line is the page subtitle, not a second mono line above the chart; the chart
+keeps its legend. The Search timeline fits its axis to the data instead of a fixed 12 months: from
+the oldest link shown (at least 30 days, at most 12 months back) to now, with weekly ticks
+(`Oct 5`) up to about three months and month ticks beyond. On phones every other tick label is
+dropped once there are more than six, and rank numbers that would collide move to another lane.
 
 ### Empty and error states
 
@@ -126,7 +136,7 @@ one muted line that says why the area is empty or what failed, and, where there 
 
 - Same max width (1040px) and side padding as `<main>`, 56px tall, sticky, hairline below.
 - Left: wordmark, then the nav (a SegmentedControl of links).
-- Right: **one cluster**, in this order: sync status (a 6px dot plus mono `online` / `offline`;
+- Right: **one cluster**, in this order: sync status (an 8px dot plus mono `online` / `offline`;
   the dot turns accent when offline; a tooltip explains it), Search with `⌘K`, the theme menu
   (System / Light / Dark as radio items, the trigger shows the current one's icon), and the
   account menu (Settings, Sign out).
@@ -147,7 +157,9 @@ one muted line that says why the area is empty or what failed, and, where there 
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
 `/_smoke/session` routes, runs Vite against it and captures every page (Inbox, Open now, Search
 with results, Settings, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
-[`docs/screenshots/`](screenshots/). Pages longer than 2000px are cut there. It fails when a page
+[`docs/screenshots/`](screenshots/). Before each capture the viewport grows to the page's height,
+so the phone's bottom nav sits at the bottom of the picture as on a screen. Pages are cut at
+2000px, except `/_ui`, which is captured whole. It fails when a page
 scrolls sideways or a button has no accessible name. Chromium needs its system libraries
 (`pnpm --filter @stash/web exec playwright install-deps chromium` once per machine).
 
