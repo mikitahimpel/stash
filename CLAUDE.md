@@ -158,8 +158,9 @@ behind services.
   [docs/deploy.md](docs/deploy.md)). Neither the Cloudflare account id nor any other value from
   them may appear in a committed file.
 - GitHub needs no vault item: the Device Flow login has no client secret, and `GITHUB_CLIENT_ID`
-  is a public value from env. The GitHub OAuth App itself does not exist yet (#46), so deploys run
-  without `GITHUB_CLIENT_ID` and the login routes answer 503.
+  is public. The project's OAuth App exists. Its client id is committed in `alchemy.run.ts` as
+  the default for stage `prod`. Env overrides it, and other stages without it answer 503 on the
+  login routes. Never create a client secret.
 - **Planned items (`app`, `migrate`, `mcp`) are not created in the vault
   yet.** Their item titles above are placeholders. They stay commented out in `.env.example`. When
   an item is created, uncomment its lines and change the reference to match the real item title
