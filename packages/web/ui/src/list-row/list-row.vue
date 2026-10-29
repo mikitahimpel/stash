@@ -26,7 +26,7 @@ defineSlots<{
     :as-child="asChild"
     :class="
       cn(
-        'flex flex-col gap-2 border border-transparent border-b-hairline-row px-3 py-2.5',
+        'flex min-h-11 flex-col justify-center gap-2 border border-transparent border-b-hairline-row px-3 py-2.5',
         selected && 'tactile-row-selected',
         props.class,
       )
