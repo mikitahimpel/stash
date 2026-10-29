@@ -72,6 +72,7 @@
   },
   "devDependencies": {
     "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
     "@tailwindcss/node": "catalog:",
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",

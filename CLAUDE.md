@@ -21,7 +21,7 @@ packages/
   mcp/                MCP tools                                                         → packages/mcp/CLAUDE.md
   web/                web features and UI kit                                           → packages/web/CLAUDE.md
   extension/          extension features                                                → packages/extension/CLAUDE.md
-  config/             tsconfig/ (per-context bases), oxlint/ (shared config + boundary rules)
+  config/             tsconfig/ (per-context bases), oxlint/ (shared config + boundary rules), vitest/ (shared base)
 docs/                 architecture.md, contributing.md (how to add a package), deploy.md
 ```
 
@@ -47,6 +47,21 @@ PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alch
 - Every package defines the same four scripts: `lint`, `format:check`, `typecheck`, `test`.
 - Versions come from the pnpm catalog (`pnpm-workspace.yaml`). Use `"catalog:"` in `package.json`,
   never a literal version, and add new third-party deps to the catalog first.
+
+## Resource limits
+
+The dev machine is shared, so the repo caps its own parallelism and every agent and CI inherit it:
+
+- **Turbo: 4 tasks at once**, from `"concurrency": "4"` in `turbo.json`. It applies to the root
+  scripts and to direct `pnpm turbo run …` calls alike
+  (`packages/config/tsconfig/test/turbo-concurrency.test.ts` checks it).
+- **Vitest: 2 workers per run**, from `maxWorkers: 2` in `@stash/config-vitest`, which every
+  package's `vitest.config.ts` merges (`packages/config/vitest/test/max-workers.test.ts` checks it).
+  The root `vitest.config.ts` sets the same cap.
+
+Agents must not raise these caps (no higher `--concurrency`, `maxWorkers` or `VITEST_MAX_WORKERS`,
+no package config that sets `maxWorkers`), and must not start full-repo runs in parallel, such as
+two `pnpm turbo run …` at once. Prefer `--filter=...[origin/main]` to a full run.
 
 ## Context isolation
 

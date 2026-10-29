@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
+    "@stash/config-vitest": "workspace:*",
     "@types/firefox-webext-browser": "catalog:",
     "@types/node": "catalog:",
     "oxfmt": "catalog:",

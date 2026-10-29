@@ -127,10 +127,14 @@ describe("context boundaries", () => {
     expect(good.status).toBe(0);
   });
 
-  it("allows vitest/config in a contracts vitest.config.ts", () => {
+  it("allows vitest/config and the shared vitest base in a contracts vitest.config.ts", () => {
     const result = lint({
-      "packages/contracts/domain/vitest.config.ts":
-        'import { defineProject } from "vitest/config";\nexport default defineProject({});\n',
+      "packages/contracts/domain/vitest.config.ts": [
+        'import * as VitestBase from "@stash/config-vitest/vitest-base";',
+        'import { defineProject, mergeConfig } from "vitest/config";',
+        "export default mergeConfig(VitestBase.base, defineProject({}));",
+        "",
+      ].join("\n"),
     });
     expect(result.diagnostics).toEqual([]);
     expect(result.status).toBe(0);
