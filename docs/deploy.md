@@ -129,7 +129,7 @@ bundled asset names a `stash-api.` origin, and the session cookie round-trips. A
 a person on github.com, so it seeds a synthetic one (only the hash of a random token) straight into
 the prod D1 `sessions` table with the deploy credentials, takes the cookie attributes from the
 `Set-Cookie` that `/api/auth/logout` answers on the web origin, and checks that an RFC 6265 cookie
-jar sends the cookie back on `/api/auth/me` (200) and never to `stash-api`. It then logs out and
+jar sends the cookie back on `/api/auth/me` (200). It then logs out and
 deletes the rows. Prod auth is unchanged: no route is added.
 
 ```sh

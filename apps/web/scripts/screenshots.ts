@@ -1,8 +1,9 @@
 // `pnpm --filter @stash/web screenshots`: boots the api under `alchemy dev` (no credentials) on its
 // own stage and ports, seeds synthetic data and a session through the dev-only `/_smoke/*` routes,
-// runs the Vite dev server against it (proxying `/api`), and captures every page with headless Chromium in both
-// themes at desktop and phone width into `docs/screenshots/`. On the way it checks that no page
-// scrolls sideways and that every button has an accessible name, and exits 1 if one does.
+// runs the Vite dev server against it (proxying `/api`), and captures every page with headless
+// Chromium in both themes at desktop and phone width into `docs/screenshots/`. On the way it checks
+// that no page scrolls sideways and that every button has an accessible name, and exits 1 if one
+// does.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as Fs from "node:fs";

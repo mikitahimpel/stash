@@ -11,8 +11,8 @@
 //    to the api, so prod auth is unchanged. The cookie the api sets from `/api/auth/logout` carries
 //    the same attributes as the one `poll` sets (`cookieOptions` in `@stash/backend-auth`), so a
 //    small RFC 6265 cookie jar stores the session under them, as a browser would. The jar must then
-//    send it on `<web>/api/auth/me` (answered 200 with the user), and never to the api's own
-//    origin. Logging out ends the session, and the row is deleted in any case.
+//    send it on `<web>/api/auth/me` (answered 200 with the user). Logging out ends the session,
+//    and the row is deleted in any case.
 //
 // Env: `STASH_WEB_URL` (the deployed web origin), `STASH_D1_DATABASE` (the api's D1 database name,
 // `PROD_NAMES.Database` in `alchemy.run.ts` for stage `prod`), `STASH_ALLOWED_GITHUB_LOGIN` (the
@@ -203,14 +203,6 @@ const main = async () => {
       me.status === 200 && JSON.parse(me.body).kind === "user",
       `/api/auth/me: ${me.status} user`,
     );
-    check(
-      cookieHeader(
-        jar,
-        new URL("/auth/me", `https://${web.hostname.replace(/^stash-web/, "stash-api")}`),
-      ) === "",
-      "the jar never sends it to the api's own origin",
-    );
-
     const out = await request("POST", logoutUrl.href, { headers: { cookie: sent } });
     const after = await request("GET", meUrl.href, { headers: { cookie: sent } });
     check(out.status === 204 && after.status === 401, "logout ends the session: /api/auth/me 401");

@@ -46,7 +46,9 @@ export const layer = (routes: Routes): Layer.Layer<HttpClient.HttpClient> => {
     Effect.suspend(() => {
       const url = new URL(request.url, "http://localhost").pathname;
       const pathname =
-        basePath !== "" && url.startsWith(`${basePath}/`) ? url.slice(basePath.length) : url;
+        basePath !== "" && (url === basePath || url.startsWith(`${basePath}/`))
+          ? url.slice(basePath.length) || "/"
+          : url;
       for (const route of compiled) {
         const match = route.method === request.method ? route.pattern.exec(pathname) : null;
         if (match === null) continue;

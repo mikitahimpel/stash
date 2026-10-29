@@ -287,6 +287,8 @@ describe("login page", () => {
 
   it("shows the code when the browser has no clipboard API, and says to copy by hand", async () => {
     // The live clipboard, on a browser without `navigator.clipboard` (iOS standalone, plain http).
+    // happy-dom defines `clipboard` as a getter on the Navigator prototype, so an own property
+    // shadows it and deleting that property restores it.
     const browser = globalThis.navigator;
     Object.defineProperty(browser, "clipboard", { value: undefined, configurable: true });
     try {
