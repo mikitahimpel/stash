@@ -5,6 +5,7 @@ import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
+import PageHeader from "@stash/web-ui/page-header";
 import SearchField from "@stash/web-ui/search-field";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
@@ -13,6 +14,7 @@ import ToggleChip from "@stash/web-ui/toggle-chip";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, nextTick, onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import ArchiveAllDialog from "./archive-all-dialog.vue";
 import OpenTabRow from "./open-tab-row.vue";
 import * as OpenTabsAtoms from "./open-tabs-atoms.ts";
@@ -54,6 +56,20 @@ const total = computed(() => chips.value.reduce((sum, chip) => sum + chip.count,
 const sections = computed(() => OpenTabsView.sections(groups.value));
 const rows = computed(() => sections.value.flatMap((section) => section.tabs));
 const stale = computed(() => sections.value.find((section) => section.id === "old")?.tabs ?? []);
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+// The counts under the title, once the tabs have loaded.
+const subtitle = computed(() =>
+  all.value === undefined
+    ? {}
+    : {
+        subtitle: [
+          plural(total.value, "tab", "tabs"),
+          plural(chips.value.length, "device", "devices"),
+          ...(stale.value.length > 0 ? [`${stale.value.length} older than 7 days`] : []),
+        ].join(" · "),
+      },
+);
 
 const pickDevice = (id: Device.DeviceId | null) => setDevice(device.value === id ? null : id);
 
@@ -118,8 +134,8 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
 </script>
 
 <template>
-  <section class="flex flex-col gap-5">
-    <SectionHeader as="h1" title="Open now" v-bind="all === undefined ? {} : { count: total }" />
+  <section class="flex flex-col gap-6">
+    <PageHeader title="Open now" v-bind="subtitle" />
 
     <ErrorState
       v-if="all === undefined && AsyncResult.isFailure(view)"
@@ -146,7 +162,18 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         </div>
       </div>
     </template>
-    <EmptyState v-else-if="all.length === 0" data-state="empty" title="No devices" />
+    <EmptyState
+      v-else-if="all.length === 0"
+      data-state="empty"
+      title="No devices"
+      description="Tabs show up here once the extension or the Mac agent reports them."
+    >
+      <template #action>
+        <Button as-child>
+          <RouterLink :to="{ name: 'settings' }">Add a device</RouterLink>
+        </Button>
+      </template>
+    </EmptyState>
     <template v-else>
       <SearchField
         :model-value="query"
@@ -177,7 +204,27 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         v-if="rows.length === 0"
         data-state="empty"
         :title="query.trim() === '' && total === 0 ? 'No open tabs' : 'No matching tabs'"
-      />
+        :description="
+          query.trim() === '' && total === 0
+            ? 'Every device reported an empty window.'
+            : 'Nothing open matches this filter.'
+        "
+      >
+        <template v-if="query.trim() !== '' || device !== null" #action>
+          <Button as-child>
+            <button
+              type="button"
+              data-action="clear-filter"
+              @click="
+                setQuery('');
+                setDevice(null);
+              "
+            >
+              Clear filter
+            </button>
+          </Button>
+        </template>
+      </EmptyState>
       <section
         v-for="section in sections"
         :key="section.id"
@@ -213,7 +260,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       </section>
 
       <footer
-        class="flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground"
+        class="hidden flex-wrap gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground sm:flex"
         aria-label="Shortcuts"
       >
         <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>

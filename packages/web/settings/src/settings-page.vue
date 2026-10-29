@@ -8,6 +8,7 @@ import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import ListRow from "@stash/web-ui/list-row";
+import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
@@ -54,6 +55,15 @@ const counts = computed(() =>
       }
     : { devices: {}, tokens: {} },
 );
+// The counts under the title, once the rows have loaded.
+const subtitle = computed(() => {
+  if (!AsyncResult.isSuccess(rows.value)) return {};
+  const { devices, tokens } = rows.value.value;
+  const active = tokens.filter((row) => row.token.revokedAt === null).length;
+  return {
+    subtitle: `${devices.length} ${devices.length === 1 ? "device" : "devices"} · ${active} active ${active === 1 ? "token" : "tokens"}`,
+  };
+});
 const deviceNames = computed(
   () =>
     new Map(
@@ -114,8 +124,8 @@ const confirmRevoke = async () => {
 </script>
 
 <template>
-  <div class="grid gap-10">
-    <h1 class="sr-only">Settings</h1>
+  <div class="grid gap-12">
+    <PageHeader title="Settings" v-bind="subtitle" />
 
     <section aria-label="Appearance" class="grid gap-3">
       <SectionHeader title="Appearance" />
@@ -154,10 +164,19 @@ const confirmRevoke = async () => {
       <ErrorState
         v-else-if="AsyncResult.isFailure(rows)"
         title="Couldn't load devices"
-        class="px-3"
         @retry="retry"
       />
-      <EmptyState v-else-if="rows.value.devices.length === 0" title="No devices" class="px-3" />
+      <EmptyState
+        v-else-if="rows.value.devices.length === 0"
+        title="No devices"
+        description="Add a device to get a token for the extension, the Mac agent or a Shortcut."
+      >
+        <template #action>
+          <Button as-child>
+            <button type="button" @click="openAddDevice(true)">Add device</button>
+          </Button>
+        </template>
+      </EmptyState>
       <ul v-else>
         <ListRow v-for="row in rows.value.devices" :key="row.device.id" as="li" data-test="device">
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
