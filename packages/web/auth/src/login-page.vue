@@ -4,11 +4,15 @@ import Button from "@stash/web-ui/button";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, onUnmounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import * as AuthAtoms from "./auth-atoms.ts";
 import * as DeviceLoginAtoms from "./device-login-atoms.ts";
+import * as Routes from "./routes.ts";
 
+const route = useRoute();
 const router = useRouter();
 const [result, start] = useAtom(() => DeviceLoginAtoms.deviceLogin);
+const setSignedOut = useAtomSet(() => AuthAtoms.signedOut);
 
 const login = computed(() =>
   AsyncResult.isSuccess(result.value) ? result.value.value : undefined,
@@ -17,9 +21,12 @@ const waiting = computed(() => (login.value?.step === "waiting" ? login.value : 
 const starting = computed(() => AsyncResult.isInitial(result.value) && result.value.waiting);
 const failed = computed(() => AsyncResult.isFailure(result.value));
 
-// Signed in: the session cookie is set, and the guard lets the app through.
+// Signed in: the session cookie is set, and the guard lets the app through to the page the user
+// wanted.
 watch(login, (value) => {
-  if (value?.step === "complete") void router.push("/");
+  if (value?.step !== "complete") return;
+  setSignedOut(false);
+  void router.push(Routes.returnTo(route.query));
 });
 
 // The countdown ticks once a second while a code is shown.
@@ -104,6 +111,17 @@ const ended = computed(() => {
       </Button>
       <p class="font-mono text-xs text-muted-foreground" aria-live="polite">
         waiting for GitHub · expires in <span data-test="countdown">{{ remaining }}</span>
+      </p>
+    </section>
+
+    <section
+      v-else-if="login?.step === 'notConfigured'"
+      class="flex max-w-sm flex-col items-center gap-2 text-center"
+      data-test="not-configured"
+    >
+      <p class="text-sm">Sign-in isn't configured on this deployment yet.</p>
+      <p class="font-mono text-xs text-muted-foreground">
+        the GitHub login needs to be set up before anyone can sign in
       </p>
     </section>
 

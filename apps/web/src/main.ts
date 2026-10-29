@@ -11,7 +11,8 @@ const registry = AppRegistry.make();
 // Applies the stored theme as the app starts and keeps following the OS scheme.
 registry.mount(ThemeAtoms.state);
 
-createApp(AppLayout)
-  .provide(AtomVue.registryKey, registry)
-  .use(AppRouter.make(createWebHistory(import.meta.env.BASE_URL), registry))
-  .mount("#app");
+const router = AppRouter.make(createWebHistory(import.meta.env.BASE_URL), registry);
+const app = createApp(AppLayout).provide(AtomVue.registryKey, registry).use(router);
+// Mounts once the first navigation, with its auth check, is done, so a signed-out visitor sees the
+// login page and never the app shell.
+void router.isReady().then(() => app.mount("#app"));
