@@ -26,6 +26,10 @@ export interface History {
 
 const isRead = (status: Link.LinkStatus) => status === "seen" || status === "done";
 
+/** The history in one line, for the page subtitle and the chart's label. */
+export const summary = (history: History): string =>
+  `${history.saved} saved · ${history.read} read · ${history.unread} unread · last ${days} days`;
+
 /** Counts the links saved in the last `days` days, per day and in total. Archived links count as saved only. */
 export const history = (
   links: ReadonlyArray<Link.Link>,

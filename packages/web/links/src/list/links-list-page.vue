@@ -72,10 +72,9 @@ const history = computed(() =>
     : undefined,
 );
 
-// The unread count under the title, once the 30-day history has loaded. The chart below has the
-// rest.
+// The 30-day counts under the title, once the history has loaded. The chart below shows them.
 const subtitle = computed(() =>
-  history.value === undefined ? {} : { subtitle: `${history.value.unread} unread` },
+  history.value === undefined ? {} : { subtitle: SavedRead.summary(history.value) },
 );
 
 const devices = AtomVue.useAtomValue(() => LinksAtoms.devices);
@@ -193,7 +192,7 @@ onMounted(() => listen({ run }));
       </p>
       <div ref="list" class="flex flex-col gap-6">
         <section v-for="group in groups" :key="group.key" data-slot="link-day">
-          <SectionHeader :title="group.label" :count="group.links.length" class="px-3" />
+          <SectionHeader :title="group.label" :count="group.links.length" />
           <ul class="flex flex-col">
             <LinkRow
               v-for="link in group.links"
