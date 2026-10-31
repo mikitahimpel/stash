@@ -205,7 +205,7 @@ describe("composed API", () => {
   it("authenticates a session cookie and logs it out", async () => {
     const me = await request("GET", "/auth/me", cookie);
     expect(me.status).toBe(200);
-    expect(await me.json()).toEqual({ kind: "user" });
+    expect(await me.json()).toEqual({ kind: "user", login: "example-user" });
     expect((await request("GET", "/tokens", cookie)).status).toBe(200);
     expect(await (await request("GET", "/auth/me", bearer)).json()).toEqual({
       kind: "device",

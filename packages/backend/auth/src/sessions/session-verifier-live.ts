@@ -36,7 +36,7 @@ export const layer: Layer.Layer<
         if (!GithubClient.sameLogin(stored.value.githubLogin, config.allowedGithubLogin)) {
           return yield* unauthorized("Login no longer allowed");
         }
-        return { kind: "user" } satisfies Security.UserPrincipal;
+        return { kind: "user", login: stored.value.githubLogin } satisfies Security.UserPrincipal;
       }),
     });
   }),
