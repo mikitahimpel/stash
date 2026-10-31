@@ -118,8 +118,9 @@ Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as
 (`6 unread · 30 saved in 30 days`). The line appears once there is something to count, so a
 first-run page has the title alone. The page's **primary action** sits on the right, in the
 `#actions` slot: Inbox has the Save a link field (sunken input and primary Save; Enter submits, and
-the new row shows at once), Open now has Add device, Search and Settings have none. On phones it
-takes its own full-width line under the title. Sections inside a page keep `<SectionHeader>`
+the new row shows at once), Open now has Add device (except on its onboarding card, which offers
+it per device), Search and Settings have none. On phones it takes its own full-width line under
+the title. Sections inside a page keep `<SectionHeader>`
 (14px/500). `PageHeader` carries its own 24px bottom margin, which adds to the page's `gap-6`.
 
 ### Control hierarchy
@@ -133,7 +134,7 @@ Weight follows importance, so filters never look like navigation:
 | Real actions | `raised` keys |
 | View switch | `SegmentedControl`, small: 32px (40px touch target on phones) |
 | One-of-many filter | one compact `FilterMenu` (`Type: Any ▾`), borderless |
-| Toggle filters (tags, devices) | `ToggleChip`: borderless text, subtle hover, `bg-accent` when on |
+| Toggle filters (tags, devices) | `ToggleChip`: borderless text, subtle hover, `bg-hairline` when on |
 
 Raised styling is for real actions. Never a row of raised filter buttons.
 
@@ -161,14 +162,19 @@ dropped once there are more than six, and rank numbers that would collide move t
 An empty page says how to start. `<StartSavingCard>` (`@stash/web-settings/start-saving-card`) is
 the first-run state: a surface card with a title and one row per way to start, each with a single
 action. The Inbox shows "Start saving" (Zen extension, iPhone, Claude) when nothing is saved, without
-the filters. Open now shows "Add a device" (Zen extension, iPhone) when no device exists. Add device
-goes to `/settings?add=device`, which opens the dialog that creates the token. The doc links open
+the filters. Open now shows "Connect a device" (Zen extension, iPhone through a Mac) when no device exists. A
+device action goes to `/settings?add=device&kind=<kind>`, which opens the dialog that creates the
+token, on that kind. The card appears only when nothing is saved at all, of any status or age: an
+empty feed alone says nothing about that. The doc links open
 `/docs/ios-shortcut.md` and `/docs/mcp-connector.md`, which `apps/web` publishes from `docs/` at
 build time. Search with no query is just the focused field with a muted example query.
 
+A section of a page that is empty stays one compact row (`No devices yet` in Settings), with the
+action in its section header. No section repeats that action.
+
 `<EmptyState>` and `<ErrorState>` cover the rest (nothing matches a filter, a failed load). They are
 centred in the content area with `py-12`: a 14px/500 title, one muted line that says why the area is
-empty or what failed, and, where there is one, an action (Retry, Clear filter, Add device). No
+empty or what failed, and, where there is one, an action (Retry, Clear filter). No
 illustration beyond an optional 20px icon.
 
 ### App header
@@ -192,6 +198,7 @@ hairline below.
   hidden.
 - The header keeps the wordmark and the account button.
 - Keyboard shortcut footers are hidden.
+- A row of chips stays on one line and scrolls on its own, out to the edge of the screen.
 
 ### Screenshots
 

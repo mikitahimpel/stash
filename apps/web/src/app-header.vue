@@ -126,7 +126,7 @@ const pickTheme = (value: unknown) => {
 
       <div class="ml-auto flex shrink-0 items-center">
         <!-- The status lives in the menu; the button only speaks up when the device is offline. -->
-        <AccountMenu :attention="status === 'Offline'">
+        <AccountMenu :alert="status === 'Offline' ? 'offline' : undefined">
           <DropdownMenuLabel>Theme</DropdownMenuLabel>
           <DropdownMenuRadioGroup :model-value="preference" @update:model-value="pickTheme">
             <DropdownMenuRadioItem

@@ -268,6 +268,9 @@ describe("app shell", () => {
     await run(Context.get(network, PlatformTesting.TestNetwork).setOnline(false));
     await vi.waitFor(() => expect(status.text()).toBe("Offline"));
     expect(attention().exists()).toBe(true);
+    expect(wrapper.find("[data-test=account-menu]").attributes("aria-label")).toBe(
+      "Account (offline)",
+    );
   });
 
   it("navigates when a nav link is clicked", async () => {

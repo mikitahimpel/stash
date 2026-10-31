@@ -93,7 +93,7 @@ const views: ReadonlyArray<View> = [
     path: "/settings",
     signedIn: true,
     empty: true,
-    prepare: (page) => page.getByRole("heading", { name: "No devices" }).waitFor(),
+    prepare: (page) => page.locator("[data-test=no-devices]").waitFor(),
   },
   {
     name: "login",

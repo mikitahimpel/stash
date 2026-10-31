@@ -2,6 +2,7 @@ import type * as LinksGroup from "@stash/contracts-api/links";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
+import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Atom from "effect/reactivity/Atom";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
@@ -106,7 +107,8 @@ const isUrl = Schema.is(Link.Url);
 /** The URL in what was typed, assuming `https://` when it has no scheme. */
 export const parseUrl = (text: string): Link.Url | undefined => {
   const trimmed = text.trim();
-  const url = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  // A colon before digits is a port (`localhost:3000`), not the end of a scheme.
+  const url = /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
   return isUrl(url) && URL.canParse(url) ? url : undefined;
 };
 
@@ -144,6 +146,13 @@ export const settlePending = (registry: AtomRegistry.AtomRegistry): void => {
     registry.update(pending, (all) => all.filter((entry) => !entry.saved));
   }
 };
+
+/** Whether anything is saved at all, in any status and of any age: one link is enough to tell. */
+export const anySaved = ApiAtoms.query(["links"], (client) =>
+  client.links
+    .list({ query: { sort: "recent", limit: 1 } })
+    .pipe(Effect.map((page) => page.items.length > 0)),
+);
 
 /** The devices, for the source device of each link. */
 export const devices = ApiAtoms.query(["devices"], (client) => client.devices.list());

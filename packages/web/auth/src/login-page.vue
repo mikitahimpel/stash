@@ -118,7 +118,7 @@ const ended = computed(() => {
           >Open github.com/login/device</a
         >
       </Button>
-      <p class="font-mono text-xs text-muted-foreground" aria-live="polite">
+      <p class="text-xs text-muted-foreground" aria-live="polite">
         waiting for GitHub · expires in <span data-test="countdown">{{ remaining }}</span>
       </p>
     </section>
@@ -129,7 +129,7 @@ const ended = computed(() => {
       data-test="not-configured"
     >
       <p class="text-sm">Sign-in isn't configured on this deployment yet.</p>
-      <p class="font-mono text-xs text-muted-foreground">
+      <p class="text-xs text-muted-foreground">
         the GitHub login needs to be set up before anyone can sign in
       </p>
     </section>
@@ -158,9 +158,7 @@ const ended = computed(() => {
           Sign in with GitHub
         </button>
       </Button>
-      <p class="font-mono text-xs text-muted-foreground">
-        you'll get a code to enter on github.com
-      </p>
+      <p class="text-xs text-muted-foreground">you'll get a code to enter on github.com</p>
     </template>
 
     <p v-else class="text-sm text-muted-foreground" data-test="signed-in">

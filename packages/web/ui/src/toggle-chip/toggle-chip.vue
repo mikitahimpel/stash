@@ -19,7 +19,7 @@ const pressed = defineModel<boolean>("pressed", { default: false });
       cn(
         'inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[9px] px-2.5 text-[13px] font-medium whitespace-nowrap transition-[background,color] disabled:pointer-events-none disabled:opacity-50 sm:h-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-3.5',
         pressed
-          ? 'bg-accent text-foreground'
+          ? 'bg-hairline text-foreground'
           : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         props.class,
       )

@@ -96,12 +96,15 @@ watch([result, allPending], ([now]) => {
   if (!now.waiting && !AsyncResult.isInitial(now)) LinksAtoms.settlePending(registry);
 });
 
-// Nothing saved yet: the page shows how to start instead of an empty list and its filters.
+// Nothing saved, ever: the page shows how to start instead of an empty list and its filters. An
+// empty feed alone doesn't say that, since the links may be seen, archived or old.
+const anySaved = AtomVue.useAtomValue(() => LinksAtoms.anySaved);
 const firstRun = computed(
   () =>
     view.value.state === "empty" &&
     !filtered.value &&
-    history.value?.saved === 0 &&
+    AsyncResult.isSuccess(anySaved.value) &&
+    !anySaved.value.value &&
     pending.value.length === 0,
 );
 
@@ -212,7 +215,7 @@ onMounted(() => listen({ run }));
     </div>
     <StartSavingCard v-else-if="firstRun" scenario="links" />
     <EmptyState
-      v-else-if="view.state === 'empty' && pending.length === 0"
+      v-else-if="view.state === 'empty' && pending.length === 0 && !AsyncResult.isInitial(anySaved)"
       :title="empty.title"
       :description="empty.description"
     >

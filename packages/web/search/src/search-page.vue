@@ -156,7 +156,14 @@ const onFocusin = (event: FocusEvent) => {
           :model-value="type"
           @update:model-value="setType"
         />
-        <div v-if="tags.length > 0" class="flex flex-wrap gap-1" role="group" aria-label="Tag">
+        <!-- Its own line, with the text of the first chip on the content edge. One line on phones:
+             it scrolls on its own, out to the edge of the screen. -->
+        <div
+          v-if="tags.length > 0"
+          class="-ml-2.5 flex w-[calc(100%+0.625rem)] gap-1 overflow-x-auto [scrollbar-width:none] max-sm:-mr-4 max-sm:w-[calc(100%+1.625rem)] max-sm:pr-4 sm:flex-wrap"
+          role="group"
+          aria-label="Tag"
+        >
           <ToggleChip
             v-for="name in tags"
             :key="name"

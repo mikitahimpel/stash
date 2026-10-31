@@ -26,7 +26,7 @@ describe("ToggleChip", () => {
     await chip.trigger("click");
     expect(wrapper.vm.on).toBe(true);
     expect(chip.attributes("aria-pressed")).toBe("true");
-    expect(chip.classes()).toContain("bg-accent");
+    expect(chip.classes()).toContain("bg-hairline");
     expect(chip.classes()).not.toContain("tactile-pressed");
 
     await chip.trigger("click");

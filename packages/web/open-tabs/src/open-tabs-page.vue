@@ -137,8 +137,9 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
 <template>
   <section class="flex flex-col gap-6">
     <PageHeader title="Open now" v-bind="subtitle">
-      <template #actions>
-        <Button as-child variant="primary">
+      <!-- The onboarding card offers the same action, one row per kind of device. -->
+      <template v-if="all === undefined || all.length > 0" #actions>
+        <Button as-child variant="primary" class="max-sm:w-full">
           <RouterLink :to="{ name: 'settings', query: { add: 'device' } }">Add device</RouterLink>
         </Button>
       </template>
@@ -178,7 +179,12 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         @update:model-value="setQuery"
       />
 
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Devices">
+      <!-- One line on phones: it scrolls on its own, out to the edge of the screen. -->
+      <div
+        class="flex gap-2 overflow-x-auto [scrollbar-width:none] max-sm:-mr-4 max-sm:pr-4 sm:flex-wrap"
+        role="group"
+        aria-label="Devices"
+      >
         <ToggleChip data-device="all" :pressed="device === null" @update:pressed="pickDevice(null)">
           All <span class="font-mono text-xs text-muted-foreground">{{ total }}</span>
         </ToggleChip>

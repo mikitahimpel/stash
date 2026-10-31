@@ -5,7 +5,6 @@ import type * as Devices from "@stash/contracts-api/devices";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
-import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import ListRow from "@stash/web-ui/list-row";
 import PageHeader from "@stash/web-ui/page-header";
@@ -29,6 +28,8 @@ import * as ThemeAtoms from "./theme-atoms.ts";
 const props = defineProps<{
   /** Opens the Add device dialog on arrival (`/settings?add=device`). */
   startAdding?: boolean;
+  /** The kind picked in that dialog (`&kind=`). */
+  startKind?: Device.DeviceKind;
 }>();
 
 // Appearance: the theme preference, through the platform `Theme` service.
@@ -65,6 +66,7 @@ const subtitle = computed(() => {
   if (!AsyncResult.isSuccess(rows.value)) return {};
   const { devices, tokens } = rows.value.value;
   const active = tokens.filter((row) => row.token.revokedAt === null).length;
+  if (devices.length === 0 && active === 0) return {};
   return {
     subtitle: `${devices.length} ${devices.length === 1 ? "device" : "devices"} · ${active} active ${active === 1 ? "token" : "tokens"}`,
   };
@@ -88,11 +90,14 @@ const created = computed(() =>
   AsyncResult.isSuccess(issued.value) && !issued.value.waiting ? issued.value.value : undefined,
 );
 const addingDevice = ref(false);
+// Only the first dialog, the one the page was opened for, starts on `startKind`.
+const initialKind = ref(props.startKind);
 const addDevice = (device: Devices.RegisterDevice) => {
   issue({ _tag: "NewDevice", device });
 };
 const openAddDevice = (open: boolean) => {
   if (open) issue(Atom.Reset);
+  else initialKind.value = undefined;
   addingDevice.value = open;
 };
 onMounted(() => {
@@ -109,6 +114,7 @@ const copyCreated = async () => {
 const dismissCreated = () => {
   issue(Atom.Reset);
   addingDevice.value = false;
+  initialKind.value = undefined;
   copyState.value = "idle";
 };
 
@@ -177,17 +183,14 @@ const confirmRevoke = async () => {
           title="Couldn't load devices"
           @retry="retry"
         />
-        <EmptyState
+        <ListRow
           v-else-if="rows.value.devices.length === 0"
-          title="No devices"
-          description="Add a device to get a token for the extension, the Mac agent or a Shortcut."
+          as="p"
+          class="text-sm text-muted-foreground"
+          data-test="no-devices"
         >
-          <template #action>
-            <Button as-child>
-              <button type="button" @click="openAddDevice(true)">Add device</button>
-            </Button>
-          </template>
-        </EmptyState>
+          No devices yet
+        </ListRow>
         <ul v-else>
           <ListRow
             v-for="row in rows.value.devices"
@@ -223,17 +226,14 @@ const confirmRevoke = async () => {
       <section aria-label="API tokens" class="grid gap-3">
         <SectionHeader title="API tokens" v-bind="counts.tokens" />
         <template v-if="AsyncResult.isSuccess(rows)">
-          <EmptyState
+          <ListRow
             v-if="rows.value.tokens.length === 0"
-            title="No tokens"
-            description="Devices save links and report tabs with a token. Create one with New token on a device, or add a device."
+            as="p"
+            class="text-sm text-muted-foreground"
+            data-test="no-tokens"
           >
-            <template #action>
-              <Button as-child>
-                <button type="button" @click="openAddDevice(true)">Add device</button>
-              </Button>
-            </template>
-          </EmptyState>
+            No tokens yet
+          </ListRow>
           <ul v-else>
             <ListRow v-for="row in rows.value.tokens" :key="row.token.id" as="li" data-test="token">
               <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -264,6 +264,7 @@ const confirmRevoke = async () => {
     <AddDeviceDialog
       :open="addingDevice && created === undefined"
       :pending="issuing"
+      :initial-kind="initialKind"
       :error="addingDevice ? issueError : undefined"
       @update:open="openAddDevice"
       @submit="addDevice"

@@ -10,6 +10,7 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "../src/settings-page.vue";
 import * as SettingsAtoms from "../src/settings-atoms.ts";
+import * as SettingsRows from "../src/settings-rows.ts";
 import * as ThemeAtoms from "../src/theme-atoms.ts";
 import * as Fixtures from "./fixtures.ts";
 
@@ -37,7 +38,9 @@ const settle = async () => {
 const theme = () =>
   PlatformTesting.layerTheme().pipe(Layer.provide(PlatformTesting.layerKeyValueStore));
 
-const mountPage = async (props: { startAdding?: boolean } = {}) => {
+const mountPage = async (
+  props: { startAdding?: boolean; startKind?: "zen" | "ios" | "mac-agent" } = {},
+) => {
   const calls: Array<string> = [];
   const copied: Array<string> = [];
   const devices = [Fixtures.device("d1", "Work laptop")];
@@ -107,6 +110,17 @@ describe("settings page", () => {
   it("opens the Add device dialog on arrival from ?add=device", async () => {
     await mountPage({ startAdding: true });
     expect(body().find("[role=dialog]").text()).toContain("Add");
+  });
+
+  it("starts that dialog on the kind asked for, and only that dialog", async () => {
+    await mountPage({ startAdding: true, startKind: "mac-agent" });
+    const picked = () => body().find("[role=dialog] [role=radio][aria-checked=true]").text();
+    expect(picked()).toBe(SettingsRows.kindLabels["mac-agent"]);
+
+    await body().find("[role=dialog]").trigger("keydown", { key: "Escape" });
+    await settle();
+    await click("[data-test=add-device]");
+    expect(picked()).toBe(SettingsRows.kindLabels.zen);
   });
 
   it("stays closed otherwise", async () => {

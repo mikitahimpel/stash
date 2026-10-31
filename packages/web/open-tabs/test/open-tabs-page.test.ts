@@ -244,11 +244,14 @@ describe("open-tabs-page", () => {
   it("offers the devices without any, and shows an empty state without tabs", async () => {
     const none = await mountPage({ "GET /tabs": () => ApiTesting.json(Fixtures.allTabs()) });
     const card = none.wrapper.find("[data-slot=start-saving]");
-    expect(card.find("h2").text()).toBe("Add a device");
+    expect(card.find("h2").text()).toBe("Connect a device");
     expect(card.findAll("li").map((row) => row.find("span").text())).toEqual([
       "Zen extension",
       "iPhone",
     ]);
+    // One action per kind of device, and no second Add device in the page header.
+    expect(card.findAll("li").map((row) => row.find("a").text())).toEqual(["Add Zen", "Add Mac"]);
+    expect(none.wrapper.find("[data-slot=page-header-actions]").exists()).toBe(false);
     expect(none.wrapper.find("[data-slot=tab-age-chart]").exists()).toBe(false);
     expect(none.wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
     none.wrapper.unmount();

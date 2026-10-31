@@ -127,7 +127,7 @@ describe("inbox page", () => {
     ]);
     // Each way to start has one action.
     expect(rows.map((row) => row.findAll("a").length)).toEqual([1, 1, 1]);
-    expect(rows[0]?.find("a").attributes("href")).toBe("/settings?add=device");
+    expect(rows[0]?.find("a").attributes("href")).toBe("/settings?add=device&kind=zen");
     expect(rows[1]?.find("a").attributes("href")).toContain("ios-shortcut.md");
     expect(rows[2]?.find("a").attributes("href")).toContain("mcp-connector.md");
 
@@ -136,6 +136,39 @@ describe("inbox page", () => {
     expect(wrapper.find("[role=radiogroup]").exists()).toBe(false);
     expect(wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
     expect(wrapper.find("[data-slot=empty-state]").exists()).toBe(false);
+  });
+
+  it("doesn't take a returning user for a new one when a feed is empty", async () => {
+    const old = Fixtures.link("a", { createdAt: "2026-01-01T00:00:00.000Z", status: "seen" });
+    // Nothing is unseen, and nothing is from the last 30 days.
+    const routes: ApiTesting.Routes = {
+      "GET /devices": () => ApiTesting.json(devices),
+      "GET /links": (request) => Fixtures.page(Fixtures.query(request).seen ? [] : [old]),
+    };
+    const { wrapper } = await mountAt("/links", routes);
+    expect(titles(wrapper)).toEqual(["Example article a"]);
+
+    await radio(wrapper, "Not yet seen")?.trigger("click");
+    await settle();
+
+    expect(wrapper.find("[data-slot=start-saving]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=empty-state]").text()).toContain("All caught up");
+    // The feed switch stays, so there is a way back.
+    expect(wrapper.findAll("[role=radio]")).toHaveLength(3);
+  });
+
+  it("doesn't take archiving everything for a first run", async () => {
+    const archived = Fixtures.link("a", {
+      createdAt: "2026-01-01T00:00:00.000Z",
+      status: "archived",
+    });
+    const { wrapper } = await mountAt(
+      "/links",
+      listing({ first: Fixtures.page([archived]) }).routes,
+    );
+
+    expect(wrapper.find("[data-slot=start-saving]").exists()).toBe(false);
+    expect(wrapper.findAll("[role=radio]")).toHaveLength(3);
   });
 
   it("has one primary action, and no row of raised filters", async () => {
@@ -326,6 +359,27 @@ describe("save a link", () => {
     await submit(wrapper, "  example.com/new ");
     await settle();
     expect(api.posts).toEqual([{ url: "https://example.com/new" }]);
+  });
+
+  it.each(["localhost:3000/a", "example.com:8080/a"])(
+    "reads %s as a host and port",
+    async (text) => {
+      const api = saving();
+      const { wrapper } = await mountAt("/links", api.routes);
+
+      await submit(wrapper, text);
+      await settle();
+      expect(api.posts).toEqual([{ url: `https://${text}` }]);
+    },
+  );
+
+  it.each(["not a link", "mailto:someone@example.com"])("refuses %s", async (text) => {
+    const api = saving();
+    const { wrapper } = await mountAt("/links", api.routes);
+
+    await submit(wrapper, text);
+    await settle();
+    expect(api.posts).toEqual([]);
   });
 
   it("refuses what isn't a link without calling the api", async () => {
