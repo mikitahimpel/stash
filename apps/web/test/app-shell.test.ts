@@ -52,6 +52,22 @@ const mountApp = async (path = "/", signedIn = true) => {
   return { wrapper, router, registry, keyboard, network };
 };
 
+// The accessible name of a control: `aria-label`, or its text without the aria-hidden parts.
+const accessibleName = (control: DOMWrapper<Element>) => {
+  const label = control.attributes("aria-label");
+  if (label !== undefined) return label;
+  const clone = control.element.cloneNode(true) as Element;
+  for (const hidden of clone.querySelectorAll("[aria-hidden=true]")) hidden.remove();
+  return (clone.textContent ?? "").trim();
+};
+
+const body = (wrapper: { element: Element }) => new DOMWrapper(wrapper.element.ownerDocument.body);
+
+const openAccountMenu = async (wrapper: ReturnType<typeof mount>) => {
+  await wrapper.find("[data-test=account-menu]").trigger("keydown", { key: "Enter" });
+  await flushPromises();
+};
+
 const run = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect);
 
 describe("app router", () => {
@@ -224,7 +240,7 @@ describe("cached pages", () => {
 describe("app shell", () => {
   it("mounts with the nav and the current page", async () => {
     const { wrapper } = await mountApp();
-    const labels = wrapper.findAll("nav").map((nav) => nav.findAll("a").map((a) => a.text()));
+    const labels = wrapper.findAll("nav").map((nav) => nav.findAll("a").map(accessibleName));
     expect(labels).toEqual([["Inbox", "Open now", "Search", "Settings"]]);
     expect(wrapper.find("main h1").text()).toBe("Inbox");
   });
@@ -238,20 +254,28 @@ describe("app shell", () => {
   ])("marks the section of %s as the current page", async (path, label) => {
     const { wrapper } = await mountApp(path);
     const current = wrapper.findAll("nav[aria-label=Main] a[aria-current=page]");
-    expect(current.map((a) => a.text())).toEqual([label]);
+    expect(current.map(accessibleName)).toEqual([label]);
   });
 
-  it("shows the network state as the sync status", async () => {
+  it("keeps the sync status in the account menu, and marks the button when offline", async () => {
     const { wrapper, network } = await mountApp();
-    const status = wrapper.find("[data-testid=sync-status]");
-    expect(status.text()).toBe("online");
+    const attention = () => wrapper.find("[data-test=account-attention]");
+    expect(wrapper.find("header").text()).not.toContain("online");
+    expect(attention().exists()).toBe(false);
+    await openAccountMenu(wrapper);
+    const status = body(wrapper).find("[data-testid=sync-status]");
+    expect(status.text()).toBe("Online");
     await run(Context.get(network, PlatformTesting.TestNetwork).setOnline(false));
-    await vi.waitFor(() => expect(status.text()).toBe("offline"));
+    await vi.waitFor(() => expect(status.text()).toBe("Offline"));
+    expect(attention().exists()).toBe(true);
+    expect(wrapper.find("[data-test=account-menu]").attributes("aria-label")).toBe(
+      "Account (offline)",
+    );
   });
 
   it("navigates when a nav link is clicked", async () => {
     const { wrapper, router } = await mountApp();
-    const search = wrapper.findAll("nav a").find((a) => a.text() === "Search");
+    const search = wrapper.findAll("nav a").find((a) => accessibleName(a) === "Search");
     await search?.trigger("click");
     // The search page is lazy-loaded, and its first import can take longer than a flush.
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/search"), {
@@ -284,9 +308,9 @@ describe("shortcuts", () => {
     );
   });
 
-  it("the Search button navigates to search and focuses its field", async () => {
+  it("the Search tab navigates to search and focuses its field", async () => {
     const { wrapper, router, keyboard } = await mountApp("/links");
-    await wrapper.find("button[aria-keyshortcuts]").trigger("click");
+    await wrapper.find("a[aria-keyshortcuts]").trigger("click");
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("search"), {
       timeout: 10_000,
     });
@@ -313,19 +337,16 @@ describe("shortcuts", () => {
   });
 });
 
-describe("theme menu", () => {
-  it("picks system, light or dark through the theme service", async () => {
+describe("theme switch", () => {
+  it("picks system, light or dark from the account menu", async () => {
     const { wrapper, registry } = await mountApp("/links");
-    const trigger = () => wrapper.find("[data-test=theme-menu]");
-    expect(trigger().attributes("aria-label")).toBe("Theme: system");
     for (const [preference, label, scheme] of [
       ["light", "Light", "light"],
       ["dark", "Dark", "dark"],
       ["system", "System", "light"],
     ] as const) {
-      await trigger().trigger("keydown", { key: "Enter" });
-      const body = new DOMWrapper(wrapper.element.ownerDocument.body);
-      const options = body.findAll("[role=menuitemradio]");
+      await openAccountMenu(wrapper);
+      const options = body(wrapper).findAll("[role=menuitemradio]");
       expect(options.map((option) => option.text())).toEqual(["System", "Light", "Dark"]);
       await options.find((option) => option.text() === label)?.trigger("click");
       await vi.waitFor(() =>
@@ -335,7 +356,6 @@ describe("theme menu", () => {
         }),
       );
       await flushPromises();
-      expect(trigger().attributes("aria-label")).toBe(`Theme: ${preference}`);
     }
   });
 });
@@ -356,16 +376,35 @@ describe("header controls", () => {
     }
   });
 
-  it("opens Settings from the account menu", async () => {
-    const { wrapper, router } = await mountApp("/links");
-    await wrapper.find("[data-test=account-menu]").trigger("keydown", { key: "Enter" });
-    const body = new DOMWrapper(wrapper.element.ownerDocument.body);
-    const items = body.findAll("[role=menuitem]");
-    expect(items.map((item) => item.text())).toEqual(["Settings", "Sign out"]);
-    await items[0]?.trigger("click");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("settings"), {
-      timeout: 10_000,
+  it("has exactly one Search entry point and one account menu", async () => {
+    const { wrapper } = await mountApp("/links");
+    const names = wrapper.find("header").findAll("button, a").map(accessibleName);
+    expect(names).toEqual(["stash", "Inbox", "Open now", "Search", "Settings", "Account"]);
+    expect(wrapper.find("nav a[aria-keyshortcuts]").text()).toContain("⌘K");
+  });
+
+  it("holds the theme switch, the sync status and Sign out in the account menu", async () => {
+    const { wrapper } = await mountApp("/links");
+    await openAccountMenu(wrapper);
+    const menu = body(wrapper).find("[role=menu]");
+    expect(menu.findAll("[role=menuitemradio]")).toHaveLength(3);
+    expect(menu.find("[data-testid=sync-status]").exists()).toBe(true);
+    expect(menu.findAll("[role=menuitem]").map((item) => item.text())).toEqual(["Sign out"]);
+  });
+
+  it("shows the initial of the login on the account button", async () => {
+    const registry = AppRegistry.make({
+      transport: ApiTesting.layer({
+        "GET /auth/me": () => ApiTesting.json({ kind: "user", login: "example-user" }),
+      }),
+      theme: theme(),
     });
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push("/settings");
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    await vi.waitFor(() => expect(wrapper.find("[data-test=account-initial]").text()).toBe("E"));
   });
 });
 

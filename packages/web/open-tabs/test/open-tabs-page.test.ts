@@ -241,14 +241,32 @@ describe("open-tabs-page", () => {
     );
   });
 
-  it("shows an empty state without devices, and without tabs", async () => {
+  it("offers the devices without any, and shows an empty state without tabs", async () => {
     const none = await mountPage({ "GET /tabs": () => ApiTesting.json(Fixtures.allTabs()) });
-    expect(none.wrapper.find("[data-state=empty]").text()).toContain("No devices");
+    const card = none.wrapper.find("[data-slot=start-saving]");
+    expect(card.find("h2").text()).toBe("Connect a device");
+    expect(card.findAll("li").map((row) => row.find("span").text())).toEqual([
+      "Zen extension",
+      "iPhone",
+    ]);
+    // One action per kind of device, and no second Add device in the page header.
+    expect(card.findAll("li").map((row) => row.find("a").text())).toEqual(["Add Zen", "Add Mac"]);
+    expect(none.wrapper.find("[data-slot=page-header-actions]").exists()).toBe(false);
+    expect(none.wrapper.find("[data-slot=tab-age-chart]").exists()).toBe(false);
+    expect(none.wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
     none.wrapper.unmount();
     const empty = await mountPage({
       "GET /tabs": () => ApiTesting.json(Fixtures.allTabs(Fixtures.deviceTabs("laptop", null))),
     });
     expect(empty.wrapper.find("[data-state=empty]").text()).toContain("No open tabs");
+    expect(empty.wrapper.find("[data-slot=tab-age-chart]").exists()).toBe(false);
+  });
+
+  it("has Add device as its one primary action", async () => {
+    const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
+    const header = wrapper.find("[data-slot=page-header-actions]");
+    expect(header.text()).toBe("Add device");
+    expect(wrapper.findAll(".tactile-primary").map((el) => el.text())).toEqual(["Add device"]);
   });
 
   it("shows a skeleton after 200 ms, then an error state with Retry when the tabs can't load", async () => {

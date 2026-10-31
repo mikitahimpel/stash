@@ -4,6 +4,7 @@ import type * as SearchGroup from "@stash/contracts-api/search";
 import type * as Link from "@stash/contracts-domain/link";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
+import FilterMenu from "@stash/web-ui/filter-menu";
 import Kbd from "@stash/web-ui/kbd";
 import PageHeader from "@stash/web-ui/page-header";
 import SearchField from "@stash/web-ui/search-field";
@@ -13,10 +14,11 @@ import ToggleChip from "@stash/web-ui/toggle-chip";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import SearchResultRow from "./results/search-result-row.vue";
 import * as SearchAtoms from "./search-atoms.ts";
 import * as SearchRequest from "./search-request.ts";
+import * as MatchTimelineLayout from "./timeline/match-timeline-layout.ts";
 import MatchTimeline from "./timeline/match-timeline.vue";
 
 const registry = injectRegistry();
@@ -29,6 +31,8 @@ const saved = useAtomValue(() => SearchAtoms.saved);
 const markSeen = useAtomSet(() => SearchAtoms.markSeen);
 
 const qModel = computed({ get: () => q.value, set: setQ });
+// Until something is typed the page is just the field.
+const searching = computed(() => q.value.trim() !== "");
 const modeModel = computed({
   get: () => mode.value,
   set: (value: SearchGroup.SearchMode) => setMode(value),
@@ -65,6 +69,13 @@ const toPoint = (link: Link.Link) => ({
 const now = Date.now();
 const matchPoints = computed(() => (hits.value ?? []).map((hit) => toPoint(hit.link)));
 const savedPoints = computed(() => savedLinks.value.map(toPoint));
+const timeline = computed(() =>
+  MatchTimelineLayout.plottable(matchPoints.value, savedPoints.value),
+);
+const typeOptions = SearchRequest.types.map((value) => ({
+  value,
+  label: SearchRequest.typeLabels[value],
+}));
 
 // The keyboard moves through the results by focusing their links, so ↵ opens one natively and S
 // (outside the search field) marks it seen. ↑ on the first result goes back to the field.
@@ -78,6 +89,8 @@ watch(hits, () => {
 
 const list = ref<HTMLElement | null>(null);
 const field = ref<HTMLElement | null>(null);
+const focusField = () => field.value?.querySelector<HTMLElement>("input")?.focus();
+onMounted(focusField);
 const resultLink = (index: number) =>
   list.value?.querySelectorAll<HTMLElement>("a[data-result-link]")[index];
 
@@ -103,7 +116,7 @@ const onKeydown = (event: KeyboardEvent) => {
     event.preventDefault();
     if (selectedIndex.value <= 0) {
       selectedId.value = null;
-      field.value?.querySelector<HTMLElement>("input")?.focus();
+      focusField();
     } else void select(selectedIndex.value - 1);
   } else if (event.key === "Enter" && inField && hits.value?.length) {
     event.preventDefault();
@@ -132,22 +145,25 @@ const onFocusin = (event: FocusEvent) => {
         <SearchField
           v-model="qModel"
           class="h-12 sm:h-12"
-          v-bind="{ 'aria-label': 'Search links', autofocus: true }"
+          v-bind="{ 'aria-label': 'Search links', placeholder: 'Try: that video about economics' }"
         />
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div v-if="searching" class="flex flex-wrap items-center gap-2">
         <SegmentedControl v-model="modeModel" :options="SearchRequest.modes" label="Search mode" />
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Type">
-          <ToggleChip
-            v-for="option in SearchRequest.types"
-            :key="option"
-            :pressed="type === option"
-            @update:pressed="(on: boolean) => setType(on ? option : '')"
-          >
-            {{ SearchRequest.typeLabels[option] }}
-          </ToggleChip>
-        </div>
-        <div v-if="tags.length > 0" class="flex flex-wrap gap-2" role="group" aria-label="Tag">
+        <FilterMenu
+          label="Type"
+          :options="typeOptions"
+          :model-value="type"
+          @update:model-value="setType"
+        />
+        <!-- Its own line, with the text of the first chip on the content edge. One line on phones:
+             it scrolls on its own, out to the edge of the screen. -->
+        <div
+          v-if="tags.length > 0"
+          class="-ml-2.5 flex w-[calc(100%+0.625rem)] gap-1 overflow-x-auto [scrollbar-width:none] max-sm:-mr-4 max-sm:w-[calc(100%+1.625rem)] max-sm:pr-4 sm:flex-wrap"
+          role="group"
+          aria-label="Tag"
+        >
           <ToggleChip
             v-for="name in tags"
             :key="name"
@@ -162,19 +178,14 @@ const onFocusin = (event: FocusEvent) => {
     </form>
 
     <MatchTimeline
+      v-if="timeline"
       :now="now"
       :matches="matchPoints"
       :saved="savedPoints"
       :selected="selectedId ?? undefined"
     />
 
-    <EmptyState
-      v-if="results === null"
-      title="Find a link"
-      description="Search titles, summaries and page text of everything you saved."
-    />
-
-    <div v-else-if="loading" class="flex flex-col gap-3" aria-busy="true">
+    <div v-if="loading" class="flex flex-col gap-3" aria-busy="true">
       <div v-if="skeleton" data-testid="search-loading" class="flex flex-col gap-3">
         <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
       </div>
@@ -201,7 +212,8 @@ const onFocusin = (event: FocusEvent) => {
     </ul>
 
     <footer
-      class="hidden flex-wrap items-center gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground sm:flex"
+      v-if="hits !== null && hits.length > 0"
+      class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:flex"
     >
       <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
       <span class="flex items-center gap-1.5"><Kbd>↵</Kbd> open</span>

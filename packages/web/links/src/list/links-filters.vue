@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import * as Link from "@stash/contracts-domain/link";
+import FilterMenu from "@stash/web-ui/filter-menu";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
 import ToggleChip from "@stash/web-ui/toggle-chip";
@@ -17,27 +18,28 @@ const feeds: ReadonlyArray<SegmentedControlOption<LinksAtoms.Feed>> = [
   { value: "recent", label: "Recent" },
   { value: "all", label: "All" },
 ];
+
+const types = Link.LinkType.literals.map((value) => ({
+  value,
+  label: LinkDisplay.typeLabels[value],
+}));
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-wrap items-center gap-2">
     <SegmentedControl
       label="Feed"
       :options="feeds"
       :model-value="filters.feed"
-      class="self-start"
       @update:model-value="(feed) => update({ feed })"
     />
     <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
-      <ToggleChip
-        v-for="type in Link.LinkType.literals"
-        :key="type"
-        :pressed="filters.type === type"
-        :data-filter-type="type"
-        @update:pressed="(on) => update({ type: on ? type : undefined })"
-      >
-        {{ LinkDisplay.typeLabels[type] }}
-      </ToggleChip>
+      <FilterMenu
+        label="Type"
+        :options="types"
+        :model-value="filters.type ?? ''"
+        @update:model-value="(type) => update({ type: type === '' ? undefined : type })"
+      />
       <ToggleChip
         v-if="filters.tag !== undefined"
         pressed

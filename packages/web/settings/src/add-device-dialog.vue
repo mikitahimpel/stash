@@ -13,7 +13,12 @@ import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-opt
 import { computed, ref, watch } from "vue";
 import * as SettingsRows from "./settings-rows.ts";
 
-const props = defineProps<{ pending: boolean; error: string | undefined }>();
+const props = defineProps<{
+  pending: boolean;
+  error: string | undefined;
+  /** The kind picked when it opens. Zen by default. */
+  initialKind?: Device.DeviceKind | undefined;
+}>();
 const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{ submit: [device: Devices.RegisterDevice] }>();
 
@@ -29,7 +34,7 @@ const valid = computed(() => trimmed.value.length > 0 && trimmed.value.length <=
 watch(open, (isOpen) => {
   if (isOpen) {
     name.value = "";
-    kind.value = "zen";
+    kind.value = props.initialKind ?? "zen";
   }
 });
 

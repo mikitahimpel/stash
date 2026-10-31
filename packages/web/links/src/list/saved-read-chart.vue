@@ -29,36 +29,12 @@ const bars = computed(() => {
   });
 });
 
-// The page subtitle shows the same line, so the chart only carries it in its label.
+// The chart carries the counts only in its label: the page subtitle shows them.
 const summary = computed(() => SavedRead.summary(props.history));
 </script>
 
 <template>
   <figure data-slot="saved-read-chart" class="flex flex-col gap-2">
-    <figcaption
-      class="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground"
-    >
-      <span class="flex items-center gap-3" aria-hidden="true">
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
-            <rect width="8" height="8" class="fill-muted-foreground opacity-35" />
-          </svg>
-          read
-        </span>
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
-            <rect width="8" height="8" class="fill-muted-foreground" />
-          </svg>
-          unread
-        </span>
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
-            <rect width="8" height="8" class="fill-signal opacity-45" />
-          </svg>
-          unread today
-        </span>
-      </span>
-    </figcaption>
     <svg
       role="img"
       :aria-label="`${summary}. One bar per day, oldest first.`"
@@ -100,5 +76,27 @@ const summary = computed(() => SavedRead.summary(props.history));
         />
       </g>
     </svg>
+    <figcaption class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <span class="flex items-center gap-3" aria-hidden="true">
+        <span class="flex items-center gap-1.5">
+          <svg viewBox="0 0 8 8" class="size-2">
+            <rect width="8" height="8" class="fill-muted-foreground opacity-35" />
+          </svg>
+          read
+        </span>
+        <span class="flex items-center gap-1.5">
+          <svg viewBox="0 0 8 8" class="size-2">
+            <rect width="8" height="8" class="fill-muted-foreground" />
+          </svg>
+          unread
+        </span>
+        <span class="flex items-center gap-1.5">
+          <svg viewBox="0 0 8 8" class="size-2">
+            <rect width="8" height="8" class="fill-signal opacity-45" />
+          </svg>
+          unread today
+        </span>
+      </span>
+    </figcaption>
   </figure>
 </template>

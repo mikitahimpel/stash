@@ -1,9 +1,9 @@
 // `pnpm --filter @stash/web screenshots`: boots the api under `alchemy dev` (no credentials) on its
 // own stage and ports, seeds synthetic data and a session through the dev-only `/_smoke/*` routes,
 // runs the Vite dev server against it (proxying `/api`), and captures every page with headless
-// Chromium in both themes at desktop and phone width into `docs/screenshots/`. On the way it checks
-// that no page scrolls sideways and that every button has an accessible name, and exits 1 if one
-// does.
+// Chromium in both themes at desktop and phone width into `docs/screenshots/`, seeded and as a
+// first-run user with no data (`*-empty-*.png`). On the way it checks that no page scrolls sideways
+// and that every button has an accessible name, and exits 1 if one does.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as Fs from "node:fs";
@@ -35,6 +35,8 @@ interface View {
   readonly prepare: (page: Page) => Promise<void>;
   /** Where a long page is cut (px). The gallery is shown whole. */
   readonly maxHeight?: number;
+  /** Shows the page as a first-run user sees it: the api answers with no data. */
+  readonly empty?: boolean;
 }
 
 const views: ReadonlyArray<View> = [
@@ -64,6 +66,34 @@ const views: ReadonlyArray<View> = [
     path: "/settings",
     signedIn: true,
     prepare: (page) => page.locator("[data-test=device]").first().waitFor(),
+  },
+  {
+    name: "inbox-empty",
+    path: "/links",
+    signedIn: true,
+    empty: true,
+    prepare: (page) => page.locator("[data-slot=start-saving]").waitFor(),
+  },
+  {
+    name: "open-now-empty",
+    path: "/open-now",
+    signedIn: true,
+    empty: true,
+    prepare: (page) => page.locator("[data-slot=start-saving]").waitFor(),
+  },
+  {
+    name: "search-empty",
+    path: "/search",
+    signedIn: true,
+    empty: true,
+    prepare: (page) => page.getByRole("searchbox", { name: "Search links" }).waitFor(),
+  },
+  {
+    name: "settings-empty",
+    path: "/settings",
+    signedIn: true,
+    empty: true,
+    prepare: (page) => page.locator("[data-test=no-devices]").waitFor(),
   },
   {
     name: "login",
@@ -145,6 +175,23 @@ const unnamedButtons = `[...document.querySelectorAll('button, [role=button], a[
     && !(el.getAttribute('title') || '').trim())
   .map((el) => el.outerHTML.slice(0, 160))`;
 
+// What the api answers a first-run user. The seed lives in one local D1 shared by every view, so
+// the empty views get these answers in the browser instead.
+const emptyAnswers: Readonly<Record<string, unknown>> = {
+  "/api/links": { items: [], nextCursor: null },
+  "/api/tabs": { devices: [] },
+  "/api/devices": [],
+  "/api/tokens": [],
+};
+
+const answerEmpty = (page: Page) =>
+  page.route("**/api/**", (route) => {
+    const answer = emptyAnswers[new URL(route.request().url()).pathname];
+    return route.request().method() === "GET" && answer !== undefined
+      ? route.fulfill({ json: answer })
+      : route.fallback();
+  });
+
 const capture = async (browser: Browser, sessionToken: string): Promise<Array<string>> => {
   const problems: Array<string> = [];
   for (const theme of themes) {
@@ -163,6 +210,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
           ]);
         }
         const page = await context.newPage();
+        if (view.empty) await answerEmpty(page);
         await page.goto(`${webUrl}${view.path}`);
         await view.prepare(page).catch(async (error: unknown) => {
           // Keep the page as it was, to see why it never got ready.

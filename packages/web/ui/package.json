@@ -44,6 +44,7 @@
     "./empty-state": "./src/empty-state/empty-state.vue",
     "./error-state": "./src/error-state/error-state.vue",
     "./use-delayed-loading": "./src/delayed-loading/use-delayed-loading.ts",
+    "./filter-menu": "./src/filter-menu/filter-menu.vue",
     "./kbd": "./src/kbd/kbd.vue",
     "./list-row": "./src/list-row/list-row.vue",
     "./page-header": "./src/page-header/page-header.vue",
@@ -51,7 +52,6 @@
     "./section-header": "./src/section-header/section-header.vue",
     "./segmented-control": "./src/segmented-control/segmented-control.vue",
     "./segmented-control-option": "./src/segmented-control/segmented-control-option.ts",
-    "./segmented-control-variants": "./src/segmented-control/segmented-control-variants.ts",
     "./text-link": "./src/text-link/text-link.vue",
     "./toggle-chip": "./src/toggle-chip/toggle-chip.vue"
   },

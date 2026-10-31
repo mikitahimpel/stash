@@ -86,8 +86,8 @@ not a text color for body copy. Keep color tokens as `#rrggbb` so the test can r
 
 ## Layout rules (visual polish, #125)
 
-These refine the spec above. Where they differ (the page heading size, the header's right side),
-they win.
+These refine the spec above and include the hierarchy pass of #135. Where they differ (the page
+heading size, the header, the width, the row height, chips and control heights), they win.
 
 ### Spacing scale
 
@@ -100,56 +100,105 @@ Every gap, padding and margin is one of **4 · 8 · 12 · 16 · 24 · 32 · 48 p
 | 8 | chips and buttons in a row, cluster items in the header |
 | 12 | row padding (`px-3`), a section header and its first row |
 | 16 | side padding on phones |
-| 24 | blocks on a page (`gap-6`), side padding from `sm` up |
+| 24 | blocks and sections on a page (`gap-6`), side padding from `sm` up |
 | 32 | top of the content under the header (`sm:pt-8`) |
-| 48 | between the sections of Settings, empty and error states (`py-12`) |
+| 48 | between the page header and the content, empty and error states (`py-12`) |
+
+### Page content
+
+Page content is at most **960px** wide, centred, with the header on the same width. **48px** lies
+between the page header and the content, and **24px** between sections (Settings included). Mono is
+only for metadata inside rows and data graphics (hosts, ages, counts, axis labels), never for
+page-level text such as subtitles, legends or shortcut hints.
 
 ### Page header
 
 Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as the page's only
-`h1`, **20px/600**, and under it one mono 12px line of counts in muted foreground
-(`17 tabs · 3 devices · 6 older than 7 days`). Sections inside a page keep `<SectionHeader>`
-(14px/500). The subtitle appears once the data has loaded; before that the title stands alone.
+`h1`, **28px/600**, tight tracking, and under it one regular-sans muted line
+(`6 unread · 30 saved in 30 days`). The line appears once there is something to count, so a
+first-run page has the title alone. The page's **primary action** sits on the right, in the
+`#actions` slot: Inbox has the Save a link field (sunken input and primary Save; Enter submits, and
+the new row shows at once), Open now has Add device (except on its onboarding card, which offers
+it per device), Search and Settings have none. On phones it takes its own full-width line under
+the title. Sections inside a page keep `<SectionHeader>`
+(14px/500). `PageHeader` carries its own 24px bottom margin, which adds to the page's `gap-6`.
+
+### Control hierarchy
+
+Weight follows importance, so filters never look like navigation:
+
+| Control | Look |
+|---|---|
+| Navigation | plain text tabs |
+| Primary action | `primary` key, **at most one per screen** |
+| Real actions | `raised` keys |
+| View switch | `SegmentedControl`, small: 32px (40px touch target on phones) |
+| One-of-many filter | one compact `FilterMenu` (`Type: Any ▾`), borderless |
+| Toggle filters (tags, devices) | `ToggleChip`: borderless text, subtle hover, `bg-hairline` when on |
+
+Raised styling is for real actions. Never a row of raised filter buttons.
 
 ### Rows
 
-List rows are at least **44px** tall (`ListRow` has `min-h-11`). On phones metadata wraps under
+List rows are at least **52px** tall (`ListRow` has `min-h-13`). On phones metadata wraps under
 the title instead of squeezing beside it. Section headers start at the content edge, like the page
 title; row content is inset by the `ListRow` padding (12px). Where a page has controls at the end
 of its rows (Settings), every row and section control ends on that same 12px inset.
 
 ### Data graphics
 
-Each chart's summary line is the page subtitle, not a second mono line above the chart; the chart
-keeps its legend. The Search timeline fits its axis to the data instead of a fixed 12 months: from
+A data graphic renders only with data: **below 3 data points it shows nothing**, not an empty axis.
+For the Inbox chart a data point is a day with saved links. For the Search timeline it is a distinct
+link on the axis, and it needs at least one match, so there is none without a query. The Open now
+chart goes when no tab is left to draw. Legends sit directly under or beside their chart, never at
+the far edge. Each chart's counts are in the page subtitle, not in a second line above the chart.
+The Search timeline fits its axis to the data instead of a fixed 12 months: from
 the oldest link shown (at least 30 days, at most 12 months back) to now, with weekly ticks
 (`Oct 5`) up to about three months and month ticks beyond. On phones every other tick label is
 dropped once there are more than six, and rank numbers that would collide move to another lane.
 
 ### Empty and error states
 
-`<EmptyState>` and `<ErrorState>` are centred in the content area with `py-12`: a 14px/500 title,
-one muted line that says why the area is empty or what failed, and, where there is one, an action
-(Retry, Clear filter, Add a device). No illustration beyond an optional 20px icon.
+An empty page says how to start. `<StartSavingCard>` (`@stash/web-settings/start-saving-card`) is
+the first-run state: a surface card with a title and one row per way to start, each with a single
+action. The Inbox shows "Start saving" (Zen extension, iPhone, Claude) when nothing is saved, without
+the filters. Open now shows "Connect a device" (Zen extension, iPhone through a Mac) when no device exists. A
+device action goes to `/settings?add=device&kind=<kind>`, which opens the dialog that creates the
+token, on that kind. The card appears only when nothing is saved at all, of any status or age: an
+empty feed alone says nothing about that. The doc links open
+`/docs/ios-shortcut.md` and `/docs/mcp-connector.md`, which `apps/web` publishes from `docs/` at
+build time. Search with no query is just the focused field with a muted example query.
+
+A section of a page that is empty stays one compact row (`No devices yet` in Settings), with the
+action in its section header. No section repeats that action.
+
+`<EmptyState>` and `<ErrorState>` cover the rest (nothing matches a filter, a failed load). They are
+centred in the content area with `py-12`: a 14px/500 title, one muted line that says why the area is
+empty or what failed, and, where there is one, an action (Retry, Clear filter). No
+illustration beyond an optional 20px icon.
 
 ### App header
 
-- Same max width (1040px) and side padding as `<main>`, 56px tall, sticky, hairline below.
-- Left: wordmark, then the nav (a SegmentedControl of links).
-- Right: **one cluster**, in this order: sync status (an 8px dot plus mono `online` / `offline`;
-  the dot turns accent when offline; a tooltip explains it), Search with `⌘K`, the theme menu
-  (System / Light / Dark as radio items, the trigger shows the current one's icon), and the
-  account menu (Settings, Sign out).
+One quiet row, with the same max width (960px) and side padding as `<main>`, 56px tall, sticky,
+hairline below.
+
+- Left: wordmark, then the nav as plain text tabs (Inbox, Open now, Search, Settings) with a 2px
+  underline on the active one, no tray and no borders. The Search tab carries the `⌘K` hint as a
+  muted `kbd`, and it is the only Search entry point.
+- Right: **one account menu button** (the login's initial on a round avatar) holding the theme
+  switch (System / Light / Dark as radio items), the sync status and Sign out. An 8px accent dot on
+  the button appears only when offline; otherwise the status stays in the menu.
 - Every icon-only control has an accessible name (`aria-label`) and a tooltip (`title`).
 
 ### Phone (< 640px)
 
 - No horizontal scroll at 390px on any page.
-- The nav moves to a **bottom bar**: the same SegmentedControl, full width, fixed above the home
-  indicator (`env(safe-area-inset-bottom)`). `<main>` pads its bottom so content clears it.
-- The header keeps the wordmark and the cluster: the sync status shows only its dot, and Search is
-  an icon key (its label stays for screen readers).
+- The nav moves to a **bottom bar**: the same text tabs, full width, fixed above the home indicator
+  (`env(safe-area-inset-bottom)`). `<main>` pads its bottom so content clears it. The `⌘K` hint is
+  hidden.
+- The header keeps the wordmark and the account button.
 - Keyboard shortcut footers are hidden.
+- A row of chips stays on one line and scrolls on its own, out to the edge of the screen.
 
 ### Screenshots
 
@@ -157,7 +206,9 @@ one muted line that says why the area is empty or what failed, and, where there 
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
 `/_smoke/session` routes, runs Vite against it and captures every page (Inbox, Open now, Search
 with results, Settings, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
-[`docs/screenshots/`](screenshots/). Before each capture the viewport grows to the page's height,
+[`docs/screenshots/`](screenshots/). Inbox, Open now, Search and Settings are also captured as a
+first-run user with no data (`inbox-empty-light-desktop.png` and so on), with the browser answering
+the data requests with empty results. Before each capture the viewport grows to the page's height,
 so the phone's bottom nav sits at the bottom of the picture as on a screen. Pages are cut at
 2000px, except `/_ui`, which is captured whole. It fails when a page
 scrolls sideways or a button has no accessible name. Chromium needs its system libraries
@@ -194,12 +245,13 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
 | Spec | `@stash/web-ui` export |
 |---|---|
 | Button (`raised`, `primary`, `ghost`) | `button`, `button-variants` |
-| SegmentedControl | `segmented-control` (radio group; arrow keys, Home and End move the selection), `segmented-control-variants` (its classes, for a nav of links such as the app header) |
-| ToggleChip | `toggle-chip` (`v-model:pressed`, `aria-pressed`) |
+| SegmentedControl | `segmented-control` (radio group; arrow keys, Home and End move the selection) |
+| ToggleChip | `toggle-chip` (`v-model:pressed`, `aria-pressed`), quiet: see "Control hierarchy" |
+| FilterMenu | `filter-menu` (`label`, `options`, `v-model`, `""` for Any): the compact `Type: Any ▾` |
 | Input / SearchField | `input`, `search-field` (`shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (`selected`, `#actions` row action bar) |
 | PageHeader | `page-header` (`title`, `subtitle`, `#actions`): the page's `h1` |
 | SectionHeader | `section-header` (`title`, `count`, `#actions`) |
 | Link | `text-link` |
-| Menu | `dropdown-menu*`, with `dropdown-menu-radio-group` / `dropdown-menu-radio-item` for a choice (the header's theme menu) |
+| Menu | `dropdown-menu*`, with `dropdown-menu-radio-group` / `dropdown-menu-radio-item` for a choice (the theme switch in the account menu, `filter-menu`) |

@@ -10,11 +10,11 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Inbox: feeds (not yet seen, recent, all), 30-day saved/read chart, tag and type filters, status actions and keys |
+| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), 30-day saved/read chart, tag and type filters, status actions and keys |
 | `search/` | `@stash/web-search` | Search page (semantic and keyword) |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
-| `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens |
-| `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (Settings, Sign out) |
+| `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens, first-run onboarding card (used by Inbox and Open now) |
+| `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (a slot for the app's entries, Sign out) |
 | `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): tokens, Geist, primitives |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
 | `platform/` | `@stash/web-platform` | Web APIs as Effect services |
@@ -60,8 +60,9 @@ layers.
   cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
-- A page starts with `<PageHeader>` (title plus a mono line of counts) and uses the spacing scale
-  from [docs/design.md](../../docs/design.md) ("Layout rules").
+- A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
+  uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
+  rules"). At most one `primary` key per screen.
 - Shared visual components go in `@stash/web-ui`. Feature-specific components stay in the feature.
 - Component files are kebab-case too: `link-card.vue`, used as `<LinkCard />`.
 

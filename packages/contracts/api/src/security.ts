@@ -3,8 +3,14 @@ import { Context, Schema } from "effect";
 import { HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import * as ErrorStatuses from "./error-statuses.ts";
 
-/** The signed-in user, authenticated by the web session cookie. */
-export const UserPrincipal = Schema.Struct({ kind: Schema.Literal("user") });
+/**
+ * The signed-in user, authenticated by the web session cookie. `login` is their GitHub login, when
+ * the session knows it (the web header shows its initial).
+ */
+export const UserPrincipal = Schema.Struct({
+  kind: Schema.Literal("user"),
+  login: Schema.optionalKey(Schema.String),
+});
 export type UserPrincipal = typeof UserPrincipal.Type;
 
 /** A device, authenticated by its API token. */

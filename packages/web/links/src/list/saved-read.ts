@@ -26,9 +26,20 @@ export interface History {
 
 const isRead = (status: Link.LinkStatus) => status === "seen" || status === "done";
 
-/** The history in one line, for the page subtitle and the chart's label. */
+/** The history in one line, for the chart's label. */
 export const summary = (history: History): string =>
   `${history.saved} saved · ${history.read} read · ${history.unread} unread · last ${days} days`;
+
+/** The history in short, for the page subtitle. */
+export const headline = (history: History): string =>
+  `${history.unread} unread · ${history.saved} saved in ${days} days`;
+
+/** Below this many days with a bar the chart shows no trend, so it stays off the page. */
+export const minDays = 3;
+
+/** Whether there is enough to plot. */
+export const plottable = (history: History): boolean =>
+  history.days.filter((day) => day.saved > 0).length >= minDays;
 
 /** Counts the links saved in the last `days` days, per day and in total. Archived links count as saved only. */
 export const history = (

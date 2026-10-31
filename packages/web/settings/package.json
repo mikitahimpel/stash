@@ -7,7 +7,8 @@
   "exports": {
     "./routes": "./src/routes.ts",
     "./settings-atoms": "./src/settings-atoms.ts",
-    "./theme-atoms": "./src/theme-atoms.ts"
+    "./theme-atoms": "./src/theme-atoms.ts",
+    "./start-saving-card": "./src/start-saving-card.vue"
   },
   "scripts": {
     "lint": "oxlint .",

@@ -2,10 +2,12 @@
 import * as AtomVue from "@effect/atom-vue";
 import { Inbox } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
+import StartSavingCard from "@stash/web-settings/start-saving-card";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
+import ListRow from "@stash/web-ui/list-row";
 import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
@@ -21,6 +23,7 @@ import * as LinkDays from "./link-days.ts";
 import LinkRow from "./link-row.vue";
 import LinksFilters from "./links-filters.vue";
 import LoadMore from "./load-more.vue";
+import SaveLinkField from "./save-link-field.vue";
 import SavedReadChart from "./saved-read-chart.vue";
 import * as SavedRead from "./saved-read.ts";
 
@@ -72,9 +75,37 @@ const history = computed(() =>
     : undefined,
 );
 
-// The 30-day counts under the title, once the history has loaded. The chart below shows them.
+// The chart needs a few days to plot, and the counts something to count.
+const chart = computed(() =>
+  history.value !== undefined && SavedRead.plottable(history.value) ? history.value : undefined,
+);
 const subtitle = computed(() =>
-  history.value === undefined ? {} : { subtitle: SavedRead.summary(history.value) },
+  history.value === undefined || history.value.saved === 0
+    ? {}
+    : { subtitle: SavedRead.headline(history.value) },
+);
+
+const filtered = computed(
+  () => filters.value.tag !== undefined || filters.value.type !== undefined,
+);
+
+// A new link has no type or tags yet, so a filtered feed won't show it.
+const allPending = AtomVue.useAtomValue(() => LinksAtoms.pending);
+const pending = computed(() => (filtered.value ? [] : allPending.value));
+watch([result, allPending], ([now]) => {
+  if (!now.waiting && !AsyncResult.isInitial(now)) LinksAtoms.settlePending(registry);
+});
+
+// Nothing saved, ever: the page shows how to start instead of an empty list and its filters. An
+// empty feed alone doesn't say that, since the links may be seen, archived or old.
+const anySaved = AtomVue.useAtomValue(() => LinksAtoms.anySaved);
+const firstRun = computed(
+  () =>
+    view.value.state === "empty" &&
+    !filtered.value &&
+    AsyncResult.isSuccess(anySaved.value) &&
+    !anySaved.value.value &&
+    pending.value.length === 0,
 );
 
 const devices = AtomVue.useAtomValue(() => LinksAtoms.devices);
@@ -89,12 +120,12 @@ const deviceNames = computed(
 const deviceName = (link: Link.Link) =>
   link.sourceDeviceId === null ? undefined : deviceNames.value.get(link.sourceDeviceId);
 
-const emptyText = computed(() =>
-  filters.value.tag !== undefined || filters.value.type !== undefined
-    ? "No links match these filters."
+const empty = computed(() =>
+  filtered.value
+    ? { title: "No matches", description: "No links match these filters." }
     : filters.value.feed === "unseen"
-      ? "You've seen everything you saved."
-      : "Links you save show up here.",
+      ? { title: "All caught up", description: "You've seen everything you saved." }
+      : { title: "Nothing here", description: "Links you save show up here." },
 );
 
 // The row the keyboard is on, by id, so it stays put while the feed reloads around it.
@@ -160,20 +191,36 @@ onMounted(() => listen({ run }));
 
 <template>
   <section class="flex flex-col gap-6">
-    <PageHeader title="Inbox" v-bind="subtitle" />
-    <SavedReadChart v-if="history !== undefined" :history="history" />
+    <PageHeader title="Inbox" v-bind="subtitle">
+      <template #actions><SaveLinkField /></template>
+    </PageHeader>
+    <SavedReadChart v-if="chart !== undefined" :history="chart" />
     <Skeleton v-else-if="chartLoading" class="h-[72px]" />
 
-    <LinksFilters :filters="filters" @change="setFilters" />
+    <LinksFilters v-if="!firstRun" :filters="filters" @change="setFilters" />
+
+    <ul v-if="pending.length > 0" class="flex flex-col">
+      <ListRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
+        <div class="flex items-baseline gap-4">
+          <span class="min-w-0 flex-1 truncate text-[15px]">{{ link.url }}</span>
+          <span class="shrink-0 font-mono text-xs text-muted-foreground">saving…</span>
+        </div>
+      </ListRow>
+    </ul>
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
       <template v-if="loading">
         <Skeleton v-for="n in 3" :key="n" class="h-16" />
       </template>
     </div>
-    <EmptyState v-else-if="view.state === 'empty'" title="Nothing here" :description="emptyText">
+    <StartSavingCard v-else-if="firstRun" scenario="links" />
+    <EmptyState
+      v-else-if="view.state === 'empty' && pending.length === 0 && !AsyncResult.isInitial(anySaved)"
+      :title="empty.title"
+      :description="empty.description"
+    >
       <template #icon><Inbox /></template>
-      <template v-if="filters.tag !== undefined || filters.type !== undefined" #action>
+      <template v-if="filtered" #action>
         <Button as-child>
           <button
             type="button"
@@ -186,7 +233,7 @@ onMounted(() => listen({ run }));
       </template>
     </EmptyState>
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load links" @retry="retry" />
-    <template v-else>
+    <template v-else-if="view.state === 'links'">
       <p v-if="failed" role="alert" class="text-[13px] text-destructive">
         That didn't work. Try again.
       </p>
@@ -210,7 +257,7 @@ onMounted(() => listen({ run }));
       </div>
       <LoadMore v-if="!view.done" :loading="view.waiting" @more="pull()" />
       <p
-        class="hidden flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-muted-foreground sm:flex"
+        class="hidden flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground sm:flex"
       >
         <span><Kbd>↑</Kbd> <Kbd>↓</Kbd> select</span>
         <span><Kbd>↵</Kbd> open</span>
