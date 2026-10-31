@@ -51,9 +51,9 @@
     "./section-header": "./src/section-header/section-header.vue",
     "./segmented-control": "./src/segmented-control/segmented-control.vue",
     "./segmented-control-option": "./src/segmented-control/segmented-control-option.ts",
-    "./segmented-control-variants": "./src/segmented-control/segmented-control-variants.ts",
     "./text-link": "./src/text-link/text-link.vue",
-    "./toggle-chip": "./src/toggle-chip/toggle-chip.vue"
+    "./toggle-chip": "./src/toggle-chip/toggle-chip.vue",
+    "./filter-menu": "./src/filter-menu/filter-menu.vue"
   },
   "scripts": {
     "lint": "oxlint .",

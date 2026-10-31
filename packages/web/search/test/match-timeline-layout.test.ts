@@ -138,3 +138,19 @@ describe("layout", () => {
     expect(MatchTimelineLayout.describe(result)).toBe("1 match among 3 saved links, Jun to Oct");
   });
 });
+
+describe("plottable", () => {
+  const a = at("a", "2026-10-01");
+  const b = at("b", "2026-10-02");
+  const c = at("c", "2026-10-03");
+
+  it("needs a match", () => {
+    expect(MatchTimelineLayout.plottable([], [a, b, c])).toBe(false);
+  });
+
+  it("needs three different links, counting a match that is also saved once", () => {
+    expect(MatchTimelineLayout.plottable([a], [a, b])).toBe(false);
+    expect(MatchTimelineLayout.plottable([a], [a, b, c])).toBe(true);
+    expect(MatchTimelineLayout.plottable([a, b, c], [])).toBe(true);
+  });
+});

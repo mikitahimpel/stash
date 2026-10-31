@@ -37,7 +37,7 @@ const settle = async () => {
 const theme = () =>
   PlatformTesting.layerTheme().pipe(Layer.provide(PlatformTesting.layerKeyValueStore));
 
-const mountPage = async () => {
+const mountPage = async (props: { startAdding?: boolean } = {}) => {
   const calls: Array<string> = [];
   const copied: Array<string> = [];
   const devices = [Fixtures.device("d1", "Work laptop")];
@@ -85,6 +85,7 @@ const mountPage = async () => {
   );
   const wrapper = mount(SettingsPage, {
     attachTo: "body",
+    props,
     global: { provide: { [AtomVue.registryKey]: registry } },
   });
   page = new DOMWrapper(wrapper.element.ownerDocument.body);
@@ -103,6 +104,16 @@ const click = async (selector: string) => {
 const plaintextField = () => body().find<HTMLInputElement>("[data-test=token-plaintext]");
 
 describe("settings page", () => {
+  it("opens the Add device dialog on arrival from ?add=device", async () => {
+    await mountPage({ startAdding: true });
+    expect(body().find("[role=dialog]").text()).toContain("Add");
+  });
+
+  it("stays closed otherwise", async () => {
+    await mountPage();
+    expect(body().find("[role=dialog]").exists()).toBe(false);
+  });
+
   it("lists devices and tokens", async () => {
     const { wrapper } = await mountPage();
     const devices = wrapper.findAll("[data-test=device]");

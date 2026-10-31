@@ -15,7 +15,9 @@ import { routes } from "../src/routes.ts";
  * `press` simulates a key press on it.
  */
 export const mountAt = async (path: string, api: ApiTesting.Routes) => {
-  const router = createRouter({ history: createMemoryHistory(), routes: [...routes] });
+  // Settings stands in for the route the onboarding card links to.
+  const settings = { path: "/settings", name: "settings", component: { render: () => null } };
+  const router = createRouter({ history: createMemoryHistory(), routes: [...routes, settings] });
   await router.push(path);
   // Built once, so the test presses keys on the same instance the page listens on.
   const keyboard = Layer.build(PlatformTesting.layerKeyboard).pipe(Effect.scoped, Effect.runSync);

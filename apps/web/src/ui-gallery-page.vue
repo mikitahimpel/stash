@@ -30,6 +30,7 @@ import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
+import FilterMenu from "@stash/web-ui/filter-menu";
 import Skeleton from "@stash/web-ui/skeleton";
 import TextLink from "@stash/web-ui/text-link";
 import type { ToastMessage } from "@stash/web-ui/toast-message";
@@ -41,6 +42,12 @@ import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
 // Dev-only: every primitive of @stash/web-ui in every state, with a theme switch. Mounted at /_ui
 // in dev only (see `devRoutes` in app-router.ts). All data here is made up.
+
+const kinds = [
+  { value: "article", label: "Article" },
+  { value: "video", label: "Video" },
+] as const;
+const kind = ref<(typeof kinds)[number]["value"] | "">("");
 
 const theme = useAtomValue(() => ThemeAtoms.state);
 const setPreference = useAtomSet(() => ThemeAtoms.setPreference);
@@ -119,7 +126,7 @@ const swatches = [
 
 <template>
   <div class="min-h-dvh bg-background text-foreground">
-    <div class="mx-auto flex max-w-[1040px] flex-col gap-10 px-4 py-8 sm:px-6">
+    <div class="mx-auto flex max-w-[960px] flex-col gap-10 px-4 py-8 sm:px-6">
       <header class="flex flex-wrap items-center gap-3">
         <h1 class="text-sm font-medium">stash / ui</h1>
         <span class="font-mono text-xs text-muted-foreground">{{ scheme }}</span>
@@ -184,6 +191,11 @@ const swatches = [
           <ToggleChip :pressed="true" disabled>On, disabled</ToggleChip>
           <ToggleChip disabled>Off, disabled</ToggleChip>
         </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <SectionHeader title="FilterMenu" />
+        <FilterMenu v-model="kind" label="Type" :options="kinds" class="self-start" />
       </section>
 
       <section class="flex flex-col gap-3">
@@ -259,7 +271,9 @@ const swatches = [
 
       <section class="flex flex-col gap-3">
         <SectionHeader title="PageHeader · SectionHeader · TextLink · Badge" :count="4" />
-        <PageHeader title="Open now" subtitle="17 tabs · 3 devices · 6 older than 7 days" />
+        <PageHeader title="Open now" subtitle="17 tabs · 3 devices · 6 older than 7 days">
+          <template #actions><Button variant="primary">Add device</Button></template>
+        </PageHeader>
         <p class="text-sm">
           A <TextLink v-bind="{ href: 'https://example.com/' }">text link</TextLink> brightens its
           underline on hover.

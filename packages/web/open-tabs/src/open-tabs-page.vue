@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import * as AtomVue from "@effect/atom-vue";
 import type * as Device from "@stash/contracts-domain/device";
+import StartSavingCard from "@stash/web-settings/start-saving-card";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
@@ -60,7 +61,7 @@ const stale = computed(() => sections.value.find((section) => section.id === "ol
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 // The counts under the title, once the tabs have loaded.
 const subtitle = computed(() =>
-  all.value === undefined
+  all.value === undefined || all.value.length === 0
     ? {}
     : {
         subtitle: [
@@ -135,7 +136,13 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
 
 <template>
   <section class="flex flex-col gap-6">
-    <PageHeader title="Open now" v-bind="subtitle" />
+    <PageHeader title="Open now" v-bind="subtitle">
+      <template #actions>
+        <Button as-child variant="primary">
+          <RouterLink :to="{ name: 'settings', query: { add: 'device' } }">Add device</RouterLink>
+        </Button>
+      </template>
+    </PageHeader>
 
     <ErrorState
       v-if="all === undefined && AsyncResult.isFailure(view)"
@@ -162,18 +169,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         </div>
       </div>
     </template>
-    <EmptyState
-      v-else-if="all.length === 0"
-      data-state="empty"
-      title="No devices"
-      description="Tabs show up here once the extension or the Mac agent reports them."
-    >
-      <template #action>
-        <Button as-child>
-          <RouterLink :to="{ name: 'settings' }">Add a device</RouterLink>
-        </Button>
-      </template>
-    </EmptyState>
+    <StartSavingCard v-else-if="all.length === 0" scenario="tabs" data-state="empty" />
     <template v-else>
       <SearchField
         :model-value="query"
@@ -198,7 +194,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         </ToggleChip>
       </div>
 
-      <TabAgeChart :groups="groups" :selected="selected" />
+      <TabAgeChart v-if="rows.length > 0" :groups="groups" :selected="selected" />
 
       <EmptyState
         v-if="rows.length === 0"
@@ -238,7 +234,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
                 Review
               </button>
             </Button>
-            <Button as-child size="sm" variant="primary">
+            <Button as-child size="sm">
               <button type="button" data-action="archive-all" @click="confirming = true">
                 Archive all {{ section.tabs.length }}
               </button>
@@ -260,7 +256,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       </section>
 
       <footer
-        class="hidden flex-wrap gap-x-4 gap-y-2 font-mono text-xs text-muted-foreground sm:flex"
+        class="hidden flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground sm:flex"
         aria-label="Shortcuts"
       >
         <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>

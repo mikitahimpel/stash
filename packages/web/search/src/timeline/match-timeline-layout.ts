@@ -154,3 +154,10 @@ export const describe = (result: Layout): string => {
   const older = result.older > 0 ? `, ${result.older} older` : "";
   return `${matches}${older} among ${result.dots.length + count} saved links, ${first} to ${last}`;
 };
+
+/** Fewer links than this on the axis show no pattern, so the timeline stays off the page. */
+export const minPoints = 3;
+
+/** Whether there is something to plot: matches, and enough links with them. */
+export const plottable = (matches: ReadonlyArray<Point>, saved: ReadonlyArray<Point>): boolean =>
+  matches.length > 0 && new Set([...matches, ...saved].map((point) => point.id)).size >= minPoints;

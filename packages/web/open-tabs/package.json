@@ -20,6 +20,7 @@
     "@stash/contracts-domain": "workspace:*",
     "@stash/web-api-client": "workspace:*",
     "@stash/web-platform": "workspace:*",
+    "@stash/web-settings": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:",

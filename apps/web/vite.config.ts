@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig, type Plugin } from "vite";
@@ -21,6 +21,27 @@ const checkManifest = (): Plugin => {
     },
   };
 };
+
+// The docs the onboarding card links to, served at `/docs/<name>`. They ship with the app, so the
+// links work on every deploy and the repo's URL stays out of the code.
+const docs = ["ios-shortcut.md", "mcp-connector.md"];
+const docSource = (name: string) => readFileSync(resolve(__dirname, "../../docs", name));
+const serveDocs = (): Plugin => ({
+  name: "stash:serve-docs",
+  configureServer: (server) => {
+    server.middlewares.use((request, response, next) => {
+      const name = docs.find((doc) => request.url === `/docs/${doc}`);
+      if (name === undefined) return next();
+      response.setHeader("content-type", "text/markdown; charset=utf-8");
+      response.end(docSource(name));
+    });
+  },
+  generateBundle() {
+    for (const name of docs) {
+      this.emitFile({ type: "asset", fileName: `docs/${name}`, source: docSource(name) });
+    }
+  },
+});
 
 // Vite rejects requests whose Host header isn't on its allowlist, which blocks opening the dev
 // server by hostname from another machine. `STASH_DEV_ALLOWED_HOSTS` (comma-separated) adds hosts
@@ -50,7 +71,7 @@ const apiProxy = {
 // `pnpm dev` binds 0.0.0.0 through `--host` in package.json, so the dev server opens from other
 // machines.
 export default defineConfig({
-  plugins: [vue(), tailwindcss(), checkManifest()],
+  plugins: [vue(), tailwindcss(), checkManifest(), serveDocs()],
   server: { port: 5173, proxy: apiProxy, ...hostsConfig },
   preview: { proxy: apiProxy, ...hostsConfig },
 });

@@ -18,13 +18,18 @@ import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import AddDeviceDialog from "./add-device-dialog.vue";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
 import * as SettingsRows from "./settings-rows.ts";
 import * as ThemeAtoms from "./theme-atoms.ts";
+
+const props = defineProps<{
+  /** Opens the Add device dialog on arrival (`/settings?add=device`). */
+  startAdding?: boolean;
+}>();
 
 // Appearance: the theme preference, through the platform `Theme` service.
 const themeOptions: ReadonlyArray<SegmentedControlOption<Theme.Preference>> = [
@@ -90,6 +95,9 @@ const openAddDevice = (open: boolean) => {
   if (open) issue(Atom.Reset);
   addingDevice.value = open;
 };
+onMounted(() => {
+  if (props.startAdding) openAddDevice(true);
+});
 const newToken = (deviceId: Device.DeviceId) => issue({ _tag: "ExistingDevice", deviceId });
 
 const copy = useAtomSet(() => SettingsAtoms.copyToken, { mode: "promiseExit" });
@@ -126,10 +134,10 @@ const confirmRevoke = async () => {
 <template>
   <!-- Every control at the end of a row or section lines up 12px in from the content edge, with
        the ListRow padding. -->
-  <div class="flex flex-col gap-8">
+  <div class="flex flex-col gap-6">
     <PageHeader title="Settings" v-bind="subtitle" />
 
-    <div class="grid gap-12">
+    <div class="grid gap-6">
       <section aria-label="Appearance" class="grid gap-3">
         <SectionHeader title="Appearance" />
         <div class="flex flex-wrap items-center justify-between gap-3 px-3">

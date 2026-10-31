@@ -13,7 +13,7 @@ const route = useRoute();
     <AppHeader />
     <!-- On phones the bottom padding clears the nav bar fixed at the bottom of the screen. -->
     <main
-      class="mx-auto w-full max-w-[1040px] flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-12"
+      class="mx-auto w-full max-w-[960px] flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-12"
     >
       <RouterView />
     </main>

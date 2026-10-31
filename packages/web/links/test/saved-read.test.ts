@@ -91,3 +91,22 @@ describe("recent", () => {
     }),
   );
 });
+
+describe("plottable", () => {
+  const days = (...daysOfOctober: ReadonlyArray<number>) =>
+    SavedRead.history(
+      daysOfOctober.map((day, index) => at(`${index}`, `2026-10-${day}T09:00:00.000Z`)),
+      now,
+      utc,
+    );
+
+  it("needs links on three days", () => {
+    expect(SavedRead.plottable(days())).toBe(false);
+    expect(SavedRead.plottable(days(20, 20, 20, 21))).toBe(false);
+    expect(SavedRead.plottable(days(20, 21, 22))).toBe(true);
+  });
+
+  it("sums the history up for the page subtitle", () => {
+    expect(SavedRead.headline(days(20, 21))).toBe("2 unread · 2 saved in 30 days");
+  });
+});

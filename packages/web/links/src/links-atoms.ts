@@ -4,6 +4,7 @@ import * as Tag from "@stash/contracts-domain/tag";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import * as Option from "effect/Option";
 import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Schema from "effect/Schema";
 
 /**
@@ -94,6 +95,55 @@ export const setStatus = ApiAtoms.mutation(
   (client, { id, status }: { readonly id: Link.LinkId; readonly status: Link.LinkStatus }) =>
     client.links.update({ params: { id }, payload: { status } }),
 );
+
+/** Saves a link. The feed reloads and picks it up. */
+export const saveLink = ApiAtoms.mutation(["links"], (client, url: Link.Url) =>
+  client.links.save({ payload: { url } }),
+);
+
+const isUrl = Schema.is(Link.Url);
+
+/** The URL in what was typed, assuming `https://` when it has no scheme. */
+export const parseUrl = (text: string): Link.Url | undefined => {
+  const trimmed = text.trim();
+  const url = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return isUrl(url) && URL.canParse(url) ? url : undefined;
+};
+
+/** A link on its way into the feed. `saved` once the api has it. */
+export interface PendingLink {
+  readonly key: number;
+  readonly url: Link.Url;
+  readonly saved: boolean;
+}
+
+/** The optimistic rows: a link stays here from the save until the feed has reloaded around it. */
+export const pending: Atom.Writable<ReadonlyArray<PendingLink>> = Atom.make<
+  ReadonlyArray<PendingLink>
+>([]).pipe(Atom.keepAlive);
+
+let nextPendingKey = 0;
+
+export const addPending = (registry: AtomRegistry.AtomRegistry, url: Link.Url): PendingLink => {
+  const entry = { key: nextPendingKey++, url, saved: false };
+  registry.update(pending, (all) => [entry, ...all]);
+  return entry;
+};
+
+export const markSaved = (registry: AtomRegistry.AtomRegistry, key: number): void =>
+  registry.update(pending, (all) =>
+    all.map((entry) => (entry.key === key ? { ...entry, saved: true } : entry)),
+  );
+
+export const dropPending = (registry: AtomRegistry.AtomRegistry, key: number): void =>
+  registry.update(pending, (all) => all.filter((entry) => entry.key !== key));
+
+/** Drops the links the api has, once the feed has finished loading. */
+export const settlePending = (registry: AtomRegistry.AtomRegistry): void => {
+  if (registry.get(pending).some((entry) => entry.saved)) {
+    registry.update(pending, (all) => all.filter((entry) => !entry.saved));
+  }
+};
 
 /** The devices, for the source device of each link. */
 export const devices = ApiAtoms.query(["devices"], (client) => client.devices.list());

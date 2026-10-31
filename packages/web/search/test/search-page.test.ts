@@ -1,6 +1,6 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
-import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import * as Effect from "effect/Effect";
 import * as UrlParams from "effect/http/UrlParams";
 import * as Option from "effect/Option";
@@ -50,10 +50,41 @@ afterEach(() => {
 });
 
 describe("SearchPage", () => {
-  it("invites a query before anything is typed", () => {
-    const wrapper = mountPage({});
-    expect(wrapper.text()).toContain("Find a link");
+  it("is just the focused field, with an example query, before anything is typed", async () => {
+    const wrapper = mountPage({
+      "GET /links": () =>
+        ApiTesting.json({
+          items: [Fixtures.link("s1"), Fixtures.link("s2"), Fixtures.link("s3")],
+          nextCursor: null,
+        }),
+    });
+    await flushPromises();
+    await flushPromises();
+
+    const field = wrapper.find<HTMLInputElement>("input[type=search]");
+    expect(wrapper.element.ownerDocument.activeElement).toBe(field.element);
+    expect(field.attributes("placeholder")).toContain("economics");
+    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+    expect(wrapper.find("[role=radiogroup]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=filter-menu]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=empty-state]").exists()).toBe(false);
     expect(wrapper.find("ul").exists()).toBe(false);
+  });
+
+  it("leaves the timeline out when a search has fewer than three links to plot", async () => {
+    const wrapper = mountPage({
+      "GET /links": () => ApiTesting.json({ items: [], nextCursor: null }),
+      "GET /search": () => ApiTesting.json(Fixtures.results("a", "b")),
+    });
+    await type(wrapper, "rust");
+    expect(wrapper.findAll("[data-result-link]")).toHaveLength(2);
+    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+  });
+
+  it("leaves the timeline out when nothing matches", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) });
+    await type(wrapper, "nothing like this");
+    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
   });
 
   it("shows a loading state once the search has run for 200 ms", async () => {
@@ -201,13 +232,17 @@ describe("SearchPage", () => {
       },
     });
     await type(wrapper, "rust");
-    const video = wrapper
-      .findAll("[role=group][aria-label=Type] button")
-      .find((chip) => chip.text() === "Video");
-    await video?.trigger("click");
+    const menu = wrapper.find("[data-slot=filter-menu]");
+    expect(menu.text()).toBe("Type: Any");
+    await menu.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    const items = new DOMWrapper(wrapper.element.ownerDocument.body).findAll(
+      "[role=menuitemradio]",
+    );
+    await items.find((item) => item.text() === "Video")?.trigger("click");
     await flushPromises();
     expect(types).toEqual([null, "video"]);
-    expect(video?.attributes("aria-pressed")).toBe("true");
+    expect(menu.text()).toBe("Type: Video");
   });
 
   it("offers the frequent tags as chips and filters by one", async () => {

@@ -1,12 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
 /**
- * The look of `<SegmentedControl />`: a sunken tray whose active segment is a raised key. Exported
- * so that controls with other semantics, such as a nav of links (`aria-current`) instead of a radio
- * group, look the same.
+ * The look of `<SegmentedControl />`: a small sunken tray whose active segment is a raised key,
+ * 32px tall (40px touch target on phones).
  */
 export const segmentedControlVariants = cva(
-  "inline-flex h-10 items-stretch gap-0.5 rounded-lg p-[3px] tactile-sunken sm:h-9",
+  "inline-flex h-10 items-stretch gap-0.5 rounded-lg p-[3px] tactile-sunken sm:h-8",
 );
 
 export const segmentedControlItemVariants = cva(
