@@ -212,33 +212,41 @@ A full sign-in needs a person to enter the code on github.com, signed in as
 
 ## Last deployed
 
-Commit `c59da7a` on 2026-10-29, stage `prod`, from the #126 branch (`main` at `3ebaa69` plus the
-D1 state and `PROD_NAMES` change):
+Commit `ea4e92f` on 2026-10-31, stage `prod`, from the #133 branch (same-origin api under `/api`).
+Only the `stash-web` Worker changed: it gained the `API` Service Binding and lost
+`VITE_API_BASE_URL`. No storage was created.
 
 ```text
+$ PROTON_PASS_AGENT_REASON="…" pp run --env-file .env -- pnpm exec alchemy plan --stage prod
+Plan: 2 to update, 2 binding changes  # Web/Build, Web; Web/API create, Web/VITE_API_BASE_URL unbind
 $ PROTON_PASS_AGENT_REASON="…" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes
-Plan: 2 to update                     # Web/Build, Web (first deploy of this change: 5 created, 6 adopted)
-Done: 2 succeeded (7.9s)              # exit 0
-$ … alchemy plan --stage prod         # with no .alchemy/state on disk
-Plan: no changes
-$ curl -s https://stash-api.<subdomain>.workers.dev/health
-{"status":"ok"}                       # 200
-$ curl … https://stash-api.<subdomain>.workers.dev/links
-401
-$ curl … https://stash-web.<subdomain>.workers.dev/
-200 text/html
-$ curl … https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server
-200, issuer https://stash-mcp.<subdomain>.workers.dev
-$ curl -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start
-200 {"flowId":"…","userCode":"A333-8D28","verificationUri":"https://github.com/login/device",…}
-$ curl -s https://stash-web.<subdomain>.workers.dev/ | grep -o 'src="/assets/[^"]*"'
-src="/assets/index-DJfKt7Od.js"
-$ VITE_API_BASE_URL=https://stash-api.<subdomain>.workers.dev pnpm --filter @stash/web build
-src="/assets/index-DJfKt7Od.js"       # same entry hash
+Done: 2 succeeded
+$ PROTON_PASS_AGENT_REASON="…" pp run --env-file .env -- env STASH_WEB_URL=… STASH_D1_DATABASE=… \
+    STASH_ALLOWED_GITHUB_LOGIN=… pnpm --filter @stash/web check:live
+$ node scripts/live-session-check.ts
+ok   POST /api/auth/device/start on the web origin: 200 with a userCode
+ok   the page loads 5 bundled assets
+ok   /assets/index-BIIYeqL7.js: no stash-api. origin
+ok   /assets/api-atoms-B8iVdlwB.js: no stash-api. origin
+ok   /assets/createLucideIcon-BH9F-g4D.js: no stash-api. origin
+ok   /assets/forward-props-DyYZuBEB.js: no stash-api. origin
+ok   /assets/index-Cp-1Solf.css: no stash-api. origin
+ok   /api/auth/logout sets stash_session
+ok   the cookie carries path=/
+ok   the cookie carries samesite=lax
+ok   the cookie carries secure
+ok   the cookie carries httponly
+ok   the cookie has no Domain (host-only)
+ok   the jar sends the cookie on /api/auth/me
+ok   /api/auth/me: 200 user
+ok   logout ends the session: /api/auth/me 401
+live session check passed
+$ pnpm --filter @stash/web build && grep -o 'src="/assets/[^"]*"' apps/web/dist/index.html
+src="/assets/index-BIIYeqL7.js"       # same entry hash as deployed
 ```
 
-The local build needs the same `VITE_API_BASE_URL` the deploy sets: the api URL is inlined into
-the bundle, so a build without it has another entry hash.
+The build needs no env: the SPA calls `/api` on its own origin, so a local build of the same
+commit has the deployed entry hash.
 
 ## Tear down
 
