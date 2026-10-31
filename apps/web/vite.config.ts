@@ -31,10 +31,26 @@ const allowedHosts = (process.env["STASH_DEV_ALLOWED_HOSTS"] ?? "")
   .filter((host) => host.length > 0);
 const hostsConfig = allowedHosts.length > 0 ? { allowedHosts } : {};
 
+// The api is served same-origin under `/api`: in production the `Web` Worker forwards it to the
+// api Worker through a Service Binding (`src/web-worker.ts`), and here the dev and preview servers
+// proxy it to `alchemy dev` the same way, stripping the prefix. `STASH_DEV_API_URL` points the
+// proxy at another api (default `http://localhost:8787`, the `alchemy dev` port).
+const apiProxy = {
+  // A regex key, so `/apix` stays with the SPA.
+  "^/api(?:[/?]|$)": {
+    target: process.env["STASH_DEV_API_URL"] || "http://localhost:8787",
+    changeOrigin: true,
+    rewrite: (path: string) => {
+      const rest = path.slice("/api".length);
+      return rest.startsWith("/") ? rest : `/${rest}`;
+    },
+  },
+};
+
 // `pnpm dev` binds 0.0.0.0 through `--host` in package.json, so the dev server opens from other
 // machines.
 export default defineConfig({
   plugins: [vue(), tailwindcss(), checkManifest()],
-  server: { port: 5173, ...hostsConfig },
-  preview: hostsConfig,
+  server: { port: 5173, proxy: apiProxy, ...hostsConfig },
+  preview: { proxy: apiProxy, ...hostsConfig },
 });

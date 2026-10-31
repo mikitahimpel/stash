@@ -117,8 +117,9 @@ export default Alchemy.Stack(
         ? `stash-${role}`
         : `stash-${role}-${stage.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
     const named = (role: string) => (dev ? {} : { name: workerName(role) });
-    // The api and the SPA need each other's origin (CORS, `VITE_API_BASE_URL`), so the deployed
-    // origins are derived from the fixed names and the account's workers.dev subdomain, unless set.
+    // The api allows the web origin by CORS (for a SPA built with a cross-origin
+    // `VITE_API_BASE_URL`), and mcp needs its own origin, so the deployed origins are derived from
+    // the fixed names and the account's workers.dev subdomain, unless set.
     const origins = dev
       ? {
           web: yield* Config.String("STASH_WEB_ORIGIN").pipe(
@@ -127,7 +128,6 @@ export default Alchemy.Stack(
           mcp: yield* Config.String("STASH_MCP_ORIGIN").pipe(
             Config.withDefault(`http://localhost:${mcpPort}`),
           ),
-          api: undefined,
         }
       : yield* Effect.gen(function* () {
           const subdomain = yield* workersSubdomain;
@@ -140,7 +140,6 @@ export default Alchemy.Stack(
             mcp: yield* Config.String("STASH_MCP_ORIGIN").pipe(
               Config.withDefault(workersDev("mcp")),
             ),
-            api: workersDev("api"),
           };
         });
     const optional = <K extends string, A>(key: K, value: Option.Option<A>) =>
@@ -220,17 +219,23 @@ export default Alchemy.Stack(
       dev: { host, port: mcpPort, strictPort: true },
     });
 
-    // The SPA, served as Workers Static Assets. `alchemy dev` builds `apps/web` and serves `dist/`
-    // from a local Worker; unknown paths fall back to `index.html` so the client router takes over.
-    // For hot reload use `pnpm dev:web` (Vite) instead. A deploy builds it against the deployed api
-    // (`VITE_API_BASE_URL`); `alchemy dev` leaves it unset, as before.
+    // The SPA, served as Workers Static Assets, with the api same-origin under `/api`: the `Web`
+    // Worker (`apps/web/src/web-worker.ts`) forwards `/api/*` to `Api` through the `API` Service
+    // Binding with the prefix stripped, so the session cookie is first-party (`*.workers.dev` is
+    // on the Public Suffix List, so `stash-web` and `stash-api` are different sites). Only `/api`
+    // runs the Worker; the assets layer answers every other path, and unknown paths fall back to
+    // `index.html` so the client router takes over. The build needs no api URL: the client calls
+    // `/api` on its own origin. `alchemy dev` builds `apps/web` and serves `dist/` the same way,
+    // against the local `Api`. For hot reload use `pnpm dev:web` (Vite, which proxies `/api`).
     const web = yield* Cloudflare.Website.StaticSite("Web", {
       cwd: "./apps/web",
       command: "pnpm run build",
       outdir: "dist",
+      main: "./apps/web/src/web-worker.ts",
       ...named("web"),
-      env: origins.api === undefined ? {} : { VITE_API_BASE_URL: origins.api },
-      assets: { notFoundHandling: "single-page-application" },
+      // Bindings must match `WorkerEnv` in apps/web/src/web-worker.ts.
+      env: { API: api },
+      assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
       // Rebuild when the app or a web package it bundles changes (gitignored files stay excluded).
       memo: { include: ["**/*", "../../packages/web/*/src/**"], lockfile: true },
       dev: { host: webHost, port: webPort },

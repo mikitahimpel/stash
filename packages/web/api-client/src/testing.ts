@@ -5,6 +5,7 @@ import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import type * as Layer from "effect/Layer";
 import type * as Atom from "effect/reactivity/Atom";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import * as ApiBaseUrl from "./api-base-url.ts";
 import * as StashApiClient from "./stash-api-client.ts";
 
 /** Answers one stubbed endpoint. */
@@ -31,6 +32,9 @@ const compile = (routes: Routes) =>
     return { method, pattern: new RegExp(`^${source}$`), names, handler };
   });
 
+// The path of the base URL (`/api` by default), stripped before matching.
+const basePath = new URL(ApiBaseUrl.fromEnv, "http://localhost").pathname.replace(/\/$/, "");
+
 /**
  * A stub api: every request is answered by the matching route, and a request no route matches
  * gets a 404 with no body (which the client reports as a defect). Responses go through the real
@@ -40,7 +44,11 @@ export const layer = (routes: Routes): Layer.Layer<HttpClient.HttpClient> => {
   const compiled = compile(routes);
   return PlatformTesting.layerHttpClient((request) =>
     Effect.suspend(() => {
-      const { pathname } = new URL(request.url, "http://localhost");
+      const url = new URL(request.url, "http://localhost").pathname;
+      const pathname =
+        basePath !== "" && (url === basePath || url.startsWith(`${basePath}/`))
+          ? url.slice(basePath.length) || "/"
+          : url;
       for (const route of compiled) {
         const match = route.method === request.method ? route.pattern.exec(pathname) : null;
         if (match === null) continue;

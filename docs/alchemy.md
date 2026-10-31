@@ -37,7 +37,7 @@ run it, and what to watch for.
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
 | `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` (when set) |
-| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, deployed as `stash-web` | — (assets-only Worker serving the SPA). A deploy builds it with `VITE_API_BASE_URL` = the api's origin |
+| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, `main: ./apps/web/src/web-worker.ts`, deployed as `stash-web` | `API` (Service Binding to `Api`), `ASSETS`. The Worker runs only for `/api` and `/api/*` (`runWorkerFirst`) and forwards them to `Api` with the prefix stripped; the assets layer serves the SPA. See [deploy.md](deploy.md#same-origin-api) |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
   `scheduled`,
@@ -70,7 +70,7 @@ token is secret):
 |---|---|---|
 | `STASH_API_PORT` | `8787` | local dev port of `Api` (`strictPort`: it fails instead of picking another) |
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
-| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin |
+| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin (only a SPA built with a cross-origin `VITE_API_BASE_URL` needs it; the web app calls `/api` same-origin) |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), the committed owner login on stage `prod`, **required** for any other deployed stage | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
 | `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`; on stage `prod` the committed `PROD_GITHUB_CLIENT_ID`; optional on other stages (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
@@ -92,10 +92,14 @@ curl -sf http://localhost:8791/links    # the SPA's index.html (SPA fallback)
 ```
 
 - `Web` runs `pnpm run build` in `apps/web` (memoized on the app, the `packages/web/*` sources and
-  the lockfile) and serves `apps/web/dist` from a local assets-only Worker. Unknown paths fall
-  back to `index.html` (`notFoundHandling: "single-page-application"`), so client routes load.
+  the lockfile) and serves `apps/web/dist` from a local Worker. `/api/*` goes to the local `Api`
+  through the Service Binding (`curl -sf http://localhost:8791/api/health`), as on deploy. Unknown
+  paths fall back to `index.html` (`notFoundHandling: "single-page-application"`), so client
+  routes load.
 - For hot reload while working on the UI, run `pnpm dev:web` instead (Vite on
-  `http://0.0.0.0:5173`). It doesn't need `alchemy dev`.
+  `http://0.0.0.0:5173`). It proxies `/api` to `alchemy dev` (`http://localhost:8787`, or
+  `STASH_DEV_API_URL`) with the prefix stripped, so the SPA calls the api the same way as on
+  deploy. Run `pnpm dev:api` next to it for a working api.
 
 `alchemy dev` runs the stack file under `node --watch`. Every resource above has a local provider,
 so the plan shows `create (local)` for all of them and makes **no Cloudflare API calls**:
