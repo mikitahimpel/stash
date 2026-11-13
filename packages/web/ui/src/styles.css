@@ -190,11 +190,36 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  /* Buttons 8px (md), inputs and trays 10px (lg). Chips (9px) and keys (5px) use their own. */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /*
+   * Control tokens (docs/design.md, "Tokens"). Every control is built from these, so a page can't
+   * drift: heights `h-control-sm|md|lg` (32 / 36 / 44), radii `rounded-control` (8, every control)
+   * and `rounded-surface` (12, cards, menus, dialogs, toasts), and the text roles below.
+   */
+  --spacing-control-sm: 32px;
+  --spacing-control-md: 36px;
+  --spacing-control-lg: 44px;
+  --radius-control: 8px;
+  --radius-surface: 12px;
+  --radius-sm: 4px;
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-control);
+  --radius-xl: var(--radius-surface);
+  /* Text roles. All sans; mono is only for keys, the device code and chart axis labels. */
+  --text-title: 28px;
+  --text-title--line-height: 36px;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 600;
+  --text-label: 14px;
+  --text-label--line-height: 20px;
+  --text-label--font-weight: 500;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-meta: 13px;
+  --text-meta--line-height: 20px;
+  --text-key: 11px;
+  --text-key--line-height: 1;
+  --text-chart: 12px;
+  --text-chart--line-height: 16px;
 }
 
 /* Tactile surfaces. Components compose these; see docs/design.md for the approved values. */
@@ -255,8 +280,31 @@
 @utility tactile-row-selected {
   background: linear-gradient(180deg, var(--row-selected-from), var(--row-selected-to));
   border: 1px solid var(--row-selected-border);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   box-shadow: var(--row-selected-shadow);
+}
+
+/*
+ * Phones: every tappable control gets a hit area at least 44px tall without looking different.
+ * The control must be positioned (the kit's controls are `relative`).
+ */
+@utility hit-area {
+  @media (width < 40rem) {
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      top: 50%;
+      height: max(100%, 44px);
+      transform: translateY(-50%);
+    }
+  }
+}
+
+/* Data graphics: the one place for mono text besides keys and the device code. */
+@utility chart-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-chart);
 }
 
 /* Links: a faint underline that brightens on hover. */

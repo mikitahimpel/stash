@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
 /**
- * Quiet mono labels: hierarchy comes from spacing, not fills. `default` and `secondary` are plain
- * metadata, `outline` adds a hairline border, `destructive` uses the destructive color.
+ * Quiet sans labels (13/400): hierarchy comes from spacing, not fills. `default` and `secondary`
+ * are plain metadata, `outline` adds a hairline border, `destructive` uses the destructive color.
  */
 export const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-[5px] border px-1.5 py-px font-mono text-xs transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-sm border px-1 text-meta transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {

@@ -19,6 +19,30 @@ describe("ListRow", () => {
   });
 });
 
+describe("ListRow slots", () => {
+  it("lays out leading, title, meta and trailing on one title line, extra lines below", () => {
+    const wrapper = mount(ListRow, {
+      slots: {
+        leading: "1",
+        title: "<a data-row href='https://example.com/'>Example</a>",
+        meta: "<span>example.com</span>",
+        trailing: "<button>Revoke</button>",
+        default: "<p>A summary</p>",
+      },
+    });
+    expect(wrapper.find("[data-slot=list-row-leading]").text()).toBe("1");
+    expect(wrapper.find("[data-slot=list-row-meta]").text()).toBe("example.com");
+    expect(wrapper.find("[data-slot=list-row-trailing]").text()).toBe("Revoke");
+    expect(wrapper.text()).toContain("A summary");
+  });
+
+  it("leaves out the title line when a row has neither title nor meta", () => {
+    const wrapper = mount(ListRow, { slots: { default: "Just text" } });
+    expect(wrapper.find("[data-slot=list-row-meta]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=list-row-title-line]").exists()).toBe(false);
+  });
+});
+
 describe("SectionHeader", () => {
   it("renders the count and actions only when given", () => {
     const bare = mount(SectionHeader, { props: { title: "Inbox" } });

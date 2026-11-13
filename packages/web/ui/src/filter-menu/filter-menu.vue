@@ -9,12 +9,17 @@ import DropdownMenuTrigger from "../dropdown-menu/dropdown-menu-trigger.vue";
 import DropdownMenu from "../dropdown-menu/dropdown-menu.vue";
 import type { SegmentedControlOption } from "../segmented-control/segmented-control-option";
 
-const props = defineProps<{
-  /** What it filters, as shown on the trigger: `Type: Any`. */
-  label: string;
-  options: ReadonlyArray<SegmentedControlOption<T>>;
-  class?: HTMLAttributes["class"];
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** What it filters, as shown on the trigger: `Type: Any`. */
+    label: string;
+    options: ReadonlyArray<SegmentedControlOption<T>>;
+    /** The trigger's control height: `sm` (32) in filter bars, the default. */
+    size?: "sm" | "md";
+    class?: HTMLAttributes["class"];
+  }>(),
+  { size: "sm" },
+);
 /** The chosen option, `""` for any. */
 const model = defineModel<T | "">({ required: true });
 
@@ -27,12 +32,15 @@ const pick = (value: unknown) => {
 </script>
 
 <template>
-  <!-- One compact, quiet control for a choice of filters, instead of a row of chips. -->
   <DropdownMenu>
+    <!-- One compact control for a choice of filters, instead of a row of chips: a raised menu
+         trigger, `Type: Any ▾`. -->
     <DropdownMenuTrigger as-child>
-      <Button as-child variant="ghost" size="sm" :class="['px-2 sm:h-8', props.class]">
+      <Button as-child :size="size" :class="props.class">
         <button type="button" data-slot="filter-menu" :data-active="model !== '' || undefined">
-          {{ label }}: <span class="text-foreground">{{ current }}</span>
+          <span
+            ><span class="text-muted-foreground">{{ label }}:</span> {{ current }}</span
+          >
           <ChevronDown aria-hidden="true" class="size-3.5" />
         </button>
       </Button>

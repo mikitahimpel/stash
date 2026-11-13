@@ -8,6 +8,7 @@ import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
 import ListRow from "@stash/web-ui/list-row";
+import ListRowTitle from "@stash/web-ui/list-row-title";
 import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
@@ -195,22 +196,22 @@ onMounted(() => listen({ run }));
       <template #actions><SaveLinkField /></template>
     </PageHeader>
     <SavedReadChart v-if="chart !== undefined" :history="chart" />
-    <Skeleton v-else-if="chartLoading" class="h-[72px]" />
+    <Skeleton v-else-if="chartLoading" shape="chart" />
 
     <LinksFilters v-if="!firstRun" :filters="filters" @change="setFilters" />
 
     <ul v-if="pending.length > 0" class="flex flex-col">
       <ListRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
-        <div class="flex items-baseline gap-4">
-          <span class="min-w-0 flex-1 truncate text-[15px]">{{ link.url }}</span>
-          <span class="shrink-0 font-mono text-xs text-muted-foreground">saving…</span>
-        </div>
+        <template #title>
+          <ListRowTitle>{{ link.url }}</ListRowTitle>
+        </template>
+        <template #meta><span>saving…</span></template>
       </ListRow>
     </ul>
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
       <template v-if="loading">
-        <Skeleton v-for="n in 3" :key="n" class="h-16" />
+        <Skeleton v-for="n in 3" :key="n" shape="row" />
       </template>
     </div>
     <StartSavingCard v-else-if="firstRun" scenario="links" />
@@ -234,7 +235,7 @@ onMounted(() => listen({ run }));
     </EmptyState>
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load links" @retry="retry" />
     <template v-else-if="view.state === 'links'">
-      <p v-if="failed" role="alert" class="text-[13px] text-destructive">
+      <p v-if="failed" role="alert" class="text-meta text-destructive">
         That didn't work. Try again.
       </p>
       <div ref="list" class="flex flex-col gap-6">
@@ -248,22 +249,21 @@ onMounted(() => listen({ run }));
               :selected="link.id === selectedId"
               :device="deviceName(link)"
               :now="view.now"
+              :filters="filters"
               @select="selectedId = link.id"
-              @tag="(tag) => setFilters({ ...filters, tag })"
-              @type="(type) => setFilters({ ...filters, type })"
             />
           </ul>
         </section>
       </div>
       <LoadMore v-if="!view.done" :loading="view.waiting" @more="pull()" />
       <p
-        class="hidden flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground sm:flex"
+        class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-meta text-muted-foreground sm:flex"
       >
-        <span><Kbd>↑</Kbd> <Kbd>↓</Kbd> select</span>
-        <span><Kbd>↵</Kbd> open</span>
-        <span><Kbd>S</Kbd> seen</span>
-        <span><Kbd>D</Kbd> done</span>
-        <span><Kbd>E</Kbd> archive</span>
+        <span class="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>
+        <span class="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
+        <span class="flex items-center gap-1"><Kbd>S</Kbd> seen</span>
+        <span class="flex items-center gap-1"><Kbd>D</Kbd> done</span>
+        <span class="flex items-center gap-1"><Kbd>E</Kbd> archive</span>
       </p>
     </template>
   </section>

@@ -26,8 +26,13 @@ the theme tokens and an `@source` for this package, so the app build picks up th
   Don't remove it.
 - **Dark mode** follows the `dark` class on `<html>` (`dark:` utilities and the tokens switch with
   it). `:root` holds the light theme. `@stash/web-platform/theme` sets the class.
+- **Control tokens** (one control language, docs/design.md "Tokens"): heights `h-control-sm|md|lg`
+  (32 / 36 / 44), radii `rounded-control` (8) and `rounded-surface` (12), text roles `text-title`,
+  `text-label` (14/500), `text-body` (14/400), `text-meta` (13/400), `text-key` and `chart-text`
+  (mono, keys and chart axes only). `hit-area` grows a control's hit area to 44px on phones without
+  changing how it looks. `src/control/control-variants.ts` (`./control-variants`) holds the shared
+  base, surfaces (`raised`, `primary`, `sunken`, `ghost`) and sizes every control is built from.
 - **Mobile-first**: unprefixed utilities target phones, and `sm:` / `md:` / `lg:` widen the layout.
-  Controls are a little taller below `sm` for touch.
 
 ## Components
 
@@ -35,23 +40,28 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 
 | Component | Exports |
 |---|---|
-| button | `button`, `button-variants` (`raised` default, `primary`, `ghost`; `outline`, `secondary`, `destructive`, `link` kept for older callers) |
-| segmented-control | `segmented-control` (radio group, `v-model`, arrow keys move the selection), `segmented-control-option` (type) |
-| toggle-chip | `toggle-chip` (`v-model:pressed`, sets `aria-pressed`) |
-| search-field | `search-field` (sunken input, `v-model`, optional `shortcut` keycap) |
+| button | `button`, `button-variants` (`raised` default, `primary`, `ghost`, `secondary`, `destructive`; sizes `sm` / `md` / `lg` and `icon-sm` / `icon` / `icon-lg`) |
+| control | `control-variants` (the base, surfaces and sizes of every control) |
+| input | `input` (`v-model`, `size`, `mono`; the box is a wrapper, attributes go to the `<input>`) |
+| search-field | `search-field` (`v-model`, `size`, optional `shortcut` keycap) |
+| segmented-control | `segmented-control` (radio group, `v-model`, `size` `sm` / `md`, arrow keys move the selection), `segmented-control-option` (type) |
+| toggle-chip | `toggle-chip` (`v-model:pressed`, `size`, sets `aria-pressed`; sunken off, raised on) |
+| filter-menu | `filter-menu` (`Type: Any ▾`, a raised menu trigger, `size`) |
+| tabs | `tabs`, `tabs-list`, `tabs-trigger`, `tabs-content` (the segmented look) |
+| avatar | `avatar-button` (32px round, `initial`, `alert`) |
 | kbd | `kbd` (keycap) |
-| list-row | `list-row` (`selected`, `#actions` slot shown while selected) |
-| section-header | `section-header` (`title`, `count`, `as`, `#actions` slot) |
-| text-link | `text-link` (`as-child` for `<RouterLink>`) |
-| input | `input` (`v-model`) |
 | badge | `badge`, `badge-variants` |
+| list-row | `list-row` (slots `leading`, `title`, `meta`, `trailing`, default for extra lines, `actions` while `selected`), `list-row-title` (`as-child` for a link, `muted`) |
+| section-header | `section-header` (`title`, `count`, `as`, `#actions` slot) |
+| page-header | `page-header` (`title`, `subtitle`, `#actions` slot) |
 | card | `card`, `card-header`, `card-title`, `card-description`, `card-content`, `card-footer` |
 | dialog | `dialog`, `dialog-trigger`, `dialog-content`, `dialog-header`, `dialog-footer`, `dialog-title`, `dialog-description`, `dialog-close` |
-| dropdown-menu | `dropdown-menu`, `dropdown-menu-trigger`, `dropdown-menu-content`, `dropdown-menu-item`, `dropdown-menu-label`, `dropdown-menu-separator` |
-| tabs | `tabs`, `tabs-list`, `tabs-trigger`, `tabs-content` |
+| dropdown-menu | `dropdown-menu`, `dropdown-menu-trigger`, `dropdown-menu-content`, `dropdown-menu-item`, `dropdown-menu-label`, `dropdown-menu-separator`, `dropdown-menu-radio-group`, `dropdown-menu-radio-item` |
 | toast | `toaster`, `toast-message` (type) |
-| skeleton | `skeleton` |
-| empty-state | `empty-state` (`title`, `description`, `#icon`, `#action` slots) |
+| skeleton | `skeleton` (`shape`: `line`, `title`, `row`, `control`, `chip`, `chart`) |
+| empty-state / error-state | `empty-state` (`title`, `description`, `#icon`, `#action`), `error-state` |
+| app shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |
+| other | `device-code`, `status-dot`, `match-mark`, `text-link` (prose links only), `color-swatch` |
 
 `cn` merges class lists so that a `class` passed by the caller overrides the defaults.
 

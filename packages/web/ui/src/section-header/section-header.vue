@@ -5,7 +5,7 @@ import { cn } from "../cn";
 const props = withDefaults(
   defineProps<{
     title: string;
-    /** Shown in mono after the title, for example the number of rows below. */
+    /** Shown muted after the title, for example the number of rows below. */
     count?: number | string;
     /** The heading element. Sections are labelled, not shouted, so every level looks the same. */
     as?: "h1" | "h2" | "h3" | "h4";
@@ -20,18 +20,22 @@ defineSlots<{ actions?: () => unknown }>();
 <template>
   <div
     data-slot="section-header"
-    :class="cn('flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2', props.class)"
+    :class="cn('flex min-h-control-md flex-wrap items-center gap-x-3 gap-y-2', props.class)"
   >
-    <component :is="as" class="flex items-baseline gap-2 text-sm font-medium text-foreground">
+    <component :is="as" class="flex items-baseline gap-2 text-label text-foreground">
       {{ title }}
       <span
         v-if="count !== undefined"
         data-slot="section-header-count"
-        class="font-mono text-xs font-normal text-muted-foreground"
+        class="text-meta font-normal text-muted-foreground tabular-nums"
         >{{ count }}</span
       >
     </component>
-    <div v-if="$slots.actions" data-slot="section-header-actions" class="ml-auto flex gap-2">
+    <div
+      v-if="$slots.actions"
+      data-slot="section-header-actions"
+      class="ml-auto flex items-center gap-2"
+    >
       <slot name="actions" />
     </div>
   </div>

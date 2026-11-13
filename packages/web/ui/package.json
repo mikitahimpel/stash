@@ -53,7 +53,22 @@
     "./segmented-control": "./src/segmented-control/segmented-control.vue",
     "./segmented-control-option": "./src/segmented-control/segmented-control-option.ts",
     "./text-link": "./src/text-link/text-link.vue",
-    "./toggle-chip": "./src/toggle-chip/toggle-chip.vue"
+    "./toggle-chip": "./src/toggle-chip/toggle-chip.vue",
+    "./control-variants": "./src/control/control-variants.ts",
+    "./list-row-title": "./src/list-row/list-row-title.vue",
+    "./app-bar": "./src/app-shell/app-bar.vue",
+    "./app-frame": "./src/app-shell/app-frame.vue",
+    "./app-main": "./src/app-shell/app-main.vue",
+    "./nav-bar": "./src/app-shell/nav-bar.vue",
+    "./nav-tab": "./src/app-shell/nav-tab.vue",
+    "./nav-shortcut": "./src/app-shell/nav-shortcut.vue",
+    "./wordmark": "./src/app-shell/wordmark.vue",
+    "./centered-screen": "./src/app-shell/centered-screen.vue",
+    "./device-code": "./src/device-code/device-code.vue",
+    "./avatar-button": "./src/avatar/avatar-button.vue",
+    "./status-dot": "./src/status-dot/status-dot.vue",
+    "./match-mark": "./src/match-mark/match-mark.vue",
+    "./color-swatch": "./src/color-swatch/color-swatch.vue"
   },
   "scripts": {
     "lint": "oxlint .",

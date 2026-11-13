@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useAtom, useAtomSet } from "@effect/atom-vue";
 import Button from "@stash/web-ui/button";
+import CenteredScreen from "@stash/web-ui/centered-screen";
+import DeviceCode from "@stash/web-ui/device-code";
+import Wordmark from "@stash/web-ui/wordmark";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, onUnmounted, ref, watch } from "vue";
@@ -78,10 +81,8 @@ const ended = computed(() => {
 </script>
 
 <template>
-  <main
-    class="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background px-4 text-foreground"
-  >
-    <h1 class="text-[15px] font-semibold tracking-tight">stash</h1>
+  <CenteredScreen>
+    <Wordmark as="h1" />
 
     <!-- GitHub Device Flow: no redirect or popup, so it works in the home-screen app, and the code
          can be entered on any device. -->
@@ -90,23 +91,20 @@ const ended = computed(() => {
       class="flex w-full max-w-sm flex-col items-center gap-4"
       data-test="device-code"
     >
-      <p class="text-center text-sm text-muted-foreground">
+      <p class="text-body text-muted-foreground">
         Enter this code on GitHub, on this or any other device.
       </p>
       <div class="flex w-full items-center gap-2">
-        <output
-          class="tactile-sunken flex h-14 flex-1 items-center justify-center rounded-lg font-mono text-2xl font-medium tracking-[0.2em] select-all"
-          aria-label="Your code"
-          data-test="user-code"
-          >{{ waiting.userCode }}</output
-        >
-        <Button as-child>
-          <button type="button" class="h-14 sm:h-14" data-test="copy-code" @click="copyCode">
+        <DeviceCode label="Your code" v-bind="{ 'data-test': 'user-code' }">{{
+          waiting.userCode
+        }}</DeviceCode>
+        <Button as-child size="lg">
+          <button type="button" data-test="copy-code" @click="copyCode">
             {{ copyState === "copied" ? "Copied" : "Copy" }}
           </button>
         </Button>
       </div>
-      <p v-if="copyState === 'failed'" role="alert" class="text-sm text-destructive">
+      <p v-if="copyState === 'failed'" role="alert" class="text-body text-destructive">
         Couldn't copy. Select the code and copy it by hand.
       </p>
       <Button as-child variant="primary" size="lg" class="w-full">
@@ -118,31 +116,27 @@ const ended = computed(() => {
           >Open github.com/login/device</a
         >
       </Button>
-      <p class="text-xs text-muted-foreground" aria-live="polite">
+      <p class="text-meta text-muted-foreground" aria-live="polite">
         waiting for GitHub · expires in <span data-test="countdown">{{ remaining }}</span>
       </p>
     </section>
 
     <section
       v-else-if="login?.step === 'notConfigured'"
-      class="flex max-w-sm flex-col items-center gap-2 text-center"
+      class="flex max-w-sm flex-col items-center gap-2"
       data-test="not-configured"
     >
-      <p class="text-sm">Sign-in isn't configured on this deployment yet.</p>
-      <p class="text-xs text-muted-foreground">
+      <p class="text-body">Sign-in isn't configured on this deployment yet.</p>
+      <p class="text-meta text-muted-foreground">
         the GitHub login needs to be set up before anyone can sign in
       </p>
     </section>
 
-    <section
-      v-else-if="ended"
-      class="flex max-w-sm flex-col items-center gap-4 text-center"
-      data-test="ended"
-    >
-      <p role="alert" class="text-sm">{{ ended.message }}</p>
+    <section v-else-if="ended" class="flex max-w-sm flex-col items-center gap-4" data-test="ended">
+      <p role="alert" class="text-body">{{ ended.message }}</p>
       <p
         v-if="'detail' in ended"
-        class="font-mono text-xs break-all text-muted-foreground"
+        class="text-meta break-all text-muted-foreground"
         data-test="error-detail"
       >
         {{ ended.detail }}
@@ -158,11 +152,11 @@ const ended = computed(() => {
           Sign in with GitHub
         </button>
       </Button>
-      <p class="text-xs text-muted-foreground">you'll get a code to enter on github.com</p>
+      <p class="text-meta text-muted-foreground">you'll get a code to enter on github.com</p>
     </template>
 
-    <p v-else class="text-sm text-muted-foreground" data-test="signed-in">
+    <p v-else class="text-body text-muted-foreground" data-test="signed-in">
       Signed in. Opening stash…
     </p>
-  </main>
+  </CenteredScreen>
 </template>

@@ -144,30 +144,33 @@ const onFocusin = (event: FocusEvent) => {
       <div ref="field">
         <SearchField
           v-model="qModel"
-          class="h-12 sm:h-12"
+          size="lg"
           v-bind="{ 'aria-label': 'Search links', placeholder: 'Try: that video about economics' }"
         />
       </div>
       <div v-if="searching" class="flex flex-wrap items-center gap-2">
-        <SegmentedControl v-model="modeModel" :options="SearchRequest.modes" label="Search mode" />
+        <SegmentedControl
+          v-model="modeModel"
+          :options="SearchRequest.modes"
+          label="Search mode"
+          size="sm"
+        />
         <FilterMenu
           label="Type"
           :options="typeOptions"
           :model-value="type"
           @update:model-value="setType"
         />
-        <!-- Its own line, with the text of the first chip on the content edge. One line on phones:
-             it scrolls on its own, out to the edge of the screen. -->
+        <!-- Its own line. One line on phones: it scrolls on its own. -->
         <div
           v-if="tags.length > 0"
-          class="-ml-2.5 flex w-[calc(100%+0.625rem)] gap-1 overflow-x-auto [scrollbar-width:none] max-sm:-mr-4 max-sm:w-[calc(100%+1.625rem)] max-sm:pr-4 sm:flex-wrap"
+          class="flex w-full gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap"
           role="group"
           aria-label="Tag"
         >
           <ToggleChip
             v-for="name in tags"
             :key="name"
-            class="font-mono text-xs"
             :pressed="tag === name"
             @update:pressed="(on: boolean) => setTag(on ? name : '')"
           >
@@ -187,7 +190,7 @@ const onFocusin = (event: FocusEvent) => {
 
     <div v-if="loading" class="flex flex-col gap-3" aria-busy="true">
       <div v-if="skeleton" data-testid="search-loading" class="flex flex-col gap-3">
-        <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
+        <Skeleton v-for="i in 3" :key="i" shape="row" />
       </div>
     </div>
 
@@ -213,11 +216,11 @@ const onFocusin = (event: FocusEvent) => {
 
     <footer
       v-if="hits !== null && hits.length > 0"
-      class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:flex"
+      class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-meta text-muted-foreground sm:flex"
     >
-      <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
-      <span class="flex items-center gap-1.5"><Kbd>↵</Kbd> open</span>
-      <span class="flex items-center gap-1.5"><Kbd>S</Kbd> seen</span>
+      <span class="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
+      <span class="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
+      <span class="flex items-center gap-1"><Kbd>S</Kbd> seen</span>
     </footer>
   </section>
 </template>

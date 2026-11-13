@@ -29,6 +29,7 @@ const types = Link.LinkType.literals.map((value) => ({
   <div class="flex flex-wrap items-center gap-2">
     <SegmentedControl
       label="Feed"
+      size="sm"
       :options="feeds"
       :model-value="filters.feed"
       @update:model-value="(feed) => update({ feed })"
@@ -44,7 +45,6 @@ const types = Link.LinkType.literals.map((value) => ({
         v-if="filters.tag !== undefined"
         pressed
         data-clear="tag"
-        class="font-mono"
         @update:pressed="update({ tag: undefined })"
       >
         #{{ filters.tag }}

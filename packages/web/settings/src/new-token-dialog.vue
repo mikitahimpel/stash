@@ -32,7 +32,7 @@ const emit = defineEmits<{ copy: []; dismiss: [] }>();
       <div v-if="token" class="flex gap-2">
         <Input
           :model-value="Redacted.value(token.token)"
-          class="font-mono text-xs"
+          mono
           v-bind="{
             readonly: true,
             'aria-label': 'API token',
@@ -46,7 +46,7 @@ const emit = defineEmits<{ copy: []; dismiss: [] }>();
           </button>
         </Button>
       </div>
-      <p v-if="copy === 'failed'" role="alert" class="text-sm text-destructive">
+      <p v-if="copy === 'failed'" role="alert" class="text-body text-destructive">
         Couldn't copy. Select the token and copy it by hand.
       </p>
       <DialogFooter>

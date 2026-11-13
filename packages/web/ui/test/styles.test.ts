@@ -17,11 +17,39 @@ const build = async (candidates: Array<string>) => {
 
 describe("Tailwind preset", () => {
   it("maps the theme tokens to utilities", async () => {
-    const { css } = await build(["bg-background", "text-muted-foreground", "rounded-lg"]);
+    const { css } = await build(["bg-background", "text-muted-foreground"]);
 
     expect(css).toMatch(/\.bg-background\s*{\s*background-color: var\(--background\)/);
     expect(css).toMatch(/\.text-muted-foreground\s*{\s*color: var\(--muted-foreground\)/);
-    expect(css).toMatch(/\.rounded-lg\s*{\s*border-radius: var\(--radius\)/);
+  });
+
+  it("defines the control tokens: heights 32 / 36 / 44, radii 8 / 12, text roles", async () => {
+    const { css } = await build([
+      "h-control-sm",
+      "h-control-md",
+      "h-control-lg",
+      "rounded-control",
+      "rounded-surface",
+      "text-label",
+      "text-meta",
+    ]);
+
+    expect(css).toMatch(/\.h-control-sm\s*{\s*height: 32px/);
+    expect(css).toMatch(/\.h-control-md\s*{\s*height: 36px/);
+    expect(css).toMatch(/\.h-control-lg\s*{\s*height: 44px/);
+    expect(css).toMatch(/\.rounded-control\s*{\s*border-radius: 8px/);
+    expect(css).toMatch(/\.rounded-surface\s*{\s*border-radius: 12px/);
+    expect(css).toMatch(
+      /\.text-label\s*{[^}]*font-size: 14px[^}]*font-weight: var\(--tw-font-weight, 500\)/,
+    );
+    expect(css).toMatch(/\.text-meta\s*{[^}]*font-size: 13px/);
+  });
+
+  it("grows the hit area of controls to 44px on phones only", async () => {
+    const { css } = await build(["hit-area"]);
+
+    expect(css).toMatch(/@media \(width < 40rem\)/);
+    expect(css).toContain("height: max(100%, 44px)");
   });
 
   it("switches dark mode with the .dark class, not the OS setting", async () => {

@@ -3,10 +3,16 @@ import { useAtomSet, useAtomValue } from "@effect/atom-vue";
 import { Monitor, Moon, Sun } from "@lucide/vue";
 import AccountMenu from "@stash/web-auth/account-menu";
 import * as Theme from "@stash/web-platform/theme";
+import AppBar from "@stash/web-ui/app-bar";
 import DropdownMenuLabel from "@stash/web-ui/dropdown-menu-label";
 import DropdownMenuRadioGroup from "@stash/web-ui/dropdown-menu-radio-group";
 import DropdownMenuRadioItem from "@stash/web-ui/dropdown-menu-radio-item";
 import DropdownMenuSeparator from "@stash/web-ui/dropdown-menu-separator";
+import NavBar from "@stash/web-ui/nav-bar";
+import NavShortcut from "@stash/web-ui/nav-shortcut";
+import NavTab from "@stash/web-ui/nav-tab";
+import StatusDot from "@stash/web-ui/status-dot";
+import Wordmark from "@stash/web-ui/wordmark";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { computed, nextTick, onMounted } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
@@ -78,80 +84,52 @@ const pickTheme = (value: unknown) => {
 </script>
 
 <template>
-  <header
-    class="sticky top-0 z-10 border-b border-hairline bg-background pt-[env(safe-area-inset-top)]"
-  >
-    <!-- One quiet row, with the same width and side padding as <main>, so it lines up with the
-         content. -->
-    <div class="mx-auto flex h-14 max-w-[960px] items-center gap-8 px-4 sm:px-6">
-      <RouterLink :to="{ name: 'links' }" class="text-[15px] font-semibold tracking-tight">
-        stash
-      </RouterLink>
+  <AppBar>
+    <Wordmark as-child>
+      <RouterLink :to="{ name: 'links' }">stash</RouterLink>
+    </Wordmark>
 
-      <!-- Plain text tabs. On phones they are a bottom bar (fixed, above the home indicator); from
-           sm up they sit in the header, with the indicator on its bottom edge. -->
-      <nav
-        aria-label="Main"
-        class="fixed inset-x-0 bottom-0 z-10 flex border-t border-hairline bg-background px-4 pb-[env(safe-area-inset-bottom)] sm:static sm:z-auto sm:h-14 sm:gap-6 sm:border-0 sm:bg-transparent sm:p-0"
+    <NavBar label="Main">
+      <RouterLink
+        v-for="item in nav"
+        :key="item.name"
+        v-slot="{ href, navigate }"
+        :to="{ name: item.name }"
+        custom
       >
-        <RouterLink
-          v-for="item in nav"
-          :key="item.name"
-          v-slot="{ href, navigate }"
-          :to="{ name: item.name }"
-          custom
-        >
+        <NavTab as-child :active="item === current">
           <a
             :href="href"
             :aria-current="item === current ? 'page' : undefined"
             :aria-keyshortcuts="item.name === 'search' ? 'Meta+K Control+K' : undefined"
-            class="inline-flex h-12 flex-1 items-center justify-center gap-2 border-b-2 text-[13px] font-medium whitespace-nowrap transition-colors sm:h-full sm:flex-none"
-            :class="
-              item === current
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            "
             @click="follow(item, $event, navigate)"
           >
             {{ item.label }}
-            <kbd
-              v-if="item.name === 'search'"
-              aria-hidden="true"
-              class="hidden font-mono text-[11px] font-normal text-muted-foreground sm:inline"
-              >⌘K</kbd
-            >
+            <NavShortcut v-if="item.name === 'search'">⌘K</NavShortcut>
           </a>
-        </RouterLink>
-      </nav>
+        </NavTab>
+      </RouterLink>
+    </NavBar>
 
-      <div class="ml-auto flex shrink-0 items-center">
-        <!-- The status lives in the menu; the button only speaks up when the device is offline. -->
-        <AccountMenu :alert="status === 'Offline' ? 'offline' : undefined">
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup :model-value="preference" @update:model-value="pickTheme">
-            <DropdownMenuRadioItem
-              v-for="option in themes"
-              :key="option.value"
-              :value="option.value"
-            >
-              <component :is="option.icon" aria-hidden="true" />
-              {{ option.label }}
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel
-            class="flex items-center gap-2"
-            v-bind="{ title: statusHint, 'data-testid': 'sync-status' }"
-          >
-            <span
-              aria-hidden="true"
-              class="size-2 rounded-full"
-              :class="status === 'Offline' ? 'bg-signal' : 'bg-muted-foreground'"
-            />
-            <span aria-live="polite">{{ status }}</span>
-          </DropdownMenuLabel>
-        </AccountMenu>
-      </div>
+    <div class="ml-auto flex shrink-0 items-center">
+      <!-- The status lives in the menu; the button only speaks up when the device is offline. -->
+      <AccountMenu :alert="status === 'Offline' ? 'offline' : undefined">
+        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup :model-value="preference" @update:model-value="pickTheme">
+          <DropdownMenuRadioItem v-for="option in themes" :key="option.value" :value="option.value">
+            <component :is="option.icon" aria-hidden="true" />
+            {{ option.label }}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel
+          class="flex items-center gap-2"
+          v-bind="{ title: statusHint, 'data-testid': 'sync-status' }"
+        >
+          <StatusDot :tone="status === 'Offline' ? 'signal' : 'muted'" />
+          <span aria-live="polite">{{ status }}</span>
+        </DropdownMenuLabel>
+      </AccountMenu>
     </div>
-  </header>
+  </AppBar>
 </template>

@@ -30,7 +30,7 @@ const pct = (x: number) => `${(x * 100).toFixed(3)}%`;
     :aria-label="label"
     width="100%"
     height="74"
-    class="block overflow-visible font-mono text-xs"
+    class="block overflow-visible chart-text"
   >
     <line x1="0" x2="100%" :y1="axis" :y2="axis" class="stroke-hairline" />
     <g v-for="(tick, i) in layout.ticks" :key="tick.label">
@@ -77,7 +77,8 @@ const pct = (x: number) => `${(x * 100).toFixed(3)}%`;
         :x="pct(match.x)"
         :y="laneY(match.lane)"
         text-anchor="middle"
-        :class="match.id === selected ? 'fill-foreground font-medium' : 'fill-muted-foreground'"
+        :font-weight="match.id === selected ? 500 : undefined"
+        :class="match.id === selected ? 'fill-foreground' : 'fill-muted-foreground'"
       >
         {{ match.rank }}
       </text>

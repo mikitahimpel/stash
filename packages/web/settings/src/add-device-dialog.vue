@@ -50,19 +50,24 @@ const submit = () => {
         <DialogHeader>
           <DialogTitle>Add device</DialogTitle>
         </DialogHeader>
-        <label class="grid gap-1.5 text-[13px] font-medium">
-          Name
+        <div class="flex flex-col gap-2">
+          <span id="add-device-name" class="text-label">Name</span>
           <Input
             :model-value="name"
-            v-bind="{ name: 'name', placeholder: 'Work laptop', maxlength: 100 }"
+            v-bind="{
+              name: 'name',
+              placeholder: 'Work laptop',
+              maxlength: 100,
+              'aria-labelledby': 'add-device-name',
+            }"
             @update:model-value="(value) => (name = String(value ?? ''))"
           />
-        </label>
-        <div class="grid gap-1.5 text-[13px] font-medium">
-          <span aria-hidden="true">Kind</span>
+        </div>
+        <div class="flex flex-col gap-2">
+          <span aria-hidden="true" class="text-label">Kind</span>
           <SegmentedControl v-model="kind" :options="kinds" label="Kind" class="w-full sm:w-fit" />
         </div>
-        <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
+        <p v-if="error" role="alert" class="text-body text-destructive">{{ error }}</p>
         <DialogFooter>
           <Button as-child variant="primary">
             <button type="submit" :disabled="!valid || pending">
