@@ -98,12 +98,6 @@ export default Alchemy.Stack(
       "dev_only",
     );
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
-    // The token `Mcp` calls the api with. Redacted, so it is bound as `secret_text`. Without it a
-    // deploy still succeeds, and the api answers the tools' calls with 401.
-    const mcpApiToken = yield* devDefaultOption(
-      Config.Redacted("STASH_MCP_API_TOKEN"),
-      Redacted.make("dev_only"),
-    );
     // The classifier's key, bound as `secret_text`. `alchemy dev` never reads it, so local dev stays
     // credential-free (the enrichment consumer then retries each message, see apps/api/src/worker.ts).
     const anthropicApiKey = dev
@@ -209,8 +203,10 @@ export default Alchemy.Stack(
       main: "./apps/mcp/src/worker.ts",
       ...named("mcp"),
       env: {
-        API: api,
-        ...optional("API_TOKEN", mcpApiToken),
+        // The api's `InternalApi` entrypoint: the public `StashApi` plus `POST /internal/mcp-tokens`,
+        // which mints the api token for each grant when the owner authorizes Claude. A named
+        // entrypoint is reachable only through this binding, never from the internet.
+        API: Cloudflare.WorkerEntrypoint(api, "InternalApi"),
         OAUTH_KV: oauthState,
         MCP_ORIGIN: origins.mcp,
         ...optional("GITHUB_CLIENT_ID", githubClientId),

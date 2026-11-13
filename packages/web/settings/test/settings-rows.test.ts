@@ -15,13 +15,18 @@ describe("SettingsRows.make", () => {
   it("keeps the device order and names each token's device", () => {
     const rows = SettingsRows.make(
       devices([Fixtures.device("b", "Phone"), Fixtures.device("a", "Laptop")]),
-      tokens([Fixtures.token("t1", "a"), Fixtures.token("t2", "gone")]),
+      tokens([
+        Fixtures.token("t1", "a"),
+        Fixtures.token("t2", "gone"),
+        Fixtures.token("t3", null, { name: "Claude (MCP)", createdAt: "2026-01-01T00:00:00.000Z" }),
+      ]),
       undefined,
     );
     expect(rows.devices.map((row) => row.device.id)).toEqual(["b", "a"]);
-    expect(rows.tokens.map((row) => [row.token.id, row.deviceName])).toEqual([
+    expect(rows.tokens.map((row) => [row.token.id, row.label])).toEqual([
       ["t1", "Laptop"],
       ["t2", undefined],
+      ["t3", "Claude (MCP)"],
     ]);
   });
 

@@ -11,7 +11,7 @@ contracts. Contracts depend on no context.
 | Package | Name | Contents |
 |---|---|---|
 | `domain/` | `@stash/contracts-domain` | Effect Schema for link, tag, device, tab, command, token, digest, and tagged errors |
-| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest |
+| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest; plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
 
 ## May depend on
 
@@ -51,6 +51,9 @@ and no implementations. Servers and clients live in their own contexts.
   `RateLimited` 429, `DeviceFlowExpired` 410, `DeviceFlowDenied` and `LoginNotAllowed` 403), and groups attach those annotated schemas to endpoints.
 - Every endpoint is guarded by `Authorization` from `./security` (bearer API token, then session
   cookie), except `auth.deviceStart` and `auth.devicePoll` (GitHub Device Flow login).
+- `InternalApi` (`internal-api.ts`) is a separate `HttpApi`, not part of `StashApi`, with no auth
+  middleware: `apps/api` serves it only on a named entrypoint that only a Service Binding reaches.
+  Today it has `internal.createMcpToken` (`POST /internal/mcp-tokens`), which `apps/mcp` calls.
 
 ## Testing
 

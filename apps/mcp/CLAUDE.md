@@ -28,6 +28,12 @@ Never import `@stash/backend-*`, `@stash/web-*` or `@stash/ext-*`. oxlint enforc
 `@stash/mcp-platform`. The entry builds the typed api client from the `API` Service Binding in
 `env` and provides it to the tool layers. Only the entry touches `env`.
 
+The client has no token of its own. Each sign-in mints an api token for its grant
+(`ApiClient.createMcpToken` over the binding's internal endpoint) and stores it in the grant props.
+Every `/mcp` request first checks that token (`ApiClient.isTokenActive`; revoked → revoke the grant
+and answer 401 `invalid_token`), then provides it as `ApiClient.GrantApiToken` in the request
+context, which the client's auth middleware reads.
+
 ## Rules
 
 - Keep the entry small: OAuth provider, MCP transport, tool registration.

@@ -241,7 +241,7 @@ const confirmRevoke = async () => {
                   class="min-w-0 flex-1 truncate text-sm"
                   :class="row.token.revokedAt !== null && 'text-muted-foreground'"
                 >
-                  {{ row.deviceName ?? "Unknown device" }}
+                  {{ row.label ?? "Unknown device" }}
                 </span>
                 <span class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
                   <span>created {{ SettingsRows.formatDate(row.token.createdAt) }}</span>
@@ -271,13 +271,15 @@ const confirmRevoke = async () => {
     />
     <NewTokenDialog
       :token="created"
-      :device-name="created ? deviceNames.get(created.deviceId) : undefined"
+      :device-name="
+        created && created.deviceId !== null ? deviceNames.get(created.deviceId) : undefined
+      "
       :copy="copyState"
       @copy="copyCreated"
       @dismiss="dismissCreated"
     />
     <RevokeTokenDialog
-      :device-name="revoking ? (revoking.deviceName ?? 'This device') : undefined"
+      :device-name="revoking ? (revoking.label ?? 'This device') : undefined"
       :pending="revokePending"
       :error="revokeError"
       @confirm="confirmRevoke"

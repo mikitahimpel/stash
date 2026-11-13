@@ -22,7 +22,6 @@ Nothing else is needed for stage `prod`. Everything else is optional there:
 |---|---|
 | `STASH_ALLOWED_GITHUB_LOGIN` | stage `prod` uses the committed owner login (`PROD_ALLOWED_GITHUB_LOGIN` in [`alchemy.run.ts`](../alchemy.run.ts), public and committed at the owner's request). Any other deployed stage fails without it |
 | `GITHUB_CLIENT_ID` | stage `prod` uses the committed id of the project's OAuth App (see [below](#github-oauth-app)). Any other stage: the login routes answer **503** `NotConfigured` (`POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp), and everything else works |
-| `STASH_MCP_API_TOKEN` (secret) | `Mcp` gets no `API_TOKEN`, so the api answers the MCP tools with 401. OAuth still works |
 | `ANTHROPIC_API_KEY` (secret) | the enrichment consumer fails each message and the queue retries it |
 | `STASH_WEB_ORIGIN`, `STASH_MCP_ORIGIN` | derived: `https://stash-web.<subdomain>.workers.dev`, `https://stash-mcp.<subdomain>.workers.dev` |
 | `CLOUDFLARE_WORKERS_SUBDOMAIN` | read once from the Cloudflare API with the deploy's credentials |
@@ -79,7 +78,9 @@ same way. The api's CORS for `WEB_ORIGIN` stays only for a SPA built with a cros
 
 `Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`)
 and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets `ALLOWED_GITHUB_LOGIN`,
-`MCP_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`) and the secret `API_TOKEN` (when set).
+`MCP_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`), and its `API` binding targets the `Api`
+Worker's `InternalApi` entrypoint. It has no secrets: each Claude sign-in mints its own api token
+(see [mcp-connector.md](mcp-connector.md#the-connectors-api-token)).
 
 The account's `workers.dev` subdomain itself is read, never changed.
 
@@ -206,9 +207,8 @@ A full sign-in needs a person to enter the code on github.com, signed in as
 2. **MCP.** Add `https://stash-mcp.<subdomain>.workers.dev/mcp` as a custom connector in Claude
    ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue with
    GitHub**, enter the code shown on github.com, keep the tab open, and it returns you to Claude.
-3. **MCP tools.** The tools call the api with `STASH_MCP_API_TOKEN`. Until it is set they get 401.
-   Once signed in on the web, mint a token with `POST /tokens`, store it in Proton Pass (vault
-   `Stash`, see root `CLAUDE.md` → Secrets), add its reference to `.env` and redeploy.
+3. **MCP tools.** Nothing to set up: the sign-in minted a **Claude (MCP)** token, listed in the web
+   app under Settings → API tokens. Ask Claude to search or save a link to check.
 
 ## Last deployed
 

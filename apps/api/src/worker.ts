@@ -15,7 +15,7 @@ import * as Vectors from "@stash/backend-platform/vectors";
 import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
-import { env } from "cloudflare:workers";
+import { env, WorkerEntrypoint } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as Layer from "effect/Layer";
@@ -97,6 +97,22 @@ const syncScheduler = Layer.succeed(Scheduler.Scheduler)(new Scheduler.MixedSche
 const app = HttpRouter.toWebHandler(
   ApiLayer.layer.pipe(Layer.provide(platform), Layer.provideMerge(syncScheduler)),
 );
+// Its own router and layer build (the platform layers only wrap `env`), so the public `app` never
+// gets the internal routes.
+const internalApp = HttpRouter.toWebHandler(
+  ApiLayer.internalLayer.pipe(Layer.provide(platform), Layer.provideMerge(syncScheduler)),
+);
+
+/**
+ * The entrypoint `apps/mcp` binds its `API` Service Binding to. A named entrypoint is reachable
+ * only through a binding, never from the internet, so it alone serves the `InternalApi`
+ * (`POST /internal/mcp-tokens`) besides the public `StashApi`.
+ */
+export class InternalApi extends WorkerEntrypoint<WorkerEnv> {
+  override fetch(request: Request): Promise<Response> {
+    return internalApp.handler(request);
+  }
+}
 
 export default {
   async fetch(request, env): Promise<Response> {

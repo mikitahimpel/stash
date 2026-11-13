@@ -153,7 +153,6 @@ behind services.
   | `SESSION_SECRET` | `pass://Stash/app/session_secret` | planned |
   | `STASH_API_URL` | `pass://Stash/migrate/api_url` | planned |
   | `STASH_API_TOKEN` | `pass://Stash/migrate/api_token` | planned |
-  | `STASH_MCP_API_TOKEN` | `pass://Stash/mcp/api_token` | planned |
 
 - The `Anthropic` and `Cloudflare` items exist and are all a deploy needs (see
   [docs/deploy.md](docs/deploy.md)). Neither the Cloudflare account id nor any other value from
@@ -162,7 +161,7 @@ behind services.
   is public. The project's OAuth App exists. Its client id is committed in `alchemy.run.ts` as
   the default for stage `prod`. Env overrides it, and other stages without it answer 503 on the
   login routes. Never create a client secret.
-- **Planned items (`app`, `migrate`, `mcp`) are not created in the vault
+- **Planned items (`app`, `migrate`) are not created in the vault
   yet.** Their item titles above are placeholders. They stay commented out in `.env.example`. When
   an item is created, uncomment its lines and change the reference to match the real item title
   exactly (case-sensitive), then update this table.

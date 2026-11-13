@@ -29,15 +29,25 @@ export const pollPath = "/authorize/poll";
 /** GitHub's `slow_down` adds this many seconds to the interval. */
 const slowDownSeconds = 5;
 
-/** Props stored with the grant. The MCP handler sees them as `ctx.props`. */
+/**
+ * Props stored with the grant, encrypted by the provider. The MCP handler sees them as
+ * `ctx.props`. `apiToken` is the api token minted for this grant (`Claude (MCP)` in Settings): the
+ * tools call the api with it.
+ */
 export interface Props {
   readonly login: string;
+  readonly apiToken: string;
 }
 
 export interface Options {
   readonly origin: string;
   readonly allowedLogin: string;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
+  /**
+   * Mints the api token for a new grant, for the verified GitHub login, over the Service Binding.
+   * Rejects if the api refuses or is unreachable: the client then gets `server_error`.
+   */
+  readonly mintApiToken: (login: string) => Promise<string>;
   /** Epoch milliseconds. Tests pass a clock they control. */
   readonly now?: () => number;
 }
@@ -151,13 +161,18 @@ export const make = (options: Options) => {
     );
   };
 
-  const grant = async (oauth: OAuthHelpers, request: AuthRequest, login: string) => {
+  const grant = async (
+    oauth: OAuthHelpers,
+    request: AuthRequest,
+    login: string,
+    apiToken: string,
+  ) => {
     const { redirectTo } = await oauth.completeAuthorization({
       request,
       userId: login,
       metadata: {},
       scope: request.scope,
-      props: { login } satisfies Props,
+      props: { login, apiToken } satisfies Props,
     });
     return redirectTo;
   };
@@ -214,8 +229,15 @@ export const make = (options: Options) => {
     if (result.login.toLowerCase() !== allowedLogin) {
       return fail("not_allowed", "This GitHub account may not use this server");
     }
+    const apiToken = await options.mintApiToken(result.login).catch(() => undefined);
+    if (apiToken === undefined) {
+      return fail("failed", "Stash could not issue a token. Try again.", "server_error");
+    }
     return json(
-      { status: "complete", redirectTo: await grant(oauth, resumed.request, result.login) },
+      {
+        status: "complete",
+        redirectTo: await grant(oauth, resumed.request, result.login, apiToken),
+      },
       resumed.headers,
     );
   };

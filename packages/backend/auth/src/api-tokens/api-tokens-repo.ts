@@ -8,9 +8,10 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-/** A token row: what is listed, plus the hash. */
+/** A token row: what is listed, plus the hash and, for a user token, the login it acts as. */
 export const StoredApiToken = Schema.Struct({
   ...ApiToken.ApiTokenInfo.fields,
+  githubLogin: Schema.NullOr(Schema.String),
   hash: Schema.String,
 });
 export type StoredApiToken = typeof StoredApiToken.Type;
@@ -19,6 +20,15 @@ export type StoredApiToken = typeof StoredApiToken.Type;
 export interface NewApiToken {
   readonly id: ApiToken.ApiTokenId;
   readonly deviceId: Device.DeviceId;
+  readonly hash: string;
+  readonly createdAt: DateTime.Utc;
+}
+
+/** A user token to insert: no device, a name for Settings and the login it acts as. */
+export interface NewUserApiToken {
+  readonly id: ApiToken.ApiTokenId;
+  readonly name: string;
+  readonly githubLogin: string;
   readonly hash: string;
   readonly createdAt: DateTime.Utc;
 }
@@ -33,6 +43,9 @@ export class ApiTokensRepo extends Context.Service<
     readonly insert: (
       token: NewApiToken,
     ) => Effect.Effect<ApiToken.ApiTokenInfo, D1Database.DatabaseError>;
+    readonly insertUser: (
+      token: NewUserApiToken,
+    ) => Effect.Effect<ApiToken.ApiTokenInfo, D1Database.DatabaseError>;
     /** Every token, revoked ones included, oldest first. */
     readonly list: Effect.Effect<ReadonlyArray<ApiToken.ApiTokenInfo>, D1Database.DatabaseError>;
     readonly findByHash: (
@@ -46,7 +59,8 @@ export class ApiTokensRepo extends Context.Service<
   }
 >()("@stash/backend-auth/ApiTokensRepo") {}
 
-const infoColumns = "id, device_id AS deviceId, created_at AS createdAt, revoked_at AS revokedAt";
+const infoColumns =
+  "id, device_id AS deviceId, name, created_at AS createdAt, revoked_at AS revokedAt";
 
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
@@ -67,6 +81,24 @@ export const make = Effect.gen(function* () {
           Effect.as({
             id: token.id,
             deviceId: token.deviceId,
+            name: null,
+            createdAt: token.createdAt,
+            revokedAt: null,
+          }),
+        );
+    },
+    insertUser: (token) => {
+      const createdAt = DateTime.formatIso(token.createdAt);
+      return db
+        .run(
+          D1Database.sql`INSERT INTO api_tokens (id, name, github_login, hash, created_at)
+            VALUES (${token.id}, ${token.name}, ${token.githubLogin}, ${token.hash}, ${createdAt})`,
+        )
+        .pipe(
+          Effect.as({
+            id: token.id,
+            deviceId: null,
+            name: token.name,
             createdAt: token.createdAt,
             revokedAt: null,
           }),
@@ -77,7 +109,10 @@ export const make = Effect.gen(function* () {
     ).pipe(provide),
     findByHash: (hash) =>
       D1Database.queryFirst(StoredApiToken)(
-        D1Database.statement(`SELECT ${infoColumns}, hash FROM api_tokens WHERE hash = ?`, hash),
+        D1Database.statement(
+          `SELECT ${infoColumns}, github_login AS githubLogin, hash FROM api_tokens WHERE hash = ?`,
+          hash,
+        ),
       ).pipe(provide),
     revoke: (id, at) =>
       D1Database.queryFirst(ApiToken.ApiTokenInfo)(

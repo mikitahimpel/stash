@@ -1,4 +1,6 @@
 import * as Api from "@stash/contracts-api/api";
+import * as InternalApi from "@stash/contracts-api/internal-api";
+import * as ApiToken from "@stash/contracts-domain/api-token";
 import * as Security from "@stash/contracts-api/security";
 import * as Command from "@stash/contracts-domain/command";
 import * as Device from "@stash/contracts-domain/device";
@@ -16,8 +18,15 @@ import * as ApiClient from "./api-client.ts";
 // Service Binding. Requests take the same path as in production (HttpApiClient → binding `fetch`
 // → HTTP router), so tools are tested against the real wire format. All data is synthetic.
 
-/** Synthetic placeholder for `API_TOKEN`, not a real token. The fake api accepts only this one. */
+/**
+ * Synthetic api token, not a real one. The fake api accepts it from the start, and `layer` sends it
+ * when a request provides no `GrantApiToken`. Tokens minted through `/internal/mcp-tokens` are
+ * accepted too, until revoked.
+ */
 export const apiToken = "synthetic-mcp-token";
+
+/** The only login the fake api's `/internal/mcp-tokens` mints a token for. */
+export const allowedLogin = "synthetic-user";
 
 /** The clock of the fake api: every link and command it creates has this timestamp. */
 export const now = DateTime.makeUnsafe("2026-01-02T03:04:05.000Z");
@@ -36,6 +45,12 @@ export class TestApi extends Context.Service<
   {
     readonly links: Effect.Effect<ReadonlyArray<Link.Link>>;
     readonly commands: Effect.Effect<ReadonlyArray<Command.Command>>;
+    /** Every token minted through `/internal/mcp-tokens`, in order, with the login it is for. */
+    readonly mintedTokens: Effect.Effect<
+      ReadonlyArray<{ readonly token: string; readonly login: string }>
+    >;
+    /** Revokes a token, as Settings does: the fake api then answers it with 401. */
+    readonly revokeToken: (token: string) => Effect.Effect<void>;
   }
 >()("@stash/mcp-platform/TestApi") {}
 
@@ -45,6 +60,9 @@ interface State {
   readonly snapshots: Map<Device.DeviceId, Tab.TabsSnapshot>;
   readonly commands: Map<Command.CommandId, Command.Command>;
   digest: Digest.Digest | undefined;
+  /** Tokens the fake api accepts. */
+  readonly activeTokens: Set<string>;
+  readonly minted: Array<{ readonly token: string; readonly login: string }>;
 }
 
 const makeState = (seed: Seed): State => ({
@@ -53,6 +71,8 @@ const makeState = (seed: Seed): State => ({
   snapshots: new Map(seed.snapshots?.map((snapshot) => [snapshot.deviceId, snapshot])),
   commands: new Map(),
   digest: seed.digest,
+  activeTokens: new Set([apiToken]),
+  minted: [],
 });
 
 /** A synthetic link with every optional field empty. Override fields as needed. */
@@ -80,17 +100,43 @@ const findIn = <K extends string, V>(map: Map<K, V>, resource: string, id: K) =>
     Effect.mapError(() => notFound(resource, id)),
   );
 
-/** The MCP server acts as the signed-in user, so the fake api maps its token to a user. */
-const AuthorizationStub = Layer.succeed(
-  Security.Authorization,
-  Security.Authorization.of({
-    bearer: (handler, { credential }) =>
-      Redacted.value(credential) === apiToken
-        ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "user" })
-        : Effect.fail(new Errors.Unauthorized({ message: "Invalid token" })),
-    session: () => Effect.fail(new Errors.Unauthorized({ message: "No session" })),
-  }),
-);
+/** The MCP server acts as the signed-in user, so the fake api maps its tokens to a user. */
+const authorizationStub = (state: State) =>
+  Layer.succeed(
+    Security.Authorization,
+    Security.Authorization.of({
+      bearer: (handler, { credential }) =>
+        state.activeTokens.has(Redacted.value(credential))
+          ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "user" })
+          : Effect.fail(new Errors.Unauthorized({ message: "Invalid token" })),
+      session: () => Effect.fail(new Errors.Unauthorized({ message: "No session" })),
+    }),
+  );
+
+/** `POST /internal/mcp-tokens`, served on the same fake binding as the `StashApi`. */
+const internalGroup = (state: State) =>
+  HttpApiBuilder.group(InternalApi.InternalApi, "internal", (handlers) =>
+    handlers.handle("createMcpToken", ({ payload }) => {
+      if (payload.login.toLowerCase() !== allowedLogin) {
+        return Effect.fail(
+          new Errors.LoginNotAllowed({ message: "This GitHub login is not allowed" }),
+        );
+      }
+      return Effect.sync(() => {
+        const token = `synthetic-minted-token-${state.minted.length + 1}`;
+        state.minted.push({ token, login: payload.login });
+        state.activeTokens.add(token);
+        return {
+          id: ApiToken.ApiTokenId.make(`token-${state.minted.length}`),
+          deviceId: null,
+          name: ApiToken.mcpTokenName,
+          createdAt: now,
+          revokedAt: null,
+          token: Redacted.make(token),
+        };
+      });
+    }),
+  );
 
 // Endpoints the MCP server has no use for. Calling one is a bug in the test or the tool.
 const unsupported = (endpoint: string) =>
@@ -270,11 +316,13 @@ export const layerFetcher = (seed: Seed = {}): Layer.Layer<FetcherService | Test
   Layer.effectContext(
     Effect.gen(function* () {
       const state = makeState(seed);
-      const app = HttpApiBuilder.layer(Api.StashApi).pipe(
-        Layer.provide(groups(state)),
-        Layer.provide(AuthorizationStub),
-        Layer.provide(HttpServer.layerServices),
-      );
+      const app = Layer.mergeAll(
+        HttpApiBuilder.layer(Api.StashApi).pipe(
+          Layer.provide(groups(state)),
+          Layer.provide(authorizationStub(state)),
+        ),
+        HttpApiBuilder.layer(InternalApi.InternalApi).pipe(Layer.provide(internalGroup(state))),
+      ).pipe(Layer.provide(HttpServer.layerServices));
       const web = yield* Effect.acquireRelease(
         Effect.sync(() => HttpRouter.toWebHandler(app, { disableLogger: true })),
         (web) => Effect.promise(() => web.dispose()),
@@ -283,6 +331,11 @@ export const layerFetcher = (seed: Seed = {}): Layer.Layer<FetcherService | Test
         Context.add(TestApi, {
           links: Effect.sync(() => [...state.links.values()]),
           commands: Effect.sync(() => [...state.commands.values()]),
+          mintedTokens: Effect.sync(() => [...state.minted]),
+          revokeToken: (token) =>
+            Effect.sync(() => {
+              state.activeTokens.delete(token);
+            }),
         }),
       );
     }),
@@ -301,6 +354,6 @@ export const layer = (seed: Seed = {}): Layer.Layer<ApiClient.StashApiClient | T
   Layer.unwrap(
     Effect.gen(function* () {
       const API = yield* FetcherService;
-      return ApiClient.layer({ API, API_TOKEN: apiToken });
+      return ApiClient.layer({ API }, { token: Redacted.make(apiToken) });
     }),
   ).pipe(Layer.provideMerge(layerFetcher(seed)));

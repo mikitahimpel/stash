@@ -62,9 +62,7 @@ describe("SettingsAtoms.rows", () => {
       const reg = use(fakeApi().routes);
       const rows = yield* AtomRegistry.getResult(reg, SettingsAtoms.rows);
       expect(rows.devices.map((row) => row.device.name)).toEqual(["Work laptop"]);
-      expect(rows.tokens.map((row) => [row.token.id, row.deviceName])).toEqual([
-        ["t1", "Work laptop"],
-      ]);
+      expect(rows.tokens.map((row) => [row.token.id, row.label])).toEqual([["t1", "Work laptop"]]);
     }),
   );
 
@@ -119,7 +117,7 @@ describe("SettingsAtoms.issueToken", () => {
         suspendOnWaiting: true,
       });
       expect(rows.devices.map((row) => row.device.name)).toEqual(["Work laptop", "iPhone"]);
-      expect(rows.tokens.map((row) => [row.token.id, row.deviceName])).toEqual([
+      expect(rows.tokens.map((row) => [row.token.id, row.label])).toEqual([
         ["t1", "Work laptop"],
         ["t2", "iPhone"],
       ]);
