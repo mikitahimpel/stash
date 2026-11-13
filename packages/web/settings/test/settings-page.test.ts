@@ -40,11 +40,12 @@ const theme = () =>
 
 const mountPage = async (
   props: { startAdding?: boolean; startKind?: "zen" | "ios" | "mac-agent" } = {},
+  initialTokens: Array<ReturnType<typeof Fixtures.token>> = [Fixtures.token("t1", "d1")],
 ) => {
   const calls: Array<string> = [];
   const copied: Array<string> = [];
   const devices = [Fixtures.device("d1", "Work laptop")];
-  const tokens: Array<ReturnType<typeof Fixtures.token>> = [Fixtures.token("t1", "d1")];
+  const tokens = [...initialTokens];
   registry = ApiTesting.makeRegistry(
     {
       "GET /devices": () => ApiTesting.json(devices),
@@ -243,6 +244,20 @@ describe("settings page", () => {
     const token = wrapper.find("[data-test=token]");
     expect(token.find("[data-test=revoked]").text()).toBe("revoked 2026-01-03");
     expect(token.find("[data-test=revoke-token]").exists()).toBe(false);
+  });
+
+  it("lists the MCP connector's token by name and revokes it", async () => {
+    const { wrapper, calls } = await mountPage({}, [
+      Fixtures.token("t1", null, { name: "Claude (MCP)" }),
+    ]);
+    const token = wrapper.find("[data-test=token]");
+    expect(token.text()).toContain("Claude (MCP)");
+
+    await click("[data-test=revoke-token]");
+    expect(body().find("[role=alertdialog]").text()).toContain("Claude (MCP)");
+    await click("[data-test=confirm-revoke]");
+    expect(calls).toEqual(["revoke t1"]);
+    expect(wrapper.find("[data-test=token] [data-test=revoked]").exists()).toBe(true);
   });
 
   it("shows an empty state without devices", async () => {

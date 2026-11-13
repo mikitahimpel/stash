@@ -11,11 +11,16 @@ export const device = (id: string, name = `Device ${id}`, kind = "zen") => ({
 
 export const token = (
   id: string,
-  deviceId: string,
-  options: { readonly createdAt?: string; readonly revokedAt?: string | null } = {},
+  deviceId: string | null,
+  options: {
+    readonly name?: string | null;
+    readonly createdAt?: string;
+    readonly revokedAt?: string | null;
+  } = {},
 ) => ({
   id,
   deviceId,
+  name: options.name ?? null,
   createdAt: options.createdAt ?? "2026-01-02T00:00:00.000Z",
   revokedAt: options.revokedAt ?? null,
 });

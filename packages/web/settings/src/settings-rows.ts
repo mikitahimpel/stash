@@ -16,8 +16,11 @@ export interface DeviceRow {
 /** One row of the API tokens section. */
 export interface TokenRow {
   readonly token: ApiToken.ApiTokenInfo;
-  /** The name of the token's device, `undefined` if the device isn't listed. */
-  readonly deviceName: string | undefined;
+  /**
+   * What the token is for: its device's name, or a user token's own name (`Claude (MCP)`).
+   * `undefined` if the device isn't listed.
+   */
+  readonly label: string | undefined;
 }
 
 export interface Rows {
@@ -46,7 +49,10 @@ export const make = (
     devices: devices.map((device) => ({ device, lastSeen: lastSeen(device.id) })),
     tokens: tokens.toSorted(byActiveThenNewest).map((token) => ({
       token,
-      deviceName: devices.find((device) => device.id === token.deviceId)?.name,
+      label:
+        token.deviceId === null
+          ? (token.name ?? undefined)
+          : devices.find((device) => device.id === token.deviceId)?.name,
     })),
   };
 };
