@@ -109,6 +109,47 @@ describe("D1 migrations", () => {
     });
   });
 
+  it("keeps device tokens across the user-token rebuild of api_tokens", () => {
+    const before = new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
+    for (const file of migrationFiles.filter((name) => prefix(name) < 3)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    before.exec(`
+      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen');
+      INSERT INTO api_tokens (id, device_id, hash, created_at, revoked_at)
+        VALUES ('t1', 'd1', 'hash-1', '2026-01-01T00:00:00.000Z', NULL);
+      INSERT INTO open_tabs (device_id, url, last_seen_at)
+        VALUES ('d1', 'https://example.com/tab', '2026-01-01T00:00:00.000Z');
+    `);
+    for (const file of migrationFiles.filter((name) => prefix(name) >= 3)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    expect(before.prepare("SELECT * FROM api_tokens").all()).toEqual([
+      {
+        id: "t1",
+        device_id: "d1",
+        name: null,
+        github_login: null,
+        hash: "hash-1",
+        created_at: "2026-01-01T00:00:00.000Z",
+        revoked_at: null,
+      },
+    ]);
+    expect(before.prepare("SELECT count(*) AS n FROM open_tabs").get()).toEqual({ n: 1 });
+    expect(before.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it("stores a user token without a device, and only with a name and login", () => {
+    db.exec(`INSERT INTO api_tokens (id, name, github_login, hash)
+      VALUES ('t1', 'Claude (MCP)', 'synthetic-user', 'hash-1')`);
+    expect(() => db.exec("INSERT INTO api_tokens (id, hash) VALUES ('t2', 'hash-2')")).toThrow(
+      /CHECK/,
+    );
+    expect(() =>
+      db.exec("INSERT INTO api_tokens (id, name, hash) VALUES ('t3', 'Claude (MCP)', 'hash-3')"),
+    ).toThrow(/CHECK/);
+  });
+
   it("records when a device's tabs snapshot was taken", () => {
     db.exec("INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen')");
     expect(db.prepare("SELECT tabs_taken_at FROM devices WHERE id = 'd1'").get()).toEqual({

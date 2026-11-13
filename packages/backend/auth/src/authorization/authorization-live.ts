@@ -25,7 +25,7 @@ export const layer: Layer.Layer<
     const repo = yield* ApiTokensRepo.ApiTokensRepo;
     const sessions = yield* SessionVerifier.SessionVerifier;
 
-    const deviceFor = Effect.fn("Authorization.bearer")(function* (
+    const principalFor = Effect.fn("Authorization.bearer")(function* (
       token: Redacted.Redacted<string>,
     ) {
       if (isEmpty(token)) return yield* unauthorized("Missing bearer token");
@@ -35,7 +35,11 @@ export const layer: Layer.Layer<
         return yield* unauthorized("Invalid token");
       }
       if (stored.value.revokedAt !== null) return yield* unauthorized("Token revoked");
-      return { kind: "device", deviceId: stored.value.deviceId } satisfies Security.Principal;
+      const { deviceId, githubLogin } = stored.value;
+      if (deviceId !== null) return { kind: "device", deviceId } satisfies Security.Principal;
+      // A user token (the MCP connector's) acts as the user it was minted for.
+      if (githubLogin === null) return yield* unauthorized("Invalid token");
+      return { kind: "user", login: githubLogin } satisfies Security.Principal;
     });
 
     const userFor = (session: Redacted.Redacted<string>) =>
@@ -45,7 +49,7 @@ export const layer: Layer.Layer<
 
     return Security.Authorization.of({
       bearer: (handler, { credential }) =>
-        Effect.flatMap(deviceFor(credential), (principal) =>
+        Effect.flatMap(principalFor(credential), (principal) =>
           Effect.provideService(handler, Security.CurrentPrincipal, principal),
         ),
       session: (handler, { credential }) =>

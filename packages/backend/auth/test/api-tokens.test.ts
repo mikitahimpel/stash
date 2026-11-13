@@ -30,6 +30,8 @@ describe("API tokens", () => {
         {
           id: created.id,
           device_id: AuthTestLayer.deviceId,
+          name: null,
+          github_login: null,
           hash: yield* ApiTokenSecret.hash(created.token),
           created_at: DateTime.formatIso(created.createdAt),
           revoked_at: null,
@@ -52,6 +54,7 @@ describe("API tokens", () => {
       expect(listed[0]).toEqual({
         id: first.id,
         deviceId: AuthTestLayer.deviceId,
+        name: null,
         createdAt: first.createdAt,
         revokedAt: null,
       });

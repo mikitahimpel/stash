@@ -3,6 +3,7 @@ import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as DeviceFlowsStore from "@stash/backend-auth/device-flows-store";
 import * as DeviceStartRateLimiter from "@stash/backend-auth/device-start-rate-limiter";
 import * as GithubClient from "@stash/backend-auth/github-client";
+import * as InternalHandlers from "@stash/backend-auth/internal-handlers";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
 import * as DigestsRepo from "@stash/backend-digest/digests-repo";
@@ -21,6 +22,7 @@ import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
 import * as Api from "@stash/contracts-api/api";
+import * as InternalApi from "@stash/contracts-api/internal-api";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as HttpRouter from "effect/http/HttpRouter";
@@ -87,3 +89,19 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
     health,
     cors,
   ).pipe(Layer.provide(HttpServer.layerServices));
+
+/**
+ * Everything in `layer`, plus the `InternalApi` (`POST /internal/mcp-tokens`). Served only on the
+ * Worker's `InternalApi` entrypoint, which only a Service Binding can call (`apps/mcp`'s `API`).
+ * The public `fetch` (the `*.workers.dev` route and the web Worker's `/api/*` proxy) serves `layer`
+ * alone, so the internal routes do not exist there.
+ */
+export const internalLayer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requirements> =
+  Layer.mergeAll(
+    layer,
+    HttpApiBuilder.layer(InternalApi.InternalApi).pipe(
+      Layer.provide(InternalHandlers.layer),
+      Layer.provide(ApiTokensRepo.layer),
+      Layer.provide(HttpServer.layerServices),
+    ),
+  );

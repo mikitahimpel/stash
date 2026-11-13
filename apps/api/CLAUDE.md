@@ -36,6 +36,10 @@ and the `fetch` / `queue` / `scheduled` handler arguments. Nothing else here sho
   never from source. Secrets use `pass://` references in `.env` (see root `CLAUDE.md`).
 - `apps/mcp` reaches this Worker through a Service Binding, so every endpoint it uses must be in
   the contracts `HttpApi`.
+- `worker.ts` exports two ways in. The default `fetch` (the `*.workers.dev` route and the web
+  Worker's `/api/*` proxy) serves `StashApi` only. The named entrypoint `InternalApi` serves
+  `StashApi` plus the contracts `InternalApi` (`api-layer.ts` → `internalLayer`), and only
+  `apps/mcp`'s `API` binding targets it. Never add internal routes to the default `fetch`.
 
 ## Testing
 

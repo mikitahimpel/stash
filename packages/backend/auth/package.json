@@ -11,6 +11,8 @@
     "./list-api-tokens": "./src/api-tokens/list-api-tokens.ts",
     "./revoke-api-token": "./src/api-tokens/revoke-api-token.ts",
     "./tokens-handlers": "./src/api-tokens/tokens-handlers.ts",
+    "./create-mcp-token": "./src/mcp-tokens/create-mcp-token.ts",
+    "./internal-handlers": "./src/mcp-tokens/internal-handlers.ts",
     "./authorization-live": "./src/authorization/authorization-live.ts",
     "./session-verifier": "./src/authorization/session-verifier.ts",
     "./auth-handlers": "./src/device-flow/auth-handlers.ts",

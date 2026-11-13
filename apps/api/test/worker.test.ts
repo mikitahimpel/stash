@@ -51,21 +51,26 @@ const layerNoNetwork = Layer.succeed(HttpClient.HttpClient)(
   HttpClient.make(() => Effect.die(new Error("unexpected outbound request"))),
 );
 
-const app = HttpRouter.toWebHandler(
-  ApiLayer.layer.pipe(
-    Layer.provide(layerDatabase),
-    Layer.provide(Testing.layerStashConfig({ webOrigin })),
-    Layer.provide(Testing.layerAi()),
-    Layer.provide(Testing.layerVectors),
-    Layer.provide(Testing.layerGithubConfig),
-    Layer.provide(layerNoNetwork),
-    Layer.provide(Testing.layerEnrichmentQueue),
-    Layer.provide(Testing.layerKv),
-  ),
-  { disableLogger: true },
-);
+const makeApp = (layer: typeof ApiLayer.layer) =>
+  HttpRouter.toWebHandler(
+    layer.pipe(
+      Layer.provide(layerDatabase),
+      Layer.provide(Testing.layerStashConfig({ webOrigin })),
+      Layer.provide(Testing.layerAi()),
+      Layer.provide(Testing.layerVectors),
+      Layer.provide(Testing.layerGithubConfig),
+      Layer.provide(layerNoNetwork),
+      Layer.provide(Testing.layerEnrichmentQueue),
+      Layer.provide(Testing.layerKv),
+    ),
+    { disableLogger: true },
+  );
 
-afterAll(() => app.dispose());
+const app = makeApp(ApiLayer.layer);
+/** What the Worker's `InternalApi` entrypoint serves. Its own in-memory D1. */
+const internalApp = makeApp(ApiLayer.internalLayer);
+
+afterAll(() => Promise.all([app.dispose(), internalApp.dispose()]));
 
 const request = (
   method: string,
@@ -82,6 +87,20 @@ const request = (
   );
 
 const bearer = { authorization: `Bearer ${token}` };
+
+const internalRequest = (
+  method: string,
+  path: string,
+  headers: Record<string, string>,
+  body?: unknown,
+) =>
+  internalApp.handler(
+    new Request(`http://localhost${path}`, {
+      method,
+      headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
+  );
 const cookie = { cookie: `stash_session=${session}` };
 
 describe("composed API", () => {
@@ -218,6 +237,15 @@ describe("composed API", () => {
     expect((await request("GET", "/auth/me", cookie)).status).toBe(401);
   });
 
+  it("has no internal routes on the public fetch, with or without credentials", async () => {
+    for (const headers of [{}, bearer, cookie]) {
+      const response = await request("POST", "/internal/mcp-tokens", headers, {
+        login: "example-user",
+      });
+      expect(response.status).toBe(404);
+    }
+  });
+
   it("allows CORS with credentials from the web origin only", async () => {
     const preflight = (origin: string) =>
       request("OPTIONS", "/links", {
@@ -235,5 +263,54 @@ describe("composed API", () => {
 
     const simple = await request("GET", "/health", { origin: webOrigin });
     expect(simple.headers.get("access-control-allow-origin")).toBe(webOrigin);
+  });
+});
+
+describe("InternalApi entrypoint", () => {
+  it("mints a Claude (MCP) user token that acts as the user until it is revoked", async () => {
+    const minted = await internalRequest(
+      "POST",
+      "/internal/mcp-tokens",
+      {},
+      {
+        login: "Example-User",
+      },
+    );
+    expect(minted.status).toBe(201);
+    const created = (await minted.json()) as { id: string; name: string; token: string };
+    expect(created).toMatchObject({ deviceId: null, name: "Claude (MCP)", revokedAt: null });
+
+    const asMcp = { authorization: `Bearer ${created.token}` };
+    const me = await internalRequest("GET", "/auth/me", asMcp);
+    expect(await me.json()).toEqual({ kind: "user", login: "Example-User" });
+
+    const listed = await internalRequest("GET", "/tokens", cookie);
+    expect(await listed.json()).toContainEqual(
+      expect.objectContaining({ id: created.id, deviceId: null, name: "Claude (MCP)" }),
+    );
+
+    const saved = await internalRequest("POST", "/links", asMcp, { url: "https://example.com/m" });
+    expect(saved.status).toBe(201);
+
+    expect((await internalRequest("DELETE", `/tokens/${created.id}`, cookie)).status).toBe(204);
+    const revoked = await internalRequest("GET", "/links", asMcp);
+    expect(revoked.status).toBe(401);
+  });
+
+  it("refuses a login that is not allowlisted", async () => {
+    const response = await internalRequest(
+      "POST",
+      "/internal/mcp-tokens",
+      {},
+      {
+        login: "synthetic-stranger",
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ _tag: "LoginNotAllowed" });
+  });
+
+  it("still serves the public StashApi", async () => {
+    expect((await internalRequest("GET", "/tokens", bearer)).status).toBe(200);
   });
 });

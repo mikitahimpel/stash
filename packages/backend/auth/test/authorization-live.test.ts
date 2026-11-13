@@ -5,6 +5,7 @@ import * as Errors from "@stash/contracts-domain/errors";
 import * as Effect from "effect/Effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpServer from "effect/http/HttpServer";
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as HttpApiMiddleware from "effect/http-api/HttpApiMiddleware";
 import * as HttpApiTest from "effect/http-api/HttpApiTest";
 import * as Layer from "effect/Layer";
@@ -13,6 +14,8 @@ import * as ApiTokensRepo from "../src/api-tokens/api-tokens-repo.ts";
 import * as CreateApiToken from "../src/api-tokens/create-api-token.ts";
 import * as RevokeApiToken from "../src/api-tokens/revoke-api-token.ts";
 import * as TokensHandlers from "../src/api-tokens/tokens-handlers.ts";
+import * as CreateMcpToken from "../src/mcp-tokens/create-mcp-token.ts";
+import * as Testing from "@stash/backend-platform/testing";
 import * as AuthorizationLive from "../src/authorization/authorization-live.ts";
 import * as SessionVerifier from "../src/authorization/session-verifier.ts";
 import * as AuthTestLayer from "./auth-test-layer.ts";
@@ -31,13 +34,23 @@ const layerSessionStub = Layer.succeed(SessionVerifier.SessionVerifier)({
       : Effect.fail(new Errors.Unauthorized({ message: "Unknown session" })),
 });
 
+/** `auth.me` answers the principal; the rest of the group is not under test here. */
+const meHandlers = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
+  handlers
+    .handle("me", () => Effect.service(Security.CurrentPrincipal))
+    .handle("deviceStart", () => Effect.die("not under test"))
+    .handle("devicePoll", () => Effect.die("not under test"))
+    .handle("logout", () => Effect.die("not under test")),
+);
+
 const server = (sessions: Layer.Layer<SessionVerifier.SessionVerifier>) =>
-  TokensHandlers.layer.pipe(
+  Layer.merge(TokensHandlers.layer, meHandlers).pipe(
     Layer.provideMerge(AuthorizationLive.layer),
     Layer.provide(sessions),
     Layer.provideMerge(ApiTokensRepo.layer),
     Layer.provideMerge(AuthTestLayer.layerDatabase),
     Layer.merge(HttpServer.layerServices),
+    Layer.merge(Testing.layerStashConfig({ allowedGithubLogin: "synthetic-owner" })),
   );
 
 interface Credentials {
@@ -96,6 +109,24 @@ describe("Authorization (live)", () => {
       }).pipe(Effect.provide(server(SessionVerifier.layerDenyAll))),
     );
 
+    it.effect("authenticates a user token (the MCP connector's) as that user", () =>
+      Effect.gen(function* () {
+        const created = yield* CreateMcpToken.createMcpToken("synthetic-owner");
+        const bearer = Redacted.value(created.token);
+        const client = yield* HttpApiTest.groups(Api.StashApi, ["auth"]).pipe(
+          Effect.provide(
+            HttpApiMiddleware.layerClient(Security.Authorization, ({ next, request }) =>
+              next(HttpClientRequest.bearerToken(request, bearer)),
+            ),
+          ),
+        );
+        expect(yield* client.auth.me()).toEqual({ kind: "user", login: "synthetic-owner" });
+
+        yield* RevokeApiToken.revokeApiToken(created.id);
+        yield* expectUnauthorized({ bearer });
+      }).pipe(Effect.provide(server(SessionVerifier.layerDenyAll))),
+    );
+
     it.effect("rejects an unknown token and a missing one", () =>
       Effect.gen(function* () {
         yield* CreateApiToken.createApiToken(AuthTestLayer.deviceId);
@@ -143,6 +174,7 @@ describe("tokens handlers", () => {
         {
           id: created.id,
           deviceId: created.deviceId,
+          name: null,
           createdAt: created.createdAt,
           revokedAt: null,
         },
