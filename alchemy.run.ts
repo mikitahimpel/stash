@@ -223,9 +223,13 @@ export default Alchemy.Stack(
     // `index.html` so the client router takes over. The build needs no api URL: the client calls
     // `/api` on its own origin. `alchemy dev` builds `apps/web` and serves `dist/` the same way,
     // against the local `Api`. For hot reload use `pnpm dev:web` (Vite, which proxies `/api`).
+    // `build:deploy` also puts the installable clients under `/downloads/` (the Connect page links
+    // them): the Zen / Firefox extension (`stash-extension.xpi`, signed when `WEB_EXT_API_KEY` and
+    // `WEB_EXT_API_SECRET` are set, see apps/extension/README.md) and the Mac agent with its
+    // installer (`stash-mac-agent.mjs`, `install-mac-agent.sh`).
     const web = yield* Cloudflare.Website.StaticSite("Web", {
       cwd: "./apps/web",
-      command: "pnpm run build",
+      command: "pnpm run build:deploy",
       outdir: "dist",
       main: "./apps/web/src/web-worker.ts",
       ...named("web"),
@@ -233,7 +237,17 @@ export default Alchemy.Stack(
       env: { API: api },
       assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
       // Rebuild when the app or a web package it bundles changes (gitignored files stay excluded).
-      memo: { include: ["**/*", "../../packages/web/*/src/**"], lockfile: true },
+      memo: {
+        include: [
+          "**/*",
+          "../../packages/web/*/src/**",
+          "../extension/**",
+          "../../packages/extension/*/src/**",
+          "../mac-agent/**",
+          "../../packages/contracts/*/src/**",
+        ],
+        lockfile: true,
+      },
       dev: { host: webHost, port: webPort },
     });
 

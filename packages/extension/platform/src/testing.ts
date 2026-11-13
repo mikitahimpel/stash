@@ -63,7 +63,8 @@ const matches = (filter: TabsFilter, currentWindowId: number) => (tab: Tab) =>
  * `Tabs` and `Windows` over one list of tabs. The windows are the distinct `windowId`s of the
  * tabs plus the focused one. `currentWindowId` defaults to the first tab's window (or `1`), and
  * `Windows.current` is the focused window too. A blank tab gets the next free id and the URL
- * `about:newtab`. `Windows.openPopup` only records the path.
+ * `about:newtab`, and `Tabs.open` appends a tab with its URL. `Windows.openPopup` only records the
+ * path.
  */
 export const layerTabs = (
   options: { readonly tabs?: ReadonlyArray<Tab>; readonly currentWindowId?: number } = {},
@@ -96,6 +97,13 @@ export const layerTabs = (
             ids.every((id) => all.some((tab) => tab.id === id))
               ? setTabs(all.filter((tab) => !ids.includes(tab.id)))
               : Effect.fail(new BrowserError({ api: "tabs.remove", cause: "No such tab" })),
+          ),
+        open: (url) =>
+          Effect.flatMap(Effect.all([Ref.get(tabs), Ref.get(current)]), ([all, windowId]) =>
+            setTabs([
+              ...all,
+              tab({ id: Math.max(0, ...all.map((it) => it.id)) + 1, windowId, url, active: true }),
+            ]),
           ),
         createBlank: (windowId) =>
           Effect.flatMap(Ref.get(tabs), (all) => {
