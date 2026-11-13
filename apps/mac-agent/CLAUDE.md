@@ -33,8 +33,10 @@ logic can be tested with in-memory layers.
 ## Rules
 
 - Open `CloudTabs.db` read-only. Never write to Safari's files.
-- The API URL, device token and DB path come from env. The token is a `pass://` reference resolved
-  by `pp run`. Never commit it.
+- The API URL, device token and DB path come from env. From a checkout (`install.sh`) the token is
+  a `pass://` reference resolved by `pp run`. The standalone installer (`install-standalone.sh`,
+  served by the web app with the bundle from `bundle.config.ts`) writes it into the user's
+  launchd plist with mode 600. Never commit it.
 - The launchd plist in the repo uses placeholders, not real paths or usernames.
 
 ## Testing
@@ -47,4 +49,6 @@ a fake API layer.
 
 - `src/main.ts`, `src/cloud-tabs-reader.ts`, `src/post-snapshots.ts`, `src/device-map.ts`
 - `launchd/com.stash.mac-agent.plist` (template), `install.sh`, `uninstall.sh`, `README.md`
+- `install-standalone.sh` (no checkout, no `pp`: downloads the bundle and writes its own plist),
+  `bundle.config.ts` (`pnpm bundle` → `dist/stash-mac-agent.mjs`)
 - `test/cloud-tabs-reader.test.ts`, `test/fixtures/stub-api.ts`

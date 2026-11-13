@@ -31,7 +31,9 @@ platform services. WXT-generated code is the only exception.
 
 - Target Firefox/Zen first. Keep the manifest free of Chrome-only features so the Safari Web
   Extension conversion stays possible.
-- The device token is entered on the options page and stored with the platform `storage` service.
+- The options page gets the device token by pairing with the web app (`pair-extension.ts`: a
+  one-time code, `/connect/extension?code=…`, then `pairings.claim`), or by hand under Advanced.
+  It is stored with the platform `storage` service.
 
 ## Testing
 
@@ -43,15 +45,17 @@ behavior is tested in `packages/extension/*`.
 - `wxt.config.ts`, `entrypoints/background.ts`, `entrypoints/options/index.html`,
   `entrypoints/options/main.ts`, `entrypoints/options/options-page.vue` (WXT dictates the
   `entrypoints/` layout). In a directory entrypoint only `index.html` is the entry, so the options
-  page logic sits beside it: `entrypoints/options/save-config.ts`. The "Save all & close"
+  page logic sits beside it: `entrypoints/options/save-config.ts`,
+  `entrypoints/options/pair-extension.ts`. The "Save all & close"
   confirmation popup is `entrypoints/save-all-and-close/` (`index.html`, `main.ts`,
   `save-all-and-close-page.vue`).
 - `test/background.test.ts`, `test/save-config.test.ts`
 
 ## Commands
 
-`build` (Firefox zip in `.output/`) and `dev` (WXT dev server on `0.0.0.0`). See
-[README.md](README.md).
+`build` (Firefox zip in `.output/`), `package:xpi <out.xpi>` (the `.xpi` the web app serves,
+signed when the AMO key is in env, `scripts/package-xpi.ts`) and `dev` (WXT dev server on
+`0.0.0.0`). See [README.md](README.md).
 
 ## WXT notes
 
