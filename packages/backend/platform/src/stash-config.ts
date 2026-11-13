@@ -12,6 +12,8 @@ export class StashConfig extends Context.Service<
     readonly allowedGithubLogin: string;
     /** The web app's origin, for CORS and OAuth redirects, e.g. `https://stash.example.com`. */
     readonly webOrigin: string;
+    /** The MCP Worker's origin, for the Connect page's Claude guide. `undefined` if unset. */
+    readonly mcpOrigin?: string;
     /** Open Zen tabs older than this are archived (and closed) by the cron. */
     readonly archiveAfterDays: number;
   }
@@ -41,6 +43,7 @@ const PositiveIntFromString = Schema.NumberFromString.pipe(
 export const Env = Schema.Struct({
   ALLOWED_GITHUB_LOGIN: NonEmpty,
   WEB_ORIGIN: Origin,
+  MCP_ORIGIN: Schema.optional(Origin),
   ARCHIVE_AFTER_DAYS: Schema.optional(PositiveIntFromString),
 });
 export type Env = typeof Env.Encoded;
@@ -51,6 +54,7 @@ export const fromEnv = (env: unknown): Effect.Effect<StashConfig["Service"], Sta
     Effect.map((vars) => ({
       allowedGithubLogin: vars.ALLOWED_GITHUB_LOGIN,
       webOrigin: vars.WEB_ORIGIN,
+      ...(vars.MCP_ORIGIN === undefined ? {} : { mcpOrigin: vars.MCP_ORIGIN }),
       archiveAfterDays: vars.ARCHIVE_AFTER_DAYS ?? defaultArchiveAfterDays,
     })),
     Effect.mapError((cause) => new StashConfigError({ cause })),

@@ -1,5 +1,6 @@
 import { HttpApi, OpenApi } from "effect/http-api";
 import * as Auth from "./auth-group.ts";
+import * as Connect from "./connect-group.ts";
 import * as Devices from "./devices-group.ts";
 import * as Digest from "./digest-group.ts";
 import * as Links from "./links-group.ts";
@@ -18,4 +19,5 @@ export class StashApi extends HttpApi.make("stash")
   .add(Auth.AuthGroup)
   .add(Digest.DigestGroup)
   .add(Pairings.PairingsGroup)
+  .add(Connect.ConnectGroup)
   .annotateMerge(OpenApi.annotations({ title: "Stash API" })) {}

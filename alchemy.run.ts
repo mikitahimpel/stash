@@ -182,6 +182,8 @@ export default Alchemy.Stack(
         ...(vectors === undefined ? {} : { VECTORS: vectors, AI: Cloudflare.Workers.AI() }),
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: origins.web,
+        // For the Connect page's Claude guide (`GET /connect/info` answers `<MCP_ORIGIN>/mcp`).
+        MCP_ORIGIN: origins.mcp,
         ...optional("GITHUB_CLIENT_ID", githubClientId),
         ...optional("ANTHROPIC_API_KEY", anthropicApiKey),
         SMOKE_ROUTES: dev ? "on" : "off",

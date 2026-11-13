@@ -17,6 +17,7 @@
     "./approve-pairing": "./src/pairings/approve-pairing.ts",
     "./claim-pairing": "./src/pairings/claim-pairing.ts",
     "./pairings-handlers": "./src/pairings/pairings-handlers.ts",
+    "./connect-handlers": "./src/connect/connect-handlers.ts",
     "./authorization-live": "./src/authorization/authorization-live.ts",
     "./session-verifier": "./src/authorization/session-verifier.ts",
     "./auth-handlers": "./src/device-flow/auth-handlers.ts",

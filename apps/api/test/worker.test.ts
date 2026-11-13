@@ -55,7 +55,7 @@ const makeApp = (layer: typeof ApiLayer.layer) =>
   HttpRouter.toWebHandler(
     layer.pipe(
       Layer.provide(layerDatabase),
-      Layer.provide(Testing.layerStashConfig({ webOrigin })),
+      Layer.provide(Testing.layerStashConfig({ webOrigin, mcpOrigin: "https://mcp.example.com" })),
       Layer.provide(Testing.layerAi()),
       Layer.provide(Testing.layerVectors),
       Layer.provide(Testing.layerGithubConfig),
@@ -142,6 +142,12 @@ describe("composed API", () => {
     expect(claimed.status).toBe(201);
     expect(await claimed.json()).toMatchObject({ deviceId: "device-2" });
     expect((await request("POST", "/pairings/claim", {}, { code })).status).toBe(404);
+  });
+
+  it("serves the connect info with the MCP endpoint", async () => {
+    const response = await request("GET", "/connect/info", cookie);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ mcpUrl: "https://mcp.example.com/mcp" });
   });
 
   it("serves the devices' activity", async () => {

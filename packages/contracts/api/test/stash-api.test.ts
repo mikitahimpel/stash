@@ -32,6 +32,7 @@ const routes = [
   ["digest", "latest", "GET", "/digest/latest"],
   ["pairings", "approve", "POST", "/pairings"],
   ["pairings", "claim", "POST", "/pairings/claim"],
+  ["connect", "info", "GET", "/connect/info"],
 ] as const;
 
 // Loosely typed view of the definition, for reflection only.
@@ -71,7 +72,17 @@ const statuses = (group: string, name: string) => {
 describe("StashApi", () => {
   it("has exactly the documented groups", () => {
     expect(Object.keys(groups).sort()).toEqual(
-      ["auth", "devices", "digest", "links", "pairings", "search", "tabs", "tokens"].sort(),
+      [
+        "auth",
+        "connect",
+        "devices",
+        "digest",
+        "links",
+        "pairings",
+        "search",
+        "tabs",
+        "tokens",
+      ].sort(),
     );
   });
 
@@ -157,7 +168,17 @@ describe("HttpApiClient", () => {
       );
 
       expect(Object.keys(client).sort()).toEqual(
-        ["auth", "devices", "digest", "links", "pairings", "search", "tabs", "tokens"].sort(),
+        [
+          "auth",
+          "connect",
+          "devices",
+          "digest",
+          "links",
+          "pairings",
+          "search",
+          "tabs",
+          "tokens",
+        ].sort(),
       );
 
       const exit = yield* client.links
