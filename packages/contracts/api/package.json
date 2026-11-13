@@ -13,7 +13,8 @@
     "./tokens": "./src/tokens-group.ts",
     "./auth": "./src/auth-group.ts",
     "./digest": "./src/digest-group.ts",
-    "./security": "./src/security.ts"
+    "./security": "./src/security.ts",
+    "./internal-api": "./src/internal-api.ts"
   },
   "scripts": {
     "lint": "oxlint .",

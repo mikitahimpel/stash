@@ -5,6 +5,7 @@ import * as ApiToken from "../src/api-token.ts";
 const info = {
   id: "token-1",
   deviceId: "device-1",
+  name: null,
   createdAt: "2026-01-02T03:04:05.000Z",
   revokedAt: null,
 };
@@ -23,8 +24,15 @@ describe("ApiTokenInfo", () => {
       "createdAt",
       "deviceId",
       "id",
+      "name",
       "revokedAt",
     ]);
+  });
+
+  it("round-trips a user token without a device", () => {
+    const user = { ...info, deviceId: null, name: ApiToken.mcpTokenName };
+    const decoded = Schema.decodeUnknownSync(ApiToken.ApiTokenInfo)(user);
+    expect(Schema.encodeSync(ApiToken.ApiTokenInfo)(decoded)).toEqual(user);
   });
 
   it("rejects a missing device", () => {
