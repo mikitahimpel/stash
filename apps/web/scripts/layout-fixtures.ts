@@ -136,12 +136,21 @@ const tokens = (now: number) => [
   ...devices.map((device, d) => ({
     id: `seed-token-${d + 1}`,
     deviceId: device.id,
+    name: null,
     createdAt: iso(now - (30 - d) * day),
     revokedAt: null,
   })),
   {
+    id: "seed-token-mcp",
+    deviceId: null,
+    name: "Claude (MCP)",
+    createdAt: iso(now - 5 * day),
+    revokedAt: null,
+  },
+  {
     id: "seed-token-old",
     deviceId: devices[0].id,
+    name: null,
     createdAt: iso(now - 60 * day),
     revokedAt: iso(now - 31 * day),
   },
