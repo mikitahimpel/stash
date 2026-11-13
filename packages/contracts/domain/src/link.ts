@@ -43,11 +43,17 @@ export const Link = Schema.Struct({
 });
 export type Link = typeof Link.Type;
 
-/** What a client sends to save a link. The source device comes from the caller's token. */
+/**
+ * What a client sends to save a link. The source device comes from the caller's token. A caller
+ * without a device token (the web `/save` page, signed in by the session cookie) may name the
+ * device the save came from with `deviceId`, such as the iPhone whose Shortcut opened the page. The
+ * api ignores it for a device token, and for a device that does not exist.
+ */
 export const SaveLinkInput = Schema.Struct({
   url: Url,
   title: Schema.optionalKey(LinkTitle),
   tags: Schema.optionalKey(Schema.Array(Tag.TagName)),
+  deviceId: Schema.optionalKey(Device.DeviceId),
 });
 export type SaveLinkInput = typeof SaveLinkInput.Type;
 

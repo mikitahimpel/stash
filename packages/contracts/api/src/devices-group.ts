@@ -29,6 +29,10 @@ export class DevicesGroup extends HttpApiGroup.make("devices")
     HttpApiEndpoint.get("list", "/devices", {
       success: Schema.Array(Device.Device),
     }),
+    // What each device did last (token use, save, tabs snapshot), for the Connect page's status.
+    HttpApiEndpoint.get("activity", "/devices/activity", {
+      success: Schema.Array(Device.DeviceActivity),
+    }),
     HttpApiEndpoint.post("register", "/devices", {
       payload: RegisterDevice,
       success: Device.Device.pipe(HttpApiSchema.status(201)),

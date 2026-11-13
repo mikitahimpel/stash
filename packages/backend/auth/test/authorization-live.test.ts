@@ -15,6 +15,8 @@ import * as CreateApiToken from "../src/api-tokens/create-api-token.ts";
 import * as RevokeApiToken from "../src/api-tokens/revoke-api-token.ts";
 import * as TokensHandlers from "../src/api-tokens/tokens-handlers.ts";
 import * as CreateMcpToken from "../src/mcp-tokens/create-mcp-token.ts";
+import * as PairingsHandlers from "../src/pairings/pairings-handlers.ts";
+import * as PairingsRepo from "../src/pairings/pairings-repo.ts";
 import * as Testing from "@stash/backend-platform/testing";
 import * as AuthorizationLive from "../src/authorization/authorization-live.ts";
 import * as SessionVerifier from "../src/authorization/session-verifier.ts";
@@ -44,10 +46,10 @@ const meHandlers = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
 );
 
 const server = (sessions: Layer.Layer<SessionVerifier.SessionVerifier>) =>
-  Layer.merge(TokensHandlers.layer, meHandlers).pipe(
+  Layer.mergeAll(TokensHandlers.layer, PairingsHandlers.layer, meHandlers).pipe(
     Layer.provideMerge(AuthorizationLive.layer),
     Layer.provide(sessions),
-    Layer.provideMerge(ApiTokensRepo.layer),
+    Layer.provideMerge(Layer.merge(ApiTokensRepo.layer, PairingsRepo.layer)),
     Layer.provideMerge(AuthTestLayer.layerDatabase),
     Layer.merge(HttpServer.layerServices),
     Layer.merge(Testing.layerStashConfig({ allowedGithubLogin: "synthetic-owner" })),
@@ -95,6 +97,10 @@ describe("Authorization (live)", () => {
         const created = yield* CreateApiToken.createApiToken(AuthTestLayer.deviceId);
         const listed = yield* listAs({ bearer: Redacted.value(created.token) });
         expect(listed.map((token) => token.id)).toEqual([created.id]);
+        // The request itself is recorded as the token's last use.
+        const [after] = yield* listAs({ bearer: Redacted.value(created.token) });
+        expect(after?.lastUsedAt).not.toBeNull();
+        expect(after?.lastUsedAt).toBeDefined();
       }).pipe(Effect.provide(server(SessionVerifier.layerDenyAll))),
     );
 
@@ -177,6 +183,7 @@ describe("tokens handlers", () => {
           name: null,
           createdAt: created.createdAt,
           revokedAt: null,
+          lastUsedAt: null,
         },
       ]);
 
@@ -201,6 +208,51 @@ describe("tokens handlers", () => {
         .revoke({ params: { id: "token-missing" as never } })
         .pipe(Effect.flip);
       expect(noToken).toEqual(new Errors.NotFound({ resource: "token", id: "token-missing" }));
+    }).pipe(Effect.provide(server(layerSessionStub))),
+  );
+});
+
+describe("pairings handlers", () => {
+  const code = "synthetic-pairing-code-2222222222222222222";
+
+  it.effect("lets the extension claim with no credential once the owner approves", () =>
+    Effect.gen(function* () {
+      const anonymous = yield* HttpApiTest.groups(Api.StashApi, ["pairings"]).pipe(
+        Effect.provide(
+          HttpApiMiddleware.layerClient(Security.Authorization, ({ next, request }) =>
+            next(request),
+          ),
+        ),
+      );
+      const claim = anonymous.pairings.claim({ payload: { code: code as never } });
+      expect(yield* claim.pipe(Effect.flip)).toBeInstanceOf(Errors.NotFound);
+
+      // Approving needs the owner.
+      const denied = yield* anonymous.pairings
+        .approve({ payload: { code: code as never, deviceId: AuthTestLayer.deviceId } })
+        .pipe(Effect.flip);
+      expect(denied).toBeInstanceOf(Errors.Unauthorized);
+
+      const owner = yield* HttpApiTest.groups(Api.StashApi, ["pairings"]).pipe(
+        Effect.provide(
+          HttpApiMiddleware.layerClient(Security.Authorization, ({ next, request }) =>
+            next(
+              HttpClientRequest.setHeader(
+                request,
+                "cookie",
+                `${Security.sessionCookieName}=${validSession}`,
+              ),
+            ),
+          ),
+        ),
+      );
+      yield* owner.pairings.approve({
+        payload: { code: code as never, deviceId: AuthTestLayer.deviceId },
+      });
+
+      const created = yield* claim;
+      expect(created.deviceId).toBe(AuthTestLayer.deviceId);
+      expect(yield* claim.pipe(Effect.flip)).toBeInstanceOf(Errors.NotFound);
     }).pipe(Effect.provide(server(layerSessionStub))),
   );
 });

@@ -51,6 +51,7 @@ describe("D1 migrations", () => {
       expect.arrayContaining([
         "api_tokens",
         "commands",
+        "device_pairings",
         "devices",
         "digests",
         "link_tags",
@@ -133,6 +134,7 @@ describe("D1 migrations", () => {
         hash: "hash-1",
         created_at: "2026-01-01T00:00:00.000Z",
         revoked_at: null,
+        last_used_at: null,
       },
     ]);
     expect(before.prepare("SELECT count(*) AS n FROM open_tabs").get()).toEqual({ n: 1 });

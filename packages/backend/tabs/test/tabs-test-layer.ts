@@ -11,16 +11,30 @@ import * as DevicesRepo from "../src/devices/devices-repo.ts";
 import * as OpenTabsRepo from "../src/snapshots/open-tabs-repo.ts";
 
 // The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql` and
-// `0002-devices-tabs-taken-at.sql` (the source of truth). Packages never reach into another
-// package's files, so tests keep their own copy. `archive` saves through `@stash/backend-links`,
-// so the links tables are here too.
+// the later migrations up to `0004-connect-status-and-pairings.sql` (the source of truth). Packages
+// never reach into another package's files, so tests keep their own copy. `archive` saves through
+// `@stash/backend-links`, so the links tables are here too, and the device activity reads
+// `api_tokens.last_used_at`.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('zen', 'ios', 'mac-agent')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  tabs_taken_at TEXT
+  tabs_taken_at TEXT,
+  last_save_at TEXT,
+  last_save_link_id TEXT
+);
+
+CREATE TABLE api_tokens (
+  id TEXT PRIMARY KEY,
+  device_id TEXT REFERENCES devices (id) ON DELETE CASCADE,
+  name TEXT,
+  github_login TEXT,
+  hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  revoked_at TEXT,
+  last_used_at TEXT
 );
 
 CREATE TABLE links (

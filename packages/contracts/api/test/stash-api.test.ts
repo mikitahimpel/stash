@@ -17,6 +17,7 @@ const routes = [
   ["tabs", "list", "GET", "/tabs"],
   ["tabs", "archive", "POST", "/tabs/archive"],
   ["devices", "list", "GET", "/devices"],
+  ["devices", "activity", "GET", "/devices/activity"],
   ["devices", "register", "POST", "/devices"],
   ["devices", "sendCommand", "POST", "/devices/:id/commands"],
   ["devices", "listCommands", "GET", "/devices/:id/commands"],
@@ -29,6 +30,8 @@ const routes = [
   ["auth", "devicePoll", "POST", "/auth/device/poll"],
   ["auth", "logout", "POST", "/auth/logout"],
   ["digest", "latest", "GET", "/digest/latest"],
+  ["pairings", "approve", "POST", "/pairings"],
+  ["pairings", "claim", "POST", "/pairings/claim"],
 ] as const;
 
 // Loosely typed view of the definition, for reflection only.
@@ -68,7 +71,7 @@ const statuses = (group: string, name: string) => {
 describe("StashApi", () => {
   it("has exactly the documented groups", () => {
     expect(Object.keys(groups).sort()).toEqual(
-      ["auth", "devices", "digest", "links", "search", "tabs", "tokens"].sort(),
+      ["auth", "devices", "digest", "links", "pairings", "search", "tabs", "tokens"].sort(),
     );
   });
 
@@ -84,11 +87,11 @@ describe("StashApi", () => {
     expect(all.sort()).toEqual(routes.map(([group, name]) => `${group}.${name}`).sort());
   });
 
-  it("guards every endpoint except the device login flow", () => {
+  it("guards every endpoint except the device login flow and the pairing claim", () => {
     const open = routes
       .filter(([group, name]) => !isGuarded(group, name))
       .map(([group, name]) => `${group}.${name}`);
-    expect(open).toEqual(["auth.deviceStart", "auth.devicePoll"]);
+    expect(open).toEqual(["auth.deviceStart", "auth.devicePoll", "pairings.claim"]);
   });
 
   it.each([
@@ -106,6 +109,9 @@ describe("StashApi", () => {
     ["auth", "devicePoll", ["200", "403", "410"]],
     ["auth", "logout", ["204", "401"]],
     ["digest", "latest", ["200", "401", "404"]],
+    ["devices", "activity", ["200", "401"]],
+    ["pairings", "approve", ["204", "401", "404", "409"]],
+    ["pairings", "claim", ["201", "404"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);
   });
@@ -151,7 +157,7 @@ describe("HttpApiClient", () => {
       );
 
       expect(Object.keys(client).sort()).toEqual(
-        ["auth", "devices", "digest", "links", "search", "tabs", "tokens"].sort(),
+        ["auth", "devices", "digest", "links", "pairings", "search", "tabs", "tokens"].sort(),
       );
 
       const exit = yield* client.links

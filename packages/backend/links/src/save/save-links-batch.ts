@@ -11,7 +11,8 @@ import * as SaveRateLimiter from "./save-rate-limiter.ts";
  * Stores the links without rate limiting and returns the stored link for each input, in order. A
  * link whose canonical URL is already stored (or appears earlier in the same call) is not saved
  * again: the existing link is returned unchanged. Each newly stored link is enqueued for
- * enrichment.
+ * enrichment. A save attributed to a device (its token, or an input `deviceId` from a caller
+ * without one) also becomes that device's latest save.
  */
 export const saveLinks = Effect.fn("saveLinks")(function* (
   principal: Security.Principal,
@@ -20,14 +21,14 @@ export const saveLinks = Effect.fn("saveLinks")(function* (
   const repo = yield* LinksRepo.LinksRepo;
   const queue = yield* EnrichmentQueue.EnrichmentQueue;
   const createdAt = yield* DateTime.now;
-  const sourceDeviceId = principal.kind === "device" ? principal.deviceId : null;
   const newLinks = inputs.map((input): LinksRepo.NewLink => ({
     id: Link.LinkId.make(crypto.randomUUID()),
     url: input.url,
     canonicalUrl: CanonicalizeUrl.canonicalize(input.url),
     title: input.title ?? null,
     tags: [...new Set(input.tags ?? [])],
-    sourceDeviceId,
+    // A device token decides the device. Otherwise (the web `/save` page) the input may name it.
+    sourceDeviceId: principal.kind === "device" ? principal.deviceId : (input.deviceId ?? null),
     createdAt,
   }));
   const stored = yield* repo.insertAll(newLinks);

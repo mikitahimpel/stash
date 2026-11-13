@@ -12,6 +12,7 @@
     "./devices-repo": "./src/devices/devices-repo.ts",
     "./register-device": "./src/devices/register-device.ts",
     "./list-devices": "./src/devices/list-devices.ts",
+    "./devices-activity": "./src/devices/devices-activity.ts",
     "./open-tabs-repo": "./src/snapshots/open-tabs-repo.ts",
     "./replace-tabs-snapshot": "./src/snapshots/replace-tabs-snapshot.ts",
     "./list-open-tabs": "./src/snapshots/list-open-tabs.ts",

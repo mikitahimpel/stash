@@ -12,6 +12,7 @@
     "./command": "./src/command.ts",
     "./api-token": "./src/api-token.ts",
     "./digest": "./src/digest.ts",
+    "./pairing": "./src/pairing.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

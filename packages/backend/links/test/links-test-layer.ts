@@ -7,14 +7,16 @@ import * as Layer from "effect/Layer";
 import * as LinksRepo from "../src/links-repo.ts";
 import * as SaveRateLimiter from "../src/save/save-rate-limiter.ts";
 
-// The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql` (the
-// source of truth). Packages never reach into another package's files, so tests keep their own copy.
+// The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql` and
+// `0004-connect-status-and-pairings.sql` (the source of truth). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('zen', 'ios', 'mac-agent')),
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  last_save_at TEXT,
+  last_save_link_id TEXT
 );
 
 CREATE TABLE links (

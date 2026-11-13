@@ -93,6 +93,7 @@ describe("SaveLinkInput", () => {
     for (const input of [
       { url: "https://example.com/video" },
       { url: "https://example.com/video", title: "A video", tags: ["talks"] },
+      { url: "https://example.com/video", deviceId: "device-1" },
     ]) {
       const decoded = Schema.decodeUnknownSync(Link.SaveLinkInput)(input);
       expect(Schema.encodeSync(Link.SaveLinkInput)(decoded)).toEqual(input);

@@ -124,6 +124,27 @@ const tagStatements = (json: string): ReadonlyArray<D1Database.Statement> => [
   ),
 ];
 
+/**
+ * Records each device's latest save on `devices` (for the Connect page), a repeat save of a stored
+ * URL included: the last link of the call per device, pointing at the stored link. An unknown
+ * device matches no row.
+ */
+const lastSaveStatements = (links: ReadonlyArray<NewLink>): ReadonlyArray<D1Database.Statement> => {
+  const lastByDevice = new Map<string, NewLink>();
+  for (const link of links) {
+    if (link.sourceDeviceId !== null) lastByDevice.set(link.sourceDeviceId, link);
+  }
+  return [...lastByDevice].map(([deviceId, link]) =>
+    D1Database.statement(
+      `UPDATE devices SET last_save_at = ?,
+        last_save_link_id = (SELECT id FROM links WHERE canonical_url = ?) WHERE id = ?`,
+      DateTime.formatIso(link.createdAt),
+      link.canonicalUrl,
+      deviceId,
+    ),
+  );
+};
+
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
   const provide = Effect.provideService(D1Database.Database, db);
@@ -169,12 +190,14 @@ export const make = Effect.gen(function* () {
           `INSERT INTO links (id, url, canonical_url, title, source_device_id, created_at)
             SELECT json_extract(value, '$.id'), json_extract(value, '$.url'),
               json_extract(value, '$.canonicalUrl'), json_extract(value, '$.title'),
-              json_extract(value, '$.sourceDeviceId'), json_extract(value, '$.createdAt')
+              (SELECT d.id FROM devices d WHERE d.id = json_extract(value, '$.sourceDeviceId')),
+              json_extract(value, '$.createdAt')
             FROM json_each(?) WHERE true ORDER BY key
             ON CONFLICT (canonical_url) DO NOTHING`,
           rows,
         ),
         ...tagStatements(rows),
+        ...lastSaveStatements(links),
       ]);
       const stored = yield* findByCanonicalUrls(links.map((link) => link.canonicalUrl));
       const byCanonicalUrl = new Map(stored.map((link) => [link.canonicalUrl, link]));

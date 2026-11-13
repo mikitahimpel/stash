@@ -20,3 +20,23 @@ export const Device = Schema.Struct({
   createdAt: Schema.DateTimeUtcFromString,
 });
 export type Device = typeof Device.Type;
+
+/** The latest link a device saved: when, and which link (a repeat save points at the stored one). */
+export const DeviceLastSave = Schema.Struct({
+  at: Schema.DateTimeUtcFromString,
+  linkId: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
+  url: Schema.String,
+  title: Schema.NullOr(Schema.String),
+});
+export type DeviceLastSave = typeof DeviceLastSave.Type;
+
+/**
+ * What a device did last, for the Connect page's status. `lastSeenAt` is the latest of its token's
+ * last use, its last save and its last tabs snapshot, or `null` if it never got in touch.
+ */
+export const DeviceActivity = Schema.Struct({
+  deviceId: DeviceId,
+  lastSeenAt: Schema.NullOr(Schema.DateTimeUtcFromString),
+  lastSave: Schema.NullOr(DeviceLastSave),
+});
+export type DeviceActivity = typeof DeviceActivity.Type;

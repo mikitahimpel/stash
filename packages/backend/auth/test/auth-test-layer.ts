@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 // The tables this package reads, as `apps/api/migrations` leave them (the source of truth;
-// `api_tokens` is from `0003-user-api-tokens.sql`). Packages never reach into another package's files, so tests keep their own copy.
+// `api_tokens` is from `0003-user-api-tokens.sql` plus `last_used_at` and `device_pairings` from `0004-connect-status-and-pairings.sql`). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
@@ -22,10 +22,17 @@ CREATE TABLE api_tokens (
   hash TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   revoked_at TEXT,
+  last_used_at TEXT,
   CHECK (
     (device_id IS NOT NULL AND name IS NULL AND github_login IS NULL)
     OR (device_id IS NULL AND name IS NOT NULL AND github_login IS NOT NULL)
   )
+);
+
+CREATE TABLE device_pairings (
+  code_hash TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL
 );
 
 CREATE TABLE sessions (

@@ -7,6 +7,7 @@ import type * as CommandsRepo from "./commands/commands-repo.ts";
 import * as EnqueueCommand from "./commands/enqueue-command.ts";
 import * as ListPendingCommands from "./commands/list-pending-commands.ts";
 import type * as DevicesRepo from "./devices/devices-repo.ts";
+import * as DevicesActivity from "./devices/devices-activity.ts";
 import * as ListDevices from "./devices/list-devices.ts";
 import * as RegisterDevice from "./devices/register-device.ts";
 
@@ -20,6 +21,12 @@ export const layer = HttpApiBuilder.group(Api.StashApi, "devices", (handlers) =>
     return handlers
       .handle("list", () =>
         ListDevices.listDevices.pipe(withServices, Effect.catchTag("DatabaseError", Effect.die)),
+      )
+      .handle("activity", () =>
+        DevicesActivity.devicesActivity.pipe(
+          withServices,
+          Effect.catchTag("DatabaseError", Effect.die),
+        ),
       )
       .handle("register", ({ payload }) =>
         RegisterDevice.registerDevice(payload).pipe(

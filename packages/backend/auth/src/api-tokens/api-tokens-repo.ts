@@ -51,6 +51,14 @@ export class ApiTokensRepo extends Context.Service<
     readonly findByHash: (
       hash: string,
     ) => Effect.Effect<Option.Option<StoredApiToken>, D1Database.DatabaseError>;
+    /**
+     * Records that the token authenticated a request at `at`, unless it already did within the
+     * last minute (one write per token per minute at most).
+     */
+    readonly touch: (
+      id: ApiToken.ApiTokenId,
+      at: DateTime.Utc,
+    ) => Effect.Effect<void, D1Database.DatabaseError>;
     /** Sets `revokedAt` unless the token is already revoked. `None` if there is no such token. */
     readonly revoke: (
       id: ApiToken.ApiTokenId,
@@ -59,8 +67,8 @@ export class ApiTokensRepo extends Context.Service<
   }
 >()("@stash/backend-auth/ApiTokensRepo") {}
 
-const infoColumns =
-  "id, device_id AS deviceId, name, created_at AS createdAt, revoked_at AS revokedAt";
+const infoColumns = `id, device_id AS deviceId, name, created_at AS createdAt,
+  revoked_at AS revokedAt, last_used_at AS lastUsedAt`;
 
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
@@ -84,6 +92,7 @@ export const make = Effect.gen(function* () {
             name: null,
             createdAt: token.createdAt,
             revokedAt: null,
+            lastUsedAt: null,
           }),
         );
     },
@@ -101,6 +110,7 @@ export const make = Effect.gen(function* () {
             name: token.name,
             createdAt: token.createdAt,
             revokedAt: null,
+            lastUsedAt: null,
           }),
         );
     },
@@ -114,6 +124,14 @@ export const make = Effect.gen(function* () {
           hash,
         ),
       ).pipe(provide),
+    touch: (id, at) =>
+      db
+        .run(
+          D1Database.sql`UPDATE api_tokens SET last_used_at = ${DateTime.formatIso(at)}
+            WHERE id = ${id} AND (last_used_at IS NULL
+              OR last_used_at < ${DateTime.formatIso(DateTime.subtract(at, { minutes: 1 }))})`,
+        )
+        .pipe(Effect.asVoid),
     revoke: (id, at) =>
       D1Database.queryFirst(ApiToken.ApiTokenInfo)(
         D1Database.statement(

@@ -32,3 +32,28 @@ describe("Device", () => {
     expect(() => Schema.decodeUnknownSync(Device.Device)({ ...device, ...patch })).toThrow();
   });
 });
+
+describe("DeviceActivity", () => {
+  it.each([
+    [
+      "a device that never got in touch",
+      { deviceId: "device-1", lastSeenAt: null, lastSave: null },
+    ],
+    [
+      "a device with a save",
+      {
+        deviceId: "device-1",
+        lastSeenAt: "2026-01-02T03:04:05.000Z",
+        lastSave: {
+          at: "2026-01-02T03:04:05.000Z",
+          linkId: "link-1",
+          url: "https://example.com/a",
+          title: null,
+        },
+      },
+    ],
+  ])("round-trips %s", (_, activity) => {
+    const decoded = Schema.decodeUnknownSync(Device.DeviceActivity)(activity);
+    expect(Schema.encodeSync(Device.DeviceActivity)(decoded)).toEqual(activity);
+  });
+});
