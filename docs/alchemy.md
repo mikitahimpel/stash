@@ -36,7 +36,7 @@ run it, and what to watch for.
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
-| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN`, secret `API_TOKEN` (when set) |
+| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`'s `InternalApi` entrypoint), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN` |
 | `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, `main: ./apps/web/src/web-worker.ts`, deployed as `stash-web` | `API` (Service Binding to `Api`), `ASSETS`. The Worker runs only for `/api` and `/api/*` (`runWorkerFirst`) and forwards them to `Api` with the prefix stripped; the assets layer serves the SPA. See [deploy.md](deploy.md#same-origin-api) |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
@@ -75,7 +75,6 @@ token is secret):
 | `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`; on stage `prod` the committed `PROD_GITHUB_CLIENT_ID`; optional on other stages (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
 | `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
-| `STASH_MCP_API_TOKEN` (secret) | `dev_only` under `alchemy dev`, optional on deploy (unset: the tools get 401 from the api) | `API_TOKEN` on `Mcp`: the bearer it sends to `Api`, read with `Config.Redacted` |
 | `STASH_WEB_PORT` | `8791` | local dev port of `Web` (not strict: it picks the next free port when taken) |
 | `STASH_WEB_HOST` | `0.0.0.0` | local dev bind host of `Web` |
 | `ANTHROPIC_API_KEY` (secret) | never read by `alchemy dev`, optional on deploy | `ANTHROPIC_API_KEY` on `Api`: the classifier's key |

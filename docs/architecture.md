@@ -128,6 +128,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 - **Web and MCP** sign in with the GitHub OAuth Device Flow (no client secret; the public client id comes from env), with one allowlisted GitHub login from env. The api keeps the pending flow in KV and never stores the GitHub access token. The MCP server implements OAuth 2.1 for Claude custom connectors via `@cloudflare/workers-oauth-provider` (state in KV).
 - **Extension, iOS Shortcut and mac-agent** use per-device API tokens. Only hashes are stored in D1. Tokens are revocable individually.
+- **MCP** needs no manual token. When the owner authorizes Claude, `apps/mcp` mints a user token named `Claude (MCP)` through the api's binding-only `InternalApi` entrypoint (`POST /internal/mcp-tokens`) and keeps it in the encrypted OAuth grant props. The tools call the api with it. Revoking it in Settings makes Claude sign in again.
 - Every endpoint requires auth. Saving is rate limited.
 
 ## Data model (initial)
@@ -137,7 +138,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 - `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)
 - `commands`: id, device_id, kind (`close-tab`, …), payload, status
-- `api_tokens`: id, device_id, hash, created_at, revoked_at
+- `api_tokens`: id, device_id (null for a user token), name and github_login (user tokens only), hash, created_at, revoked_at
 - FTS5 virtual table over title / summary / text. Embeddings live in Vectorize, keyed by link id. Full text and transcripts live in R2.
 
 ## Public repository hygiene
