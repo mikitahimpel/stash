@@ -97,6 +97,14 @@ export const setStatus = ApiAtoms.mutation(
     client.links.update({ params: { id }, payload: { status } }),
 );
 
+/**
+ * Saves a link for the `/save` page, with the title and source device its address names. The feed
+ * reloads and picks it up.
+ */
+export const saveRequested = ApiAtoms.mutation(["links"], (client, input: Link.SaveLinkInput) =>
+  client.links.save({ payload: input }),
+);
+
 /** Saves a link. The feed reloads and picks it up. */
 export const saveLink = ApiAtoms.mutation(["links"], (client, url: Link.Url) =>
   client.links.save({ payload: { url } }),
