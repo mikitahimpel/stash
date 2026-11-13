@@ -3,7 +3,7 @@ import * as Device from "@stash/contracts-domain/device";
 import * as Errors from "@stash/contracts-domain/errors";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Layer, Redacted, Schema } from "effect";
 import * as ApiClient from "../src/api-client.ts";
 import * as Testing from "../src/testing.ts";
 
@@ -170,10 +170,26 @@ describe("Testing.layerFetcher", () => {
         Layer.unwrap(
           Effect.gen(function* () {
             const API = yield* Testing.FetcherService;
-            return ApiClient.layer({ API, API_TOKEN: "wrong-synthetic-token" });
+            return ApiClient.layer({ API }, { token: Redacted.make("wrong-synthetic-token") });
           }),
         ).pipe(Layer.provide(Testing.layerFetcher())),
       ),
     ),
+  );
+});
+
+describe("Testing.layerFetcher internal api", () => {
+  it.effect("mints tokens the fake api accepts until they are revoked", () =>
+    Effect.gen(function* () {
+      const API = yield* Testing.FetcherService;
+      const test = yield* Testing.TestApi;
+      const minted = yield* ApiClient.createMcpToken({ API }, Testing.allowedLogin);
+      assert.deepStrictEqual(yield* test.mintedTokens, [
+        { token: Redacted.value(minted), login: Testing.allowedLogin },
+      ]);
+      assert.isTrue(yield* ApiClient.isTokenActive({ API }, minted));
+      yield* test.revokeToken(Redacted.value(minted));
+      assert.isFalse(yield* ApiClient.isTokenActive({ API }, minted));
+    }).pipe(Effect.provide(Testing.layerFetcher())),
   );
 });

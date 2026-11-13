@@ -2,8 +2,9 @@
 // GitHub Device Flow sign-in with one allowlisted login, and MCP `initialize` + `tools/list` with
 // the token the flow issued. GitHub is a fake behind `HttpClient`, KV is in memory, the clock is the
 // test's and the api is `@stash/mcp-platform/testing`. All values are synthetic.
+import * as ApiClient from "@stash/mcp-platform/api-client";
 import * as Testing from "@stash/mcp-platform/testing";
-import { Layer } from "effect";
+import { Context, Effect, Exit, Layer, Redacted, Scope } from "effect";
 import { FetchHttpClient, HttpRouter } from "effect/http";
 import { createHash } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -15,7 +16,7 @@ import type { WorkerEnv } from "../src/worker-env.ts";
 
 const origin = "https://mcp.example.com";
 const resource = `${origin}/mcp`;
-const allowedLogin = "synthetic-user";
+const allowedLogin = Testing.allowedLogin;
 const clientRedirectUri = "https://client.example.com/callback";
 const clientId = "synthetic-client-id";
 const deviceCode = "synthetic-device-code";
@@ -119,22 +120,45 @@ const expectedTools = [
   { name: "get_latest_digest", annotations: { readOnlyHint: true, destructiveHint: false } },
 ];
 
-const mcp = HttpRouter.toWebHandler(McpServer.layer(Testing.layer()), { disableLogger: true });
-afterAll(() => mcp.dispose());
+// The fake api behind a fake `API` binding, wired as `worker.ts` wires the real one: one client
+// with no token of its own, so every tool call must carry its grant's minted token.
+const fakeApiScope = Effect.runSync(Scope.make());
+const fakeApi = await Effect.runPromise(Layer.buildWithScope(Testing.layerFetcher(), fakeApiScope));
+const apiEnv = { API: Context.get(fakeApi, Testing.FetcherService) };
+const testApi = Context.get(fakeApi, Testing.TestApi);
+
+const mcp = HttpRouter.toWebHandler(McpServer.layer(ApiClient.layer(apiEnv)), {
+  disableLogger: true,
+});
+afterAll(async () => {
+  await mcp.dispose();
+  await Effect.runPromise(Scope.close(fakeApiScope, Exit.void));
+});
 
 /** The test's clock, in epoch milliseconds. Polls advance it past GitHub's interval. */
 let clock = 0;
 
-const provider = OAuthProvider.make({
-  env: { MCP_ORIGIN: origin, ALLOWED_GITHUB_LOGIN: allowedLogin },
-  mcp: mcp.handler,
-  github: githubLayer,
-  now: () => clock,
-});
+const makeProvider = (mintApiToken: OAuthProvider.Options["mintApiToken"]) =>
+  OAuthProvider.make({
+    env: { MCP_ORIGIN: origin, ALLOWED_GITHUB_LOGIN: allowedLogin },
+    mcp: (request, apiToken) =>
+      mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
+    github: githubLayer,
+    mintApiToken,
+    isApiTokenActive: (apiToken) =>
+      Effect.runPromise(ApiClient.isTokenActive(apiEnv, Redacted.make(apiToken))),
+    now: () => clock,
+  });
+
+const mintFromFakeApi = (login: string) =>
+  Effect.runPromise(ApiClient.createMcpToken(apiEnv, login).pipe(Effect.map(Redacted.value)));
+
+let provider = makeProvider(mintFromFakeApi);
 
 let kvStore: Map<string, string>;
 let env: WorkerEnv;
 beforeEach(() => {
+  provider = makeProvider(mintFromFakeApi);
   kvStore = new Map();
   env = { OAUTH_KV: makeKv(kvStore) } as WorkerEnv;
   clock = Date.UTC(2026, 0, 1);
@@ -531,5 +555,72 @@ describe("MCP with an issued token", () => {
       },
     });
     expect(call.body?.result.content[0].text).toContain("Saved https://example.com/from-claude");
+  });
+});
+
+describe("api token per grant", () => {
+  /** A tools/call of `get_latest_digest` without a session (2026-07-28). */
+  const callDigest = (token: string) =>
+    rpc(
+      token,
+      {
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "get_latest_digest",
+          arguments: {},
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      {
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-method": "tools/call",
+        "mcp-name": "get_latest_digest",
+      },
+    );
+
+  it("mints one api token per grant and keeps it only encrypted in the grant", async () => {
+    const before = (await Effect.runPromise(testApi.mintedTokens)).length;
+    const token = await issueToken();
+    const minted = await Effect.runPromise(testApi.mintedTokens);
+    expect(minted).toHaveLength(before + 1);
+    expect(minted.at(-1)!.login).toBe(allowedLogin);
+    const stored = [...kvStore.entries()].flat().join("\n");
+    expect(stored).not.toContain(minted.at(-1)!.token);
+
+    // The tools reach the api with that token: the shared client has none of its own.
+    const call = await callDigest(token);
+    expect(call.response.status).toBe(200);
+    expect(call.body).toMatchObject({ result: { isError: false } });
+  });
+
+  it("asks the client to sign in again once the token is revoked in Settings", async () => {
+    const token = await issueToken();
+    expect((await callDigest(token)).response.status).toBe(200);
+
+    const minted = await Effect.runPromise(testApi.mintedTokens);
+    await Effect.runPromise(testApi.revokeToken(minted.at(-1)!.token));
+
+    const call = await callDigest(token);
+    expect(call.response.status).toBe(401);
+    const challenge = call.response.headers.get("www-authenticate");
+    expect(challenge).toContain('error="invalid_token"');
+    expect(challenge).toContain(
+      `resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"`,
+    );
+    // The grant is gone, so a refresh cannot bring the revoked token back.
+    expect(grants()).toEqual([]);
+    expect((await rpc(token, { id: 2, method: "tools/list" })).response.status).toBe(401);
+  });
+
+  it("gives no grant when the api cannot mint a token", async () => {
+    provider = makeProvider(() => Promise.reject(new Error("api unavailable")));
+    const { final } = await authorize(await registerClient());
+    expect(final).toMatchObject({ status: "failed" });
+    expect(redirectOf(final).searchParams.get("error")).toBe("server_error");
+    expect(grants()).toEqual([]);
   });
 });
