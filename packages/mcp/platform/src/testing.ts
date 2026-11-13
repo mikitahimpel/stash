@@ -255,6 +255,7 @@ const groups = (state: State) => {
   const devices = HttpApiBuilder.group(Api.StashApi, "devices", (handlers) =>
     handlers
       .handle("list", () => Effect.sync(() => [...state.devices.values()]))
+      .handle("activity", () => unsupported("devices.activity"))
       .handle("register", () => unsupported("devices.register"))
       .handle("sendCommand", ({ params, payload }) =>
         Effect.map(findIn(state.devices, "device", params.id), (device) =>
@@ -300,7 +301,17 @@ const groups = (state: State) => {
     ),
   );
 
-  return Layer.mergeAll(links, search, tabs, devices, tokens, auth, digest);
+  const pairings = HttpApiBuilder.group(Api.StashApi, "pairings", (handlers) =>
+    handlers
+      .handle("approve", () => unsupported("pairings.approve"))
+      .handle("claim", () => unsupported("pairings.claim")),
+  );
+
+  const connect = HttpApiBuilder.group(Api.StashApi, "connect", (handlers) =>
+    handlers.handle("info", () => unsupported("connect.info")),
+  );
+
+  return Layer.mergeAll(links, search, tabs, devices, tokens, auth, digest, pairings, connect);
 };
 
 /** A Service Binding whose `fetch` is answered by `handler` in-process. */
