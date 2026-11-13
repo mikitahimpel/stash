@@ -62,7 +62,8 @@ Feature behavior is tested in `packages/web/*`.
 
 ## File naming
 
-- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue`, `src/app-header.vue` (wordmark,
+- `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue` (the kit's `AppFrame` and `AppMain`),
+  `src/app-header.vue` (the kit's `AppBar`: wordmark,
   nav as text tabs, whose Search tab is the only search entry point, and the account menu from
   `@stash/web-auth/account-menu`, which holds the theme switch and the sync status). On phones the
   nav is a bottom bar. See "Layout rules" in
@@ -74,11 +75,20 @@ Feature behavior is tested in `packages/web/*`.
   seeds synthetic data and a session, and writes every page in both themes at 1440 and 390 wide to
   `docs/screenshots/`, seeded and with no data (`*-empty-*.png`). It fails on horizontal scroll or a button without an accessible name.
   Commit the PNGs with any visual change.
+- `scripts/layout-audit.ts` (`pnpm --filter @stash/web audit:layout`, CI job `layout-audit`):
+  builds the app, serves it with `vite preview` and checks every page (seeded and empty, desktop
+  and phone) against the control tokens, content edges and spacing scale; see "Layout audit" in
+  [docs/design.md](../../docs/design.md#layout-audit). Its rules are `scripts/layout-audit-rules.ts`
+  (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
+  `scripts/layout-fixtures.ts`.
+- `test/feature-classes.test.ts`: scans the templates of `apps/web` and the feature packages for
+  classes that style controls or rows (see `packages/web/CLAUDE.md`, "Rules").
 - The theme atoms live in `@stash/web-settings/theme-atoms`, shared by the account menu's theme switch and
   the Settings Appearance section so both drive one `Theme` service. `app-registry.ts` provides its
   layer, and `main.ts` mounts its state, which applies the stored theme as the app starts.
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
-  dropped from the production build) showing every `@stash/web-ui` primitive with a theme switch
+  dropped from the production build) showing every `@stash/web-ui` primitive in every size, side
+  by side in a grid, with a theme switch
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
 - `src/app-registry.ts` (the atom registry with the live layers)

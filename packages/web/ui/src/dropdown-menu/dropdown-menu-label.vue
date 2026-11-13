@@ -12,7 +12,7 @@ const delegated = useForwardedProps(props, ["class"]);
   <DropdownMenuLabel
     data-slot="dropdown-menu-label"
     v-bind="delegated"
-    :class="cn('px-2 py-1.5 font-mono text-xs text-muted-foreground', props.class)"
+    :class="cn('px-2 py-2 text-meta text-muted-foreground', props.class)"
   >
     <slot />
   </DropdownMenuLabel>

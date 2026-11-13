@@ -9,11 +9,7 @@ const delegated = useForwardedProps(props, ["class"]);
 </script>
 
 <template>
-  <DialogTitle
-    data-slot="dialog-title"
-    v-bind="delegated"
-    :class="cn('text-[15px] leading-tight font-medium', props.class)"
-  >
+  <DialogTitle data-slot="dialog-title" v-bind="delegated" :class="cn('text-label', props.class)">
     <slot />
   </DialogTitle>
 </template>

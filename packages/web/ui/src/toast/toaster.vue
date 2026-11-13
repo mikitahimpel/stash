@@ -9,6 +9,7 @@ import {
   ToastViewport,
 } from "reka-ui";
 import type { HTMLAttributes } from "vue";
+import { buttonVariants } from "../button/button-variants";
 import { cn } from "../cn";
 import type { ToastMessage } from "./toast-message";
 
@@ -37,24 +38,22 @@ const onOpenChange = (id: string, open: boolean) => {
       :data-variant="toast.variant ?? 'default'"
       :open="true"
       :duration="toast.duration ?? duration"
-      class="group pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-lg border border-hairline bg-popover p-3 pr-10 text-popover-foreground shadow-(--popover-shadow) data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--reka-toast-swipe-end-x) data-[swipe=move]:translate-x-(--reka-toast-swipe-move-x) data-[swipe=move]:transition-none data-[variant=destructive]:text-destructive sm:data-[state=open]:slide-in-from-bottom-full"
+      class="group pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-surface border border-hairline bg-popover p-3 pr-12 text-popover-foreground shadow-(--popover-shadow) data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--reka-toast-swipe-end-x) data-[swipe=move]:translate-x-(--reka-toast-swipe-move-x) data-[swipe=move]:transition-none data-[variant=destructive]:text-destructive sm:data-[state=open]:slide-in-from-bottom-full"
       @update:open="onOpenChange(toast.id, $event)"
     >
       <div class="grid gap-1">
-        <ToastTitle data-slot="toast-title" class="text-[13px] font-medium">{{
-          toast.title
-        }}</ToastTitle>
+        <ToastTitle data-slot="toast-title" class="text-label">{{ toast.title }}</ToastTitle>
         <ToastDescription
           v-if="toast.description"
           data-slot="toast-description"
-          class="text-[13px] text-muted-foreground"
+          class="text-body text-muted-foreground"
         >
           {{ toast.description }}
         </ToastDescription>
       </div>
       <ToastClose
         data-slot="toast-close"
-        class="absolute top-2 right-2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-4"
+        :class="cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'absolute top-2 right-2')"
       >
         <X />
         <span class="sr-only">{{ closeLabel }}</span>

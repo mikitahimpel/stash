@@ -18,16 +18,17 @@ describe("ToggleChip", () => {
     expect(mountChip(true).find("button").attributes("aria-pressed")).toBe("true");
   });
 
-  it("flips aria-pressed and the model on click, and looks pressed while on", async () => {
+  it("flips aria-pressed and the model on click: sunken while off, raised while on", async () => {
     const wrapper = mountChip(false);
     const chip = wrapper.find("button");
-    expect(chip.classes()).not.toContain("tactile-raised");
+    expect(chip.classes()).toContain("tactile-sunken");
+    expect(chip.classes()).toContain("h-control-sm");
 
     await chip.trigger("click");
     expect(wrapper.vm.on).toBe(true);
     expect(chip.attributes("aria-pressed")).toBe("true");
-    expect(chip.classes()).toContain("bg-hairline");
-    expect(chip.classes()).not.toContain("tactile-pressed");
+    expect(chip.classes()).toContain("tactile-raised");
+    expect(chip.classes()).not.toContain("tactile-sunken");
 
     await chip.trigger("click");
     expect(wrapper.vm.on).toBe(false);

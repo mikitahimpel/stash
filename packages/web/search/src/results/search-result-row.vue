@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type * as Link from "@stash/contracts-domain/link";
 import ListRow from "@stash/web-ui/list-row";
-import TextLink from "@stash/web-ui/text-link";
+import ListRowTitle from "@stash/web-ui/list-row-title";
+import MatchMark from "@stash/web-ui/match-mark";
 import * as DateTime from "effect/DateTime";
 import { computed } from "vue";
 import * as TermHighlight from "./term-highlight.ts";
@@ -32,33 +33,25 @@ const summary = computed(() =>
 </script>
 
 <template>
-  <ListRow as="li" :selected="selected" class="flex-row items-start gap-3">
-    <span
-      class="w-6 shrink-0 pt-0.5 text-right font-mono text-xs text-signal tabular-nums"
-      aria-hidden="true"
-      >{{ rank }}</span
-    >
-    <div class="flex min-w-0 flex-1 flex-col gap-1">
-      <TextLink
-        v-bind="{
-          href: link.url,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          'data-result-link': '',
-        }"
-        class="text-[15px] break-words"
-      >
-        {{ link.title ?? link.url }}
-      </TextLink>
-      <p class="font-mono text-xs text-muted-foreground">{{ meta }}</p>
-      <p v-if="summary.length > 0" class="line-clamp-3 text-sm text-muted-foreground">
-        <template v-for="(part, i) in summary" :key="i">
-          <mark v-if="part.match" class="rounded-[3px] bg-surface px-0.5 text-foreground">{{
-            part.text
-          }}</mark>
-          <template v-else>{{ part.text }}</template>
-        </template>
-      </p>
-    </div>
+  <ListRow as="li" :selected="selected">
+    <template #leading>
+      <span class="w-6 text-signal" aria-hidden="true">{{ rank }}</span>
+    </template>
+    <template #title>
+      <ListRowTitle as-child>
+        <a :href="link.url" target="_blank" rel="noopener noreferrer" data-result-link="">{{
+          link.title ?? link.url
+        }}</a>
+      </ListRowTitle>
+    </template>
+    <template #meta>
+      <span>{{ meta }}</span>
+    </template>
+    <p v-if="summary.length > 0" class="line-clamp-3 text-body text-muted-foreground">
+      <template v-for="(part, i) in summary" :key="i">
+        <MatchMark v-if="part.match">{{ part.text }}</MatchMark>
+        <template v-else>{{ part.text }}</template>
+      </template>
+    </p>
   </ListRow>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { buttonVariants } from "@stash/web-ui/button-variants";
+import Button from "@stash/web-ui/button";
 import { onBeforeUnmount, onMounted, useTemplateRef } from "vue";
 
 const props = defineProps<{ loading: boolean }>();
@@ -24,15 +24,11 @@ onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
-  <div ref="sentinel" class="flex justify-center py-4">
-    <button
-      type="button"
-      :class="buttonVariants({ variant: 'raised' })"
-      :disabled="loading"
-      data-action="load-more"
-      @click="more"
-    >
-      {{ loading ? "Loading…" : "Load more" }}
-    </button>
+  <div ref="sentinel" class="flex">
+    <Button as-child>
+      <button type="button" :disabled="loading" data-action="load-more" @click="more">
+        {{ loading ? "Loading…" : "Load more" }}
+      </button>
+    </Button>
   </div>
 </template>

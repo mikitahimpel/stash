@@ -54,6 +54,6 @@ const submit = async () => {
         <button type="submit" :disabled="saving">Save</button>
       </Button>
     </div>
-    <p v-if="problem" role="alert" class="text-[13px] text-destructive">{{ problem }}</p>
+    <p v-if="problem" role="alert" class="text-meta text-destructive">{{ problem }}</p>
   </form>
 </template>

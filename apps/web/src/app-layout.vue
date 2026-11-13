@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import * as Auth from "@stash/web-auth/routes";
+import AppFrame from "@stash/web-ui/app-frame";
+import AppMain from "@stash/web-ui/app-main";
 import { RouterView, useRoute } from "vue-router";
 import AppHeader from "./app-header.vue";
 
 const route = useRoute();
+
+// The login page brings its own full-screen layout, without the nav.
 </script>
 
 <template>
-  <!-- The login page brings its own full-screen layout, without the nav. -->
   <RouterView v-if="Auth.isPublic(route)" />
-  <div v-else class="flex min-h-dvh flex-col bg-background text-foreground">
+  <AppFrame v-else>
     <AppHeader />
-    <!-- On phones the bottom padding clears the nav bar fixed at the bottom of the screen. -->
-    <main
-      class="mx-auto w-full max-w-[960px] flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 sm:pb-12"
-    >
+    <AppMain>
       <RouterView />
-    </main>
-  </div>
+    </AppMain>
+  </AppFrame>
 </template>

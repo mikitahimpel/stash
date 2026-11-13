@@ -22,21 +22,33 @@ describe("Button", () => {
     expect(wrapper.classes()).toContain(expected);
   });
 
-  it("keeps the older variants working as raised keys", () => {
-    for (const variant of ["default", "outline", "secondary"] as const) {
-      const wrapper = mount(Button, { props: { variant }, slots: { default: "Go" } });
-      expect(wrapper.classes()).toContain("tactile-raised");
-    }
+  it("renders secondary as a raised key", () => {
+    const wrapper = mount(Button, { props: { variant: "secondary" }, slots: { default: "Go" } });
+    expect(wrapper.classes()).toContain("tactile-raised");
+  });
+
+  it.each([
+    ["sm", "h-control-sm"],
+    ["md", "h-control-md"],
+    ["lg", "h-control-lg"],
+    ["icon-sm", "size-control-sm"],
+    ["icon", "size-control-md"],
+    ["icon-lg", "size-control-lg"],
+  ] as const)("takes its %s height from the control tokens", (size, expected) => {
+    const wrapper = mount(Button, { props: { size }, slots: { default: "Go" } });
+    expect(wrapper.classes()).toContain(expected);
+    expect(wrapper.classes()).toContain("rounded-control");
+    expect(wrapper.classes()).toContain("hit-area");
   });
 
   it("styles its child instead with as-child", () => {
     const wrapper = mount(Button, {
-      props: { asChild: true, variant: "link" },
+      props: { asChild: true, variant: "ghost", size: "sm" },
       slots: { default: '<a href="https://example.com/article">Open</a>' },
     });
 
     expect(wrapper.element.tagName).toBe("A");
     expect(wrapper.attributes("href")).toBe("https://example.com/article");
-    expect(wrapper.classes()).toContain("link-underline");
+    expect(wrapper.classes()).toContain("h-control-sm");
   });
 });

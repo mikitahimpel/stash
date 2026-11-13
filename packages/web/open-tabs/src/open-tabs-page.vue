@@ -151,22 +151,14 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       @retry="retry"
     />
     <template v-else-if="all === undefined">
-      <div v-if="skeleton" data-state="loading" class="flex flex-col gap-4">
-        <Skeleton class="h-10 w-full rounded-lg" />
+      <div v-if="skeleton" data-state="loading" class="flex flex-col gap-6">
+        <Skeleton shape="control" />
         <div class="flex gap-2">
-          <Skeleton v-for="i in 3" :key="i" class="h-[34px] w-20 rounded-[9px]" />
+          <Skeleton v-for="i in 3" :key="i" shape="chip" />
         </div>
-        <Skeleton class="h-28 w-full" />
-        <div class="flex flex-col">
-          <div
-            v-for="i in 4"
-            :key="i"
-            class="flex items-baseline gap-4 border-b border-hairline-row px-3 py-3"
-          >
-            <Skeleton class="h-4 flex-1" />
-            <Skeleton class="h-3 w-24" />
-            <Skeleton class="h-3 w-10" />
-          </div>
+        <Skeleton shape="chart" />
+        <div class="flex flex-col gap-1">
+          <Skeleton v-for="i in 4" :key="i" shape="row" />
         </div>
       </div>
     </template>
@@ -179,14 +171,14 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         @update:model-value="setQuery"
       />
 
-      <!-- One line on phones: it scrolls on its own, out to the edge of the screen. -->
+      <!-- One line on phones: it scrolls on its own. -->
       <div
-        class="flex gap-2 overflow-x-auto [scrollbar-width:none] max-sm:-mr-4 max-sm:pr-4 sm:flex-wrap"
+        class="flex gap-2 overflow-x-auto [scrollbar-width:none] sm:flex-wrap"
         role="group"
         aria-label="Devices"
       >
         <ToggleChip data-device="all" :pressed="device === null" @update:pressed="pickDevice(null)">
-          All <span class="font-mono text-xs text-muted-foreground">{{ total }}</span>
+          All <span class="text-muted-foreground tabular-nums">{{ total }}</span>
         </ToggleChip>
         <ToggleChip
           v-for="chip in chips"
@@ -196,7 +188,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
           @update:pressed="pickDevice(chip.id)"
         >
           {{ chip.name }}
-          <span class="font-mono text-xs text-muted-foreground">{{ chip.count }}</span>
+          <span class="text-muted-foreground tabular-nums">{{ chip.count }}</span>
         </ToggleChip>
       </div>
 
@@ -235,12 +227,12 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       >
         <SectionHeader :title="section.title" :count="section.tabs.length">
           <template v-if="section.id === 'old'" #actions>
-            <Button as-child size="sm">
+            <Button as-child variant="ghost" size="sm">
               <button type="button" data-action="review" @click="select(section.tabs[0]?.key)">
                 Review
               </button>
             </Button>
-            <Button as-child size="sm">
+            <Button as-child variant="ghost" size="sm">
               <button type="button" data-action="archive-all" @click="confirming = true">
                 Archive all {{ section.tabs.length }}
               </button>
@@ -262,14 +254,14 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       </section>
 
       <footer
-        class="hidden flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground sm:flex"
+        class="hidden flex-wrap gap-x-4 gap-y-2 text-meta text-muted-foreground sm:flex"
         aria-label="Shortcuts"
       >
-        <span class="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>
-        <span class="flex items-center gap-1.5"><Kbd>↵</Kbd> open</span>
-        <span class="flex items-center gap-1.5"><Kbd>E</Kbd> archive</span>
-        <span class="flex items-center gap-1.5"><Kbd>W</Kbd> close on device</span>
-        <span class="flex items-center gap-1.5"><Kbd>/</Kbd> filter</span>
+        <span class="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>
+        <span class="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
+        <span class="flex items-center gap-1"><Kbd>E</Kbd> archive</span>
+        <span class="flex items-center gap-1"><Kbd>W</Kbd> close on device</span>
+        <span class="flex items-center gap-1"><Kbd>/</Kbd> filter</span>
       </footer>
     </template>
 

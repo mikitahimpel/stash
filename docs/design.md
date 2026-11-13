@@ -4,13 +4,44 @@ The source of truth for the web app's look. The spec below is committed verbatim
 The light-mode values derived from it and the mapping to code follow it. The implementation lives
 in `packages/web/ui` (`@stash/web-ui`: `src/styles.css` and the components), and the theme switch
 in `packages/web/platform` (`@stash/web-platform/theme`). In dev, `/_ui` shows every primitive in
-every state, with a theme switch.
+every size and state, in a grid, with a theme switch.
+
+## Tokens (#137)
+
+One control language for every interactive element, so a page can't read as two design systems.
+**These win over every section below.** They live in `packages/web/ui/src/styles.css` and
+`src/control/control-variants.ts`, and the layout audit (below) fails CI when a page drifts.
+
+| Token | Value | Tailwind |
+|---|---|---|
+| Control height | **sm 32 · md 36 · lg 44** | `h-control-sm` · `h-control-md` · `h-control-lg` |
+| Phone hit area | every tappable control at least 44 tall, without looking different | `hit-area` (an invisible `::after` below `sm`) |
+| Radius | **8** every control · **12** surfaces (cards, menus, dialogs, toasts) · full for the avatar only | `rounded-control` · `rounded-surface` |
+| Surface | `raised` (button, segmented thumb, menu trigger, chip on) · `primary` (one per screen) · `sunken` (input, search, segmented track, chip off) · `ghost` (row and toolbar actions); one 1px border, one focus ring | `controlSurfaces` |
+| Text | title 28/600 · **label 14/500** (controls, row titles, section headers) · **body 14/400** · **meta 13/400**, muted, **sans** | `text-title` · `text-label` · `text-body` · `text-meta` |
+| Mono | only keys (`⌘K`, `Kbd`), the device code and chart axis labels | `font-mono` in `Kbd` / `DeviceCode`, `chart-text` |
+| Spacing | only 4 · 8 · 12 · 16 · 24 · 32 · 48 | `1 · 2 · 3 · 4 · 6 · 8 · 12` |
+| Content edge | everything on a page (header, section headers, rows, cards, empty states) starts at the same left x and ends at the same right x; rows inside a card share the card's content edge | `ListRow` reaches 12px past the edges for its background only |
+
+- **Titles are not underlined.** A row's title is its target (`ListRowTitle`, `data-row`), and the
+  row's background shows hover and focus. `TextLink` is for links inside prose.
+- **Row actions** are `ghost` (or `secondary`) at `sm`. A section header's action too. One
+  `primary` per screen. The buttons of one group use the same verb style (`Mark seen`, `Mark done`,
+  `Archive`, `Delete`; `Set up` on every row of a card).
+- **Sizes by place:** a page's primary field and button are `md`; filter bars (segmented control,
+  `Type` menu, chips), row and section actions are `sm`; Search's main field and the login
+  actions are `lg`.
+- **Feature code doesn't style controls or rows.** `packages/web/{links,search,open-tabs,settings,auth}`
+  and `apps/web` use layout utilities only (flex, grid, gap on the scale, widths, overflow,
+  visibility at a breakpoint) plus the text roles and colors above. `apps/web/test/feature-classes.test.ts`
+  scans every template and fails on heights, padding, margins, radii, borders, backgrounds,
+  fonts or text sizes. What a page needs beyond that becomes a kit component.
 
 ## Design spec: "Stash tactile" (shared by the UI polish issues)
 
 Keyboard-first, quiet chrome, data over decoration. Hierarchy comes from spacing and hairline dividers, not cards or badges. No glow, glass, gradient washes, emoji or explainer copy: UI text is labels and data only.
 
-**Type:** Geist (UI text) + Geist Mono (metadata: domains, devices, ages, counts, shortcuts). Self-host via `@fontsource-variable/geist` / `@fontsource-variable/geist-mono` (or equivalent npm packages), not a CDN. Sizes: 14px body, 13px controls, 12px mono metadata, 15px titles in lists, page headings 14px/500 (sections are labelled, not shouted).
+**Type:** Geist (UI text) + Geist Mono (keys, the device code, chart axis labels; see "Tokens"). Self-host via `@fontsource-variable/geist` / `@fontsource-variable/geist-mono` (or equivalent npm packages), not a CDN. Sizes: see "Tokens" (sections are labelled, not shouted).
 
 **Tokens (dark default; light mirrors it):**
 
@@ -42,11 +73,11 @@ Keyboard-first, quiet chrome, data over decoration. Hierarchy comes from spacing
 .link:hover{text-decoration-color:currentColor}
 ```
 
-Radii: buttons 8px, inputs/trays 10px, chips 9px, keys 5px. Heights: controls ≥34px (touch ≥40px for primary actions on mobile). Focus: 2px visible ring in foreground at 40% alpha, never removed.
+Radii and heights: see "Tokens" (keys stay 4px). Focus: 2px visible ring in foreground at 40% alpha, never removed.
 
-**Components** (names indicative): Button (`raised` default, `primary`, `ghost`), SegmentedControl (sunken tray, active segment raised), ToggleChip (raised; on = pressed with `aria-pressed`), Input/SearchField (sunken, optional trailing `Kbd`), Kbd (keycap), ListRow (hairline divider; selected = `row-selected`, can reveal a row action bar), SectionHeader (14px/500 label + mono count + right-aligned actions), Link.
+**Components** (names indicative): Button (`raised` default, `primary`, `ghost`), SegmentedControl (sunken tray, active segment raised), ToggleChip (sunken; on = raised with `aria-pressed`), Input/SearchField (sunken, optional trailing `Kbd`), Kbd (keycap), ListRow (hairline divider; selected = `row-selected`, can reveal a row action bar), SectionHeader (14px/500 label + muted count + right-aligned actions), Link.
 
-**Layout:** max-width 1040px, 24px side padding (16px on phones), top nav = wordmark `stash` + SegmentedControl (Inbox · Open now · Search · Settings) + right side (mono sync status, Search ⌘K, theme toggle). Lists are rows, not cards: title (link) · mono host · mono device/source · mono age, right-aligned. Footer shortcut hints use Kbd. Everything must work at 390px width (columns collapse; mono metadata wraps under the title).
+**Layout:** max-width 1040px, 24px side padding (16px on phones), top nav = wordmark `stash` + SegmentedControl (Inbox · Open now · Search · Settings) + right side (mono sync status, Search ⌘K, theme toggle). Lists are rows, not cards: title · host · device/source · age as muted 13px sans metadata. Footer shortcut hints use Kbd. Everything must work at 390px width (columns collapse; metadata wraps under the title).
 
 **Data graphics** (inline SVG Vue components, driven by real data, `role="img"` + an `aria-label` summarising the data; mono 12px labels; neutral marks, accent only for the highlighted category):
 - Open now: one lane per device; each tab is a 2×16 tick at x = age (0–14 days, older clamped to the end); region past 7 days hatched (45° pattern, hairline color) with a dashed 7d line; stale ticks in accent; the selected tab gets a taller tick and a `title · age` label.
@@ -108,8 +139,7 @@ Every gap, padding and margin is one of **4 · 8 · 12 · 16 · 24 · 32 · 48 p
 
 Page content is at most **960px** wide, centred, with the header on the same width. **48px** lies
 between the page header and the content, and **24px** between sections (Settings included). Mono is
-only for metadata inside rows and data graphics (hosts, ages, counts, axis labels), never for
-page-level text such as subtitles, legends or shortcut hints.
+only for keys, the device code and chart axis labels (see "Tokens").
 
 ### Page header
 
@@ -132,18 +162,21 @@ Weight follows importance, so filters never look like navigation:
 | Navigation | plain text tabs |
 | Primary action | `primary` key, **at most one per screen** |
 | Real actions | `raised` keys |
-| View switch | `SegmentedControl`, small: 32px (40px touch target on phones) |
-| One-of-many filter | one compact `FilterMenu` (`Type: Any ▾`), borderless |
-| Toggle filters (tags, devices) | `ToggleChip`: borderless text, subtle hover, `bg-hairline` when on |
+| Row and section actions | `ghost` (or `secondary`) keys, `sm` |
+| View switch | `SegmentedControl`, `sm` in filter bars and rows |
+| One-of-many filter | one compact `FilterMenu` (`Type: Any ▾`), a raised menu trigger, `sm` |
+| Toggle filters (tags, devices) | `ToggleChip`, `sm`: sunken while off, raised while on |
 
-Raised styling is for real actions. Never a row of raised filter buttons.
+A filter bar is one row of `sm` controls, all 32px on one centre line.
 
 ### Rows
 
-List rows are at least **52px** tall (`ListRow` has `min-h-13`). On phones metadata wraps under
-the title instead of squeezing beside it. Section headers start at the content edge, like the page
-title; row content is inset by the `ListRow` padding (12px). Where a page has controls at the end
-of its rows (Settings), every row and section control ends on that same 12px inset.
+Every list (Inbox, Search results, Open now, Settings devices and tokens, Start saving) is built
+from `ListRow`: `leading` · `title` · `meta` · `trailing` on a 36px title line, then extra lines
+(summary, tags) and, while selected, the action bar. A single-line row is 52px. On phones the meta
+wraps under the title. Row text, section headers and the page title all start on the content edge,
+and trailing controls end on it; the row's box reaches 12px past both edges so its hover, focus
+and selected background has room.
 
 ### Data graphics
 
@@ -214,6 +247,28 @@ so the phone's bottom nav sits at the bottom of the picture as on a screen. Page
 scrolls sideways or a button has no accessible name. Chromium needs its system libraries
 (`pnpm --filter @stash/web exec playwright install-deps chromium` once per machine).
 
+### Layout audit
+
+`pnpm --filter @stash/web audit:layout` (CI job `layout-audit`) builds the app, serves it with
+`vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now, Search
+with results, Settings, each seeded and as a first-run user, plus Login, in the light theme at
+1440 and 390 wide. The api is answered in the browser from synthetic fixtures
+(`apps/web/scripts/layout-fixtures.ts`). On each page it checks:
+
+- every visible `button`, `input` (by its field box), `[role=tab]`, `[role=menuitem]`,
+  `[role=radio]` and `a[data-row]` is 32, 36 or 44 tall, and on phones has a hit area of at least 44;
+- controls on one row share their height and vertical centre;
+- every page-level block starts on the content edge (± 0.5px), trailing controls end on it, rows
+  inside a card share one edge, and every line of a row starts where its title does;
+- every vertical gap between page-level blocks is on the spacing scale;
+- text renders in mono only inside keys, the device code and charts.
+
+It prints a table of violations and exits 1 on any. The rules are plain functions
+(`scripts/layout-audit-rules.ts`, tested in `test/layout-audit-rules.test.ts`), measured by
+`scripts/layout-audit-probe.ts` in the page. Chromium needs its system libraries
+(`pnpm --filter @stash/web exec playwright install --with-deps chromium`, or the libraries
+extracted locally and put on `LD_LIBRARY_PATH`).
+
 ## In code
 
 | Spec | CSS variable | Tailwind |
@@ -234,8 +289,8 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
   stay as aliases of the tokens above.
 - **Focus**: the base layer gives every `:focus-visible` element a 2px outline in the foreground
   at 40%. Components don't remove it.
-- **Radii**: `rounded-md` is 8px (buttons), `rounded-lg` 10px (inputs, trays). Chips use
-  `rounded-[9px]` and keys `rounded-[5px]`.
+- **Radii and heights**: see "Tokens". `rounded-md` and `rounded-lg` are aliases of
+  `rounded-control`, `rounded-xl` of `rounded-surface`.
 - **Theme**: `@stash/web-platform/theme` keeps the preference (`system` | `light` | `dark`,
   default `system`) in the platform `KeyValueStore` and toggles the `dark` class on `<html>`,
   following `prefers-color-scheme` while the preference is `system`.
@@ -246,11 +301,14 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
 |---|---|
 | Button (`raised`, `primary`, `ghost`) | `button`, `button-variants` |
 | SegmentedControl | `segmented-control` (radio group; arrow keys, Home and End move the selection) |
-| ToggleChip | `toggle-chip` (`v-model:pressed`, `aria-pressed`), quiet: see "Control hierarchy" |
-| FilterMenu | `filter-menu` (`label`, `options`, `v-model`, `""` for Any): the compact `Type: Any ▾` |
-| Input / SearchField | `input`, `search-field` (`shortcut` adds a trailing `Kbd`) |
+| ToggleChip | `toggle-chip` (`v-model:pressed`, `aria-pressed`, `size`) |
+| FilterMenu | `filter-menu` (`label`, `options`, `v-model`, `""` for Any, `size`): the compact `Type: Any ▾` |
+| Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
-| ListRow | `list-row` (`selected`, `#actions` row action bar) |
+| ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
+| Card | `card`, `card-header`, `card-title`, … |
+| Avatar | `avatar-button` |
+| App shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |
 | PageHeader | `page-header` (`title`, `subtitle`, `#actions`): the page's `h1` |
 | SectionHeader | `section-header` (`title`, `count`, `#actions`) |
 | Link | `text-link` |

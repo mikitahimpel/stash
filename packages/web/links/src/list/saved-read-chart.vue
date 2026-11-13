@@ -40,7 +40,9 @@ const summary = computed(() => SavedRead.summary(props.history));
       :aria-label="`${summary}. One bar per day, oldest first.`"
       :viewBox="`0 0 ${width} ${height}`"
       preserveAspectRatio="none"
-      class="h-12 w-full"
+      width="100%"
+      height="48"
+      class="block"
     >
       <line
         x1="0"
@@ -76,22 +78,22 @@ const summary = computed(() => SavedRead.summary(props.history));
         />
       </g>
     </svg>
-    <figcaption class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <figcaption class="flex flex-wrap items-center gap-x-4 gap-y-1 text-meta text-muted-foreground">
       <span class="flex items-center gap-3" aria-hidden="true">
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
+        <span class="flex items-center gap-2">
+          <svg viewBox="0 0 8 8" width="8" height="8">
             <rect width="8" height="8" class="fill-muted-foreground opacity-35" />
           </svg>
           read
         </span>
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
+        <span class="flex items-center gap-2">
+          <svg viewBox="0 0 8 8" width="8" height="8">
             <rect width="8" height="8" class="fill-muted-foreground" />
           </svg>
           unread
         </span>
-        <span class="flex items-center gap-1.5">
-          <svg viewBox="0 0 8 8" class="size-2">
+        <span class="flex items-center gap-2">
+          <svg viewBox="0 0 8 8" width="8" height="8">
             <rect width="8" height="8" class="fill-signal opacity-45" />
           </svg>
           unread today

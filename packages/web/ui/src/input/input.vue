@@ -1,21 +1,44 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue";
+import { type HTMLAttributes, ref } from "vue";
 import { cn } from "../cn";
+import { type ControlSize, controlSizes } from "../control/control-variants";
+import { fieldInput, fieldWrapper } from "../control/field-classes";
 
-const props = defineProps<{ class?: HTMLAttributes["class"] }>();
+// Attributes (type, placeholder, aria-label, name, readonly, …) go to the input, not the wrapper.
+defineOptions({ inheritAttrs: false });
+
+const props = withDefaults(
+  defineProps<{
+    size?: ControlSize;
+    /** Mono text, for a code or token to copy. Nothing else is mono. */
+    mono?: boolean;
+    class?: HTMLAttributes["class"];
+  }>(),
+  { size: "md", mono: false },
+);
 const model = defineModel<string | number>();
+
+const input = ref<HTMLInputElement>();
+// The wrapper is the field's box and, on phones, its 44px hit area: a tap on it focuses the input.
+const focus = (event: PointerEvent) => {
+  if (event.target !== event.currentTarget) return;
+  event.preventDefault();
+  input.value?.focus();
+};
 </script>
 
 <template>
-  <input
-    v-model="model"
+  <div
     data-slot="input"
-    :class="
-      cn(
-        'flex h-10 w-full min-w-0 rounded-lg px-3 py-1 text-sm text-foreground tactile-sunken transition-[color,box-shadow] placeholder:text-muted-foreground selection:bg-foreground selection:text-background file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-[13px] file:font-medium file:text-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 sm:h-9',
-        'aria-invalid:border-destructive',
-        props.class,
-      )
-    "
-  />
+    :class="cn(fieldWrapper, controlSizes[size], props.class)"
+    @pointerdown="focus"
+  >
+    <input
+      ref="input"
+      v-model="model"
+      data-slot="input-control"
+      v-bind="$attrs"
+      :class="cn(fieldInput, mono && 'font-mono text-meta')"
+    />
+  </div>
 </template>

@@ -15,7 +15,7 @@ app can be installed to the iPhone home screen.
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens, first-run onboarding card (used by Inbox and Open now) |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (a slot for the app's entries, Sign out) |
-| `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): tokens, Geist, primitives |
+| `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): control tokens, Geist, primitives, app shell |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
 | `platform/` | `@stash/web-platform` | Web APIs as Effect services |
 
@@ -64,6 +64,17 @@ layers.
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
   rules"). At most one `primary` key per screen.
 - Shared visual components go in `@stash/web-ui`. Feature-specific components stay in the feature.
+- **Feature code doesn't style controls or rows.** In `links`, `search`, `open-tabs`, `settings`,
+  `auth` (and `apps/web`), templates use layout utilities only: `flex`, `grid`, `gap-*` on the
+  spacing scale, `w-*` / `min-w-*` / `max-w-*`, `overflow-*`, `truncate`, `hidden` / `sm:` visibility,
+  plus the kit's text roles and colors (`text-meta`, `text-body`, `text-label`,
+  `text-muted-foreground`, `text-signal`, …) and SVG `fill-*` / `stroke-*` in charts. No `h-*`,
+  padding, margins (except `*-auto`), `rounded-*`, `border-*`, `bg-*`, `font-*`, `text-xs|sm|[..]`
+  or `tactile-*`. Every control and row comes from `@stash/web-ui` at a kit size (`sm` 32, `md` 36,
+  `lg` 44); row actions are `ghost` `sm`, lists are `ListRow` with its slots. Need a look the kit
+  lacks? Add it to the kit. `apps/web/test/feature-classes.test.ts` enforces this, and the layout
+  audit (`pnpm --filter @stash/web audit:layout`, see [docs/design.md](../../docs/design.md#layout-audit))
+  checks the rendered pages.
 - Component files are kebab-case too: `link-card.vue`, used as `<LinkCard />`.
 
 ## Testing

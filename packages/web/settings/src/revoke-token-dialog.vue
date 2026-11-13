@@ -21,7 +21,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
           {{ deviceName }} can no longer reach Stash with this token. This can't be undone.
         </DialogDescription>
       </DialogHeader>
-      <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
+      <p v-if="error" role="alert" class="text-body text-destructive">{{ error }}</p>
       <DialogFooter>
         <DialogClose as-child>
           <Button data-test="cancel-revoke">Cancel</Button>

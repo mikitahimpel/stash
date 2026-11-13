@@ -10,6 +10,7 @@ import {
   useEmitAsProps,
 } from "reka-ui";
 import type { HTMLAttributes } from "vue";
+import { buttonVariants } from "../button/button-variants";
 import { cn } from "../cn";
 import { useForwardedProps } from "../forward-props";
 
@@ -41,7 +42,7 @@ const emitsAsProps = useEmitAsProps(emits);
       v-bind="{ ...$attrs, ...delegated, ...emitsAsProps }"
       :class="
         cn(
-          'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border border-hairline bg-popover p-5 text-popover-foreground shadow-(--popover-shadow) duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
+          'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-surface border border-hairline bg-popover p-6 text-popover-foreground shadow-(--popover-shadow) duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
           props.class,
         )
       "
@@ -50,7 +51,7 @@ const emitsAsProps = useEmitAsProps(emits);
       <DialogClose
         v-if="showCloseButton"
         data-slot="dialog-close"
-        class="absolute top-3 right-3 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*=size-])]:size-4"
+        :class="cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'absolute top-3 right-3')"
       >
         <X />
         <span class="sr-only">{{ closeLabel }}</span>

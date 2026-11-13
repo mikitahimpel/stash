@@ -171,12 +171,14 @@ describe("inbox page", () => {
     expect(wrapper.findAll("[role=radio]")).toHaveLength(3);
   });
 
-  it("has one primary action, and no row of raised filters", async () => {
+  it("has one primary action, and filters at one control height", async () => {
     const api = listing({ first: Fixtures.page([Fixtures.link("a")]) });
-    const { wrapper } = await mountAt("/links", api.routes);
+    const { wrapper } = await mountAt("/links?tag=economics", api.routes);
 
     expect(wrapper.findAll(".tactile-primary").map((el) => el.text())).toEqual(["Save"]);
-    expect(wrapper.find("[aria-label=Filters] .tactile-raised").exists()).toBe(false);
+    const filters = wrapper.findAll("[aria-label=Feed], [aria-label=Filters] button");
+    expect(filters.length).toBe(3);
+    expect(filters.every((el) => el.classes("h-control-sm"))).toBe(true);
   });
 
   it("loads the filters from the URL query", async () => {

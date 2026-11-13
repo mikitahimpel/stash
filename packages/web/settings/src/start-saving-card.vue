@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import type * as Device from "@stash/contracts-domain/device";
 import Button from "@stash/web-ui/button";
+import Card from "@stash/web-ui/card";
+import CardHeader from "@stash/web-ui/card-header";
+import CardTitle from "@stash/web-ui/card-title";
 import ListRow from "@stash/web-ui/list-row";
+import ListRowTitle from "@stash/web-ui/list-row-title";
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 
@@ -29,7 +33,7 @@ const cards: Readonly<
         id: "zen",
         title: "Zen extension",
         description: "Save the current tab with a hotkey",
-        action: "Add device",
+        action: "Set up",
         to: { kind: "zen" },
       },
       {
@@ -43,7 +47,7 @@ const cards: Readonly<
         id: "claude",
         title: "Claude",
         description: "Save and search from a chat with the MCP connector",
-        action: "Connect",
+        action: "Set up",
         to: { doc: "/docs/mcp-connector.md" },
       },
     ],
@@ -70,30 +74,25 @@ const cards: Readonly<
 };
 
 const card = computed(() => cards[props.scenario]);
+
+// First-run onboarding: a card, each row one way to start with one action.
 </script>
 
 <template>
-  <!-- First-run onboarding: each row is one way to start, with one action. -->
-  <section
-    data-slot="start-saving"
-    :aria-label="card.title"
-    class="flex flex-col rounded-lg border border-hairline bg-surface py-1"
-  >
-    <h2 class="px-3 pt-3 pb-2 text-[15px] font-medium">{{ card.title }}</h2>
+  <Card data-slot="start-saving" v-bind="{ 'aria-label': card.title, role: 'region' }">
+    <CardHeader>
+      <CardTitle as="h2">{{ card.title }}</CardTitle>
+    </CardHeader>
     <ul>
-      <ListRow
-        v-for="option in card.options"
-        :key="option.id"
-        as="li"
-        class="border-x-0 border-b-hairline last:border-b-transparent"
-        :data-option="option.id"
-      >
-        <div class="flex items-center gap-4">
-          <div class="flex min-w-0 flex-1 flex-col gap-1">
-            <span class="text-sm font-medium">{{ option.title }}</span>
-            <span class="text-[13px] text-muted-foreground">{{ option.description }}</span>
-          </div>
-          <Button as-child size="sm">
+      <ListRow v-for="option in card.options" :key="option.id" as="li" :data-option="option.id">
+        <template #title>
+          <ListRowTitle>{{ option.title }}</ListRowTitle>
+        </template>
+        <template #meta>
+          <span>{{ option.description }}</span>
+        </template>
+        <template #trailing>
+          <Button as-child variant="secondary" size="sm">
             <a
               v-if="'doc' in option.to"
               :href="option.to.doc"
@@ -109,8 +108,8 @@ const card = computed(() => cards[props.scenario]);
               {{ option.action }}
             </RouterLink>
           </Button>
-        </div>
+        </template>
       </ListRow>
     </ul>
-  </section>
+  </Card>
 </template>

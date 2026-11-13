@@ -4,15 +4,21 @@ import { cn } from "../cn";
 import type { SegmentedControlOption } from "./segmented-control-option";
 import {
   segmentedControlItemVariants,
+  segmentedControlThumb,
   segmentedControlVariants,
 } from "./segmented-control-variants";
 
-const props = defineProps<{
-  options: ReadonlyArray<SegmentedControlOption<T>>;
-  /** Names the group for screen readers. */
-  label: string;
-  class?: HTMLAttributes["class"];
-}>();
+const props = withDefaults(
+  defineProps<{
+    options: ReadonlyArray<SegmentedControlOption<T>>;
+    /** Names the group for screen readers. */
+    label: string;
+    /** `sm` (32) in filter bars and rows, `md` (36) next to fields and buttons. */
+    size?: "sm" | "md";
+    class?: HTMLAttributes["class"];
+  }>(),
+  { size: "md" },
+);
 const model = defineModel<T>({ required: true });
 
 // The segment Tab lands on: the selected one, or the first when none is.
@@ -58,7 +64,7 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
     role="radiogroup"
     data-slot="segmented-control"
     :aria-label="label"
-    :class="cn(segmentedControlVariants(), props.class)"
+    :class="cn(segmentedControlVariants({ size }), props.class)"
   >
     <button
       v-for="(option, index) in options"
@@ -74,7 +80,8 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
       @click="model = option.value"
       @keydown="onKeydown($event, index)"
     >
-      {{ option.label }}
+      <span v-if="option.value === model" aria-hidden="true" :class="segmentedControlThumb" />
+      <span class="relative">{{ option.label }}</span>
     </button>
   </div>
 </template>

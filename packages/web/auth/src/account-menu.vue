@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAtomSet, useAtomValue } from "@effect/atom-vue";
-import { CircleUser, LogOut } from "@lucide/vue";
-import Button from "@stash/web-ui/button";
+import { LogOut } from "@lucide/vue";
+import AvatarButton from "@stash/web-ui/avatar-button";
 import DropdownMenu from "@stash/web-ui/dropdown-menu";
 import DropdownMenuContent from "@stash/web-ui/dropdown-menu-content";
 import DropdownMenuItem from "@stash/web-ui/dropdown-menu-item";
@@ -43,33 +43,19 @@ const signOut = async () => {
     pending.value = false;
   }
 };
+
+// The one control at the end of the app header. The default slot holds what else belongs in the
+// menu, above Sign out.
 </script>
 
 <template>
-  <!-- The one control at the end of the app header. The default slot holds what else belongs in
-       the menu, above Sign out. -->
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <!-- The negative margin puts the avatar, not the larger touch target, on the content edge. -->
-      <Button as-child variant="ghost" size="icon" class="relative -mr-1.5 rounded-full sm:-mr-1">
-        <button type="button" :aria-label="name" :title="name" data-test="account-menu">
-          <span
-            v-if="initial"
-            aria-hidden="true"
-            data-test="account-initial"
-            class="flex size-7 items-center justify-center rounded-full bg-hairline text-[13px] font-medium text-foreground"
-          >
-            {{ initial }}
-          </span>
-          <CircleUser v-else aria-hidden="true" />
-          <span
-            v-if="alert"
-            aria-hidden="true"
-            data-test="account-attention"
-            class="absolute top-1 right-1 size-2 rounded-full bg-signal"
-          />
-        </button>
-      </Button>
+      <AvatarButton
+        :initial="initial"
+        :alert="alert !== undefined"
+        v-bind="{ 'aria-label': name, title: name, 'data-test': 'account-menu' }"
+      />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="min-w-48">
       <template v-if="$slots.default">

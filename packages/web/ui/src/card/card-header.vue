@@ -8,7 +8,7 @@ const props = defineProps<{ class?: HTMLAttributes["class"] }>();
 <template>
   <div
     data-slot="card-header"
-    :class="cn('grid auto-rows-min items-start gap-1.5 px-6', props.class)"
+    :class="cn('flex min-h-control-lg flex-col justify-center gap-1', props.class)"
   >
     <slot />
   </div>

@@ -50,15 +50,15 @@ const formatDate = (date: DateTime.Utc) =>
 </script>
 
 <template>
-  <section class="flex flex-col gap-5">
+  <section class="flex flex-col gap-6">
     <Button variant="ghost" size="sm" class="self-start" as-child>
       <RouterLink :to="{ name: 'links' }"><ArrowLeft aria-hidden="true" /> Inbox</RouterLink>
     </Button>
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
       <template v-if="loading">
-        <Skeleton class="h-6 w-2/3" />
-        <Skeleton class="h-16" />
+        <Skeleton shape="title" class="w-2/3" />
+        <Skeleton shape="row" />
       </template>
     </div>
     <EmptyState
@@ -68,13 +68,13 @@ const formatDate = (date: DateTime.Utc) =>
     />
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load the link" @retry="retry" />
     <article v-else class="flex flex-col gap-4">
-      <header class="flex flex-col gap-2 border-b border-hairline pb-4">
-        <h1 class="text-[15px] font-medium break-words">{{ LinkDisplay.title(view.link) }}</h1>
-        <div class="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
+      <header class="flex flex-col gap-2">
+        <h1 class="text-label break-words">{{ LinkDisplay.title(view.link) }}</h1>
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-meta text-muted-foreground">
           <TextLink as-child class="inline-flex items-center gap-1 text-muted-foreground">
             <a :href="view.link.url" target="_blank" rel="noopener noreferrer">
               {{ LinkDisplay.domain(view.link) }}
-              <ExternalLink class="size-3" aria-hidden="true" />
+              <ExternalLink :size="12" aria-hidden="true" />
             </a>
           </TextLink>
           <span>{{ view.link.status }}</span>
@@ -91,24 +91,24 @@ const formatDate = (date: DateTime.Utc) =>
           >
         </div>
       </header>
-      <p v-if="view.link.summary" class="max-w-prose text-sm leading-relaxed">
+      <p v-if="view.link.summary" class="max-w-prose text-body">
         {{ view.link.summary }}
       </p>
-      <p v-else-if="view.link.enrichedAt === null" class="font-mono text-xs text-muted-foreground">
+      <p v-else-if="view.link.enrichedAt === null" class="text-meta text-muted-foreground">
         summarizing…
       </p>
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-meta">
         <dt class="text-muted-foreground">Saved</dt>
-        <dd class="font-mono text-xs leading-5">{{ formatDate(view.link.createdAt) }}</dd>
+        <dd>{{ formatDate(view.link.createdAt) }}</dd>
         <template v-if="view.link.language !== null">
           <dt class="text-muted-foreground">Language</dt>
-          <dd class="font-mono text-xs leading-5">{{ view.link.language }}</dd>
+          <dd>{{ view.link.language }}</dd>
         </template>
         <template
           v-if="view.link.canonicalUrl !== null && view.link.canonicalUrl !== view.link.url"
         >
           <dt class="text-muted-foreground">Canonical URL</dt>
-          <dd class="font-mono text-xs leading-5 break-all">{{ view.link.canonicalUrl }}</dd>
+          <dd class="break-all">{{ view.link.canonicalUrl }}</dd>
         </template>
       </dl>
       <LinkActions :link="view.link" :after-remove="() => router.replace({ name: 'links' })" />

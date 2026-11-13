@@ -7,6 +7,7 @@ import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
 import ErrorState from "@stash/web-ui/error-state";
 import ListRow from "@stash/web-ui/list-row";
+import ListRowTitle from "@stash/web-ui/list-row-title";
 import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
@@ -135,131 +136,125 @@ const confirmRevoke = async () => {
   if (Exit.isSuccess(exit)) revoking.value = undefined;
   else revokeError.value = "Couldn't revoke the token. Try again.";
 };
+
+// Section headers, row text and the controls at the end of rows all sit on the content edges:
+// ListRow reaches past them only with its background.
 </script>
 
 <template>
-  <!-- Every control at the end of a row or section lines up 12px in from the content edge, with
-       the ListRow padding. -->
   <div class="flex flex-col gap-6">
     <PageHeader title="Settings" v-bind="subtitle" />
 
-    <div class="grid gap-6">
-      <section aria-label="Appearance" class="grid gap-3">
-        <SectionHeader title="Appearance" />
-        <div class="flex flex-wrap items-center justify-between gap-3 px-3">
-          <span class="text-sm">Theme</span>
-          <SegmentedControl
-            v-model="preference"
-            :options="themeOptions"
-            label="Theme"
-            data-test="theme"
-          />
-        </div>
-      </section>
+    <section aria-label="Appearance" class="flex flex-col gap-1">
+      <SectionHeader title="Appearance" />
+      <ul>
+        <ListRow as="li">
+          <template #title><ListRowTitle>Theme</ListRowTitle></template>
+          <template #trailing>
+            <SegmentedControl
+              v-model="preference"
+              :options="themeOptions"
+              label="Theme"
+              size="sm"
+              data-test="theme"
+            />
+          </template>
+        </ListRow>
+      </ul>
+    </section>
 
-      <section aria-label="Devices" class="grid gap-3">
-        <SectionHeader title="Devices" v-bind="counts.devices" class="pr-3">
-          <template #actions>
-            <Button as-child size="sm">
-              <button type="button" data-test="add-device" @click="openAddDevice(true)">
-                <Plus aria-hidden="true" />
-                Add device
+    <section aria-label="Devices" class="flex flex-col gap-1">
+      <SectionHeader title="Devices" v-bind="counts.devices">
+        <template #actions>
+          <Button as-child variant="secondary" size="sm">
+            <button type="button" data-test="add-device" @click="openAddDevice(true)">
+              <Plus aria-hidden="true" />
+              Add device
+            </button>
+          </Button>
+        </template>
+      </SectionHeader>
+
+      <p v-if="!addingDevice && issueError" role="alert" class="text-body text-destructive">
+        {{ issueError }}
+      </p>
+
+      <div v-if="AsyncResult.isInitial(rows)" class="flex flex-col gap-1" aria-busy="true">
+        <template v-if="loading">
+          <Skeleton v-for="n in 2" :key="n" shape="row" />
+        </template>
+      </div>
+      <ErrorState
+        v-else-if="AsyncResult.isFailure(rows)"
+        title="Couldn't load devices"
+        @retry="retry"
+      />
+      <ul v-else-if="rows.value.devices.length === 0">
+        <ListRow as="li" data-test="no-devices">
+          <template #title><ListRowTitle muted>No devices yet</ListRowTitle></template>
+        </ListRow>
+      </ul>
+      <ul v-else>
+        <ListRow v-for="row in rows.value.devices" :key="row.device.id" as="li" data-test="device">
+          <template #title>
+            <ListRowTitle v-bind="{ 'data-test': 'device-name' }">{{
+              row.device.name
+            }}</ListRowTitle>
+          </template>
+          <template #meta>
+            <span>{{ SettingsRows.kindLabels[row.device.kind] }}</span>
+            <span :title="row.lastSeen ? SettingsRows.formatDate(row.lastSeen) : undefined">
+              {{ SettingsRows.formatLastSeen(row.lastSeen, now) }}
+            </span>
+          </template>
+          <template #trailing>
+            <Button as-child variant="ghost" size="sm">
+              <button
+                type="button"
+                data-test="new-token"
+                :disabled="issuing"
+                @click="newToken(row.device.id)"
+              >
+                New token
               </button>
             </Button>
           </template>
-        </SectionHeader>
-
-        <p v-if="!addingDevice && issueError" role="alert" class="px-3 text-sm text-destructive">
-          {{ issueError }}
-        </p>
-
-        <div v-if="AsyncResult.isInitial(rows)" class="grid gap-2" aria-busy="true">
-          <template v-if="loading">
-            <Skeleton v-for="n in 2" :key="n" class="h-12 w-full" />
-          </template>
-        </div>
-        <ErrorState
-          v-else-if="AsyncResult.isFailure(rows)"
-          title="Couldn't load devices"
-          @retry="retry"
-        />
-        <ListRow
-          v-else-if="rows.value.devices.length === 0"
-          as="p"
-          class="text-sm text-muted-foreground"
-          data-test="no-devices"
-        >
-          No devices yet
         </ListRow>
-        <ul v-else>
-          <ListRow
-            v-for="row in rows.value.devices"
-            :key="row.device.id"
-            as="li"
-            data-test="device"
-          >
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span data-test="device-name" class="min-w-0 flex-1 truncate text-[15px]">
-                {{ row.device.name }}
-              </span>
-              <span class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
-                <span>{{ SettingsRows.kindLabels[row.device.kind] }}</span>
-                <span :title="row.lastSeen ? SettingsRows.formatDate(row.lastSeen) : undefined">
-                  {{ SettingsRows.formatLastSeen(row.lastSeen, now) }}
-                </span>
-              </span>
-              <Button as-child size="sm">
-                <button
-                  type="button"
-                  data-test="new-token"
-                  :disabled="issuing"
-                  @click="newToken(row.device.id)"
-                >
-                  New token
-                </button>
-              </Button>
-            </div>
+      </ul>
+    </section>
+
+    <section aria-label="API tokens" class="flex flex-col gap-1">
+      <SectionHeader title="API tokens" v-bind="counts.tokens" />
+      <template v-if="AsyncResult.isSuccess(rows)">
+        <ul v-if="rows.value.tokens.length === 0">
+          <ListRow as="li" data-test="no-tokens">
+            <template #title><ListRowTitle muted>No tokens yet</ListRowTitle></template>
           </ListRow>
         </ul>
-      </section>
-
-      <section aria-label="API tokens" class="grid gap-3">
-        <SectionHeader title="API tokens" v-bind="counts.tokens" />
-        <template v-if="AsyncResult.isSuccess(rows)">
-          <ListRow
-            v-if="rows.value.tokens.length === 0"
-            as="p"
-            class="text-sm text-muted-foreground"
-            data-test="no-tokens"
-          >
-            No tokens yet
+        <ul v-else>
+          <ListRow v-for="row in rows.value.tokens" :key="row.token.id" as="li" data-test="token">
+            <template #title>
+              <ListRowTitle :muted="row.token.revokedAt !== null">{{
+                row.label ?? "Unknown device"
+              }}</ListRowTitle>
+            </template>
+            <template #meta>
+              <span>created {{ SettingsRows.formatDate(row.token.createdAt) }}</span>
+              <span v-if="row.token.revokedAt !== null" data-test="revoked">
+                revoked {{ SettingsRows.formatDate(row.token.revokedAt) }}
+              </span>
+            </template>
+            <template v-if="row.token.revokedAt === null" #trailing>
+              <Button as-child variant="ghost" size="sm">
+                <button type="button" data-test="revoke-token" @click="askRevoke(row)">
+                  Revoke
+                </button>
+              </Button>
+            </template>
           </ListRow>
-          <ul v-else>
-            <ListRow v-for="row in rows.value.tokens" :key="row.token.id" as="li" data-test="token">
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span
-                  class="min-w-0 flex-1 truncate text-sm"
-                  :class="row.token.revokedAt !== null && 'text-muted-foreground'"
-                >
-                  {{ row.label ?? "Unknown device" }}
-                </span>
-                <span class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
-                  <span>created {{ SettingsRows.formatDate(row.token.createdAt) }}</span>
-                  <span v-if="row.token.revokedAt !== null" data-test="revoked">
-                    revoked {{ SettingsRows.formatDate(row.token.revokedAt) }}
-                  </span>
-                </span>
-                <Button v-if="row.token.revokedAt === null" as-child size="sm">
-                  <button type="button" data-test="revoke-token" @click="askRevoke(row)">
-                    Revoke
-                  </button>
-                </Button>
-              </div>
-            </ListRow>
-          </ul>
-        </template>
-      </section>
-    </div>
+        </ul>
+      </template>
+    </section>
 
     <AddDeviceDialog
       :open="addingDevice && created === undefined"

@@ -68,7 +68,7 @@ const hatch = `tab-age-hatch-${useId()}`;
     :aria-label="`Tab age: ${summary}`"
     width="100%"
     :height="height"
-    class="block overflow-visible font-mono text-[12px]"
+    class="block overflow-visible chart-text"
   >
     <defs>
       <pattern
