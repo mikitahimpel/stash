@@ -63,6 +63,11 @@ export const setUp = ApiAtoms.mutation(["devices", "tokens"], (client, input: Se
   }),
 );
 
+/** Creates another token for a device the guide set up (the iPhone's Advanced Shortcut). */
+export const createToken = ApiAtoms.mutation(["tokens"], (client, deviceId: Device.DeviceId) =>
+  Effect.map(client.tokens.create({ payload: { deviceId } }), (created) => created.token),
+);
+
 /**
  * Approves the extension that opened `/connect/extension?code=…`: registers its device and binds
  * the code to it, so the extension can claim its token.

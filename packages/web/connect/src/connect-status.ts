@@ -124,3 +124,25 @@ export const arrival = (awaited: Awaited, snapshot: Snapshot): Arrival | undefin
   if (activity.lastSave !== null) return { _tag: "Link", title: linkTitle(activity.lastSave) };
   return activity.lastSeenAt === null ? undefined : { _tag: "Contact" };
 };
+
+/** `just now`, `3m ago`, `5h ago`, `2d ago`. */
+export const ago = (at: DateTime.Utc, now: DateTime.Utc): string => {
+  const minutes = Math.floor(
+    Math.max(0, DateTime.toEpochMillis(now) - DateTime.toEpochMillis(at)) / 60_000,
+  );
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+/** The status line of a source's row: `Not connected`, `Connected · last save 3m ago from iPhone`. */
+export const describe = (source: Source, status: Status, now: DateTime.Utc): string => {
+  if (status._tag === "NotConnected") return "Not connected";
+  if (status.lastSave !== null) {
+    const from = status.lastSave.deviceName === "" ? "" : ` from ${status.lastSave.deviceName}`;
+    return `Connected · last save ${ago(status.lastSave.at, now)}${from}`;
+  }
+  return `Connected · ${source === "claude" ? "used" : "in touch"} ${ago(status.at, now)}`;
+};

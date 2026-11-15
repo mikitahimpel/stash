@@ -2,7 +2,6 @@
 import * as AtomVue from "@effect/atom-vue";
 import { Check, TriangleAlert } from "@lucide/vue";
 import Button from "@stash/web-ui/button";
-import { buttonVariants } from "@stash/web-ui/button-variants";
 import EmptyState from "@stash/web-ui/empty-state";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
@@ -13,9 +12,6 @@ import * as SaveRequest from "./save-request.ts";
 
 // `/save?…&url=<url>`: saves the link once, as soon as the page opens (signed in: the auth guard
 // sends a signed-out visitor to the login page and back here), and says how it went.
-
-// A native button in the kit's style: `<Button>` doesn't declare `click` for strictTemplates.
-const primary = buttonVariants({ variant: "primary" });
 
 const route = useRoute();
 const router = useRouter();
@@ -67,7 +63,9 @@ const back = () =>
       <template #icon><Check aria-hidden="true" /></template>
       <template #action>
         <div class="flex gap-2">
-          <button type="button" :class="primary" data-action="back" @click="back">Back</button>
+          <Button as-child variant="primary">
+            <button type="button" data-action="back" @click="back">Back</button>
+          </Button>
           <Button as-child><RouterLink :to="{ name: 'links' }">Open Inbox</RouterLink></Button>
         </div>
       </template>
@@ -83,7 +81,9 @@ const back = () =>
       >
         <template #icon><TriangleAlert aria-hidden="true" /></template>
         <template #action>
-          <button type="button" :class="primary" data-action="back" @click="back">Back</button>
+          <Button as-child variant="primary">
+            <button type="button" data-action="back" @click="back">Back</button>
+          </Button>
         </template>
       </EmptyState>
     </div>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { injectRegistry, useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
 import { Plus } from "@lucide/vue";
-import type * as Devices from "@stash/contracts-api/devices";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
@@ -18,20 +17,13 @@ import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
-import { computed, onMounted, ref } from "vue";
-import AddDeviceDialog from "./add-device-dialog.vue";
+import { computed, ref } from "vue";
+import { RouterLink } from "vue-router";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
 import * as SettingsRows from "./settings-rows.ts";
 import * as ThemeAtoms from "./theme-atoms.ts";
-
-const props = defineProps<{
-  /** Opens the Add device dialog on arrival (`/settings?add=device`). */
-  startAdding?: boolean;
-  /** The kind picked in that dialog (`&kind=`). */
-  startKind?: Device.DeviceKind;
-}>();
 
 // Appearance: the theme preference, through the platform `Theme` service.
 const themeOptions: ReadonlyArray<SegmentedControlOption<Theme.Preference>> = [
@@ -90,20 +82,6 @@ const issueError = computed(() =>
 const created = computed(() =>
   AsyncResult.isSuccess(issued.value) && !issued.value.waiting ? issued.value.value : undefined,
 );
-const addingDevice = ref(false);
-// Only the first dialog, the one the page was opened for, starts on `startKind`.
-const initialKind = ref(props.startKind);
-const addDevice = (device: Devices.RegisterDevice) => {
-  issue({ _tag: "NewDevice", device });
-};
-const openAddDevice = (open: boolean) => {
-  if (open) issue(Atom.Reset);
-  else initialKind.value = undefined;
-  addingDevice.value = open;
-};
-onMounted(() => {
-  if (props.startAdding) openAddDevice(true);
-});
 const newToken = (deviceId: Device.DeviceId) => issue({ _tag: "ExistingDevice", deviceId });
 
 const copy = useAtomSet(() => SettingsAtoms.copyToken, { mode: "promiseExit" });
@@ -114,8 +92,6 @@ const copyCreated = async () => {
 };
 const dismissCreated = () => {
   issue(Atom.Reset);
-  addingDevice.value = false;
-  initialKind.value = undefined;
   copyState.value = "idle";
 };
 
@@ -167,15 +143,15 @@ const confirmRevoke = async () => {
       <SectionHeader title="Devices" v-bind="counts.devices">
         <template #actions>
           <Button as-child variant="secondary" size="sm">
-            <button type="button" data-test="add-device" @click="openAddDevice(true)">
+            <RouterLink :to="{ name: 'connect' }" data-test="add-device">
               <Plus aria-hidden="true" />
               Add device
-            </button>
+            </RouterLink>
           </Button>
         </template>
       </SectionHeader>
 
-      <p v-if="!addingDevice && issueError" role="alert" class="text-body text-destructive">
+      <p v-if="issueError" role="alert" class="text-body text-destructive">
         {{ issueError }}
       </p>
 
@@ -256,14 +232,6 @@ const confirmRevoke = async () => {
       </template>
     </section>
 
-    <AddDeviceDialog
-      :open="addingDevice && created === undefined"
-      :pending="issuing"
-      :initial-kind="initialKind"
-      :error="addingDevice ? issueError : undefined"
-      @update:open="openAddDevice"
-      @submit="addDevice"
-    />
     <NewTokenDialog
       :token="created"
       :device-name="

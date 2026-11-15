@@ -241,7 +241,7 @@ describe("app shell", () => {
   it("mounts with the nav and the current page", async () => {
     const { wrapper } = await mountApp();
     const labels = wrapper.findAll("nav").map((nav) => nav.findAll("a").map(accessibleName));
-    expect(labels).toEqual([["Inbox", "Open now", "Search", "Settings"]]);
+    expect(labels).toEqual([["Inbox", "Open now", "Search", "Connect", "Settings"]]);
     expect(wrapper.find("main h1").text()).toBe("Inbox");
   });
 
@@ -379,7 +379,15 @@ describe("header controls", () => {
   it("has exactly one Search entry point and one account menu", async () => {
     const { wrapper } = await mountApp("/links");
     const names = wrapper.find("header").findAll("button, a").map(accessibleName);
-    expect(names).toEqual(["stash", "Inbox", "Open now", "Search", "Settings", "Account"]);
+    expect(names).toEqual([
+      "stash",
+      "Inbox",
+      "Open now",
+      "Search",
+      "Connect",
+      "Settings",
+      "Account",
+    ]);
     expect(wrapper.find("nav a[aria-keyshortcuts]").text()).toContain("⌘K");
   });
 

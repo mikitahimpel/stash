@@ -57,6 +57,30 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-test=device]").first().waitFor(),
   },
   {
+    name: "connect",
+    path: "/connect",
+    data: "seeded",
+    prepare: (page) => page.locator("[data-source]").first().waitFor(),
+  },
+  ...(["iphone", "extension", "mac", "claude"] as const).map((guide) => ({
+    name: `connect-${guide}`,
+    path: `/connect?guide=${guide}`,
+    data: "seeded" as const,
+    prepare: (page: Page) => page.locator(`[data-guide=${guide}]`).waitFor(),
+  })),
+  {
+    name: "connect-extension-approve",
+    path: `/connect/extension?code=${"c".repeat(43)}`,
+    data: "seeded",
+    prepare: (page) => page.locator("[data-action=approve]").waitFor(),
+  },
+  {
+    name: "save",
+    path: "/save?url=https://example.com/saved",
+    data: "seeded",
+    prepare: (page) => page.locator("[data-action=back]").waitFor(),
+  },
+  {
     name: "inbox-empty",
     path: "/links",
     data: "empty",
@@ -79,6 +103,12 @@ const views: ReadonlyArray<View> = [
     path: "/settings",
     data: "empty",
     prepare: (page) => page.locator("[data-test=no-devices]").waitFor(),
+  },
+  {
+    name: "connect-empty",
+    path: "/connect",
+    data: "empty",
+    prepare: (page) => page.locator("[data-source]").first().waitFor(),
   },
   {
     name: "login",

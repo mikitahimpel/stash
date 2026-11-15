@@ -148,4 +148,35 @@ describe("Connect status", () => {
       ConnectStatus.arrival(awaited, { ...empty, tokens: [claudeToken("2026-02-01T12:00:30Z")] }),
     ).toEqual({ _tag: "Claude" });
   });
+
+  it("writes the status line of a row", () => {
+    const now = at("2026-02-01T12:00:00Z");
+    expect(ConnectStatus.describe("iphone", { _tag: "NotConnected" }, now)).toBe("Not connected");
+    expect(
+      ConnectStatus.describe(
+        "extension",
+        {
+          _tag: "Connected",
+          at: at("2026-02-01T11:59:00Z"),
+          lastSave: { title: "A", at: at("2026-02-01T11:57:00Z"), deviceName: "Synthetic Zen" },
+        },
+        now,
+      ),
+    ).toBe("Connected · last save 3m ago from Synthetic Zen");
+    expect(
+      ConnectStatus.describe(
+        "mac",
+        { _tag: "Connected", at: at("2026-02-01T07:00:00Z"), lastSave: null },
+        now,
+      ),
+    ).toBe("Connected · in touch 5h ago");
+    expect(
+      ConnectStatus.describe(
+        "claude",
+        { _tag: "Connected", at: at("2026-01-30T12:00:00Z"), lastSave: null },
+        now,
+      ),
+    ).toBe("Connected · used 2d ago");
+    expect(ConnectStatus.ago(at("2026-02-01T11:59:30Z"), now)).toBe("just now");
+  });
 });

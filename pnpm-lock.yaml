@@ -607,6 +607,9 @@ importers:
       '@stash/web-auth':
         specifier: workspace:*
         version: link:../../packages/web/auth
+      '@stash/web-connect':
+        specifier: workspace:*
+        version: link:../../packages/web/connect
       '@stash/web-links':
         specifier: workspace:*
         version: link:../../packages/web/links

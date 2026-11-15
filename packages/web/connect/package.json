@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./routes": "./src/routes.ts",
     "./connect-status": "./src/connect-status.ts",
     "./connect-values": "./src/connect-values.ts",
     "./connect-atoms": "./src/connect-atoms.ts"

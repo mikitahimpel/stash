@@ -10,6 +10,8 @@ export default mergeConfig(
       name: "web-connect",
       include: ["test/**/*.test.ts"],
       environment: "happy-dom",
+      // The guides prefill values from the page's origin.
+      environmentOptions: { happyDOM: { url: "https://stash.example.com/connect" } },
     },
   }),
 );

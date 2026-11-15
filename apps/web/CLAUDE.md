@@ -48,7 +48,7 @@ app shell doesn't use them either.
   see [docs/deploy.md](../../docs/deploy.md#check-a-deploy).
 - Adding a page means adding a route export in a feature package and mounting it here, in
   `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `search`, `open-tabs`,
-  `settings`), because the header nav links to them.
+  `connect`, `settings`), because the header nav links to them.
 - Shortcuts: ⌘K / Ctrl+K opens the search page and `/` focuses the current page's field. Both
   focus the first `main input[type=search]` (`AppShortcuts.pageSearchField`), so a page marks its
   search or filter field by making it a search input (`<SearchField />` from `@stash/web-ui`).

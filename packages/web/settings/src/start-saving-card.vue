@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type * as Device from "@stash/contracts-domain/device";
 import Button from "@stash/web-ui/button";
 import Card from "@stash/web-ui/card";
 import CardHeader from "@stash/web-ui/card-header";
@@ -19,8 +18,8 @@ interface Option {
   readonly title: string;
   readonly description: string;
   readonly action: string;
-  /** Where the action leads: a page of the docs, which `apps/web` serves, or a new device. */
-  readonly to: { readonly doc: string } | { readonly kind: Device.DeviceKind };
+  /** The guide of the Connect page it opens (`/connect?guide=…`). */
+  readonly guide: "iphone" | "extension" | "mac" | "claude";
 }
 
 const cards: Readonly<
@@ -34,21 +33,21 @@ const cards: Readonly<
         title: "Zen extension",
         description: "Save the current tab with a hotkey",
         action: "Set up",
-        to: { kind: "zen" },
+        guide: "extension",
       },
       {
         id: "iphone",
         title: "iPhone",
         description: "Save from the Share sheet with a Shortcut",
         action: "Set up",
-        to: { doc: "/docs/ios-shortcut.md" },
+        guide: "iphone",
       },
       {
         id: "claude",
         title: "Claude",
         description: "Save and search from a chat with the MCP connector",
         action: "Set up",
-        to: { doc: "/docs/mcp-connector.md" },
+        guide: "claude",
       },
     ],
   },
@@ -60,14 +59,14 @@ const cards: Readonly<
         title: "Zen extension",
         description: "Reports the tabs open in Zen",
         action: "Add Zen",
-        to: { kind: "zen" },
+        guide: "extension",
       },
       {
         id: "iphone",
         title: "iPhone",
         description: "Needs a Mac running the Stash agent, which reads your iCloud Tabs",
         action: "Add Mac",
-        to: { kind: "mac-agent" },
+        guide: "mac",
       },
     ],
   },
@@ -93,18 +92,7 @@ const card = computed(() => cards[props.scenario]);
         </template>
         <template #trailing>
           <Button as-child variant="secondary" size="sm">
-            <a
-              v-if="'doc' in option.to"
-              :href="option.to.doc"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {{ option.action }}
-            </a>
-            <RouterLink
-              v-else
-              :to="{ name: 'settings', query: { add: 'device', kind: option.to.kind } }"
-            >
+            <RouterLink :to="{ name: 'connect', query: { guide: option.guide } }">
               {{ option.action }}
             </RouterLink>
           </Button>

@@ -139,6 +139,7 @@ const tokens = (now: number) => [
     name: null,
     createdAt: iso(now - (30 - d) * day),
     revokedAt: null,
+    lastUsedAt: iso(now - (d + 1) * 60_000),
   })),
   {
     id: "seed-token-mcp",
@@ -146,6 +147,7 @@ const tokens = (now: number) => [
     name: "Claude (MCP)",
     createdAt: iso(now - 5 * day),
     revokedAt: null,
+    lastUsedAt: iso(now - 2 * 60 * 60_000),
   },
   {
     id: "seed-token-old",
@@ -157,6 +159,37 @@ const tokens = (now: number) => [
 ];
 
 const me = { kind: "user", login: "example" };
+
+const info = { mcpUrl: "https://mcp.example.com/mcp" };
+
+const activity = (now: number, all: ReturnType<typeof links>) =>
+  devices.map((device, d) => {
+    const save = all.find((link) => link.sourceDeviceId === device.id);
+    return {
+      deviceId: device.id,
+      lastSeenAt: iso(now - (d + 1) * 60_000),
+      lastSave:
+        save === undefined
+          ? null
+          : { at: save.createdAt, linkId: save.id, url: save.url, title: save.title },
+    };
+  });
+
+/** What `POST /links` answers to `/save`: the link, as saved just now. */
+const saved = (now: number) => ({
+  id: "seed-link-saved",
+  url: "https://example.com/saved",
+  canonicalUrl: null,
+  title: "A page saved from the Share sheet",
+  status: "new",
+  type: null,
+  summary: null,
+  language: null,
+  tags: [],
+  sourceDeviceId: null,
+  createdAt: iso(now),
+  enrichedAt: null,
+});
 
 const listLinks = (all: ReturnType<typeof links>, url: URL) => {
   const q = url.searchParams;
@@ -188,9 +221,12 @@ export const seeded = (now: number): Fixtures => {
   const all = links(now);
   return {
     answer: (method, url) => {
-      if (method !== "GET") return undefined;
       const path = url.pathname.replace(/^\/api/, "");
+      if (method === "POST" && path === "/links") return saved(now);
+      if (method !== "GET") return undefined;
       if (path === "/auth/me") return me;
+      if (path === "/devices/activity") return activity(now, all);
+      if (path === "/connect/info") return info;
       if (path === "/links") return listLinks(all, url);
       if (path.startsWith("/links/")) return all.find((link) => `/links/${link.id}` === path);
       if (path === "/devices")
@@ -210,7 +246,8 @@ export const empty: Fixtures = {
     const path = url.pathname.replace(/^\/api/, "");
     if (path === "/auth/me") return me;
     if (path === "/links") return { items: [], nextCursor: null };
-    if (path === "/devices" || path === "/tokens") return [];
+    if (path === "/devices" || path === "/tokens" || path === "/devices/activity") return [];
+    if (path === "/connect/info") return info;
     if (path === "/tabs") return { devices: [] };
     if (path === "/search") return { hits: [] };
     return undefined;
