@@ -228,10 +228,11 @@ export default Alchemy.Stack(
     // `build:deploy` also puts the installable clients under `/downloads/` (the Connect page links
     // them): the Zen / Firefox extension (`stash-extension.xpi`, signed when `WEB_EXT_API_KEY` and
     // `WEB_EXT_API_SECRET` are set, see apps/extension/README.md) and the Mac agent with its
-    // installer (`stash-mac-agent.mjs`, `install-mac-agent.sh`).
+    // installer (`stash-mac-agent.mjs`, `install-mac-agent.sh`). `alchemy dev` skips them and keeps
+    // the plain build, which starts much faster.
     const web = yield* Cloudflare.Website.StaticSite("Web", {
       cwd: "./apps/web",
-      command: "pnpm run build:deploy",
+      command: dev ? "pnpm run build" : "pnpm run build:deploy",
       outdir: "dist",
       main: "./apps/web/src/web-worker.ts",
       ...named("web"),
@@ -239,14 +240,20 @@ export default Alchemy.Stack(
       env: { API: api },
       assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
       // Rebuild when the app or a web package it bundles changes (gitignored files stay excluded).
+      // A deploy also rebuilds the downloads when the extension or the Mac agent changes. `alchemy
+      // dev` builds neither, and hashing their trees would slow every start.
       memo: {
         include: [
           "**/*",
           "../../packages/web/*/src/**",
-          "../extension/**",
-          "../../packages/extension/*/src/**",
-          "../mac-agent/**",
-          "../../packages/contracts/*/src/**",
+          ...(dev
+            ? []
+            : [
+                "../extension/**",
+                "../../packages/extension/*/src/**",
+                "../mac-agent/**",
+                "../../packages/contracts/*/src/**",
+              ]),
         ],
         lockfile: true,
       },
