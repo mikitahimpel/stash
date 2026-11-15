@@ -19,7 +19,8 @@ One control language for every interactive element, so a page can't read as two 
 | Radius | **8** every control · **12** surfaces (cards, menus, dialogs, toasts) · full for the avatar only | `rounded-control` · `rounded-surface` |
 | Surface | `raised` (button, segmented thumb, menu trigger, chip on) · `primary` (one per screen) · `sunken` (input, search, segmented track, chip off) · `ghost` (row and toolbar actions); one 1px border, one focus ring | `controlSurfaces` |
 | Text | title 28/600 · **label 14/500** (controls, row titles, section headers) · **body 14/400** · **meta 13/400**, muted, **sans** | `text-title` · `text-label` · `text-body` · `text-meta` |
-| Mono | only keys (`⌘K`, `Kbd`), the device code and chart axis labels | `font-mono` in `Kbd` / `DeviceCode`, `chart-text` |
+| Mono | only keys (`⌘K`, `Kbd`), the device code, chart axis labels and values to copy (read-only `<Input mono>`, such as the Connect guides' commands) | `font-mono` in `Kbd` / `DeviceCode` / `Input mono`, `chart-text` |
+| Guides | numbered steps (`StepList`, `Step`: a sunken number, a label title, its content under it) and a quiet `Disclosure` for advanced options | `@stash/web-ui/step-list`, `/step`, `/disclosure` |
 | Spacing | only 4 · 8 · 12 · 16 · 24 · 32 · 48 | `1 · 2 · 3 · 4 · 6 · 8 · 12` |
 | Content edge | everything on a page (header, section headers, rows, cards, empty states) starts at the same left x and ends at the same right x; rows inside a card share the card's content edge | `ListRow` reaches 12px past the edges for its background only |
 
