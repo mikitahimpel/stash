@@ -13,7 +13,8 @@ export const hashCode = (code: Pairing.PairingCode) => ApiTokenSecret.hash(Redac
 /**
  * The signed-in owner approves an extension's pairing code: registers the extension's Zen device
  * named `name` and lets the extension claim one token for it within `pairingTtlMinutes`.
- * `Conflict`, with nothing registered, when the code was approved already.
+ * `Conflict`, with nothing registered, when the code was approved before, whether the extension
+ * claimed it, it lapsed, or it still waits: an old approve page reopened adds no orphan device.
  */
 export const approvePairing = Effect.fn("approvePairing")(function* (
   code: Pairing.PairingCode,
@@ -32,6 +33,7 @@ export const approvePairing = Effect.fn("approvePairing")(function* (
     device,
     expiresAt: DateTime.add(now, { minutes: Pairing.pairingTtlMinutes }),
   });
-  if (!approved) return yield* new Errors.Conflict({ message: "This pairing code is used" });
+  if (!approved)
+    return yield* new Errors.Conflict({ message: "This pairing code was already approved" });
   return device;
 });
