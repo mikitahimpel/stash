@@ -55,7 +55,7 @@ const makeApp = (layer: typeof ApiLayer.layer) =>
   HttpRouter.toWebHandler(
     layer.pipe(
       Layer.provide(layerDatabase),
-      Layer.provide(Testing.layerStashConfig({ webOrigin })),
+      Layer.provide(Testing.layerStashConfig({ webOrigin, mcpOrigin: "https://mcp.example.com" })),
       Layer.provide(Testing.layerAi()),
       Layer.provide(Testing.layerVectors),
       Layer.provide(Testing.layerGithubConfig),
@@ -117,6 +117,8 @@ describe("composed API", () => {
     ["GET", "/tokens"],
     ["GET", "/auth/me"],
     ["GET", "/digest/latest"],
+    ["GET", "/devices/activity"],
+    ["POST", "/pairings"],
   ])("answers 401 to %s %s without a credential", async (method, path) => {
     const response = await request(method, path);
     expect(response.status).toBe(401);
@@ -130,6 +132,38 @@ describe("composed API", () => {
     expect(await response.json()).toMatchObject({ _tag: "DeviceFlowExpired" });
   });
 
+  it("pairs an extension: the owner approves, the extension claims without a credential", async () => {
+    const code = "synthetic-wiring-pairing-code-000000000000";
+    const pending = await request("POST", "/pairings/claim", {}, { code });
+    expect(pending.status).toBe(404);
+    const approved = await request("POST", "/pairings", cookie, { code, name: "Synthetic Zen" });
+    expect(approved.status).toBe(201);
+    const device = (await approved.json()) as { id: string; kind: string };
+    expect(device.kind).toBe("zen");
+    const again = await request("POST", "/pairings", cookie, { code, name: "Synthetic Zen" });
+    expect(again.status).toBe(409);
+    const claimed = await request("POST", "/pairings/claim", {}, { code });
+    expect(claimed.status).toBe(201);
+    expect(await claimed.json()).toMatchObject({ deviceId: device.id });
+    expect((await request("POST", "/pairings/claim", {}, { code })).status).toBe(404);
+  });
+
+  it("serves the connect info with the MCP endpoint", async () => {
+    const response = await request("GET", "/connect/info", cookie);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ mcpUrl: "https://mcp.example.com/mcp" });
+  });
+
+  it("serves the devices' activity", async () => {
+    await request("GET", "/links", bearer);
+    const response = await request("GET", "/devices/activity", cookie);
+    expect(response.status).toBe(200);
+    const activity = (await response.json()) as ReadonlyArray<{ deviceId: string }>;
+    expect(activity).toContainEqual(
+      expect.objectContaining({ deviceId: "device-1", lastSeenAt: expect.any(String) }),
+    );
+  });
+
   it("rejects an unknown bearer token", async () => {
     const response = await request("GET", "/links", { authorization: "Bearer stash_unknown" });
     expect(response.status).toBe(401);
@@ -138,9 +172,9 @@ describe("composed API", () => {
   it("serves the tokens group to a seeded bearer token", async () => {
     const response = await request("GET", "/tokens", bearer);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([
+    expect(await response.json()).toContainEqual(
       expect.objectContaining({ id: "token-1", deviceId: "device-1", revokedAt: null }),
-    ]);
+    );
   });
 
   it("serves the search group from FTS5 (hybrid by default) with filters", async () => {

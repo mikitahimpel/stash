@@ -2,7 +2,13 @@ import * as AtomVue from "@effect/atom-vue";
 import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
-import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import {
+  DOMWrapper,
+  enableAutoUnmount,
+  flushPromises,
+  mount,
+  RouterLinkStub,
+} from "@vue/test-utils";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -10,7 +16,6 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "../src/settings-page.vue";
 import * as SettingsAtoms from "../src/settings-atoms.ts";
-import * as SettingsRows from "../src/settings-rows.ts";
 import * as ThemeAtoms from "../src/theme-atoms.ts";
 import * as Fixtures from "./fixtures.ts";
 
@@ -39,7 +44,6 @@ const theme = () =>
   PlatformTesting.layerTheme().pipe(Layer.provide(PlatformTesting.layerKeyValueStore));
 
 const mountPage = async (
-  props: { startAdding?: boolean; startKind?: "zen" | "ios" | "mac-agent" } = {},
   initialTokens: Array<ReturnType<typeof Fixtures.token>> = [Fixtures.token("t1", "d1")],
 ) => {
   const calls: Array<string> = [];
@@ -89,8 +93,7 @@ const mountPage = async (
   );
   const wrapper = mount(SettingsPage, {
     attachTo: "body",
-    props,
-    global: { provide: { [AtomVue.registryKey]: registry } },
+    global: { provide: { [AtomVue.registryKey]: registry }, stubs: { RouterLink: RouterLinkStub } },
   });
   page = new DOMWrapper(wrapper.element.ownerDocument.body);
   await settle();
@@ -108,24 +111,9 @@ const click = async (selector: string) => {
 const plaintextField = () => body().find<HTMLInputElement>("[data-test=token-plaintext]");
 
 describe("settings page", () => {
-  it("opens the Add device dialog on arrival from ?add=device", async () => {
-    await mountPage({ startAdding: true });
-    expect(body().find("[role=dialog]").text()).toContain("Add");
-  });
-
-  it("starts that dialog on the kind asked for, and only that dialog", async () => {
-    await mountPage({ startAdding: true, startKind: "mac-agent" });
-    const picked = () => body().find("[role=dialog] [role=radio][aria-checked=true]").text();
-    expect(picked()).toBe(SettingsRows.kindLabels["mac-agent"]);
-
-    await body().find("[role=dialog]").trigger("keydown", { key: "Escape" });
-    await settle();
-    await click("[data-test=add-device]");
-    expect(picked()).toBe(SettingsRows.kindLabels.zen);
-  });
-
-  it("stays closed otherwise", async () => {
-    await mountPage();
+  it("sends Add device to the Connect page", async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.findComponent(RouterLinkStub).props("to")).toEqual({ name: "connect" });
     expect(body().find("[role=dialog]").exists()).toBe(false);
   });
 
@@ -166,45 +154,24 @@ describe("settings page", () => {
     );
   });
 
-  it("creates a device and shows its token once, then clears it on close", async () => {
+  it("creates a token for a device and shows it once, then clears it on close", async () => {
     const { wrapper, calls } = await mountPage();
     const plaintext = Fixtures.plaintext("t2");
 
-    await click("[data-test=add-device]");
-    await body().find("input[name=name]").setValue("  iPhone  ");
-    const ios = body()
-      .findAll("[aria-label=Kind] [role=radio]")
-      .find((el) => el.text() === "iPhone");
-    await ios?.trigger("click");
-    await body().find("form").trigger("submit");
-    await settle();
+    await click("[data-test=new-token]");
 
-    expect(calls).toEqual(["register iPhone ios", "create token d2"]);
+    expect(calls).toEqual(["create token d1"]);
     expect(plaintextField().element.value).toBe(plaintext);
     expect(plaintextField().attributes("readonly")).toBeDefined();
     expect(body().find("[data-test=token-warning]").text()).toContain("only once");
-    // The add-device form gave way to the token.
-    expect(body().find("form").exists()).toBe(false);
 
     await click("[data-test=dismiss-token]");
 
     expect(plaintextField().exists()).toBe(false);
     expect(body().html()).not.toContain(plaintext);
     expect(AsyncResult.isInitial(registry!.get(SettingsAtoms.issueToken))).toBe(true);
-    // The new device and its token are listed, without the plaintext.
-    expect(wrapper.findAll("[data-test=device-name]").map((el) => el.text())).toEqual([
-      "Work laptop",
-      "iPhone",
-    ]);
-    expect(wrapper.findAll("[data-test=token]").map((el) => el.text())).toEqual([
-      expect.stringContaining("Work laptop"),
-      expect.stringContaining("iPhone"),
-    ]);
-
-    // Opening the form again starts empty and shows no old token.
-    await click("[data-test=add-device]");
-    expect(body().find<HTMLInputElement>("input[name=name]").element.value).toBe("");
-    expect(plaintextField().exists()).toBe(false);
+    // The new token is listed, without the plaintext.
+    expect(wrapper.findAll("[data-test=token]")).toHaveLength(2);
   });
 
   it("clears the token when the dialog is closed with Escape", async () => {
@@ -247,7 +214,7 @@ describe("settings page", () => {
   });
 
   it("lists the MCP connector's token by name and revokes it", async () => {
-    const { wrapper, calls } = await mountPage({}, [
+    const { wrapper, calls } = await mountPage([
       Fixtures.token("t1", null, { name: "Claude (MCP)" }),
     ]);
     const token = wrapper.find("[data-test=token]");
@@ -270,7 +237,10 @@ describe("settings page", () => {
       { initialValues: [[ThemeAtoms.layer, theme()]] },
     );
     const wrapper = mount(SettingsPage, {
-      global: { provide: { [AtomVue.registryKey]: registry } },
+      global: {
+        provide: { [AtomVue.registryKey]: registry },
+        stubs: { RouterLink: RouterLinkStub },
+      },
     });
     await settle();
     expect(wrapper.text()).toContain("No devices");

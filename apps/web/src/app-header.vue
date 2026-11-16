@@ -27,6 +27,7 @@ const nav = [
   { name: "links", label: "Inbox" },
   { name: "open-tabs", label: "Open now" },
   { name: "search", label: "Search" },
+  { name: "connect", label: "Connect" },
   { name: "settings", label: "Settings" },
 ] as const;
 

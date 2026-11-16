@@ -10,11 +10,13 @@
     "build": "wxt zip --browser firefox",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
+    "test": "vitest run",
+    "package:xpi": "node scripts/package-xpi.ts"
   },
   "dependencies": {
     "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
     "@stash/ext-capture": "workspace:*",
     "@stash/ext-device-commands": "workspace:*",
     "@stash/ext-platform": "workspace:*",
@@ -27,6 +29,7 @@
     "@stash/config-tsconfig": "workspace:*",
     "@stash/config-vitest": "workspace:*",
     "@types/firefox-webext-browser": "catalog:",
+    "@types/node": "catalog:",
     "@wxt-dev/module-vue": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
@@ -34,6 +37,7 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "vue-tsc": "catalog:",
+    "web-ext": "catalog:",
     "wxt": "catalog:"
   }
 }

@@ -22,6 +22,11 @@ export const ApiTokenInfo = Schema.Struct({
   name: Schema.NullOr(Schema.String.pipe(Schema.check(Schema.isNonEmpty()))),
   createdAt: Schema.DateTimeUtcFromString,
   revokedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
+  /**
+   * When the token last authenticated a request, to the minute (the api skips the write when it
+   * was used less than a minute ago). `null` if never. Optional so older payloads still decode.
+   */
+  lastUsedAt: Schema.optionalKey(Schema.NullOr(Schema.DateTimeUtcFromString)),
 });
 export type ApiTokenInfo = typeof ApiTokenInfo.Type;
 

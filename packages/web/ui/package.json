@@ -68,7 +68,10 @@
     "./avatar-button": "./src/avatar/avatar-button.vue",
     "./status-dot": "./src/status-dot/status-dot.vue",
     "./match-mark": "./src/match-mark/match-mark.vue",
-    "./color-swatch": "./src/color-swatch/color-swatch.vue"
+    "./color-swatch": "./src/color-swatch/color-swatch.vue",
+    "./step-list": "./src/step-list/step-list.vue",
+    "./step": "./src/step-list/step.vue",
+    "./disclosure": "./src/disclosure/disclosure.vue"
   },
   "scripts": {
     "lint": "oxlint .",

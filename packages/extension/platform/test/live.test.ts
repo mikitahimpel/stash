@@ -160,11 +160,13 @@ describe("live layer", () => {
       yield* tabs.remove([1, 2]);
       yield* tabs.remove([]);
       expect(yield* tabs.createBlank(1)).toMatchObject({ id: 9, windowId: 1, url: "about:newtab" });
+      yield* tabs.open("https://example.com/connect");
       expect(fake.calls.filter((call) => call.api.startsWith("tabs."))).toEqual([
         { api: "tabs.query", args: [{ currentWindow: true, pinned: true }] },
         { api: "tabs.query", args: [{ currentWindow: true, active: true }] },
         { api: "tabs.remove", args: [[1, 2]] },
         { api: "tabs.create", args: [{ windowId: 1, active: false }] },
+        { api: "tabs.create", args: [{ url: "https://example.com/connect", active: true }] },
       ]);
 
       const windows = yield* Windows.Windows;

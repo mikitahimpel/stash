@@ -68,6 +68,56 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-test=device]").first().waitFor(),
   },
   {
+    name: "connect",
+    path: "/connect",
+    signedIn: true,
+    prepare: (page) => page.locator("[data-source]").first().waitFor(),
+  },
+  {
+    name: "connect-iphone",
+    path: "/connect?guide=iphone",
+    signedIn: true,
+    prepare: async (page) => {
+      // The guide as it looks once the device exists: the Shortcut URL prefilled, waiting.
+      await page.locator("[data-guide=iphone] [data-action=create]").click();
+      await page.locator("[data-test=waiting]").waitFor();
+    },
+  },
+  {
+    name: "connect-extension",
+    path: "/connect?guide=extension",
+    signedIn: true,
+    prepare: (page) => page.locator("[data-guide=extension]").waitFor(),
+  },
+  {
+    name: "connect-mac",
+    path: "/connect?guide=mac",
+    signedIn: true,
+    prepare: async (page) => {
+      await page.locator("[data-guide=mac] [data-action=create]").click();
+      await page.locator("[data-test=waiting]").waitFor();
+    },
+  },
+  {
+    name: "connect-claude",
+    path: "/connect?guide=claude",
+    signedIn: true,
+    prepare: (page) => page.locator("[data-guide=claude] [data-test=waiting]").waitFor(),
+  },
+  {
+    name: "connect-extension-approve",
+    path: `/connect/extension?code=${"c".repeat(43)}`,
+    signedIn: true,
+    prepare: (page) => page.locator("[data-action=approve]").waitFor(),
+  },
+  {
+    name: "connect-empty",
+    path: "/connect",
+    signedIn: true,
+    empty: true,
+    prepare: (page) => page.locator("[data-source]").first().waitFor(),
+  },
+  {
     name: "inbox-empty",
     path: "/links",
     signedIn: true,
@@ -181,6 +231,7 @@ const emptyAnswers: Readonly<Record<string, unknown>> = {
   "/api/links": { items: [], nextCursor: null },
   "/api/tabs": { devices: [] },
   "/api/devices": [],
+  "/api/devices/activity": [],
   "/api/tokens": [],
 };
 

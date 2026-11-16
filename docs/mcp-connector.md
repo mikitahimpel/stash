@@ -1,29 +1,18 @@
 # Connecting Stash to Claude (custom connector)
 
-`apps/mcp` is a remote MCP server. You add it to Claude once as a **custom connector**, and then
-claude.ai, Claude Desktop, the Claude iOS app and Claude Code can search, save and organize your
-stash. This page covers how sign-in works, how to add the connector in each client, the tools it
-exposes, and what to check when it does not connect.
+Open the web app's **Connect** page and pick **Claude**. It shows your MCP endpoint with a Copy
+button and turns to **Connected ✓** the first time Claude uses Stash. In short:
 
-The MCP endpoint is:
+1. Copy the MCP URL: `https://<your-mcp>/mcp` (the `Mcp` Worker's origin plus `/mcp`; the
+   api answers it at `GET /api/connect/info`).
+2. In Claude, open **Settings → Connectors → Add custom connector** and paste it. Leave the
+   OAuth client fields empty.
+3. Choose **Connect** and sign in with GitHub.
 
-```text
-https://<your-mcp>.workers.dev/mcp
-```
-
-`<your-mcp>.workers.dev` stands for the host of the `Mcp` Worker. `alchemy deploy` prints it as
-`mcpUrl` (see [alchemy.md](alchemy.md)). Always add the `/mcp` path. The bare origin serves only
-the OAuth endpoints.
-
-## Add Stash to Claude
-
-1. Copy `https://stash-mcp.<subdomain>.workers.dev/mcp`.
-2. In Claude, open **Settings → Connectors → Add custom connector** and paste it.
-3. Sign in with GitHub.
-
-That's all. There is no token to create or paste: signing in mints the api token the connector
-uses, named **Claude (MCP)** in Stash **Settings → API tokens**. The rest of this page explains the
-details and what to check when it does not connect.
+There is no token to paste: signing in mints the token the connector uses, named **Claude (MCP)**
+in **Settings → API tokens**. Revoking it there makes Claude sign in again. The rest of this page is
+the reference for operators: deploy settings, how the OAuth flow works, Claude Code, the tools and
+troubleshooting.
 
 ## Before you connect
 
@@ -32,7 +21,7 @@ come from env, except `GITHUB_CLIENT_ID`, which is public and committed for stag
 
 | Env var | On `Mcp` as | Must be |
 |---|---|---|
-| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash). A deploy derives it when unset |
+| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` (also on `Api`, for the Connect page) | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash). A deploy derives it when unset |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `ALLOWED_GITHUB_LOGIN` | your GitHub login. It is the only account that can authorize a client (compared case-insensitively) |
 | `GITHUB_CLIENT_ID` | same name | the client ID of a GitHub OAuth App with **Enable Device Flow** checked. It is public, so it is a plain var. There is no client secret |
 
@@ -106,21 +95,11 @@ curl -s https://<your-mcp>.workers.dev/.well-known/oauth-protected-resource/mcp
 
 ## Add the connector
 
-### claude.ai, Claude Desktop and iOS
-
-Custom connectors belong to your Claude account, so you add Stash once on claude.ai (or in
-Desktop) and it shows up in Desktop and the iOS app too.
-
-1. Open **Settings → Connectors** and choose **Add custom connector**. (On Team and Enterprise
-   plans, an owner adds it for the organization first.)
-2. Name: `Stash`. Remote MCP server URL: `https://<your-mcp>.workers.dev/mcp`.
-3. Leave the **Advanced settings** (OAuth Client ID and Secret) empty. Claude registers itself
-   (step 3 above).
-4. Choose **Add**, then **Connect**. Approve the consent page, then enter the code it shows at
-   `github.com/login/device`, signed in as the allowlisted GitHub account. On iOS you can open
-   the GitHub link on any device; the Stash tab finishes on its own.
-5. In a chat, enable Stash from the tools menu. Claude asks before it runs a tool unless you
-   allow it always.
+Custom connectors belong to your Claude account: add Stash once on claude.ai or in Desktop, and it
+shows up in the iOS app too (on Team and Enterprise plans an owner adds it for the organization
+first). After **Connect**, approve the consent page and enter the code it shows at
+`github.com/login/device`, signed in as the allowlisted GitHub account. Then enable Stash from a
+chat's tools menu.
 
 ### Claude Code
 

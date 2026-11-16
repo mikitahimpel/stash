@@ -14,6 +14,7 @@ app can be installed to the iPhone home screen.
 | `search/` | `@stash/web-search` | Search page (semantic and keyword) |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens, first-run onboarding card (used by Inbox and Open now) |
+| `connect/` | `@stash/web-connect` | Connect page (`/connect`): one card per source (iPhone, Zen, Mac, Claude) with its status and a guide that creates the device and token, prefills every value and waits for the first save; extension pairing (`/connect/extension`) |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (a slot for the app's entries, Sign out) |
 | `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): control tokens, Geist, primitives, app shell |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
@@ -43,7 +44,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`), and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`) and `page-origin`, and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 

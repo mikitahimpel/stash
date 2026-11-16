@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 // and the kit's text roles and colors (`text-meta`, `text-muted-foreground`, …).
 
 const appDir = Path.resolve(import.meta.dirname, "..");
-const features = ["links", "search", "open-tabs", "settings", "auth"].map((name) =>
+const features = ["links", "search", "open-tabs", "settings", "auth", "connect"].map((name) =>
   Path.join(appDir, "node_modules", `@stash/web-${name}`, "src"),
 );
 const roots = [...features, Path.join(appDir, "src")];

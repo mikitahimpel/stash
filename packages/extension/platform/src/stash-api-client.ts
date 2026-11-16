@@ -46,3 +46,19 @@ export const layer: Layer.Layer<
   never,
   ExtensionConfig.ExtensionConfig | HttpClient.HttpClient
 > = Layer.effect(StashApiClient)(make);
+
+/**
+ * A Stash API client at `apiBaseUrl` that sends no credential, for the one open endpoint a device
+ * calls before it has a token: `pairings.claim`. Guarded endpoints answer `Unauthorized`.
+ */
+export const anonymous = (apiBaseUrl: string) =>
+  Effect.gen(function* () {
+    const httpClient = (yield* HttpClient.HttpClient).pipe(
+      HttpClient.mapRequest(HttpClientRequest.prependUrl(apiBaseUrl)),
+    );
+    return yield* HttpApiClient.makeWith(Api.StashApi, { httpClient }).pipe(
+      Effect.provide(
+        HttpApiMiddleware.layerClient(Security.Authorization, ({ next, request }) => next(request)),
+      ),
+    );
+  });

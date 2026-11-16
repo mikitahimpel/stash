@@ -16,8 +16,8 @@ import { routes } from "../src/routes.ts";
  */
 export const mountAt = async (path: string, api: ApiTesting.Routes) => {
   // Settings stands in for the route the onboarding card links to.
-  const settings = { path: "/settings", name: "settings", component: { render: () => null } };
-  const router = createRouter({ history: createMemoryHistory(), routes: [...routes, settings] });
+  const connect = { path: "/connect", name: "connect", component: { render: () => null } };
+  const router = createRouter({ history: createMemoryHistory(), routes: [...routes, connect] });
   await router.push(path);
   // Built once, so the test presses keys on the same instance the page listens on.
   const keyboard = Layer.build(PlatformTesting.layerKeyboard).pipe(Effect.scoped, Effect.runSync);

@@ -46,6 +46,8 @@ export class Tabs extends Context.Service<
     readonly current: Effect.Effect<Option.Option<Tab>, BrowserError>;
     /** Closes the tabs. Closing a tab that no longer exists fails. */
     readonly remove: (ids: ReadonlyArray<number>) => Effect.Effect<void, BrowserError>;
+    /** Opens `url` in a new, active tab of the current window. */
+    readonly open: (url: string) => Effect.Effect<void, BrowserError>;
     /** Opens a blank tab (the browser's new tab page) at the end of the window. */
     readonly createBlank: (windowId: number) => Effect.Effect<Tab, BrowserError>;
     /**
@@ -129,6 +131,8 @@ export const layer: Layer.Layer<Tabs> = Layer.succeed(Tabs)({
   ),
   remove: (ids) =>
     ids.length === 0 ? Effect.void : tryCall("tabs.remove", () => browser.tabs.remove([...ids])),
+  open: (url) =>
+    tryCall("tabs.create", () => browser.tabs.create({ url, active: true })).pipe(Effect.asVoid),
   createBlank: (windowId) =>
     tryCall("tabs.create", () => browser.tabs.create({ windowId, active: false })).pipe(
       Effect.flatMap((tab) =>

@@ -127,9 +127,9 @@ describe("inbox page", () => {
     ]);
     // Each way to start has one action.
     expect(rows.map((row) => row.findAll("a").length)).toEqual([1, 1, 1]);
-    expect(rows[0]?.find("a").attributes("href")).toBe("/settings?add=device&kind=zen");
-    expect(rows[1]?.find("a").attributes("href")).toContain("ios-shortcut.md");
-    expect(rows[2]?.find("a").attributes("href")).toContain("mcp-connector.md");
+    expect(rows[0]?.find("a").attributes("href")).toBe("/connect?guide=extension");
+    expect(rows[1]?.find("a").attributes("href")).toBe("/connect?guide=iphone");
+    expect(rows[2]?.find("a").attributes("href")).toBe("/connect?guide=claude");
 
     expect(wrapper.find("[data-slot=saved-read-chart]").exists()).toBe(false);
     expect(wrapper.find("svg[role=img]").exists()).toBe(false);

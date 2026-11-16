@@ -1,5 +1,6 @@
 import * as Security from "@stash/contracts-api/security";
 import * as Errors from "@stash/contracts-domain/errors";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -35,6 +36,8 @@ export const layer: Layer.Layer<
         return yield* unauthorized("Invalid token");
       }
       if (stored.value.revokedAt !== null) return yield* unauthorized("Token revoked");
+      // For the Connect page's status. Losing this write must not fail the request.
+      yield* repo.touch(stored.value.id, yield* DateTime.now).pipe(Effect.ignore);
       const { deviceId, githubLogin } = stored.value;
       if (deviceId !== null) return { kind: "device", deviceId } satisfies Security.Principal;
       // A user token (the MCP connector's) acts as the user it was minted for.

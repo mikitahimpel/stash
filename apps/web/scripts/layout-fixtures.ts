@@ -139,6 +139,7 @@ const tokens = (now: number) => [
     name: null,
     createdAt: iso(now - (30 - d) * day),
     revokedAt: null,
+    lastUsedAt: iso(now - (d + 1) * 60_000),
   })),
   {
     id: "seed-token-mcp",
@@ -146,6 +147,7 @@ const tokens = (now: number) => [
     name: "Claude (MCP)",
     createdAt: iso(now - 5 * day),
     revokedAt: null,
+    lastUsedAt: iso(now - 2 * 60 * 60_000),
   },
   {
     id: "seed-token-old",
@@ -157,6 +159,37 @@ const tokens = (now: number) => [
 ];
 
 const me = { kind: "user", login: "example" };
+
+const info = { mcpUrl: "https://mcp.example.com/mcp" };
+
+const activity = (now: number, all: ReturnType<typeof links>) =>
+  devices.map((device, d) => {
+    const save = all.find((link) => link.sourceDeviceId === device.id);
+    return {
+      deviceId: device.id,
+      lastSeenAt: iso(now - (d + 1) * 60_000),
+      lastSave:
+        save === undefined
+          ? null
+          : { at: save.createdAt, linkId: save.id, url: save.url, title: save.title },
+    };
+  });
+
+/** What `POST /links` answers to `/save`: the link, as saved just now. */
+const saved = (now: number) => ({
+  id: "seed-link-saved",
+  url: "https://example.com/saved",
+  canonicalUrl: null,
+  title: "A page saved from the Share sheet",
+  status: "new",
+  type: null,
+  summary: null,
+  language: null,
+  tags: [],
+  sourceDeviceId: null,
+  createdAt: iso(now),
+  enrichedAt: null,
+});
 
 const listLinks = (all: ReturnType<typeof links>, url: URL) => {
   const q = url.searchParams;
@@ -188,9 +221,12 @@ export const seeded = (now: number): Fixtures => {
   const all = links(now);
   return {
     answer: (method, url) => {
-      if (method !== "GET") return undefined;
       const path = url.pathname.replace(/^\/api/, "");
+      if (method === "POST" && path === "/links") return saved(now);
+      if (method !== "GET") return undefined;
       if (path === "/auth/me") return me;
+      if (path === "/devices/activity") return activity(now, all);
+      if (path === "/connect/info") return info;
       if (path === "/links") return listLinks(all, url);
       if (path.startsWith("/links/")) return all.find((link) => `/links/${link.id}` === path);
       if (path === "/devices")
@@ -210,9 +246,108 @@ export const empty: Fixtures = {
     const path = url.pathname.replace(/^\/api/, "");
     if (path === "/auth/me") return me;
     if (path === "/links") return { items: [], nextCursor: null };
-    if (path === "/devices" || path === "/tokens") return [];
+    if (path === "/devices" || path === "/tokens" || path === "/devices/activity") return [];
+    if (path === "/connect/info") return info;
     if (path === "/tabs") return { devices: [] };
     if (path === "/search") return { hits: [] };
     return undefined;
   },
+};
+
+interface Created {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly createdAt: string;
+}
+
+/**
+ * The seeded api plus what the Connect guides write: registering devices, creating tokens and
+ * approving pairings answer like the api (status 201) and show up in later reads. `arrive` and
+ * `useClaude` stand in for a device's first save or check-in and Claude's first use, which the
+ * guides wait for. For the Connect walk (`scripts/connect-walk.ts`).
+ */
+export const connectable = (now: number) => {
+  const base = seeded(now);
+  const created: Array<Created> = [];
+  const contact = new Map<string, { lastSeenAt: string; lastSave: unknown }>();
+  const tokens: Array<Record<string, unknown>> = [];
+  const read = (path: string) => base.answer("GET", new URL(`http://localhost/api${path}`));
+  const register = (name: string, kind: string) => {
+    const device = { id: `walk-device-${created.length + 1}`, name, kind, createdAt: iso(now) };
+    created.push(device);
+    return device;
+  };
+  const answer = (
+    method: string,
+    url: URL,
+    body: string | null,
+  ): { readonly status: number; readonly body: unknown } | undefined => {
+    const path = url.pathname.replace(/^\/api/, "");
+    const input = (body === null || body === "" ? {} : JSON.parse(body)) as Record<string, string>;
+    if (method === "POST" && path === "/devices") {
+      return { status: 201, body: register(input["name"] ?? "", input["kind"] ?? "") };
+    }
+    if (method === "POST" && path === "/pairings") {
+      return { status: 201, body: register(input["name"] ?? "", "zen") };
+    }
+    if (method === "POST" && path === "/tokens") {
+      const token = {
+        id: `walk-token-${tokens.length + 1}`,
+        deviceId: input["deviceId"] ?? null,
+        name: null,
+        createdAt: iso(now),
+        revokedAt: null,
+        lastUsedAt: null,
+      };
+      tokens.push(token);
+      return { status: 201, body: { ...token, token: `stash_synthetic_walk_${tokens.length}` } };
+    }
+    if (method === "GET" && path === "/devices") {
+      return { status: 200, body: [...(read("/devices") as Array<unknown>), ...created] };
+    }
+    if (method === "GET" && path === "/devices/activity") {
+      return {
+        status: 200,
+        body: [
+          ...(read("/devices/activity") as Array<unknown>),
+          ...created.map((device) => ({
+            deviceId: device.id,
+            ...(contact.get(device.id) ?? { lastSeenAt: null, lastSave: null }),
+          })),
+        ],
+      };
+    }
+    if (method === "GET" && path === "/tokens") {
+      return { status: 200, body: [...(read("/tokens") as Array<unknown>), ...tokens] };
+    }
+    const seededAnswer = base.answer(method, url);
+    return seededAnswer === undefined
+      ? undefined
+      : { status: method === "POST" ? 201 : 200, body: seededAnswer };
+  };
+  /** The device `id` gets in touch, with a save titled `title` if given. */
+  const arrive = (id: string, title?: string) => {
+    const at = iso(Date.now() + 1000);
+    contact.set(id, {
+      lastSeenAt: at,
+      lastSave:
+        title === undefined
+          ? null
+          : { at, linkId: "walk-link", url: "https://example.com/walk", title },
+    });
+  };
+  /** Claude uses its connector token. */
+  const useClaude = () =>
+    tokens.push({
+      id: `walk-token-${tokens.length + 1}`,
+      deviceId: null,
+      name: "Claude (MCP)",
+      createdAt: iso(now),
+      revokedAt: null,
+      lastUsedAt: iso(Date.now() + 1000),
+    });
+  /** The devices the guides registered, newest last. */
+  const devices = (): ReadonlyArray<Created> => created;
+  return { answer, arrive, useClaude, devices };
 };

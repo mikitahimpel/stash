@@ -35,6 +35,7 @@ describe("API tokens", () => {
           hash: yield* ApiTokenSecret.hash(created.token),
           created_at: DateTime.formatIso(created.createdAt),
           revoked_at: null,
+          last_used_at: null,
         },
       ]);
       for (const value of Object.values(rows[0] ?? {})) {
@@ -57,7 +58,29 @@ describe("API tokens", () => {
         name: null,
         createdAt: first.createdAt,
         revokedAt: null,
+        lastUsedAt: null,
       });
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("records the last use at most once a minute", () =>
+    Effect.gen(function* () {
+      const created = yield* CreateApiToken.createApiToken(AuthTestLayer.deviceId);
+      const repo = yield* ApiTokensRepo.ApiTokensRepo;
+      const lastUsed = ListApiTokens.listApiTokens.pipe(
+        Effect.map((tokens) => tokens[0]?.lastUsedAt),
+      );
+
+      const first = yield* DateTime.now;
+      yield* repo.touch(created.id, first);
+      expect(yield* lastUsed).toEqual(first);
+
+      yield* repo.touch(created.id, DateTime.add(first, { seconds: 30 }));
+      expect(yield* lastUsed).toEqual(first);
+
+      const later = DateTime.add(first, { seconds: 61 });
+      yield* repo.touch(created.id, later);
+      expect(yield* lastUsed).toEqual(later);
     }).pipe(Effect.provide(TestLayer)),
   );
 

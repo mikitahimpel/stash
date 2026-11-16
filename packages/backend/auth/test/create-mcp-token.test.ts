@@ -49,6 +49,7 @@ describe("createMcpToken", () => {
           name: ApiToken.mcpTokenName,
           createdAt: created.createdAt,
           revokedAt: null,
+          lastUsedAt: null,
         },
       ]);
     }).pipe(Effect.provide(TestLayer)),

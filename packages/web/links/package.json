@@ -7,7 +7,8 @@
   "exports": {
     "./routes": "./src/routes.ts",
     "./links-atoms": "./src/links-atoms.ts",
-    "./inbox-shortcuts": "./src/list/inbox-shortcuts.ts"
+    "./inbox-shortcuts": "./src/list/inbox-shortcuts.ts",
+    "./save-request": "./src/save/save-request.ts"
   },
   "scripts": {
     "lint": "oxlint .",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
 import * as Api from "@stash/contracts-api/api";
 import * as Security from "@stash/contracts-api/security";
@@ -212,6 +213,51 @@ describe("tabs and devices handlers", () => {
         })
         .pipe(Effect.flip);
       expect(unknown).toBeInstanceOf(Errors.NotFound);
+    }).pipe(Effect.provide(server)),
+  );
+
+  it.effect("reports each device's activity: token use, tabs snapshot and last save", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse("2026-03-01T00:00:00.000Z"));
+      const { devices, tabs } = yield* clientAs("token-zen-a");
+      const none = yield* devices.activity();
+      expect(none.map((it) => [it.deviceId, it.lastSeenAt, it.lastSave])).toEqual([
+        [TabsTestLayer.zenA, null, null],
+        [TabsTestLayer.zenB, null, null],
+        [TabsTestLayer.macAgent, null, null],
+        [TabsTestLayer.iphone, null, null],
+      ]);
+
+      // A tabs snapshot from zen A, a save from zen B, a token use by the Mac.
+      yield* tabs.report({
+        params: { id: TabsTestLayer.zenA },
+        payload: { takenAt, tabs: [tab("https://example.com/open")] },
+      });
+      const archived = yield* (yield* clientAs("token-zen-b")).tabs.archive({
+        payload: {
+          deviceId: TabsTestLayer.zenB,
+          url: url("https://example.com/saved"),
+          title: "A synthetic save",
+        },
+      });
+      yield* D1Database.Database.use((db) =>
+        db.run(
+          D1Database.sql`INSERT INTO api_tokens (id, device_id, hash, last_used_at)
+            VALUES ('token-mac', ${TabsTestLayer.macAgent}, 'hash-mac', '2026-02-15T00:00:00.000Z')`,
+        ),
+      );
+
+      const [zenA, zenB, mac, iphone] = yield* devices.activity();
+      expect(zenA?.lastSeenAt).toEqual(takenAt);
+      expect(zenA?.lastSave).toBeNull();
+      expect(zenB?.lastSave).toEqual({
+        at: DateTime.makeUnsafe("2026-03-01T00:00:00.000Z"),
+        linkId: archived.link.id,
+        url: "https://example.com/saved",
+        title: "A synthetic save",
+      });
+      expect(mac?.lastSeenAt).toEqual(DateTime.makeUnsafe("2026-02-15T00:00:00.000Z"));
+      expect(iphone).toEqual({ deviceId: TabsTestLayer.iphone, lastSeenAt: null, lastSave: null });
     }).pipe(Effect.provide(server)),
   );
 });

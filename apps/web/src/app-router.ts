@@ -1,3 +1,4 @@
+import * as Connect from "@stash/web-connect/routes";
 import * as AuthGuard from "@stash/web-auth/auth-guard";
 import * as Auth from "@stash/web-auth/routes";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
@@ -12,6 +13,7 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
   ...Links.routes,
   ...Search.routes,
   ...OpenTabs.routes,
+  ...Connect.routes,
   ...Settings.routes,
 ];
 

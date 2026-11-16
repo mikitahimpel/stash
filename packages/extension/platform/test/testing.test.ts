@@ -44,6 +44,13 @@ describe("testing layers", () => {
         url: "about:newtab",
       });
       expect((yield* (yield* Testing.TestTabs).all).map((tab) => tab.id)).toEqual([2, 3]);
+
+      yield* service.open("https://example.com/connect");
+      expect((yield* (yield* Testing.TestTabs).all).at(-1)).toMatchObject({
+        id: 4,
+        url: "https://example.com/connect",
+        active: true,
+      });
     }).pipe(Effect.provide(Testing.layerTabs({ tabs }))),
   );
 

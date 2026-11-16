@@ -19,7 +19,9 @@ CREATE TABLE devices (
   name TEXT NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('zen', 'ios', 'mac-agent')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  tabs_taken_at TEXT
+  tabs_taken_at TEXT,
+  last_save_at TEXT,
+  last_save_link_id TEXT
 );
 
 CREATE TABLE links (

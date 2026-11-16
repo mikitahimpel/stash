@@ -1,11 +1,14 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
+import * as Device from "@stash/contracts-domain/device";
 import * as Errors from "@stash/contracts-domain/errors";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as TestClock from "effect/testing/TestClock";
 import * as SaveLink from "../src/save/save-link.ts";
 import * as SaveLinksBatch from "../src/save/save-links-batch.ts";
 import * as LinksTestLayer from "./links-test-layer.ts";
@@ -59,6 +62,50 @@ describe("saveLink", () => {
         db.all(D1Database.sql`SELECT id FROM links`),
       );
       expect(rows).toEqual([{ id: first.id }]);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("attributes a session save to the named device, and ignores an unknown one", () =>
+    Effect.gen(function* () {
+      const named = yield* SaveLink.saveLink(LinksTestLayer.user, {
+        url: url("https://example.com/from-iphone"),
+        deviceId: LinksTestLayer.deviceId,
+      });
+      expect(named.sourceDeviceId).toBe(LinksTestLayer.deviceId);
+
+      const unknown = yield* SaveLink.saveLink(LinksTestLayer.user, {
+        url: url("https://example.com/from-nowhere"),
+        deviceId: Device.DeviceId.make("device-missing"),
+      });
+      expect(unknown.sourceDeviceId).toBeNull();
+
+      // A device token wins over a named device.
+      const other = yield* SaveLink.saveLink(LinksTestLayer.device, {
+        url: url("https://example.com/from-zen"),
+        deviceId: Device.DeviceId.make("device-missing"),
+      });
+      expect(other.sourceDeviceId).toBe(LinksTestLayer.deviceId);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("records the device's latest save, a repeat save included", () =>
+    Effect.gen(function* () {
+      const lastSave = D1Database.Database.use((db) =>
+        db.first(
+          D1Database.sql`SELECT last_save_at AS at, last_save_link_id AS linkId FROM devices
+            WHERE id = ${LinksTestLayer.deviceId}`,
+        ),
+      );
+      const first = yield* SaveLink.saveLink(LinksTestLayer.user, {
+        url: url("https://example.com/first"),
+      });
+      expect(yield* lastSave).toEqual(Option.some({ at: null, linkId: null }));
+
+      yield* TestClock.adjust("1 minute");
+      yield* SaveLink.saveLink(LinksTestLayer.device, { url: url("https://example.com/first") });
+      expect(yield* lastSave).toEqual(
+        Option.some({ at: DateTime.formatIso(yield* DateTime.now), linkId: first.id }),
+      );
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );
 

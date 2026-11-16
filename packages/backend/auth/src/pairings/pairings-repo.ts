@@ -1,0 +1,80 @@
+import * as D1Database from "@stash/backend-platform/d1-database";
+import * as Device from "@stash/contracts-domain/device";
+import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+
+/** The `device_pairings` table: approved pairings the extension has not claimed yet. */
+export class PairingsRepo extends Context.Service<
+  PairingsRepo,
+  {
+    /**
+     * Registers `device` and stores the approval of its code, in one transaction. `false`, with
+     * nothing written, if this code was already approved (the row exists).
+     */
+    readonly approve: (pairing: {
+      readonly codeHash: string;
+      readonly device: Device.Device;
+      readonly expiresAt: DateTime.Utc;
+    }) => Effect.Effect<boolean, D1Database.DatabaseError>;
+    /**
+     * Deletes the approval and returns its device, if it exists and has not lapsed by `now`. One
+     * statement, so two claims of the same code never both get a device.
+     */
+    readonly take: (
+      codeHash: string,
+      now: DateTime.Utc,
+    ) => Effect.Effect<Option.Option<Device.DeviceId>, D1Database.DatabaseError>;
+  }
+>()("@stash/backend-auth/PairingsRepo") {}
+
+const Taken = Schema.Struct({ deviceId: Device.DeviceId });
+
+export const make = Effect.gen(function* () {
+  const db = yield* D1Database.Database;
+  return PairingsRepo.of({
+    approve: (pairing) => {
+      const exists = db
+        .first(
+          D1Database.sql`SELECT 1 AS found FROM device_pairings WHERE code_hash = ${pairing.codeHash}`,
+        )
+        .pipe(Effect.map(Option.isSome));
+      const { device } = pairing;
+      // No ON CONFLICT: a used code fails the batch, which then writes nothing (no orphan device).
+      const write = db.batch([
+        D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
+          VALUES (${device.id}, ${device.name}, ${device.kind}, ${DateTime.formatIso(device.createdAt)})`,
+        D1Database.sql`INSERT INTO device_pairings (code_hash, device_id, expires_at)
+          VALUES (${pairing.codeHash}, ${device.id}, ${DateTime.formatIso(pairing.expiresAt)})`,
+      ]);
+      return Effect.gen(function* () {
+        if (yield* exists) return false;
+        return yield* write.pipe(
+          Effect.as(true),
+          // A concurrent approval of the same code won the race.
+          Effect.catchTag("DatabaseError", (error) =>
+            Effect.flatMap(exists, (found) => (found ? Effect.succeed(false) : Effect.fail(error))),
+          ),
+        );
+      });
+    },
+    take: (codeHash, now) =>
+      Effect.gen(function* () {
+        const iso = DateTime.formatIso(now);
+        // Lapsed approvals go too, so the table never grows.
+        yield* db.run(D1Database.sql`DELETE FROM device_pairings WHERE expires_at <= ${iso}`);
+        const taken = yield* D1Database.queryFirst(Taken)(
+          D1Database.sql`DELETE FROM device_pairings WHERE code_hash = ${codeHash}
+            AND expires_at > ${iso} RETURNING device_id AS deviceId`,
+        );
+        return Option.map(taken, (row) => row.deviceId);
+      }).pipe(Effect.provideService(D1Database.Database, db)),
+  });
+});
+
+/** The repo over the D1 `Database`. */
+export const layer: Layer.Layer<PairingsRepo, never, D1Database.Database> =
+  Layer.effect(PairingsRepo)(make);

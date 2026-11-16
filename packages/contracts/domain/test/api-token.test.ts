@@ -24,6 +24,7 @@ describe("ApiTokenInfo", () => {
       "createdAt",
       "deviceId",
       "id",
+      "lastUsedAt",
       "name",
       "revokedAt",
     ]);
@@ -33,6 +34,13 @@ describe("ApiTokenInfo", () => {
     const user = { ...info, deviceId: null, name: ApiToken.mcpTokenName };
     const decoded = Schema.decodeUnknownSync(ApiToken.ApiTokenInfo)(user);
     expect(Schema.encodeSync(ApiToken.ApiTokenInfo)(decoded)).toEqual(user);
+  });
+
+  it("round-trips a last use, and decodes without one", () => {
+    const used = { ...info, lastUsedAt: "2026-01-03T00:00:00.000Z" };
+    const decoded = Schema.decodeUnknownSync(ApiToken.ApiTokenInfo)(used);
+    expect(Schema.encodeSync(ApiToken.ApiTokenInfo)(decoded)).toEqual(used);
+    expect(Schema.decodeUnknownSync(ApiToken.ApiTokenInfo)(info).lastUsedAt).toBeUndefined();
   });
 
   it("rejects a missing device", () => {

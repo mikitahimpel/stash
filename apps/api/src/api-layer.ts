@@ -5,6 +5,7 @@ import * as DeviceStartRateLimiter from "@stash/backend-auth/device-start-rate-l
 import * as GithubClient from "@stash/backend-auth/github-client";
 import * as InternalHandlers from "@stash/backend-auth/internal-handlers";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
+import * as PairingsRepo from "@stash/backend-auth/pairings-repo";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
 import * as DigestsRepo from "@stash/backend-digest/digests-repo";
 import type * as Ai from "@stash/backend-platform/ai";
@@ -74,6 +75,7 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(
         Layer.mergeAll(
           ApiTokensRepo.layer,
+          PairingsRepo.layer,
           SessionsRepo.layer,
           DeviceFlowsStore.layer,
           DeviceStartRateLimiter.layer(),
