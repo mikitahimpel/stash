@@ -11,10 +11,13 @@ import * as Schema from "effect/Schema";
 export class PairingsRepo extends Context.Service<
   PairingsRepo,
   {
-    /** Stores the approval. `false` if this code was already approved (the row exists). */
-    readonly insert: (pairing: {
+    /**
+     * Registers `device` and stores the approval of its code, in one transaction. `false`, with
+     * nothing written, if this code was already approved (the row exists).
+     */
+    readonly approve: (pairing: {
       readonly codeHash: string;
-      readonly deviceId: Device.DeviceId;
+      readonly device: Device.Device;
       readonly expiresAt: DateTime.Utc;
     }) => Effect.Effect<boolean, D1Database.DatabaseError>;
     /**
@@ -33,14 +36,31 @@ const Taken = Schema.Struct({ deviceId: Device.DeviceId });
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
   return PairingsRepo.of({
-    insert: (pairing) =>
-      db
-        .run(
-          D1Database.sql`INSERT INTO device_pairings (code_hash, device_id, expires_at)
-            VALUES (${pairing.codeHash}, ${pairing.deviceId}, ${DateTime.formatIso(pairing.expiresAt)})
-            ON CONFLICT (code_hash) DO NOTHING`,
+    approve: (pairing) => {
+      const exists = db
+        .first(
+          D1Database.sql`SELECT 1 AS found FROM device_pairings WHERE code_hash = ${pairing.codeHash}`,
         )
-        .pipe(Effect.map((result) => result.changes > 0)),
+        .pipe(Effect.map(Option.isSome));
+      const { device } = pairing;
+      // No ON CONFLICT: a used code fails the batch, which then writes nothing (no orphan device).
+      const write = db.batch([
+        D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
+          VALUES (${device.id}, ${device.name}, ${device.kind}, ${DateTime.formatIso(device.createdAt)})`,
+        D1Database.sql`INSERT INTO device_pairings (code_hash, device_id, expires_at)
+          VALUES (${pairing.codeHash}, ${device.id}, ${DateTime.formatIso(pairing.expiresAt)})`,
+      ]);
+      return Effect.gen(function* () {
+        if (yield* exists) return false;
+        return yield* write.pipe(
+          Effect.as(true),
+          // A concurrent approval of the same code won the race.
+          Effect.catchTag("DatabaseError", (error) =>
+            Effect.flatMap(exists, (found) => (found ? Effect.succeed(false) : Effect.fail(error))),
+          ),
+        );
+      });
+    },
     take: (codeHash, now) =>
       Effect.gen(function* () {
         const iso = DateTime.formatIso(now);

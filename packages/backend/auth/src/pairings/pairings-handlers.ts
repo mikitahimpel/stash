@@ -19,7 +19,7 @@ export const layer = HttpApiBuilder.group(Api.StashApi, "pairings", (handlers) =
     >();
     return handlers
       .handle("approve", ({ payload }) =>
-        ApprovePairing.approvePairing(payload.code, payload.deviceId).pipe(
+        ApprovePairing.approvePairing(payload.code, payload.name).pipe(
           Effect.provideContext(context),
           Effect.catchTag("DatabaseError", Effect.die),
         ),

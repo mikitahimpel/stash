@@ -54,14 +54,14 @@ describe("ConnectAtoms", () => {
     }),
   );
 
-  it.effect("approves an extension: a Zen device, then the pairing", () =>
+  it.effect("approves an extension in one call that registers its Zen device", () =>
     Effect.gen(function* () {
       const api = fakeApi();
       const reg = use(api.routes);
       const code = Pairing.PairingCode.make("synthetic-pairing-code-0000000000000000000");
       const device = yield* run(reg, ConnectAtoms.approveExtension, { code, name: "Zen" });
       expect(device.kind).toBe("zen");
-      expect(api.calls).toEqual(["register Zen zen", `approve ${code} device-1`]);
+      expect(api.calls).toEqual([`approve ${code} device-1 Zen`]);
     }),
   );
 

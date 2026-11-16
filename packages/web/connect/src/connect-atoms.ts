@@ -4,6 +4,9 @@ import type * as Pairing from "@stash/contracts-domain/pairing";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import * as WebPlatform from "@stash/web-platform/live";
 import * as Effect from "effect/Effect";
+import * as HttpClient from "effect/http/HttpClient";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type * as Layer from "effect/Layer";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
@@ -69,19 +72,14 @@ export const createToken = ApiAtoms.mutation(["tokens"], (client, deviceId: Devi
 );
 
 /**
- * Approves the extension that opened `/connect/extension?code=…`: registers its device and binds
- * the code to it, so the extension can claim its token.
+ * Approves the extension that opened `/connect/extension?code=…`. The api registers its Zen device
+ * and binds the code to it in one go (a used code registers nothing), so the extension can claim
+ * its token.
  */
 export const approveExtension = ApiAtoms.mutation(
   ["devices", "tokens"],
   (client, input: { readonly code: Pairing.PairingCode; readonly name: string }) =>
-    Effect.gen(function* () {
-      const device = yield* client.devices.register({
-        payload: { name: input.name, kind: "zen" },
-      });
-      yield* client.pairings.approve({ payload: { code: input.code, deviceId: device.id } });
-      return device;
-    }),
+    client.pairings.approve({ payload: { code: input.code, name: input.name } }),
 );
 
 /**
@@ -97,4 +95,32 @@ const clipboardRuntime = Atom.runtime((get) => get(clipboard));
 /** Copies a prefilled value. */
 export const copy = clipboardRuntime.fn((text: string) =>
   Effect.flatMap(Clipboard.Clipboard, (clipboard) => clipboard.writeString(text)),
+);
+
+/**
+ * The `HttpClient` that reads this deploy's static files (`extensionSigned`). Defaults to the
+ * browser's. Tests replace it per registry through `initialValues`.
+ */
+export const downloads: Atom.Writable<Layer.Layer<HttpClient.HttpClient>> = Atom.make(
+  WebPlatform.layerHttpClient,
+).pipe(Atom.keepAlive);
+
+const downloadsRuntime = Atom.runtime((get) => get(downloads));
+
+/** Where the build says whether the `.xpi` is signed (see `apps/extension/scripts/xpi-info.ts`). */
+export const extensionInfoPath = "/downloads/stash-extension.json";
+
+const ExtensionInfo = Schema.Struct({ signed: Schema.Boolean });
+
+/**
+ * Whether Mozilla signed the `.xpi` this deploy serves. Release Firefox and Zen install only signed
+ * add-ons, so the Zen guide shows other steps for an unsigned one. `false` when unknown.
+ */
+export const extensionSigned = downloadsRuntime.atom(
+  Effect.gen(function* () {
+    const response = yield* HttpClient.get(extensionInfoPath);
+    if (response.status !== 200) return false;
+    const info = Schema.decodeUnknownOption(ExtensionInfo)(yield* response.json);
+    return Option.exists(info, (it) => it.signed);
+  }).pipe(Effect.catch(() => Effect.succeed(false))),
 );

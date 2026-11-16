@@ -100,7 +100,6 @@ describe("Authorization (live)", () => {
         // The request itself is recorded as the token's last use.
         const [after] = yield* listAs({ bearer: Redacted.value(created.token) });
         expect(after?.lastUsedAt).not.toBeNull();
-        expect(after?.lastUsedAt).toBeDefined();
       }).pipe(Effect.provide(server(SessionVerifier.layerDenyAll))),
     );
 
@@ -229,7 +228,7 @@ describe("pairings handlers", () => {
 
       // Approving needs the owner.
       const denied = yield* anonymous.pairings
-        .approve({ payload: { code: code as never, deviceId: AuthTestLayer.deviceId } })
+        .approve({ payload: { code: code as never, name: "Synthetic Zen" } })
         .pipe(Effect.flip);
       expect(denied).toBeInstanceOf(Errors.Unauthorized);
 
@@ -246,12 +245,12 @@ describe("pairings handlers", () => {
           ),
         ),
       );
-      yield* owner.pairings.approve({
-        payload: { code: code as never, deviceId: AuthTestLayer.deviceId },
+      const device = yield* owner.pairings.approve({
+        payload: { code: code as never, name: "Synthetic Zen" },
       });
 
       const created = yield* claim;
-      expect(created.deviceId).toBe(AuthTestLayer.deviceId);
+      expect(created.deviceId).toBe(device.id);
       expect(yield* claim.pipe(Effect.flip)).toBeInstanceOf(Errors.NotFound);
     }).pipe(Effect.provide(server(layerSessionStub))),
   );

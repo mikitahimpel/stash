@@ -136,11 +136,15 @@ describe("composed API", () => {
     const code = "synthetic-wiring-pairing-code-000000000000";
     const pending = await request("POST", "/pairings/claim", {}, { code });
     expect(pending.status).toBe(404);
-    const approved = await request("POST", "/pairings", cookie, { code, deviceId: "device-2" });
-    expect(approved.status).toBe(204);
+    const approved = await request("POST", "/pairings", cookie, { code, name: "Synthetic Zen" });
+    expect(approved.status).toBe(201);
+    const device = (await approved.json()) as { id: string; kind: string };
+    expect(device.kind).toBe("zen");
+    const again = await request("POST", "/pairings", cookie, { code, name: "Synthetic Zen" });
+    expect(again.status).toBe(409);
     const claimed = await request("POST", "/pairings/claim", {}, { code });
     expect(claimed.status).toBe(201);
-    expect(await claimed.json()).toMatchObject({ deviceId: "device-2" });
+    expect(await claimed.json()).toMatchObject({ deviceId: device.id });
     expect((await request("POST", "/pairings/claim", {}, { code })).status).toBe(404);
   });
 

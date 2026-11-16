@@ -19,6 +19,7 @@ export const fakeApi = (mcpUrl: string | null = "https://mcp.example.com/mcp") =
   const devices: Array<DeviceJson> = [];
   const activity = new Map<string, { lastSeenAt: string | null; lastSave: unknown }>();
   const tokens: Array<Record<string, unknown>> = [];
+  const approved = new Set<string>();
   const routes: ApiTesting.Routes = {
     "GET /devices": () => ApiTesting.json(devices),
     "GET /devices/activity": () =>
@@ -56,9 +57,20 @@ export const fakeApi = (mcpUrl: string | null = "https://mcp.example.com/mcp") =
       return ApiTesting.json({ ...token, token: `stash_synthetic_${token.id}` }, 201);
     },
     "POST /pairings": (request) => {
-      const { code, deviceId } = body(request) as { code: string; deviceId: string };
-      calls.push(`approve ${code} ${deviceId}`);
-      return new Response(null, { status: 204 });
+      const { code, name } = body(request) as { code: string; name: string };
+      if (approved.has(code)) {
+        return ApiTesting.json({ _tag: "Conflict", message: "This pairing code is used" }, 409);
+      }
+      approved.add(code);
+      const device = {
+        id: `device-${devices.length + 1}`,
+        name,
+        kind: "zen",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      };
+      devices.push(device);
+      calls.push(`approve ${code} ${device.id} ${name}`);
+      return ApiTesting.json(device, 201);
     },
     "GET /connect/info": () => ApiTesting.json({ mcpUrl }),
   };
