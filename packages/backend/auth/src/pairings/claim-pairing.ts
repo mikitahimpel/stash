@@ -9,7 +9,7 @@ import * as PairingsRepo from "./pairings-repo.ts";
 
 /**
  * The extension claims the device token for an approved pairing code. It works once: the approval
- * is deleted as the token is minted. `NotFound` while the code is not approved (the extension
+ * is marked claimed as the token is minted (and kept, so the code can't be approved again). `NotFound` while the code is not approved (the extension
  * polls), after it lapsed, and after it was claimed. The error never says which, so the endpoint
  * tells a guesser nothing.
  */

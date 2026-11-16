@@ -141,6 +141,42 @@ describe("D1 migrations", () => {
     expect(before.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
+  it("keeps pending pairings across the claimed_at rebuild of device_pairings", () => {
+    const before = new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
+    for (const file of migrationFiles.filter((name) => prefix(name) < 5)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    before.exec(`
+      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen');
+      INSERT INTO device_pairings (code_hash, device_id, expires_at)
+        VALUES ('hash-1', 'd1', '2026-01-01T00:10:00.000Z');
+    `);
+    for (const file of migrationFiles.filter((name) => prefix(name) >= 5)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    expect(before.prepare("SELECT * FROM device_pairings").all()).toEqual([
+      {
+        code_hash: "hash-1",
+        device_id: "d1",
+        expires_at: "2026-01-01T00:10:00.000Z",
+        claimed_at: null,
+      },
+    ]);
+    expect(before.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it("keeps a pairing's code when its device is deleted", () => {
+    db.exec(`
+      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen');
+      INSERT INTO device_pairings (code_hash, device_id, expires_at, claimed_at)
+        VALUES ('hash-1', 'd1', '2026-01-01T00:10:00.000Z', '2026-01-01T00:01:00.000Z');
+      DELETE FROM devices WHERE id = 'd1';
+    `);
+    expect(db.prepare("SELECT code_hash, device_id FROM device_pairings").all()).toEqual([
+      { code_hash: "hash-1", device_id: null },
+    ]);
+  });
+
   it("stores a user token without a device, and only with a name and login", () => {
     db.exec(`INSERT INTO api_tokens (id, name, github_login, hash)
       VALUES ('t1', 'Claude (MCP)', 'synthetic-user', 'hash-1')`);

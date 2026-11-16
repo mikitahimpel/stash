@@ -15,11 +15,7 @@ describe("/save page", () => {
         const body = payload as { url: string; title?: string };
         saved.push(body);
         return ApiTesting.json(
-          Fixtures.link("s", {
-            url: body.url,
-            title: body.title ?? null,
-            createdAt: new Date().toISOString(),
-          }),
+          { ...Fixtures.link("s", { url: body.url, title: body.title ?? null }), created: true },
           201,
         );
       }),
@@ -57,10 +53,38 @@ describe("/save page", () => {
   it("offers no Undo when the link was stored before", async () => {
     const { wrapper } = await mountAt("/save?url=https://example.com/old", {
       ...routes,
-      "POST /links": () => ApiTesting.json(Fixtures.link("old"), 201),
+      "POST /links": () => ApiTesting.json({ ...Fixtures.link("old"), created: false }, 201),
     });
     await vi.waitFor(() => expect(wrapper.text()).toContain("Already saved ✓"));
     expect(wrapper.find("[data-action=undo]").exists()).toBe(false);
+  });
+
+  // A double save of one URL: the second answers the link the first stored, created moments ago.
+  // Undo there would delete the original, so only `created` decides, never the link's age.
+  it("offers no Undo for a repeat save of a link stored moments ago", async () => {
+    const { wrapper } = await mountAt("/save?url=https://example.com/twice", {
+      ...routes,
+      "POST /links": () =>
+        ApiTesting.json(
+          { ...Fixtures.link("twice", { createdAt: new Date().toISOString() }), created: false },
+          201,
+        ),
+    });
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Already saved ✓"));
+    expect(wrapper.find("[data-action=undo]").exists()).toBe(false);
+  });
+
+  // A browser clock far off the api's no longer hides Undo for a link this save stored.
+  it("offers Undo for a created link whatever its timestamp says", async () => {
+    const { wrapper } = await mountAt("/save?url=https://example.com/skewed", {
+      ...routes,
+      "POST /links": () =>
+        ApiTesting.json(
+          { ...Fixtures.link("skewed", { createdAt: "2020-01-01T00:00:00.000Z" }), created: true },
+          201,
+        ),
+    });
+    await vi.waitFor(() => expect(wrapper.find("[data-action=undo]").exists()).toBe(true));
   });
 
   it("shows the bookmarklet's title", async () => {

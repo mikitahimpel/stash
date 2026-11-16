@@ -45,7 +45,7 @@ const submit = async () => {
     return;
   }
   error.value = Option.exists(Exit.findErrorOption(exit), (e) => e._tag === "Conflict")
-    ? "This code was already used. Choose Connect in the extension again."
+    ? "This browser was already approved. If the extension still isn't connected, choose Connect there again."
     : "Couldn't approve the extension. Try again.";
 };
 </script>

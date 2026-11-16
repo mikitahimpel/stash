@@ -11,6 +11,17 @@ export const maxBatchSize = 500;
 /** The most links one page of `GET /links` returns. */
 export const maxPageSize = 100;
 
+/**
+ * The answer to `POST /links`: the stored link, and whether this save stored it (`created`) or the
+ * URL was stored already, in which case the link is the existing one, unchanged. A client offers
+ * Undo (deleting the link) only when `created` is true.
+ */
+export const SavedLink = Schema.Struct({
+  ...Link.Link.fields,
+  created: Schema.Boolean,
+});
+export type SavedLink = typeof SavedLink.Type;
+
 export const SaveLinksBatch = Schema.Struct({
   links: Schema.Array(Link.SaveLinkInput).pipe(
     Schema.check(Schema.isBetweenLength(1, maxBatchSize)),
@@ -56,10 +67,11 @@ const LinkIdParams = { id: Link.LinkId };
 
 export class LinksGroup extends HttpApiGroup.make("links")
   .add(
-    // Answers as soon as the link is stored. Enrichment runs later.
+    // Answers as soon as the link is stored. Enrichment runs later. `created` says whether this
+    // save stored the link; a repeat save of a stored URL answers the existing one with `false`.
     HttpApiEndpoint.post("save", "/links", {
       payload: Link.SaveLinkInput,
-      success: Link.Link.pipe(HttpApiSchema.status(201)),
+      success: SavedLink.pipe(HttpApiSchema.status(201)),
       error: ErrorStatuses.RateLimited,
     }),
     HttpApiEndpoint.post("saveBatch", "/links/batch", {

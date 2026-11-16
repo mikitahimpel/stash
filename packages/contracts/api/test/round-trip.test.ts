@@ -72,7 +72,10 @@ const LinksStub = HttpApiBuilder.group(Api.StashApi, "links", (handlers) =>
     .handle("save", ({ payload }) =>
       payload.url.includes("rate-limited")
         ? Effect.fail(new Errors.RateLimited({ retryAfterSeconds: 30 }))
-        : Effect.map(sourceDevice, (device) => store(makeLink(payload, device))),
+        : Effect.map(sourceDevice, (device) => ({
+            ...store(makeLink(payload, device)),
+            created: true,
+          })),
     )
     .handle("saveBatch", ({ payload }) =>
       Effect.map(sourceDevice, (device) => ({
@@ -190,9 +193,10 @@ layer(ServerStub)("HttpApiClient round-trip", (it) => {
       Effect.gen(function* () {
         const client = yield* makeClient;
 
-        const saved = yield* client.links.save({
+        const { created, ...saved } = yield* client.links.save({
           payload: { url: url("https://example.com/articles/one"), title: "One" },
         });
+        assert.isTrue(created);
         assert.strictEqual(saved.title, "One");
         assert.strictEqual(saved.status, "new");
         assert.strictEqual(saved.sourceDeviceId, deviceId);

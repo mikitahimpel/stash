@@ -23,6 +23,10 @@ const otherCode = Pairing.PairingCode.make("synthetic-pairing-code-1111111111111
 
 const notFound = new Errors.NotFound({ resource: "pairing", id: "code" });
 
+const countDevices = D1Database.Database.use((db) =>
+  db.all(D1Database.sql`SELECT id FROM devices`),
+).pipe(Effect.map((rows) => rows.length));
+
 describe("extension pairing", () => {
   it.effect("claims a device token once after the owner approves", () =>
     Effect.gen(function* () {
@@ -58,9 +62,6 @@ describe("extension pairing", () => {
 
   it.effect("rejects a code approved twice, registering no second device", () =>
     Effect.gen(function* () {
-      const countDevices = D1Database.Database.use((db) =>
-        db.all(D1Database.sql`SELECT id FROM devices`),
-      ).pipe(Effect.map((rows) => rows.length));
       yield* ApprovePairing.approvePairing(code, "Synthetic Zen");
       const before = yield* countDevices;
       const again = yield* ApprovePairing.approvePairing(code, "Synthetic Zen").pipe(Effect.flip);
@@ -69,6 +70,63 @@ describe("extension pairing", () => {
       // Another code still works.
       yield* ApprovePairing.approvePairing(otherCode, "Synthetic Zen 2");
       expect(yield* countDevices).toBe(before + 1);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  // An old `/connect/extension?code=…` tab reopened after pairing: Approve must not register a
+  // second Zen device that nothing will ever claim.
+  it.effect("rejects approving a code again after it was claimed", () =>
+    Effect.gen(function* () {
+      yield* ApprovePairing.approvePairing(code, "Synthetic Zen");
+      yield* ClaimPairing.claimPairing(code);
+      const before = yield* countDevices;
+      yield* TestClock.adjust("1 day");
+      const again = yield* ApprovePairing.approvePairing(code, "Synthetic Zen").pipe(Effect.flip);
+      expect(again._tag).toBe("Conflict");
+      expect(yield* countDevices).toBe(before);
+      // Still claimed once only.
+      expect(yield* ClaimPairing.claimPairing(code).pipe(Effect.flip)).toEqual(notFound);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("rejects approving a lapsed code again", () =>
+    Effect.gen(function* () {
+      yield* ApprovePairing.approvePairing(code, "Synthetic Zen");
+      yield* TestClock.adjust(`${Pairing.pairingTtlMinutes + 1} minutes`);
+      // A claim attempt runs the cleanup, which must keep the lapsed row.
+      expect(yield* ClaimPairing.claimPairing(code).pipe(Effect.flip)).toEqual(notFound);
+      const before = yield* countDevices;
+      const again = yield* ApprovePairing.approvePairing(code, "Synthetic Zen").pipe(Effect.flip);
+      expect(again._tag).toBe("Conflict");
+      expect(yield* countDevices).toBe(before);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("keeps a claimed code known after its device is deleted", () =>
+    Effect.gen(function* () {
+      const device = yield* ApprovePairing.approvePairing(code, "Synthetic Zen");
+      yield* ClaimPairing.claimPairing(code);
+      yield* D1Database.Database.use((db) =>
+        db.run(D1Database.sql`DELETE FROM devices WHERE id = ${device.id}`),
+      );
+      const again = yield* ApprovePairing.approvePairing(code, "Synthetic Zen").pipe(Effect.flip);
+      expect(again._tag).toBe("Conflict");
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("purges rows the retention period after they lapse", () =>
+    Effect.gen(function* () {
+      const codes = D1Database.Database.use((db) =>
+        db.all(D1Database.sql`SELECT code_hash FROM device_pairings`),
+      ).pipe(Effect.map((rows) => rows.length));
+      yield* ApprovePairing.approvePairing(code, "Synthetic Zen");
+      yield* ClaimPairing.claimPairing(code);
+      yield* TestClock.adjust(`${PairingsRepo.retentionDays - 1} days`);
+      yield* ClaimPairing.claimPairing(otherCode).pipe(Effect.flip);
+      expect(yield* codes).toBe(1);
+      yield* TestClock.adjust("2 days");
+      yield* ClaimPairing.claimPairing(otherCode).pipe(Effect.flip);
+      expect(yield* codes).toBe(0);
     }).pipe(Effect.provide(TestLayer)),
   );
 });

@@ -22,8 +22,9 @@ export type ClaimPairing = typeof ClaimPairing.Type;
  * Pairs the extension without copying a token. The extension makes a one-time code and opens the
  * web app's `/connect/extension?code=…`. The signed-in owner approves there (`approve`, guarded),
  * which registers the extension's Zen device and binds the code to it for `pairingTtlMinutes`, in
- * one transaction: a code approved twice answers `Conflict` and registers nothing. The extension polls `claim` with the
- * code. `claim` is open, because the extension has no credential yet: the code is the credential.
+ * one transaction. A code approved before answers `Conflict` and registers nothing, also after it
+ * was claimed or lapsed, so a reopened old approve page adds no device: clients show "already
+ * approved". The extension polls `claim` with the code. `claim` is open, because the extension has no credential yet: the code is the credential.
  * It answers `NotFound` (404) until the code is approved, then a new device token exactly once.
  */
 export class PairingsGroup extends HttpApiGroup.make("pairings")

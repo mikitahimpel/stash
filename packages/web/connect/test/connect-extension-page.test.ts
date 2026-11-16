@@ -56,7 +56,7 @@ describe("Connect extension page", () => {
     );
   });
 
-  it("says when the code was already used", async () => {
+  it("says when the code was already approved", async () => {
     const api = fakeApi();
     const { wrapper } = await mountPage(
       { code },
@@ -65,13 +65,16 @@ describe("Connect extension page", () => {
         routes: {
           ...api.routes,
           "POST /pairings": () =>
-            ApiTesting.json({ _tag: "Conflict", message: "This pairing code is used" }, 409),
+            ApiTesting.json(
+              { _tag: "Conflict", message: "This pairing code was already approved" },
+              409,
+            ),
         },
       },
     );
     await wrapper.find("form").trigger("submit");
     await settle();
-    expect(wrapper.find("[role=alert]").text()).toContain("already used");
+    expect(wrapper.find("[role=alert]").text()).toContain("already approved");
     expect(api.devices).toEqual([]);
   });
 

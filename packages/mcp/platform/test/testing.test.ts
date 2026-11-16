@@ -43,9 +43,10 @@ describe("Testing.layer", () => {
   it.effect("saves, gets, updates and lists links", () =>
     Effect.gen(function* () {
       const client = yield* ApiClient.StashApiClient;
-      const saved = yield* client.links.save({
+      const { created, ...saved } = yield* client.links.save({
         payload: { url: url("https://example.com/new"), title: "New" },
       });
+      assert.isTrue(created);
       assert.strictEqual(saved.status, "new");
 
       const fetched = yield* client.links.get({ params: { id: saved.id } });

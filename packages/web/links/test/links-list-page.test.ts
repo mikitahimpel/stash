@@ -309,7 +309,7 @@ describe("save a link", () => {
             createdAt: new Date().toISOString(),
           });
           saved.push(link);
-          return ApiTesting.json(link, 201);
+          return ApiTesting.json({ ...link, created: true }, 201);
         }),
     };
     return { posts, routes };

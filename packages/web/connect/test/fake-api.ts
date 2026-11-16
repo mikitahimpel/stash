@@ -59,7 +59,10 @@ export const fakeApi = (mcpUrl: string | null = "https://mcp.example.com/mcp") =
     "POST /pairings": (request) => {
       const { code, name } = body(request) as { code: string; name: string };
       if (approved.has(code)) {
-        return ApiTesting.json({ _tag: "Conflict", message: "This pairing code is used" }, 409);
+        return ApiTesting.json(
+          { _tag: "Conflict", message: "This pairing code was already approved" },
+          409,
+        );
       }
       approved.add(code);
       const device = {

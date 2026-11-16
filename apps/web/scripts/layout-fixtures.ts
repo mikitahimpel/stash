@@ -175,7 +175,7 @@ const activity = (now: number, all: ReturnType<typeof links>) =>
     };
   });
 
-/** What `POST /links` answers to `/save`: the link, as saved just now. */
+/** What `POST /links` answers to `/save`: the link, as this save stored it just now. */
 const saved = (now: number) => ({
   id: "seed-link-saved",
   url: "https://example.com/saved",
@@ -189,6 +189,7 @@ const saved = (now: number) => ({
   sourceDeviceId: null,
   createdAt: iso(now),
   enrichedAt: null,
+  created: true,
 });
 
 const listLinks = (all: ReturnType<typeof links>, url: URL) => {

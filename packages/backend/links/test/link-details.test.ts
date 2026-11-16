@@ -18,7 +18,12 @@ const save = SaveLink.saveLink(LinksTestLayer.user, {
   url: Link.Url.make("https://example.com/details"),
   title: "Original",
   tags: [tag("a"), tag("b")],
-});
+}).pipe(
+  Effect.map((saved) => {
+    const { created: _, ...link } = saved;
+    return link;
+  }),
+);
 
 describe("link details", () => {
   it.effect("gets a link by id, or fails with NotFound", () =>

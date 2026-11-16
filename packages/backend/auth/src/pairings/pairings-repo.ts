@@ -7,13 +7,23 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-/** The `device_pairings` table: approved pairings the extension has not claimed yet. */
+/**
+ * How long a pairing row outlives its `expires_at`, claimed or not. While it exists its code can't
+ * be approved again, so an old `/connect/extension?code=…` tab reopened and approved registers no
+ * second device. Rows are tiny and only an owner's approval adds one.
+ */
+export const retentionDays = 90;
+
+/**
+ * The `device_pairings` table: every approved pairing code (its hash), claimed or not, until
+ * `retentionDays` after it lapses.
+ */
 export class PairingsRepo extends Context.Service<
   PairingsRepo,
   {
     /**
      * Registers `device` and stores the approval of its code, in one transaction. `false`, with
-     * nothing written, if this code was already approved (the row exists).
+     * nothing written, if this code was ever approved (the row exists: pending, claimed or lapsed).
      */
     readonly approve: (pairing: {
       readonly codeHash: string;
@@ -21,8 +31,9 @@ export class PairingsRepo extends Context.Service<
       readonly expiresAt: DateTime.Utc;
     }) => Effect.Effect<boolean, D1Database.DatabaseError>;
     /**
-     * Deletes the approval and returns its device, if it exists and has not lapsed by `now`. One
-     * statement, so two claims of the same code never both get a device.
+     * Marks the approval claimed and returns its device, if it exists, is unclaimed and has not
+     * lapsed by `now`. One statement, so two claims of the same code never both get a device. The
+     * row stays, so the code is still known to `approve`.
      */
     readonly take: (
       codeHash: string,
@@ -64,11 +75,16 @@ export const make = Effect.gen(function* () {
     take: (codeHash, now) =>
       Effect.gen(function* () {
         const iso = DateTime.formatIso(now);
-        // Lapsed approvals go too, so the table never grows.
-        yield* db.run(D1Database.sql`DELETE FROM device_pairings WHERE expires_at <= ${iso}`);
+        // Rows long past their lapse go, so the table never grows without bound.
+        const purgeBefore = DateTime.formatIso(DateTime.subtract(now, { days: retentionDays }));
+        yield* db.run(
+          D1Database.sql`DELETE FROM device_pairings WHERE expires_at <= ${purgeBefore}`,
+        );
         const taken = yield* D1Database.queryFirst(Taken)(
-          D1Database.sql`DELETE FROM device_pairings WHERE code_hash = ${codeHash}
-            AND expires_at > ${iso} RETURNING device_id AS deviceId`,
+          D1Database.sql`UPDATE device_pairings SET claimed_at = ${iso}
+            WHERE code_hash = ${codeHash} AND claimed_at IS NULL AND device_id IS NOT NULL
+              AND expires_at > ${iso}
+            RETURNING device_id AS deviceId`,
         );
         return Option.map(taken, (row) => row.deviceId);
       }).pipe(Effect.provideService(D1Database.Database, db)),

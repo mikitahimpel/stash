@@ -45,12 +45,13 @@ describe("links handlers", () => {
   it.effect("saves, gets, lists, patches and deletes a link over HTTP", () =>
     Effect.gen(function* () {
       const { links } = yield* client;
-      const saved = yield* links.save({
+      const { created, ...saved } = yield* links.save({
         payload: {
           url: url("https://example.com/http?utm_source=x"),
           tags: [Tag.TagName.make("x")],
         },
       });
+      expect(created).toBe(true);
       expect(saved).toMatchObject({
         canonicalUrl: "https://example.com/http",
         sourceDeviceId: LinksTestLayer.deviceId,
@@ -74,6 +75,16 @@ describe("links handlers", () => {
       yield* links.remove({ params: { id: saved.id } });
       const error = yield* links.get({ params: { id: saved.id } }).pipe(Effect.flip);
       expect(error).toEqual(new Errors.NotFound({ resource: "link", id: saved.id }));
+    }).pipe(Effect.provide(server())),
+  );
+
+  it.effect("answers created: false for a repeat save of a stored URL", () =>
+    Effect.gen(function* () {
+      const { links } = yield* client;
+      const first = yield* links.save({ payload: { url: url("https://example.com/again") } });
+      const again = yield* links.save({ payload: { url: url("https://example.com/again/") } });
+      expect(first.created).toBe(true);
+      expect(again).toEqual({ ...first, created: false });
     }).pipe(Effect.provide(server())),
   );
 

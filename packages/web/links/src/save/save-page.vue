@@ -4,7 +4,6 @@ import { Check, TriangleAlert } from "@lucide/vue";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import type * as Link from "@stash/contracts-domain/link";
-import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { onMounted, ref } from "vue";
@@ -56,7 +55,8 @@ onMounted(async () => {
         title: exit.value.title ?? request.title ?? host(request.url),
         host: host(exit.value.url),
         id: exit.value.id,
-        fresh: SaveRequest.isFresh(exit.value.createdAt, DateTime.nowUnsafe()),
+        // The api says whether this save stored the link. A repeat save answers the stored one.
+        fresh: exit.value.created,
       }
     : {
         state: "failed",
