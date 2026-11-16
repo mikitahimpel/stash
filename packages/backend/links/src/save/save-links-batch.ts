@@ -8,13 +8,14 @@ import * as CanonicalizeUrl from "./canonicalize-url.ts";
 import * as SaveRateLimiter from "./save-rate-limiter.ts";
 
 /**
- * Stores the links without rate limiting and returns the stored link for each input, in order. A
+ * Stores the links without rate limiting and returns the stored link for each input, in order,
+ * with whether this call created it (`created: false` for a link that was stored already). A
  * link whose canonical URL is already stored (or appears earlier in the same call) is not saved
  * again: the existing link is returned unchanged. Each newly stored link is enqueued for
  * enrichment. A save attributed to a device (its token, or an input `deviceId` from a caller
  * without one) also becomes that device's latest save.
  */
-export const saveLinks = Effect.fn("saveLinks")(function* (
+export const storeLinks = Effect.fn("storeLinks")(function* (
   principal: Security.Principal,
   inputs: ReadonlyArray<Link.SaveLinkInput>,
 ) {
@@ -32,10 +33,20 @@ export const saveLinks = Effect.fn("saveLinks")(function* (
     createdAt,
   }));
   const stored = yield* repo.insertAll(newLinks);
-  const inserted = stored.filter((link, i) => link.id === newLinks[i]?.id);
+  const inserted = stored.filter((link, i) => isCreated(link, newLinks[i]));
   yield* queue.sendBatch(inserted.map((link) => ({ linkId: link.id })));
-  return stored;
+  return stored.map((link, i) => ({ link, created: isCreated(link, newLinks[i]) }));
 });
+
+/** `storeLinks` without `created`: the stored link for each input, in order. */
+export const saveLinks = (
+  principal: Security.Principal,
+  inputs: ReadonlyArray<Link.SaveLinkInput>,
+) => Effect.map(storeLinks(principal, inputs), (saved) => saved.map(({ link }) => link));
+
+/** Whether `stored` is the link this call inserted, not one stored before (same canonical URL). */
+const isCreated = (stored: Link.Link, inserted: LinksRepo.NewLink | undefined): boolean =>
+  stored.id === inserted?.id;
 
 /** Saves a batch (an import, or "save all" of a window). The whole batch counts as one save. */
 export const saveLinksBatch = Effect.fn("saveLinksBatch")(function* (

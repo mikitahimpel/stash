@@ -184,6 +184,7 @@ describe("login gate", () => {
                   sourceDeviceId: "device-ios",
                   createdAt: new Date().toISOString(),
                   enrichedAt: null,
+                  created: true,
                 },
                 201,
               );

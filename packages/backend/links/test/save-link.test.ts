@@ -39,6 +39,7 @@ describe("saveLink", () => {
         sourceDeviceId: LinksTestLayer.deviceId,
         createdAt: yield* DateTime.now,
         enrichedAt: null,
+        created: true,
       });
       expect(yield* drain).toEqual([{ linkId: saved.id }]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
@@ -55,7 +56,9 @@ describe("saveLink", () => {
         url: url("https://www.example.com/video/?fbclid=abc#comments"),
         title: "Another title",
       });
-      expect(again).toEqual(first);
+      expect(first.created).toBe(true);
+      // Created by the first save, not this one: a client must not offer Undo for it.
+      expect(again).toEqual({ ...first, created: false });
       expect(yield* drain).toEqual([]);
 
       const rows = yield* D1Database.Database.use((db) =>
@@ -139,7 +142,7 @@ describe("saveLink", () => {
 describe("saveLinksBatch", () => {
   it.effect("returns one link per input in order, deduping within the batch and the store", () =>
     Effect.gen(function* () {
-      const existing = yield* SaveLink.saveLink(LinksTestLayer.user, {
+      const { created: _, ...existing } = yield* SaveLink.saveLink(LinksTestLayer.user, {
         url: url("https://example.com/existing"),
       });
       yield* drain;

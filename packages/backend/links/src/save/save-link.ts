@@ -6,7 +6,8 @@ import * as SaveRateLimiter from "./save-rate-limiter.ts";
 
 /**
  * Saves one link and answers right away: enrichment runs later from the queue. Saving a URL whose
- * canonical form is already stored returns the existing link and enqueues nothing.
+ * canonical form is already stored returns the existing link with `created: false` and enqueues
+ * nothing.
  */
 export const saveLink = Effect.fn("saveLink")(function* (
   principal: Security.Principal,
@@ -14,6 +15,7 @@ export const saveLink = Effect.fn("saveLink")(function* (
 ) {
   const limiter = yield* SaveRateLimiter.SaveRateLimiter;
   yield* limiter.consume(principal);
-  const [stored] = yield* SaveLinksBatch.saveLinks(principal, [input]);
-  return stored === undefined ? yield* Effect.die(new Error("saveLinks returned no link")) : stored;
+  const [stored] = yield* SaveLinksBatch.storeLinks(principal, [input]);
+  if (stored === undefined) return yield* Effect.die(new Error("saveLinks returned no link"));
+  return { ...stored.link, created: stored.created };
 });

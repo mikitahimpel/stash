@@ -177,7 +177,7 @@ const groups = (state: State) => {
 
   const links = HttpApiBuilder.group(Api.StashApi, "links", (handlers) =>
     handlers
-      .handle("save", ({ payload }) => Effect.sync(() => save(payload)))
+      .handle("save", ({ payload }) => Effect.sync(() => ({ ...save(payload), created: true })))
       .handle("saveBatch", ({ payload }) => Effect.sync(() => ({ links: payload.links.map(save) })))
       .handle("list", ({ query }) =>
         Effect.sync(() => {
