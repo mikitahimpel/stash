@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type * as Device from "@stash/contracts-domain/device";
 import * as PageOrigin from "@stash/web-platform/page-origin";
+import Disclosure from "@stash/web-ui/disclosure";
 import Step from "@stash/web-ui/step";
 import StepList from "@stash/web-ui/step-list";
 import * as Redacted from "effect/Redacted";
@@ -39,11 +40,22 @@ const done = (created: Device.Device, createdToken: Redacted.Redacted<string> | 
           The Mac needs Node 24 or newer (<span class="text-foreground">brew install node</span>)
           and Safari tabs syncing in iCloud. Paste this in Terminal:
         </p>
-        <CopyValue
-          v-if="token !== undefined"
-          label="Install command"
-          :value="ConnectValues.macInstallCommand(origin, token)"
-        />
+        <template v-if="token !== undefined">
+          <CopyValue
+            label="Install command"
+            :value="ConnectValues.macInstallCommand(origin, token)"
+          />
+          <Disclosure summary="Keep the token out of your shell history">
+            <p class="text-body text-muted-foreground">
+              Run this instead. It asks for the token and hides it as you paste.
+            </p>
+            <CopyValue
+              label="Install command without the token"
+              :value="ConnectValues.macInstallCommandPrompt(origin)"
+            />
+            <CopyValue label="Device token" :value="token" />
+          </Disclosure>
+        </template>
         <p v-else class="text-meta text-muted-foreground">Create the token first.</p>
         <p class="text-body text-muted-foreground">
           The installer prints the Node binary to add under System Settings → Privacy & Security →

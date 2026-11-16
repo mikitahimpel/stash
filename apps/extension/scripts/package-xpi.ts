@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as Fs from "node:fs";
 import * as Path from "node:path";
+import * as XpiInfo from "./xpi-info.ts";
 import * as XpiVersion from "./xpi-version.ts";
 
 const appDir = Path.resolve(import.meta.dirname, "..");
@@ -55,9 +56,11 @@ const hashDir = (dir: string): string => {
   return hash.digest("hex").slice(0, 16);
 };
 
-const copyTo = (source: string) => {
+/** Copies the `.xpi` to `target` and writes whether it is signed beside it (`xpi-info.ts`). */
+const copyTo = (source: string, signed: boolean) => {
   Fs.mkdirSync(Path.dirname(target), { recursive: true });
   Fs.copyFileSync(source, target);
+  Fs.writeFileSync(XpiInfo.infoPath(target), XpiInfo.infoJson(signed));
 };
 
 // `wxt zip` builds `.output/firefox-mv2/` and zips it. The zip of an unsigned build is the `.xpi`.
@@ -68,7 +71,7 @@ const signing =
   (process.env["WEB_EXT_API_KEY"] ?? "") !== "" && (process.env["WEB_EXT_API_SECRET"] ?? "") !== "";
 
 if (Fs.existsSync(cached)) {
-  copyTo(cached);
+  copyTo(cached, true);
   console.log(`package-xpi: signed (cached ${key}) -> ${target}`);
 } else if (signing) {
   // Sign a copy whose manifest carries a fresh version, then keep the result under the build hash.
@@ -97,7 +100,7 @@ if (Fs.existsSync(cached)) {
   }
   Fs.mkdirSync(signedDir, { recursive: true });
   Fs.copyFileSync(Path.join(artifacts, signed), cached);
-  copyTo(cached);
+  copyTo(cached, true);
   console.log(`package-xpi: signed ${version} -> ${target}`);
 } else {
   const zip = Fs.readdirSync(outputDir).find((name) => /^stash-.*-firefox\.zip$/.test(name));
@@ -105,7 +108,7 @@ if (Fs.existsSync(cached)) {
     console.error("package-xpi: wxt zip produced no zip");
     process.exit(1);
   }
-  copyTo(Path.join(outputDir, zip));
+  copyTo(Path.join(outputDir, zip), false);
   console.warn(
     "package-xpi: UNSIGNED (no WEB_EXT_API_KEY / WEB_EXT_API_SECRET). Release Firefox and Zen " +
       `refuse it; see apps/extension/README.md. -> ${target}`,

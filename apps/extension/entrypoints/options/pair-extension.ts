@@ -44,6 +44,13 @@ export const generateCode: Effect.Effect<Pairing.PairingCode> = Effect.sync(() =
   Pairing.PairingCode.make(Base64Url.encode(crypto.getRandomValues(new Uint8Array(32)))),
 );
 
+/**
+ * A short check value of the code: its first four characters. The approve page shows the same,
+ * so the owner can tell this request from one another page started. The web app keeps its own
+ * copy of this rule (contexts share no logic).
+ */
+export const checkValue = (code: Pairing.PairingCode): string => code.slice(0, 4);
+
 /** The page the owner approves on. */
 export const approveUrl = (origin: string, code: Pairing.PairingCode): string =>
   `${origin}/connect/extension?code=${encodeURIComponent(code)}`;
@@ -52,11 +59,18 @@ class InvalidOrigin {
   readonly _tag = "InvalidOrigin";
 }
 
-/** Opens the approval page, waits for the token and saves the config. */
-export const pair = Effect.fnUntraced(function* (input: string) {
+/**
+ * Opens the approval page, waits for the token and saves the config. `onCheck` gets the code's
+ * check value as soon as the page opens, for the options page to show.
+ */
+export const pair = Effect.fnUntraced(function* (
+  input: string,
+  onCheck: (check: string) => void = () => {},
+) {
   const origin = webOrigin(input);
   if (origin === undefined) return yield* Effect.fail(new InvalidOrigin());
   const code = yield* generateCode;
+  onCheck(checkValue(code));
   const tabs = yield* Tabs.Tabs;
   yield* tabs.open(approveUrl(origin, code));
   const apiBaseUrl = `${origin}/api`;
@@ -89,8 +103,8 @@ const message = (error: Effect.Error<ReturnType<typeof pair>>): string => {
 };
 
 /** `pair`, with every failure turned into a message for the page. */
-export const connect = (input: string) =>
-  pair(input).pipe(
+export const connect = (input: string, onCheck?: (check: string) => void) =>
+  pair(input, onCheck).pipe(
     Effect.match({
       onFailure: (error): Result => ({ _tag: "Failed", message: message(error) }),
       onSuccess: (origin): Result => ({ _tag: "Connected", webOrigin: origin }),

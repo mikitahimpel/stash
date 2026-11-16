@@ -32,6 +32,14 @@ export const macInstallCommand = (origin: string, token: string): string =>
   `curl -fsSL ${shellQuote(`${origin}/downloads/install-mac-agent.sh`)} | ` +
   `STASH_URL=${shellQuote(origin)} STASH_DEVICE_TOKEN=${shellQuote(token)} bash`;
 
+/**
+ * The same install without the token in the command: the installer asks for it in the terminal,
+ * hidden (`read -rs`), so it stays out of the shell history.
+ */
+export const macInstallCommandPrompt = (origin: string): string =>
+  `curl -fsSL ${shellQuote(`${origin}/downloads/install-mac-agent.sh`)} | ` +
+  `STASH_URL=${shellQuote(origin)} bash`;
+
 /** The command that stops the Mac agent and removes it. */
 export const macUninstallCommand = (origin: string): string =>
   `curl -fsSL ${shellQuote(`${origin}/downloads/install-mac-agent.sh`)} | bash -s -- --uninstall`;

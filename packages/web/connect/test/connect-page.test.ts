@@ -8,6 +8,7 @@ import {
   mount,
   RouterLinkStub,
 } from "@vue/test-utils";
+import * as Effect from "effect/Effect";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as ConnectAtoms from "../src/connect-atoms.ts";
@@ -30,9 +31,23 @@ const settle = async () => {
   }
 };
 
-const mountPage = async (guide?: ConnectStatus.Source, api = fakeApi()) => {
+/** This deploy's static files: the extension's info, signed or not, or none (404). */
+const downloads = (signed?: boolean) =>
+  PlatformTesting.layerHttpClient((request) =>
+    Effect.succeed(
+      signed !== undefined &&
+        new URL(request.url, "http://localhost").pathname === ConnectAtoms.extensionInfoPath
+        ? Response.json({ signed })
+        : new Response(null, { status: 404 }),
+    ),
+  );
+
+const mountPage = async (guide?: ConnectStatus.Source, api = fakeApi(), signed?: boolean) => {
   registry = ApiTesting.makeRegistry(api.routes, {
-    initialValues: [[ConnectAtoms.clipboard, PlatformTesting.layerClipboard]],
+    initialValues: [
+      [ConnectAtoms.clipboard, PlatformTesting.layerClipboard],
+      [ConnectAtoms.downloads, downloads(signed)],
+    ],
   });
   const wrapper = mount(ConnectPage, {
     attachTo: "body",
@@ -74,6 +89,11 @@ describe("Connect page", () => {
 
     expect(api.calls).toEqual(["register iPhone ios"]);
     expect(wrapper.find("[data-test=created]").text()).toContain("iPhone");
+    expect(
+      wrapper
+        .findAll("[data-test=shortcut-mock] li")
+        .map((row) => row.find("[data-slot=list-row-title]").text()),
+    ).toEqual(["Receive URLs from Share Sheet", "Open URLs"]);
     expect(value(wrapper, "Shortcut URL")).toBe(
       "https://stash.example.com/save?device=device-1&url=",
     );
@@ -123,6 +143,9 @@ describe("Connect page", () => {
     const command = value(wrapper, "Install command");
     expect(command).toContain("'https://stash.example.com/downloads/install-mac-agent.sh'");
     expect(command).toContain("STASH_DEVICE_TOKEN='stash_synthetic_token-1'");
+    // The variant that asks for the token keeps it out of the shell history.
+    expect(value(wrapper, "Install command without the token")).not.toContain("STASH_DEVICE_TOKEN");
+    expect(value(wrapper, "Device token")).toBe("stash_synthetic_token-1");
 
     api.arrive("device-1", recently());
     await vi.waitFor(
@@ -135,9 +158,26 @@ describe("Connect page", () => {
   });
 
   it("offers the extension download from this deploy", async () => {
-    const { wrapper } = await mountPage("extension");
+    const { wrapper } = await mountPage("extension", fakeApi(), true);
     expect(wrapper.find("[data-action=download]").attributes("href")).toBe(
       "https://stash.example.com/downloads/stash-extension.xpi",
+    );
+    expect(wrapper.find("[data-guide=extension]").attributes("data-signed")).toBe("true");
+    expect(wrapper.find("[data-test=install]").text()).toContain("choose Add");
+  });
+
+  it.each([
+    ["the build says it is unsigned", false],
+    ["the build says nothing", undefined],
+  ])("loads an unsigned extension as a temporary add-on when %s", async (_, signed) => {
+    const { wrapper } = await mountPage("extension", fakeApi(), signed);
+    expect(wrapper.find("[data-guide=extension]").attributes("data-signed")).toBe("false");
+    const install = wrapper.find("[data-test=install]").text();
+    expect(install).toContain("isn't signed by Mozilla");
+    expect(install).toContain("Load Temporary Add-on");
+    expect(value(wrapper, "Debugging page")).toBe("about:debugging#/runtime/this-firefox");
+    expect(wrapper.find("[data-guide=extension]").text()).toContain(
+      "xpinstall.signatures.required",
     );
   });
 

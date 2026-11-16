@@ -41,7 +41,8 @@ describe("Connect extension page", () => {
     await wrapper.find("form").trigger("submit");
     await settle();
 
-    expect(api.calls).toEqual(["register Work Zen zen", `approve ${code} device-1`]);
+    expect(wrapper.find("[data-test=check-code]").text()).toBe("cccc");
+    expect(api.calls).toEqual([`approve ${code} device-1 Work Zen`]);
     expect(wrapper.find("[data-test=approved]").text()).toContain("Work Zen");
     expect(wrapper.find("[data-test=waiting]").exists()).toBe(true);
 
@@ -55,7 +56,7 @@ describe("Connect extension page", () => {
     );
   });
 
-  it("says when the code expired", async () => {
+  it("says when the code was already used", async () => {
     const api = fakeApi();
     const { wrapper } = await mountPage(
       { code },
@@ -64,13 +65,14 @@ describe("Connect extension page", () => {
         routes: {
           ...api.routes,
           "POST /pairings": () =>
-            ApiTesting.json({ _tag: "NotFound", resource: "pairing", id: "code" }, 404),
+            ApiTesting.json({ _tag: "Conflict", message: "This pairing code is used" }, 409),
         },
       },
     );
     await wrapper.find("form").trigger("submit");
     await settle();
-    expect(wrapper.find("[role=alert]").text()).toContain("expired or was already used");
+    expect(wrapper.find("[role=alert]").text()).toContain("already used");
+    expect(api.devices).toEqual([]);
   });
 
   it("asks for a code when it has none", async () => {

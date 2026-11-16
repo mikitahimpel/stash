@@ -4,6 +4,7 @@ import { TriangleAlert } from "@lucide/vue";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Pairing from "@stash/contracts-domain/pairing";
 import Button from "@stash/web-ui/button";
+import DeviceCode from "@stash/web-ui/device-code";
 import EmptyState from "@stash/web-ui/empty-state";
 import Input from "@stash/web-ui/input";
 import PageHeader from "@stash/web-ui/page-header";
@@ -15,6 +16,7 @@ import * as Schema from "effect/Schema";
 import { computed, ref } from "vue";
 import { RouterLink } from "vue-router";
 import * as ConnectAtoms from "../connect-atoms.ts";
+import * as PairingCheck from "./pairing-check.ts";
 import GuideWait from "../guides/guide-wait.vue";
 
 // `/connect/extension?code=…`: the extension opened this tab with a one-time code. Approving
@@ -42,11 +44,9 @@ const submit = async () => {
     device.value = exit.value;
     return;
   }
-  const tag = Option.getOrUndefined(Option.map(Exit.findErrorOption(exit), (e) => e._tag));
-  error.value =
-    tag === "NotFound" || tag === "Conflict"
-      ? "This code expired or was already used. Choose Connect in the extension again."
-      : "Couldn't approve the extension. Try again.";
+  error.value = Option.exists(Exit.findErrorOption(exit), (e) => e._tag === "Conflict")
+    ? "This code was already used. Choose Connect in the extension again."
+    : "Couldn't approve the extension. Try again.";
 };
 </script>
 
@@ -72,7 +72,18 @@ const submit = async () => {
       </EmptyState>
     </div>
     <StepList v-else>
-      <Step :number="1" title="Name this browser and approve it" :done="device !== undefined">
+      <Step :number="1" title="Check the code">
+        <p class="text-body text-muted-foreground">
+          The extension's settings show the same four characters. If they differ, close this tab:
+          another page asked to connect.
+        </p>
+        <div class="flex sm:max-w-sm">
+          <DeviceCode label="Check code" data-test="check-code">{{
+            PairingCheck.checkValue(code)
+          }}</DeviceCode>
+        </div>
+      </Step>
+      <Step :number="2" title="Name this browser and approve it" :done="device !== undefined">
         <p v-if="device !== undefined" data-test="approved" class="text-body text-muted-foreground">
           Approved “{{ device.name }}”. You can close this tab once it says Connected.
         </p>
@@ -92,7 +103,7 @@ const submit = async () => {
         </form>
         <p v-if="error" role="alert" class="text-meta text-destructive">{{ error }}</p>
       </Step>
-      <Step :number="2" title="The extension signs in">
+      <Step :number="3" title="The extension signs in">
         <GuideWait
           v-if="device !== undefined"
           :awaited="{ _tag: 'Device', deviceId: device.id }"

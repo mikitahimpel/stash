@@ -15,14 +15,24 @@ describe("/save page", () => {
         const body = payload as { url: string; title?: string };
         saved.push(body);
         return ApiTesting.json(
-          Fixtures.link("s", { url: body.url, title: body.title ?? null }),
+          Fixtures.link("s", {
+            url: body.url,
+            title: body.title ?? null,
+            createdAt: new Date().toISOString(),
+          }),
           201,
         );
       }),
     "GET /links": () => Fixtures.page([]),
+    "DELETE /links/:id": (_, { id }) => {
+      removed.push(id ?? "");
+      return new Response(null, { status: 204 });
+    },
   };
+  const removed: Array<string> = [];
   afterEach(() => {
     saved.length = 0;
+    removed.length = 0;
   });
 
   it("saves the link from a Shortcut once, with its device, and says so", async () => {
@@ -32,6 +42,25 @@ describe("/save page", () => {
     );
     await vi.waitFor(() => expect(wrapper.text()).toContain("Saved ✓"));
     expect(saved).toEqual([{ url: "https://example.com/a?b=1&c=2", deviceId: "device-ios" }]);
+    // The host shows, so a save another page asked for is visible.
+    expect(wrapper.text()).toContain("example.com");
+  });
+
+  it("undoes the save in one tap", async () => {
+    const { wrapper } = await mountAt("/save?url=https://example.com/unwanted", routes);
+    await vi.waitFor(() => expect(wrapper.find("[data-action=undo]").exists()).toBe(true));
+    await wrapper.find("[data-action=undo]").trigger("click");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Removed"));
+    expect(removed).toEqual(["s"]);
+  });
+
+  it("offers no Undo when the link was stored before", async () => {
+    const { wrapper } = await mountAt("/save?url=https://example.com/old", {
+      ...routes,
+      "POST /links": () => ApiTesting.json(Fixtures.link("old"), 201),
+    });
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Already saved ✓"));
+    expect(wrapper.find("[data-action=undo]").exists()).toBe(false);
   });
 
   it("shows the bookmarklet's title", async () => {

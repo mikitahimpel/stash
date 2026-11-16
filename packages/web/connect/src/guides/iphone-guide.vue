@@ -2,8 +2,12 @@
 import { useAtomSet } from "@effect/atom-vue";
 import type * as Device from "@stash/contracts-domain/device";
 import * as PageOrigin from "@stash/web-platform/page-origin";
+import { Globe, Share } from "@lucide/vue";
 import Button from "@stash/web-ui/button";
+import Card from "@stash/web-ui/card";
 import Disclosure from "@stash/web-ui/disclosure";
+import ListRow from "@stash/web-ui/list-row";
+import ListRowTitle from "@stash/web-ui/list-row-title";
 import Step from "@stash/web-ui/step";
 import StepList from "@stash/web-ui/step-list";
 import * as Exit from "effect/Exit";
@@ -18,6 +22,8 @@ import SetUpStep from "./set-up-step.vue";
 // iPhone / iPad: a two-action Shortcut in the Share sheet that opens `/save` in Safari. Advanced:
 // a Shortcut that posts with a token, and a bookmarklet for any browser.
 const origin = PageOrigin.pageOrigin();
+const shortcutLabel =
+  "The Shortcut: Receive URLs from Share Sheet, then Open URLs with the address below and the Shortcut Input";
 const device = ref<Device.Device>();
 
 const createToken = useAtomSet(() => ConnectAtoms.createToken, { mode: "promiseExit" });
@@ -50,19 +56,31 @@ const makeToken = async () => {
       />
       <Step :number="2" title="Make the Shortcut">
         <template v-if="device !== undefined">
-          <ol class="flex list-inside list-decimal flex-col gap-1 text-body text-muted-foreground">
-            <li>
-              In <span class="text-foreground">Shortcuts</span>, tap + and name it “Save to Stash”.
-            </li>
-            <li>
-              In its details, turn on <span class="text-foreground">Show in Share Sheet</span> and
-              accept URLs and Safari web pages.
-            </li>
-            <li>
-              Add <span class="text-foreground">Open URLs</span>. Paste this address, then add the
-              <span class="text-foreground">Shortcut Input</span> variable right after “url=”:
-            </li>
-          </ol>
+          <p class="text-body text-muted-foreground">
+            In <span class="text-foreground">Shortcuts</span>, tap +, name it “Save to Stash”, and
+            in its details turn on <span class="text-foreground">Show in Share Sheet</span>. Then
+            add these two actions:
+          </p>
+          <Card data-test="shortcut-mock" v-bind="{ role: 'img', 'aria-label': shortcutLabel }">
+            <ul>
+              <ListRow as="li">
+                <template #leading><Share :size="16" aria-hidden="true" /></template>
+                <template #title
+                  ><ListRowTitle>Receive URLs from Share Sheet</ListRowTitle></template
+                >
+                <template #meta><span>URLs and Safari web pages</span></template>
+              </ListRow>
+              <ListRow as="li">
+                <template #leading><Globe :size="16" aria-hidden="true" /></template>
+                <template #title><ListRowTitle>Open URLs</ListRowTitle></template>
+                <template #meta><span>the address below, then Shortcut Input</span></template>
+              </ListRow>
+            </ul>
+          </Card>
+          <p class="text-body text-muted-foreground">
+            In Open URLs, paste this address, then add the
+            <span class="text-foreground">Shortcut Input</span> variable right after “url=”:
+          </p>
           <CopyValue label="Shortcut URL" :value="ConnectValues.shortcutUrl(origin, device.id)" />
         </template>
         <p v-else class="text-body text-muted-foreground">Create the device first.</p>

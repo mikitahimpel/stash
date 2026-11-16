@@ -12,6 +12,10 @@ shows one command to paste in Terminal:
 curl -fsSL 'https://<stash>/downloads/install-mac-agent.sh' | STASH_URL='https://<stash>' STASH_DEVICE_TOKEN='<token>' bash
 ```
 
+To keep the token out of your shell history, leave `STASH_DEVICE_TOKEN=…` out: the script then
+asks for the token in the terminal and hides it as you paste (`read -rs`). The Connect page offers
+both commands.
+
 It needs only Node 24 or newer (`brew install node`). The script (`install-standalone.sh`, served
 as `install-mac-agent.sh`) downloads the bundled agent (`/downloads/stash-mac-agent.mjs`, built by
 `pnpm --filter @stash/mac-agent bundle`) to `~/Library/Application Support/stash-mac-agent/`,

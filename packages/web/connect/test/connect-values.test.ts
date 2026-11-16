@@ -40,4 +40,11 @@ describe("Connect guide values", () => {
       "https://stash.example.com/downloads/stash-extension.xpi",
     );
   });
+
+  it("installs the Mac agent without the token in the command", () => {
+    expect(ConnectValues.macInstallCommandPrompt("https://stash.example.com")).toBe(
+      "curl -fsSL 'https://stash.example.com/downloads/install-mac-agent.sh' | " +
+        "STASH_URL='https://stash.example.com' bash",
+    );
+  });
 });

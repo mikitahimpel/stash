@@ -10,5 +10,6 @@ const runtime = ManagedRuntime.make(Live.layer);
 createApp(OptionsPage, {
   load: () => runtime.runPromise(SaveConfig.load),
   save: (input: SaveConfig.Input) => runtime.runPromise(SaveConfig.submit(input)),
-  connect: (webOrigin: string) => runtime.runPromise(PairExtension.connect(webOrigin)),
+  connect: (webOrigin: string, onCheck: (check: string) => void) =>
+    runtime.runPromise(PairExtension.connect(webOrigin, onCheck)),
 }).mount("#app");

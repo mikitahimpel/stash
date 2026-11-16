@@ -6,12 +6,14 @@ import type * as SaveConfig from "./save-config.ts";
 const props = defineProps<{
   load: () => Promise<string>;
   save: (input: SaveConfig.Input) => Promise<SaveConfig.Result>;
-  connect: (webOrigin: string) => Promise<PairExtension.Result>;
+  connect: (webOrigin: string, onCheck: (check: string) => void) => Promise<PairExtension.Result>;
 }>();
 
 const webOrigin = ref("");
 const connecting = ref(false);
 const connected = ref<PairExtension.Result | null>(null);
+// The pairing code's check value, which the Stash approve page shows too.
+const check = ref<string>();
 
 const apiBaseUrl = ref("");
 const deviceToken = ref("");
@@ -26,8 +28,9 @@ onMounted(async () => {
 const connect = async () => {
   connecting.value = true;
   connected.value = null;
+  check.value = undefined;
   try {
-    connected.value = await props.connect(webOrigin.value);
+    connected.value = await props.connect(webOrigin.value, (value) => (check.value = value));
   } finally {
     connecting.value = false;
   }
@@ -69,6 +72,10 @@ const submit = async () => {
     </form>
     <p v-if="connecting" role="status">
       Approve this browser in the Stash tab that just opened. Keep this page open.
+      <template v-if="check">
+        Check that it shows the code <strong>{{ check }}</strong
+        >.
+      </template>
     </p>
     <p v-else-if="connected?._tag === 'Connected'" role="status">
       Connected to {{ connected.webOrigin }}. Save a tab with Alt+Shift+S.

@@ -66,12 +66,17 @@ describe("options page: pair with the web app", () => {
   it.effect("opens the approval page, polls the claim and saves the token", () => {
     const api = fakeApi();
     return Effect.gen(function* () {
-      const fiber = yield* Effect.forkChild(PairExtension.connect("stash.example.com"));
+      const checks: Array<string> = [];
+      const fiber = yield* Effect.forkChild(
+        PairExtension.connect("stash.example.com", (check) => checks.push(check)),
+      );
       yield* TestClock.adjust("1 second");
 
       const opened = (yield* (yield* Testing.TestTabs).all).at(-1)?.url ?? "";
       expect(opened).toMatch(/^https:\/\/stash\.example\.com\/connect\/extension\?code=[\w-]{43}$/);
       const code = new URL(opened).searchParams.get("code");
+      // The options page shows the same check value as the approve page.
+      expect(checks).toEqual([code?.slice(0, 4)]);
 
       yield* TestClock.adjust("4 seconds");
       api.approve();

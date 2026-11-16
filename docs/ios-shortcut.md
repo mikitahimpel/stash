@@ -9,7 +9,7 @@ arrives. This page is the reference behind it.
 1. In **Shortcuts**, create a shortcut and turn on **Show in Share Sheet** (in **ⓘ**). Accept
    **URLs** and **Safari web pages**.
 2. **Receive URLs from Share Sheet** (the first block).
-3. **Open URL** with `https://<stash>/save?device=<device id>&url=` followed by the **Shortcut
+3. **Open URLs** with `https://<stash>/save?device=<device id>&url=` followed by the **Shortcut
    Input** variable.
 
 Sharing a page opens `/save` in Safari. Safari is signed in to Stash, so the page saves the link
@@ -53,7 +53,7 @@ device's token in **Settings → API tokens** if the phone is lost.
 
 | Symptom | Fix |
 |---|---|
-| `/save` says **Nothing to save** | The Open URL action must end in `url=` followed by **Shortcut Input** |
+| `/save` says **Nothing to save** | The Open URLs action must end in `url=` followed by **Shortcut Input** |
 | `/save` asks to sign in every time | Safari blocks the cookie, for example in Private Browsing. Sign in in a normal tab |
 | **Too many saves** | Wait a minute and share again |
 | Advanced: `"_tag": "Unauthorized"` | The **Text** action must be `Bearer`, one space, the token. Create a new token if it was revoked |

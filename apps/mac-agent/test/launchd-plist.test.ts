@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as Plist from "plist";
@@ -107,6 +108,17 @@ describe("standalone installer", () => {
 
   it("refuses to run without the address or the token", () => {
     expect(() => run(["--print"], { ...values, STASH_URL: "" })).toThrow();
-    expect(() => run(["--print"], { ...values, STASH_DEVICE_TOKEN: "" })).toThrow();
+    expect(() =>
+      run(["--print"], { ...values, STASH_DEVICE_TOKEN: "", STASH_TOKEN_TTY: "/nonexistent" }),
+    ).toThrow();
+  });
+
+  it("asks for the token in the terminal when it is not in env", () => {
+    const tty = join(mkdtempSync(join(tmpdir(), "stash-tty-")), "tty");
+    writeFileSync(tty, "stash_synthetic_typed_token\n");
+    const plist = Plist.parse(
+      run(["--print"], { ...values, STASH_DEVICE_TOKEN: "", STASH_TOKEN_TTY: tty }),
+    ) as { EnvironmentVariables: Record<string, string> };
+    expect(plist.EnvironmentVariables["STASH_DEVICE_TOKEN"]).toBe("stash_synthetic_typed_token");
   });
 });

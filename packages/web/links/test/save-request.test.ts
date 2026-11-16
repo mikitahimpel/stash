@@ -1,3 +1,4 @@
+import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "@effect/vitest";
 import * as SaveRequest from "../src/save/save-request.ts";
 
@@ -55,5 +56,13 @@ describe("/save address", () => {
       url: "https://example.com/a?b=1&c=2",
       title: "A & B",
     });
+  });
+
+  it("tells a link this save stored from one stored before", () => {
+    const now = DateTime.makeUnsafe("2026-02-01T12:00:00Z");
+    expect(SaveRequest.isFresh(DateTime.makeUnsafe("2026-02-01T11:59:30Z"), now)).toBe(true);
+    // A client clock a little behind the api's.
+    expect(SaveRequest.isFresh(DateTime.makeUnsafe("2026-02-01T12:01:00Z"), now)).toBe(true);
+    expect(SaveRequest.isFresh(DateTime.makeUnsafe("2026-01-31T12:00:00Z"), now)).toBe(false);
   });
 });

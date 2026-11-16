@@ -5,6 +5,11 @@
 #
 #   curl -fsSL https://<stash>/downloads/install-mac-agent.sh | STASH_URL=https://<stash> STASH_DEVICE_TOKEN=<token> bash
 #
+# Without STASH_DEVICE_TOKEN it asks for the token in the terminal, hidden (`read -rs`), so the
+# token stays out of the shell history:
+#
+#   curl -fsSL https://<stash>/downloads/install-mac-agent.sh | STASH_URL=https://<stash> bash
+#
 # It downloads the agent to ~/Library/Application Support/stash-mac-agent/, writes a launchd user
 # agent that runs it with Node at login, and starts it. The token goes into that plist, readable
 # only by you (mode 600). Stop and remove it with:
@@ -15,7 +20,8 @@
 #   --uninstall  stop the agent and remove the plist and the agent (logs and state stay)
 #
 # Env: STASH_URL (the web app's address), STASH_DEVICE_TOKEN, and optionally NODE_BIN,
-# STASH_AGENT_HOME, STASH_AGENT_LOG_DIR, LAUNCH_AGENTS_DIR.
+# STASH_AGENT_HOME, STASH_AGENT_LOG_DIR, LAUNCH_AGENTS_DIR, STASH_TOKEN_TTY (where the prompt reads
+# the token from, /dev/tty by default: stdin is this script when piped from curl).
 set -euo pipefail
 
 LABEL="com.stash.mac-agent"
@@ -95,6 +101,15 @@ esac
 
 [[ -n "$NODE_BIN" ]] || die "Node.js not found. Install Node 24 or newer (brew install node), then run this again."
 [[ "$STASH_URL" =~ ^https?:// ]] || die "set STASH_URL to your Stash address, for example https://stash.example.com"
+if [[ -z "${STASH_DEVICE_TOKEN:-}" ]]; then
+  tty="${STASH_TOKEN_TTY:-/dev/tty}"
+  if { exec 3<"$tty"; } 2>/dev/null; then
+    printf 'Paste the device token from the Connect page (hidden), then press Return: ' >&2
+    IFS= read -rs STASH_DEVICE_TOKEN <&3 || true
+    exec 3<&-
+    echo >&2
+  fi
+fi
 [[ -n "${STASH_DEVICE_TOKEN:-}" ]] || die "set STASH_DEVICE_TOKEN (create one on the Connect page)"
 
 if [[ "${1:-}" == "--print" ]]; then

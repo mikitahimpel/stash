@@ -1,3 +1,4 @@
+import * as DateTime from "effect/DateTime";
 import * as Device from "@stash/contracts-domain/device";
 import * as Link from "@stash/contracts-domain/link";
 import * as Schema from "effect/Schema";
@@ -82,3 +83,10 @@ export const address = (
   ];
   return `${origin}/save?${params.join("&")}`;
 };
+
+/**
+ * Whether a link the api answered was stored by this save, not before: created within two minutes
+ * of `now` (room for clock skew). A repeat save answers the stored link, which Undo must not delete.
+ */
+export const isFresh = (createdAt: DateTime.Utc, now: DateTime.Utc): boolean =>
+  Math.abs(DateTime.toEpochMillis(now) - DateTime.toEpochMillis(createdAt)) <= 2 * 60_000;
