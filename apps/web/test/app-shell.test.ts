@@ -98,15 +98,19 @@ describe("app router", () => {
 });
 
 describe("auth guard", () => {
-  it.each(["/links", "/search", "/open-now", "/settings"])(
-    "redirects %s to the login page when logged out",
-    async (path) => {
-      const { wrapper, router } = await mountApp(path, false);
-      expect(router.currentRoute.value.name).toBe("login");
-      expect(wrapper.find("nav").exists()).toBe(false);
-      expect(wrapper.find("main button").text()).toBe("Sign in with GitHub");
-    },
-  );
+  it.each([
+    "/links",
+    "/search",
+    "/open-now",
+    "/connect",
+    "/settings",
+    "/save?url=https://example.com/a",
+  ])("redirects %s to the login page when logged out", async (path) => {
+    const { wrapper, router } = await mountApp(path, false);
+    expect(router.currentRoute.value.name).toBe("login");
+    expect(wrapper.find("nav").exists()).toBe(false);
+    expect(wrapper.find("main button").text()).toBe("Sign in with GitHub");
+  });
 
   it("renders the page when signed in", async () => {
     const { wrapper, router } = await mountApp("/settings");
@@ -136,6 +140,68 @@ describe("login gate", () => {
     );
     expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/open-now");
     expect(wrapper.find("nav").exists()).toBe(false);
+  });
+
+  it("sends a signed-out /save through the login page and back, then saves the link once", async () => {
+    let signedIn = false;
+    const saved: Array<unknown> = [];
+    const path = "/save?device=device-ios&url=https://example.com/a?b=1&c=2";
+    const { wrapper, router } = await mountWith(
+      {
+        "GET /auth/me": () => (signedIn ? user() : ApiTesting.unauthorized()),
+        "POST /auth/device/start": () =>
+          ApiTesting.json({
+            flowId: "flow-1",
+            userCode: "WDJB-MJHT",
+            verificationUri: "https://github.com/login/device",
+            expiresIn: 900,
+            interval: 1,
+          }),
+        "POST /auth/device/poll": () => {
+          signedIn = true;
+          return ApiTesting.json({ status: "complete", me: { kind: "user" } });
+        },
+        "POST /links": (request) =>
+          Effect.map(
+            Effect.sync(() =>
+              request.body._tag === "Uint8Array"
+                ? JSON.parse(new TextDecoder().decode(request.body.body))
+                : null,
+            ),
+            (body) => {
+              saved.push(body);
+              return ApiTesting.json(
+                {
+                  id: "link-1",
+                  url: "https://example.com/a?b=1&c=2",
+                  canonicalUrl: null,
+                  title: null,
+                  status: "new",
+                  type: null,
+                  summary: null,
+                  language: null,
+                  tags: [],
+                  sourceDeviceId: "device-ios",
+                  createdAt: new Date().toISOString(),
+                  enrichedAt: null,
+                },
+                201,
+              );
+            },
+          ),
+      },
+      path,
+    );
+    expect(router.currentRoute.value.name).toBe("login");
+    expect(router.currentRoute.value.query["redirect"]).toBe(path);
+    expect(saved).toEqual([]);
+
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(path), {
+      timeout: 10_000,
+    });
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Saved ✓"), { timeout: 10_000 });
+    expect(saved).toEqual([{ url: "https://example.com/a?b=1&c=2", deviceId: "device-ios" }]);
   });
 
   it("goes to the login page when GET /tabs answers 401 while /auth/me is cached as ok", async () => {

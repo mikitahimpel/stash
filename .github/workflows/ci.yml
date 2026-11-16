@@ -39,3 +39,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @stash/web exec playwright install --with-deps chromium
       - run: pnpm --filter @stash/web audit:layout
+      # The Connect guides end to end on the same build and fixtures, one page at a time.
+      - run: pnpm --filter @stash/web walk:connect

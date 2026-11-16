@@ -4,15 +4,12 @@
 // desktop (1440) and phone (390) width against the rules in `layout-audit-rules.ts`: control
 // heights, phone hit areas, controls on one row, content edges, cards, gaps and mono text. It prints
 // a table of violations and exits 1 if there is any. One browser, one page at a time.
-import { type ChildProcess, spawn } from "node:child_process";
-import * as Http from "node:http";
-import * as Path from "node:path";
 import { chromium, type Page } from "playwright";
 import { probe } from "./layout-audit-probe.ts";
 import { audit, type Violation } from "./layout-audit-rules.ts";
 import * as Fixtures from "./layout-fixtures.ts";
+import * as PreviewServer from "./preview-server.ts";
 
-const appDir = Path.resolve(import.meta.dirname, "..");
 const port = Number(process.env["STASH_AUDIT_PORT"] ?? 4179);
 const baseUrl = `http://localhost:${port}`;
 
@@ -118,36 +115,6 @@ const views: ReadonlyArray<View> = [
   },
 ];
 
-// node:http keeps the script off the `fetch` global, which oxlint reserves for platform packages.
-const status = (url: string): Promise<number> =>
-  new Promise((resolve) => {
-    const req = Http.get(url, (res) => {
-      res.resume();
-      resolve(res.statusCode ?? 0);
-    });
-    req.on("error", () => resolve(0));
-  });
-
-const serve = async (): Promise<ChildProcess | undefined> => {
-  if ((await status(`${baseUrl}/login`)) === 200) return undefined;
-  const child = spawn(
-    "node_modules/.bin/vite",
-    ["preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
-    { cwd: appDir, stdio: ["ignore", "pipe", "pipe"], detached: true },
-  );
-  let output = "";
-  child.stdout?.on("data", (chunk: Buffer) => (output += chunk.toString()));
-  child.stderr?.on("data", (chunk: Buffer) => (output += chunk.toString()));
-  const deadline = Date.now() + 60_000;
-  while ((await status(`${baseUrl}/login`)) !== 200) {
-    if (Date.now() > deadline || child.exitCode !== null) {
-      throw new Error(`vite preview didn't start (run \`vite build\` first?)\n${output}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  return child;
-};
-
 const answer = (page: Page, data: View["data"]) => {
   const fixtures = data === "seeded" ? Fixtures.seeded(Date.now()) : Fixtures.empty;
   return page.route("**/api/**", (route) => {
@@ -175,7 +142,7 @@ const table = (rows: ReadonlyArray<ReadonlyArray<string>>) => {
 };
 
 const main = async () => {
-  const server = await serve();
+  const server = await PreviewServer.serve(port);
   const browser = await chromium.launch();
   const found: Array<readonly [string, Violation | LoadFailure]> = [];
   try {

@@ -80,7 +80,13 @@ Feature behavior is tested in `packages/web/*`.
   and phone) against the control tokens, content edges and spacing scale; see "Layout audit" in
   [docs/design.md](../../docs/design.md#layout-audit). Its rules are `scripts/layout-audit-rules.ts`
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
-  `scripts/layout-fixtures.ts`.
+  `scripts/layout-fixtures.ts`. Both it and the Connect walk serve the build with
+  `scripts/preview-server.ts`.
+- `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
+  job runs it after the audit): walks each Connect guide, the extension approve page and `/save`
+  in headless Chromium, one page at a time, against `Fixtures.connectable` (the seeded api plus
+  the writes the guides make). Each guide creates its device or token, shows the prefilled values
+  and turns to "Connected ✓" once the fixture reports the first save, check-in or use.
 - `test/feature-classes.test.ts`: scans the templates of `apps/web` and the feature packages for
   classes that style controls or rows (see `packages/web/CLAUDE.md`, "Rules").
 - The theme atoms live in `@stash/web-settings/theme-atoms`, shared by the account menu's theme switch and
