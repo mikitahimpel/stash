@@ -82,6 +82,11 @@ Feature behavior is tested in `packages/web/*`.
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
   `scripts/layout-fixtures.ts`. Both it and the Connect walk serve the build with
   `scripts/preview-server.ts`.
+- `scripts/build-memo.ts`: the inputs of the build as the `memo.include` globs of the `Web`
+  resource, the one module this app exports (`@stash/web/build-memo`, for `alchemy.run.ts`). A
+  `../` glob is not filtered by `.gitignore`, so each one names real inputs and never a whole app
+  (`../extension/**` walks `node_modules`). `test/build-memo.test.ts` checks it. Add a glob here
+  when `build:deploy` starts to read a new place.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
   job runs it after the audit): walks each Connect guide, the extension approve page and `/save`
   in headless Chromium, one page at a time, against `Fixtures.connectable` (the seeded api plus

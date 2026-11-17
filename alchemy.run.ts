@@ -6,6 +6,7 @@
 // comes from CLOUDFLARE_ACCOUNT_ID or the Alchemy profile, used only by `alchemy deploy`.
 // `alchemy dev` emulates every resource here locally and needs no credentials.
 import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as BuildMemo from "@stash/web/build-memo";
 import * as Alchemy from "alchemy";
 import * as D1State from "./alchemy-d1-state.ts";
 import * as State from "alchemy/State";
@@ -239,24 +240,9 @@ export default Alchemy.Stack(
       // Bindings must match `WorkerEnv` in apps/web/src/web-worker.ts.
       env: { API: api },
       assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
-      // Rebuild when the app or a web package it bundles changes (gitignored files stay excluded).
-      // A deploy also rebuilds the downloads when the extension or the Mac agent changes. `alchemy
-      // dev` builds neither, and hashing their trees would slow every start.
-      memo: {
-        include: [
-          "**/*",
-          "../../packages/web/*/src/**",
-          ...(dev
-            ? []
-            : [
-                "../extension/**",
-                "../../packages/extension/*/src/**",
-                "../mac-agent/**",
-                "../../packages/contracts/*/src/**",
-              ]),
-        ],
-        lockfile: true,
-      },
+      // Rebuild when an input of the build changes. The globs, and why they must stay narrow, are
+      // in apps/web/scripts/build-memo.ts.
+      memo: { include: BuildMemo.include(dev), lockfile: true },
       dev: { host: webHost, port: webPort },
     });
 
