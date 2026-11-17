@@ -4,6 +4,10 @@
 -- filled by enrichment. The web shows the remote URL; nothing proxies or stores the image.
 ALTER TABLE links ADD COLUMN image_url TEXT;
 
+-- How many times the hourly cron sent a still-pending link to the enrichment queue again. The
+-- cron stops at a cap (`EnrichPolicy.maxRequeues`), and a successful enrichment resets it.
+ALTER TABLE links ADD COLUMN enrichment_attempts INTEGER NOT NULL DEFAULT 0;
+
 -- A YouTube video's thumbnail needs no fetch: the canonical URL holds the 11-character video id
 -- (`https://youtube.com/watch?v=<id>`, see `canonicalize-url.ts`), so every stored video gets its
 -- image here.
@@ -16,7 +20,8 @@ UPDATE links
 -- tags such as `unclassified`. The statements below put every link with those symptoms back into
 -- the "not enriched yet" state. The hourly `requeuePending` cron step (see
 -- `apps/api/src/scheduled-handler.ts`) then sends them through the fixed pipeline. All of it is
--- idempotent: a second run matches nothing.
+-- idempotent: a second run matches nothing. The summary patterns are narrow on purpose; a link
+-- they match by mistake only costs one more classifier call.
 
 UPDATE links
   SET summary = NULL, enriched_at = NULL, enrichment_error = NULL
@@ -28,16 +33,15 @@ UPDATE links
       OR lower(summary) LIKE '%could not be determined%'
       OR lower(summary) LIKE '%can''t be determined%'
       OR lower(summary) LIKE '%unable to determine%'
-      OR lower(summary) LIKE '%impossible to determine%'
-      OR lower(summary) LIKE '%were unavailable%'
-      OR lower(summary) LIKE '%was unavailable%'
-      OR lower(summary) LIKE '%is unavailable%'
-      OR lower(summary) LIKE '%are unavailable%'
-      OR lower(summary) LIKE '%not available%'
-      OR lower(summary) LIKE '%could not be fetched%'
-      OR lower(summary) LIKE '%could not be retrieved%'
-      OR summary LIKE '%евозможно определить%'
-      OR summary LIKE '%е удалось определить%'
+      OR lower(summary) LIKE '%title were unavailable%'
+      OR lower(summary) LIKE '%text was unavailable%'
+      OR lower(summary) LIKE '%content is unavailable%'
+      OR lower(summary) LIKE '%content was unavailable%'
+      OR lower(summary) LIKE '%content is not available%'
+      OR lower(summary) LIKE '%content could not be fetched%'
+      OR lower(summary) LIKE '%text could not be fetched%'
+      OR summary LIKE '%евозможно определить тему%'
+      OR summary LIKE '%е удалось определить тему%'
       OR EXISTS (
         SELECT 1 FROM link_tags lt JOIN tags t ON t.id = lt.tag_id
         WHERE lt.link_id = links.id AND t.name IN (

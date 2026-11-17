@@ -17,3 +17,21 @@ export const fetchContent = (
     onNone: () => FetchPageText.fetchPageText(url),
     onSome: FetchYoutubeContent.fetchYoutubeContent,
   });
+
+/**
+ * What is known of a link with no request at all: a YouTube video's thumbnail, and otherwise
+ * nothing. For a link whose fetches keep failing.
+ */
+export const withoutFetch = (url: string): Option.Option<ContentText.ContentText> =>
+  FetchYoutubeContent.target(url).pipe(
+    Option.filter((target) => target._tag === "Video"),
+    Option.map((target) => ({
+      title: Option.none(),
+      description: Option.none(),
+      author: Option.none(),
+      imageUrl: Option.some(FetchYoutubeContent.thumbnailUrl(target.id)),
+      language: Option.none(),
+      text: "",
+      source: "metadata" as const,
+    })),
+  );

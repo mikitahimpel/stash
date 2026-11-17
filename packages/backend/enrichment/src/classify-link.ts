@@ -114,6 +114,7 @@ export const userMessage = (input: ClassifyInput): string => {
   const lines = [`URL: ${input.url}`];
   const title = input.title.pipe(
     Option.orElse(() => Option.flatMap(input.content, (content) => content.title)),
+    Option.filter((value) => !JunkFilter.isSiteNameTitle(value)),
   );
   if (Option.isSome(title)) lines.push(`Title: ${title.value}`);
   if (Option.isSome(input.content)) {

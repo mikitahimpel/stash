@@ -13,6 +13,7 @@ import * as ClassifyLink from "./classify-link.ts";
 import type * as ContentHttp from "./content-http.ts";
 import * as ContentText from "./content-text.ts";
 import * as EmbedLink from "./embed-link.ts";
+import * as EnrichPolicy from "./enrich-policy.ts";
 import * as EnrichmentRepo from "./enrichment-repo.ts";
 import * as FetchContent from "./fetch-content.ts";
 import * as JunkFilter from "./junk-filter.ts";
@@ -25,6 +26,9 @@ import * as StoreText from "./store-text.ts";
 // - Transient failures (timeouts, rate limits, outages, D1 / R2 / Vectorize errors) are retried
 //   in place on a `Schedule` (see `ContentHttp.FetchPolicy` and `EnrichPolicy`) and then fail, so
 //   the queue delivers the message again.
+// - That does not go on forever: after `EnrichPolicy.maxRequeues` requeues by the cron (see
+//   `requeue-pending.ts`) the content is no longer fetched, and the link is classified from its
+//   URL and title.
 // - Permanent failures never fail: content that cannot be fetched (404, a PDF, …) is classified
 //   from its URL and title, and a classification the model refuses or cannot produce marks the
 //   link with `enrichment_error`.
@@ -93,7 +97,12 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       return { _tag: "Skipped" } as const;
     }
 
-    const content = yield* fetchContent(link.url);
+    // The cron's last requeue: stop fetching, so the link is done whatever its site answers.
+    const policy = yield* EnrichPolicy.EnrichPolicy;
+    const content =
+      link.enrichmentAttempts >= policy.maxRequeues
+        ? FetchContent.withoutFetch(link.url)
+        : yield* fetchContent(link.url);
     const text = Option.match(content, { onNone: () => "", onSome: (c) => c.text });
     if (text !== "") yield* StoreText.storeText(id, text);
 

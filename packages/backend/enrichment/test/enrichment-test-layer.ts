@@ -35,7 +35,8 @@ CREATE TABLE links (
   source_device_id TEXT REFERENCES devices (id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   enriched_at TEXT,
-  image_url TEXT
+  image_url TEXT,
+  enrichment_attempts INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);
@@ -118,8 +119,8 @@ export const layer = (
 export const noDelays = <A, E, R>(self: Effect.Effect<A, E, R>) =>
   self.pipe(
     Effect.provideService(EnrichPolicy.EnrichPolicy, {
+      ...EnrichPolicy.defaultPolicy,
       retrySchedule: Schedule.forever,
-      retries: 2,
     }),
     Effect.provideService(ContentHttp.FetchPolicy, {
       ...ContentHttp.defaultPolicy,

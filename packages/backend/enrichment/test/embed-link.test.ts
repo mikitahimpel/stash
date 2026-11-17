@@ -50,8 +50,8 @@ describe("embedLink", () => {
     return Effect.gen(function* () {
       yield* EmbedLink.embedLink(id, input).pipe(
         Effect.provideService(EnrichPolicy.EnrichPolicy, {
+          ...EnrichPolicy.defaultPolicy,
           retrySchedule: Schedule.forever,
-          retries: 2,
         }),
       );
       expect(calls).toBe(3);

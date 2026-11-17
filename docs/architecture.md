@@ -133,7 +133,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 ## Data model (initial)
 
-- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), source_device_id, created_at, enriched_at
+- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), source_device_id, created_at, enriched_at, enrichment_error, enrichment_attempts (requeues by the hourly cron, capped)
 - `tags`, `link_tags`
 - `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)

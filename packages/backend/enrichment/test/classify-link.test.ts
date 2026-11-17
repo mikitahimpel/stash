@@ -8,8 +8,8 @@ import * as EnrichPolicy from "../src/enrich-policy.ts";
 import * as FakeLanguageModel from "./fake-language-model.ts";
 
 const noDelays = Effect.provideService(EnrichPolicy.EnrichPolicy, {
+  ...EnrichPolicy.defaultPolicy,
   retrySchedule: Schedule.forever,
-  retries: 2,
 });
 
 const russian: ClassifyLink.ClassifyInput = {

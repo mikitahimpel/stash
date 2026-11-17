@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as JunkFilter from "../src/junk-filter.ts";
 
 describe("JunkFilter.isSiteNameTitle", () => {
-  it.each(["- YouTube", " - YouTube ", "YouTube", "youtube", "– YouTube", "| Example", " - ", ""])(
+  it.each(["- YouTube", " - YouTube ", "YouTube", "youtube", "– YouTube", "YouTube |", " - ", ""])(
     "rejects %j",
     (title) => {
       expect(JunkFilter.isSiteNameTitle(title)).toBe(true);
@@ -14,6 +14,9 @@ describe("JunkFilter.isSiteNameTitle", () => {
     "How YouTube ranks videos",
     "Example",
     "-1 is a number",
+    "- My notes",
+    "— Заметки",
+    "| Example",
     "Как работает инфляция",
   ])("keeps %j", (title) => {
     expect(JunkFilter.isSiteNameTitle(title)).toBe(false);
@@ -53,6 +56,14 @@ describe("JunkFilter.isMetaSummary", () => {
     "Объяснение инфляции простыми словами.",
     "A talk on making services available in several regions.",
     "Why the feature is not available in Europe, and what to use instead.",
+    // Real summaries a looser filter took for junk (review of #150).
+    "Full details are available in the linked documentation.",
+    "The text of the specification is available on GitHub.",
+    "An outage report: users were unable to access their accounts for three hours.",
+    "How to design pages without content layout shifts.",
+    "Explains why the root cause could not be determined by the incident team.",
+    "It is impossible to determine a particle's position and momentum at once.",
+    "Объясняет, почему невозможно определить точное время события.",
   ])("keeps %j", (summary) => {
     expect(JunkFilter.isMetaSummary(summary)).toBe(false);
   });
