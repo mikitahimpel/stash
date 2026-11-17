@@ -91,7 +91,7 @@ curl -sf http://localhost:8791/links    # the SPA's index.html (SPA fallback)
 ```
 
 - `Web` runs `pnpm run build` in `apps/web` (memoized on the app, the `packages/web/*` sources and
-  the lockfile) and serves `apps/web/dist` from a local Worker. `/api/*` goes to the local `Api`
+  the lockfile, see `apps/web/scripts/build-memo.ts`) and serves `apps/web/dist` from a local Worker. `/api/*` goes to the local `Api`
   through the Service Binding (`curl -sf http://localhost:8791/api/health`), as on deploy. Unknown
   paths fall back to `index.html` (`notFoundHandling: "single-page-application"`), so client
   routes load.

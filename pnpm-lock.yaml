@@ -260,6 +260,9 @@ catalogs:
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
+    tinyglobby:
+      specifier: 0.2.17
+      version: 0.2.17
     turbo:
       specifier: 2.11.10
       version: 2.11.10
@@ -305,6 +308,9 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.6(effect@4.0.6)(redis@6.3.0)
+      '@stash/web':
+        specifier: workspace:*
+        version: link:apps/web
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -671,6 +677,9 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
       typescript:
         specifier: catalog:vue
         version: 6.0.3

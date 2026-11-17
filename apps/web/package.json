@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
-  "exports": {},
+  "exports": {
+    "./build-memo": "./scripts/build-memo.ts"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
@@ -47,6 +49,7 @@
     "oxlint": "catalog:",
     "playwright": "catalog:",
     "tailwindcss": "catalog:",
+    "tinyglobby": "catalog:",
     "typescript": "catalog:vue",
     "vite": "catalog:",
     "vitest": "catalog:",
