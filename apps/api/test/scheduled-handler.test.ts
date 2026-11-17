@@ -2,6 +2,7 @@
 // and links repos and in-memory platform layers, and each cron expression runs its job. The jobs
 // themselves are tested in `@stash/backend-digest`.
 import * as DigestsRepo from "@stash/backend-digest/digests-repo";
+import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
@@ -49,6 +50,7 @@ const layer = ScheduledHandler.layer.pipe(
       DevicesRepo.layer,
       LinksRepo.layer,
       DigestsRepo.layer,
+      EnrichmentRepo.layer,
     ),
   ),
   Layer.provideMerge(
@@ -84,6 +86,17 @@ describe("handleScheduled", () => {
       yield* ScheduledHandler.handleScheduled(ScheduledHandler.weeklyDigestCron);
       expect(yield* count("digests")).toBe(1);
       expect(yield* count("commands")).toBe(0);
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("requeues links still waiting for enrichment on its cron", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(DateTime.toEpochMillis(runAt));
+      yield* ScheduledHandler.handleScheduled(ScheduledHandler.requeuePendingCron);
+      const messages = yield* Testing.TestEnrichmentQueue.use((queue) => queue.drain);
+      expect(messages).toEqual([{ linkId: "link-1" }]);
+      expect(yield* count("commands")).toBe(0);
+      expect(yield* count("digests")).toBe(0);
     }).pipe(Effect.provide(layer)),
   );
 

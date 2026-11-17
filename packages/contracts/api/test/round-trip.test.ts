@@ -49,6 +49,7 @@ const makeLink = (
   tags: input.tags ?? [],
   sourceDeviceId,
   createdAt: now,
+  imageUrl: null,
   enrichedAt: null,
 });
 

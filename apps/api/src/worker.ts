@@ -77,7 +77,8 @@ const enrichment = QueueHandler.layer.pipe(
   Layer.provide(platform),
 );
 
-// The cron jobs: auto-archive of stale Zen tabs and the weekly digest.
+// The cron jobs: auto-archive of stale Zen tabs, the weekly digest, and the requeue of links still
+// waiting for enrichment.
 const scheduledJobs = ScheduledHandler.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -86,6 +87,7 @@ const scheduledJobs = ScheduledHandler.layer.pipe(
       DevicesRepo.layer,
       LinksRepo.layer,
       DigestsRepo.layer,
+      EnrichmentRepo.layer,
     ),
   ),
   Layer.provideMerge(platform),

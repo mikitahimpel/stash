@@ -11,7 +11,7 @@ packages implement it.
 | Package | Name | Contents |
 |---|---|---|
 | `links/` | `@stash/backend-links` | Save, list and filter, get, patch, delete, batch import, rate limit |
-| `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text, YouTube transcripts to R2), classifier (Claude via `@effect/ai`), embedder, queue consumer |
+| `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text and preview image, YouTube oEmbed metadata and transcripts, text to R2), classifier (Claude via `@effect/ai`) with a junk filter, embedder, queue consumer, hourly requeue of pending links |
 | `search/` | `@stash/backend-search` | FTS5 keyword search and Vectorize semantic search behind one `SearchService` (hybrid) |
 | `tabs/` | `@stash/backend-tabs` | Open-tab snapshots, devices, remote commands |
 | `auth/` | `@stash/backend-auth` | GitHub Device Flow login and sessions, API tokens (per device, or a user token such as the MCP connector's `Claude (MCP)`; only hashes stored), the internal mint endpoint, auth middleware |

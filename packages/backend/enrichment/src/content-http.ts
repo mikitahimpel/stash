@@ -32,7 +32,14 @@ export const FetchPolicy = Context.Reference<Policy>("@stash/backend-enrichment/
 
 export class ContentFetchError extends Data.TaggedError("ContentFetchError")<{
   readonly url: string;
-  readonly reason: "Timeout" | "Transport" | "Status" | "Decode" | "UnsupportedContentType";
+  /** `Blocked`: the site answered with a consent or bot-check page instead of the content. */
+  readonly reason:
+    | "Timeout"
+    | "Transport"
+    | "Status"
+    | "Decode"
+    | "UnsupportedContentType"
+    | "Blocked";
   /** The response status, for `Status`. */
   readonly status?: number;
   readonly cause?: unknown;

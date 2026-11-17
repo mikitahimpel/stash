@@ -309,7 +309,7 @@ const run = Effect.gen(function* () {
     const e = yield* embed(
       EmbedLink.embeddingText({
         title: content.title,
-        summary: c.summary,
+        summary: Option.getOrElse(c.summary, () => ""),
         tags: c.tags,
         text: content.text,
       }),

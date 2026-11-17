@@ -24,7 +24,8 @@ CREATE TABLE links (
   text TEXT,
   source_device_id TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  enriched_at TEXT
+  enriched_at TEXT,
+  image_url TEXT
 );
 
 CREATE TABLE tags (

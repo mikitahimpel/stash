@@ -18,6 +18,11 @@ describe("list_links", () => {
         Fixtures.bare.id,
       ]);
       assert.match(result.content[0]!.text, /^3 links, newest first:\n- A video about economics/);
+      // Each link carries its preview image, `null` when it has none.
+      assert.deepStrictEqual(
+        result.structuredContent.items.map((link: any) => link.imageUrl),
+        ["https://example.com/videos/economics.jpg", null, null],
+      );
     }).pipe(Effect.provide(McpClient.layer(Fixtures.seed))),
   );
 

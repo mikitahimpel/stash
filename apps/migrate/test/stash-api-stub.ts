@@ -74,6 +74,7 @@ export const layer = (
           tags: [],
           sourceDeviceId: null,
           createdAt: now,
+          imageUrl: null,
           enrichedAt: null,
         };
         links.set(input.url, link);

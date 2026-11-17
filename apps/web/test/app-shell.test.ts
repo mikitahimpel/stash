@@ -183,6 +183,7 @@ describe("login gate", () => {
                   tags: [],
                   sourceDeviceId: "device-ios",
                   createdAt: new Date().toISOString(),
+                  imageUrl: null,
                   enrichedAt: null,
                   created: true,
                 },

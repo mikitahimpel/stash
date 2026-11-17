@@ -2,18 +2,21 @@ import type * as Ai from "@stash/backend-platform/ai";
 import type * as Blobs from "@stash/backend-platform/blobs";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as Vectors from "@stash/backend-platform/vectors";
-import type * as Link from "@stash/contracts-domain/link";
+import * as Link from "@stash/contracts-domain/link";
 import type * as LanguageModel from "effect/ai/LanguageModel";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as ClassifyLink from "./classify-link.ts";
 import type * as ContentHttp from "./content-http.ts";
 import * as ContentText from "./content-text.ts";
 import * as EmbedLink from "./embed-link.ts";
+import * as EnrichPolicy from "./enrich-policy.ts";
 import * as EnrichmentRepo from "./enrichment-repo.ts";
 import * as FetchContent from "./fetch-content.ts";
+import * as JunkFilter from "./junk-filter.ts";
 import * as StoreText from "./store-text.ts";
 
 // The enrichment pipeline for one link: fetch → classify → embed → store.
@@ -23,9 +26,16 @@ import * as StoreText from "./store-text.ts";
 // - Transient failures (timeouts, rate limits, outages, D1 / R2 / Vectorize errors) are retried
 //   in place on a `Schedule` (see `ContentHttp.FetchPolicy` and `EnrichPolicy`) and then fail, so
 //   the queue delivers the message again.
+// - That does not go on forever: after `EnrichPolicy.maxRequeues` requeues by the cron (see
+//   `requeue-pending.ts`) the content is no longer fetched, and the link is classified from its
+//   URL and title.
 // - Permanent failures never fail: content that cannot be fetched (404, a PDF, …) is classified
 //   from its URL and title, and a classification the model refuses or cannot produce marks the
 //   link with `enrichment_error`.
+// - A link with no text gets its title, tags and type, and a `null` summary (or the page's own
+//   description), never the model's prose about nothing. Placeholder tags are dropped (see
+//   `junk-filter.ts`). A title that is
+//   only the site's name ("- YouTube") is no title, whether a page or the saving client gave it.
 
 /** The keyword-search excerpt kept in `links.text`. The full text is in R2. */
 export const maxSearchTextLength = 20_000;
@@ -60,6 +70,10 @@ export type Requirements =
   | Vectors.Vectors
   | Blobs.Blobs;
 
+const decodeUrl = Schema.decodeUnknownOption(Link.Url);
+
+const usableTitle = Option.filter((title: string) => !JunkFilter.isSiteNameTitle(title));
+
 const fetchContent = (url: string) =>
   FetchContent.fetchContent(url).pipe(
     Effect.map(Option.some),
@@ -84,13 +98,21 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       return { _tag: "Skipped" } as const;
     }
 
-    const content = yield* fetchContent(link.url);
+    // The cron's last requeue: stop fetching, so the link is done whatever its site answers.
+    const policy = yield* EnrichPolicy.EnrichPolicy;
+    const content =
+      link.enrichmentAttempts >= policy.maxRequeues
+        ? FetchContent.withoutFetch(link.url)
+        : yield* fetchContent(link.url);
     const text = Option.match(content, { onNone: () => "", onSome: (c) => c.text });
     if (text !== "") yield* StoreText.storeText(id, text);
 
-    const title = Option.fromNullishOr(link.title).pipe(
-      Option.orElse(() => Option.flatMap(content, (c) => c.title)),
-      Option.map((t) => ContentText.truncate(t, maxTitleLength)),
+    const staleTitle = Option.fromNullishOr(link.title).pipe(
+      Option.filter(JunkFilter.isSiteNameTitle),
+    );
+    const title = usableTitle(Option.fromNullishOr(link.title)).pipe(
+      Option.orElse(() => usableTitle(Option.flatMap(content, (c) => c.title))),
+      Option.map((t) => ContentText.truncate(t.trim(), maxTitleLength)),
     );
     const classified = yield* ClassifyLink.classifyLink({ url: link.url, title, content }).pipe(
       Effect.map(Option.some),
@@ -114,7 +136,7 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
 
     yield* EmbedLink.embedLink(id, {
       title,
-      summary: classification.summary,
+      summary: Option.getOrElse(classification.summary, () => ""),
       tags: classification.tags,
       text,
     });
@@ -122,12 +144,18 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
     const now = yield* DateTime.now;
     yield* repo.save(id, {
       title: Option.getOrNull(title),
-      summary: classification.summary,
+      staleTitle: Option.getOrNull(staleTitle),
+      summary: Option.getOrNull(classification.summary),
       type: classification.type,
       language: Option.getOrNull(
         Option.orElse(classification.language, () => Option.flatMap(content, (c) => c.language)),
       ),
       text: text === "" ? null : ContentText.truncate(text, maxSearchTextLength),
+      imageUrl: content.pipe(
+        Option.flatMap((c) => c.imageUrl),
+        Option.flatMap(decodeUrl),
+        Option.getOrNull,
+      ),
       tags: classification.tags,
       enrichedAt: DateTime.formatIso(now),
     });

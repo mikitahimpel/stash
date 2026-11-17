@@ -30,6 +30,8 @@ const content = (
   Option.some({
     title: Option.none(),
     description: Option.none(),
+    author: Option.none(),
+    imageUrl: Option.none(),
     language: Option.none(),
     source: "page",
     ...fields,
@@ -243,7 +245,7 @@ const run = Effect.gen(function* () {
     rows.push(
       `| ${smoke.name} | ${c.type}${typeOk ? "" : ` (≠ ${smoke.expectedType})`} | ` +
         `${language}${languageOk ? "" : ` (≠ ${smoke.expectedLanguage})`} | ` +
-        `${cell(c.tags.join(", "))} | ${cell(c.summary)} | ${tokens} | ${latency} |`,
+        `${cell(c.tags.join(", "))} | ${cell(Option.getOrElse(c.summary, () => "(none)"))} | ${tokens} | ${latency} |`,
     );
   }
 

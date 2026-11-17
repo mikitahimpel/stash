@@ -49,7 +49,7 @@ other stages the storage gets Alchemy's derived names (`stash-<LogicalId>-<stage
 
 | Logical id | Cloudflare resource | Notes |
 |---|---|---|
-| `Api` | Worker `stash-api` | `fetch`, `queue` and `scheduled` handlers. Cron Triggers `0 3 * * *` and `0 6 * * 1` (UTC) |
+| `Api` | Worker `stash-api` | `fetch`, `queue` and `scheduled` handlers. Cron Triggers `0 3 * * *`, `0 6 * * 1` and `0 * * * *` (UTC) |
 | `Mcp` | Worker `stash-mcp` | Service Binding `API` → `stash-api` |
 | `Web` | Worker `stash-web` | Workers Static Assets with SPA fallback, and a Worker (`apps/web/src/web-worker.ts`) that runs only for `/api` and `/api/*`: it forwards them to `stash-api` through the Service Binding `API`, with the `/api` prefix stripped. The SPA calls `/api` on its own origin |
 | `Database` | D1 database | `apps/api/migrations` applied on every deploy, tracked in `__alchemy_migrations` |

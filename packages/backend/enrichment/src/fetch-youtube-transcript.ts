@@ -18,9 +18,12 @@ import * as HtmlText from "./html-text.ts";
 // 3. Fetch the track's `baseUrl`. It answers with timedtext XML, either `<text>` cues (format 1)
 //    or `<p>` cues (format 3). The cue texts, joined, are the transcript.
 //
-// YouTube changes this markup without notice and sometimes refuses timedtext requests. Any failure
-// after step 1 (no tracks, a failed or empty caption fetch) falls back to the description, so a
-// video always gets some text. Only a failed watch page fails the whole fetch.
+// This is best effort. To data-center addresses (Cloudflare's among them) YouTube often answers
+// the watch page with a consent or bot-check page: a 200 with no video in it. That fails as
+// `Blocked`, and nothing of that page is used, least of all its `<title>` ("- YouTube"). The
+// title comes from oEmbed instead (see `fetch-youtube-content.ts`). YouTube also changes this
+// markup without notice and sometimes refuses timedtext requests: any failure after step 1 (no
+// tracks, a failed or empty caption fetch) falls back to the description.
 
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 
@@ -31,6 +34,21 @@ const youtubeHosts = new Set([
   "music.youtube.com",
   "www.youtube-nocookie.com",
 ]);
+
+const playlistIdPattern = /^[A-Za-z0-9_-]{10,64}$/;
+
+/**
+ * The playlist id of a YouTube playlist page (`/playlist?list=<id>`), if it is one. A video opened
+ * inside a playlist (`/watch?v=…&list=…`) is a video.
+ */
+export const playlistId = (url: string): Option.Option<string> => {
+  if (!URL.canParse(url)) return Option.none();
+  const parsed = new URL(url);
+  if (!youtubeHosts.has(parsed.hostname.toLowerCase())) return Option.none();
+  if (parsed.pathname.replace(/\/+$/, "") !== "/playlist") return Option.none();
+  const id = parsed.searchParams.get("list");
+  return id !== null && playlistIdPattern.test(id) ? Option.some(id) : Option.none();
+};
 
 /** The video id of a YouTube URL (`watch`, `shorts`, `embed`, `live`, `youtu.be`), if it is one. */
 export const videoId = (url: string): Option.Option<string> => {
@@ -150,27 +168,40 @@ export const parseTimedText = (xml: string): string => {
 const nonEmpty = (text: string | undefined): Option.Option<string> =>
   text === undefined || text.trim() === "" ? Option.none() : Option.some(text.trim());
 
+/** What the watch page gave: the transcript, or the description when there are no captions. */
+export interface Transcript {
+  readonly title: Option.Option<string>;
+  readonly description: Option.Option<string>;
+  /** The caption track's language, or a guess from the text. */
+  readonly language: Option.Option<string>;
+  /** `""` when the video has neither captions nor a description. */
+  readonly text: string;
+  readonly source: "transcript" | "description";
+}
+
 /**
  * Fetches a YouTube video's transcript, falling back to its description (see the comment at the
- * top of this module). `language` is the caption track's language, or a guess from the text.
+ * top of this module). A consent or bot-check page in place of the video fails as `Blocked`.
  */
 export const fetchYoutubeTranscript = (
   id: string,
-): Effect.Effect<ContentText.ContentText, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
+): Effect.Effect<Transcript, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
   Effect.gen(function* () {
     const policy = yield* ContentHttp.FetchPolicy;
-    const page = yield* ContentHttp.getText(watchUrl(id), {
+    const url = watchUrl(id);
+    const page = yield* ContentHttp.getText(url, {
       "accept-language": "en",
       // Skips the EU cookie-consent interstitial, which has no player response.
       cookie: "CONSENT=YES+1",
     });
     const player = parsePlayerResponse(page.body);
     const details = player.pipe(Option.flatMapNullishOr((p) => p.videoDetails));
-    const title = details.pipe(
-      Option.flatMap((d) => nonEmpty(d.title)),
-      Option.orElse(() => HtmlText.parse(page.body).title),
-    );
-    const description = details.pipe(Option.flatMap((d) => nonEmpty(d.shortDescription)));
+    // No video in the page: a consent page, a bot check, or markup this parser no longer knows.
+    if (Option.isNone(details)) {
+      return yield* new ContentHttp.ContentFetchError({ url, reason: "Blocked" });
+    }
+    const title = nonEmpty(details.value.title);
+    const description = nonEmpty(details.value.shortDescription);
     const audioLanguage = player.pipe(
       Option.flatMapNullishOr(
         (p) => p.microformat?.playerMicroformatRenderer?.defaultAudioLanguage,

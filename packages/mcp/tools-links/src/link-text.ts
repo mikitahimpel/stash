@@ -39,7 +39,12 @@ export const details = (link: EncodedLink) =>
     link.tags.length === 0 ? null : `Tags: ${link.tags.join(", ")}`,
     link.language === null ? null : `Language: ${link.language}`,
     `Saved: ${link.createdAt}`,
-    link.summary === null ? "Not enriched yet." : `Summary: ${link.summary}`,
+    link.imageUrl === null ? null : `Image: ${link.imageUrl}`,
+    link.enrichedAt === null
+      ? "Not enriched yet."
+      : link.summary === null
+        ? null
+        : `Summary: ${link.summary}`,
   ]
     .filter((field) => field !== null)
     .join("\n");

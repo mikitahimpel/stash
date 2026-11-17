@@ -10,7 +10,7 @@ const isHtml = (contentType: string) =>
   contentType === "" || contentType.includes("text/html") || contentType.includes("xhtml");
 
 /**
- * Fetches a web page and extracts its title, description and readable text. HTML is parsed,
+ * Fetches a web page and extracts its title, description, preview image and readable text. HTML is parsed,
  * `text/plain` is taken as is, and other content types (PDF, images, …) fail with
  * `UnsupportedContentType`.
  */
@@ -28,6 +28,8 @@ export const fetchPageText = (
       return {
         title: page.title,
         description: page.description,
+        author: Option.none(),
+        imageUrl: Option.flatMap(page.image, (image) => ContentText.resolveImageUrl(image, url)),
         language: DetectLanguage.detect(text, Option.getOrUndefined(page.lang)),
         text,
         source: "page" as const,
@@ -38,6 +40,8 @@ export const fetchPageText = (
       return {
         title: Option.none(),
         description: Option.none(),
+        author: Option.none(),
+        imageUrl: Option.none(),
         language: DetectLanguage.detect(text),
         text,
         source: "page" as const,

@@ -189,9 +189,10 @@ export default Alchemy.Stack(
         ...optional("ANTHROPIC_API_KEY", anthropicApiKey),
         SMOKE_ROUTES: dev ? "on" : "off",
       },
-      // Auto-archive of stale Zen tabs (daily) and the weekly digest (Mondays), in UTC. Must match
-      // the expressions in apps/api/src/scheduled-handler.ts, which dispatches on them.
-      crons: ["0 3 * * *", "0 6 * * 1"],
+      // Auto-archive of stale Zen tabs (daily), the weekly digest (Mondays) and the requeue of links
+      // still waiting for enrichment (hourly), in UTC. Must match the expressions in
+      // apps/api/src/scheduled-handler.ts, which dispatches on them.
+      crons: ["0 3 * * *", "0 6 * * 1", "0 * * * *"],
       dev: { host, port, strictPort: true },
     });
 

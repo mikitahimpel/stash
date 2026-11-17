@@ -35,6 +35,28 @@ describe("FetchYoutubeTranscript.videoId", () => {
   });
 });
 
+describe("FetchYoutubeTranscript.playlistId", () => {
+  it.each([
+    `https://www.youtube.com/playlist?list=${Fixtures.playlistId}`,
+    `https://youtube.com/playlist/?list=${Fixtures.playlistId}&si=abc`,
+    `https://m.youtube.com/playlist?list=${Fixtures.playlistId}`,
+    `https://music.youtube.com/playlist?list=${Fixtures.playlistId}`,
+  ])("finds the id in %s", (url) => {
+    expect(FetchYoutubeTranscript.playlistId(url)).toEqual(Option.some(Fixtures.playlistId));
+  });
+
+  it.each([
+    // A video opened inside a playlist is a video.
+    `https://www.youtube.com/watch?v=${id}&list=${Fixtures.playlistId}`,
+    `https://example.com/playlist?list=${Fixtures.playlistId}`,
+    "https://www.youtube.com/playlist",
+    "https://www.youtube.com/playlist?list=a b",
+    "not a url",
+  ])("rejects %s", (url) => {
+    expect(FetchYoutubeTranscript.playlistId(url)).toEqual(Option.none());
+  });
+});
+
 describe("FetchYoutubeTranscript helpers", () => {
   it("extracts a JSON object with braces inside strings", () => {
     expect(
@@ -125,21 +147,19 @@ describe("FetchYoutubeTranscript.fetchYoutubeTranscript", () => {
     ),
   );
 
-  it.effect("keeps the page title when the player response is missing", () =>
+  it.effect("fails as Blocked on a consent page, without using its title", () =>
     Effect.gen(function* () {
-      const content = yield* FetchYoutubeTranscript.fetchYoutubeTranscript(id);
-      expect(content).toEqual({
-        title: Option.some("Consent - YouTube"),
-        description: Option.none(),
-        language: Option.none(),
-        text: "",
-        source: "description",
-      });
-    }).pipe(
-      Effect.provide(
-        FakeHttp.layer({ [watch]: { body: "<html><title>Consent - YouTube</title></html>" } }),
-      ),
-    ),
+      const error = yield* FetchYoutubeTranscript.fetchYoutubeTranscript(id).pipe(Effect.flip);
+      expect(error.reason).toBe("Blocked");
+      expect(error.isTransient).toBe(false);
+    }).pipe(Effect.provide(FakeHttp.layer({ [watch]: { body: Fixtures.consentPage } }))),
+  );
+
+  it.effect("fails as Blocked on a bot check, whose player response has no video", () =>
+    Effect.gen(function* () {
+      const error = yield* FetchYoutubeTranscript.fetchYoutubeTranscript(id).pipe(Effect.flip);
+      expect(error.reason).toBe("Blocked");
+    }).pipe(Effect.provide(FakeHttp.layer({ [watch]: { body: Fixtures.botCheckPage } }))),
   );
 
   it.effect("fails when the watch page fails", () =>

@@ -246,3 +246,150 @@ describe("links_fts", () => {
     db.exec("INSERT INTO links_fts (links_fts) VALUES ('integrity-check')");
   });
 });
+
+describe("migration 0006: preview images and the repair of junk enrichments (#147)", () => {
+  const enriched = "2026-01-01T00:01:00.000Z";
+  const junkSummary =
+    "The page text and title were unavailable, so the topic of this YouTube video cannot be determined.";
+
+  // Links as they were stored before the fix, on the schema before the migration.
+  const seeded = (): DatabaseSync => {
+    const before = new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
+    for (const file of migrationFiles.filter((name) => prefix(name) < 6)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    const insert = before.prepare(
+      `INSERT INTO links (id, url, canonical_url, title, summary, enriched_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    const video = (id: string) => `https://youtube.com/watch?v=${id}`;
+    insert.run(
+      "junk-title",
+      "https://youtu.be/aaaaaaaaaaa",
+      video("aaaaaaaaaaa"),
+      "- YouTube",
+      junkSummary,
+      enriched,
+    );
+    insert.run(
+      "no-title",
+      "https://youtu.be/bbbbbbbbbbb",
+      video("bbbbbbbbbbb"),
+      null,
+      "Something.",
+      enriched,
+    );
+    insert.run(
+      "junk-summary",
+      "https://example.com/a",
+      "https://example.com/a",
+      "A page",
+      "The topic could not be determined.",
+      enriched,
+    );
+    insert.run(
+      "junk-tag",
+      "https://example.com/b",
+      "https://example.com/b",
+      "B page",
+      "A fine summary.",
+      enriched,
+    );
+    insert.run(
+      "good-video",
+      "https://youtu.be/ccccccccc_-",
+      video("ccccccccc_-"),
+      "A Synthetic Video",
+      "A talk about parsers.",
+      enriched,
+    );
+    insert.run(
+      "good-page",
+      "https://example.com/c",
+      "https://example.com/c",
+      "C page",
+      "A fine summary.",
+      enriched,
+    );
+    insert.run("not-enriched", "https://example.com/d", "https://example.com/d", null, null, null);
+    insert.run(
+      "playlist",
+      "https://youtube.com/playlist?list=PLaaaaaaaaaaaaaaaa",
+      "https://youtube.com/playlist?list=PLaaaaaaaaaaaaaaaa",
+      "A list",
+      "A fine summary.",
+      enriched,
+    );
+    before.exec(`
+      INSERT INTO tags (name) VALUES ('unclassified'), ('missing title'), ('economics');
+      INSERT INTO link_tags (link_id, tag_id)
+        SELECT 'junk-tag', id FROM tags;
+      INSERT INTO link_tags (link_id, tag_id)
+        SELECT 'good-page', id FROM tags WHERE name = 'economics';
+    `);
+    return before;
+  };
+
+  const migration = Fs.readFileSync(
+    `${migrationsDir}${migrationFiles.find((name) => prefix(name) === 6)}`,
+    "utf8",
+  );
+
+  const rows = (database: DatabaseSync) =>
+    Object.fromEntries(
+      database
+        .prepare("SELECT id, title, summary, image_url, enriched_at FROM links")
+        .all()
+        .map((row) => [String(row["id"]), row]),
+    );
+
+  it("gives every stored YouTube video its thumbnail", () => {
+    const database = seeded();
+    database.exec(migration);
+    const after = rows(database);
+    expect(after["junk-title"]?.["image_url"]).toBe(
+      "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg",
+    );
+    expect(after["good-video"]?.["image_url"]).toBe(
+      "https://i.ytimg.com/vi/ccccccccc_-/hqdefault.jpg",
+    );
+    for (const id of ["junk-summary", "good-page", "playlist", "not-enriched"]) {
+      expect(after[id]?.["image_url"]).toBeNull();
+    }
+  });
+
+  it("puts links with the symptoms back into the not-enriched state, and only those", () => {
+    const database = seeded();
+    database.exec(migration);
+    const after = rows(database);
+    for (const id of ["junk-title", "no-title", "junk-summary", "junk-tag"]) {
+      expect(after[id]).toMatchObject({ summary: null, enriched_at: null });
+    }
+    expect(after["junk-title"]?.["title"]).toBeNull();
+    expect(after["junk-summary"]?.["title"]).toBe("A page");
+    for (const id of ["good-video", "good-page", "playlist"]) {
+      expect(after[id]).toMatchObject({ enriched_at: enriched });
+      expect(after[id]?.["summary"]).not.toBeNull();
+    }
+    // The placeholder tags are gone, real ones stay.
+    expect(database.prepare("SELECT name FROM tags ORDER BY name").all()).toEqual([
+      { name: "economics" },
+    ]);
+    expect(database.prepare("SELECT link_id FROM link_tags ORDER BY link_id").all()).toEqual([
+      { link_id: "good-page" },
+      { link_id: "junk-tag" },
+    ]);
+    // The keyword index follows: the junk summary is no longer found.
+    expect(search(database, "unavailable")).toEqual([]);
+    database.exec("INSERT INTO links_fts (links_fts) VALUES ('integrity-check')");
+  });
+
+  it("is idempotent: its repair statements match nothing the second time", () => {
+    const database = seeded();
+    database.exec(migration);
+    const first = rows(database);
+    // Everything after the ALTER TABLE, which D1 never runs twice.
+    database.exec(migration.slice(migration.indexOf("UPDATE links")));
+    expect(rows(database)).toEqual(first);
+  });
+});

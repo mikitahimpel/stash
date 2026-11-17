@@ -1,6 +1,8 @@
 import * as AutoArchiveTabs from "@stash/backend-digest/auto-archive-tabs";
 import * as BuildWeeklyDigest from "@stash/backend-digest/build-weekly-digest";
 import type * as DigestsRepo from "@stash/backend-digest/digests-repo";
+import type * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
+import * as RequeuePending from "@stash/backend-enrichment/requeue-pending";
 import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
@@ -19,6 +21,12 @@ export const autoArchiveCron = "0 3 * * *";
 /** Every Monday at 06:00: the digest of the week that ended at midnight. */
 export const weeklyDigestCron = "0 6 * * 1";
 
+/**
+ * Every hour: send links that are still not enriched through the enrichment queue again. It picks
+ * up lost messages, and links a migration reset for repair (#147).
+ */
+export const requeuePendingCron = "0 * * * *";
+
 /** Runs the jobs for one cron trigger. */
 export class ScheduledJobs extends Context.Service<
   ScheduledJobs,
@@ -30,7 +38,7 @@ export const layerNoop: Layer.Layer<ScheduledJobs> = Layer.succeed(ScheduledJobs
   run: (cron) => Effect.log(`scheduled: ${cron} has no jobs`),
 });
 
-/** The services the digest jobs need. */
+/** The services the jobs need. */
 export type Requirements =
   | StashConfig.StashConfig
   | OpenTabsRepo.OpenTabsRepo
@@ -38,11 +46,13 @@ export type Requirements =
   | DevicesRepo.DevicesRepo
   | LinksRepo.LinksRepo
   | EnrichmentQueue.EnrichmentQueue
-  | DigestsRepo.DigestsRepo;
+  | DigestsRepo.DigestsRepo
+  | EnrichmentRepo.EnrichmentRepo;
 
 const jobs: Record<string, Effect.Effect<unknown, unknown, Requirements>> = {
   [autoArchiveCron]: AutoArchiveTabs.autoArchiveTabs(),
   [weeklyDigestCron]: BuildWeeklyDigest.buildWeeklyDigest(),
+  [requeuePendingCron]: RequeuePending.requeuePending(),
 };
 
 /** Dispatches each trigger to its job by cron expression. An unknown expression only logs. */
