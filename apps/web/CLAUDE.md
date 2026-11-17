@@ -100,6 +100,10 @@ Feature behavior is tested in `packages/web/*`.
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
   dropped from the production build) showing every `@stash/web-ui` primitive in every size, side
   by side in a grid, with a theme switch
+- `src/mockups/*`: the dev-only mockups of #148 (`/_mockups/inbox`, `/_mockups/search`,
+  `/_mockups/search-empty`, in `devRoutes`): static pages on made-up data, built from the kit,
+  captured by `scripts/mockup-screenshots.ts` (`pnpm --filter @stash/web screenshots:mockups`) into
+  `docs/screenshots/mockups/`. They go once the real pages have the approved design.
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
 - `src/app-registry.ts` (the atom registry with the live layers)

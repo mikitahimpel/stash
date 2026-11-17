@@ -307,6 +307,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
+| MediaRow (proposed in #148, used by the mockups only) | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target), `media-thumb` (16:9, 120×68, 88×50 on phones; the site's initial without an image), `group-header` (13/600 uppercase, count, rule), `tag-chip`; text role `text-row-title` |
 | Card | `card`, `card-header`, `card-title`, … |
 | Avatar | `avatar-button` |
 | App shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |
