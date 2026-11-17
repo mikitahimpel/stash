@@ -51,8 +51,8 @@ export type ClassificationOutput = typeof ClassificationOutput.Type;
 export interface Classification {
   readonly tags: ReadonlyArray<Tag.TagName>;
   /**
-   * `None` when there was no text to summarize and no description to stand in. Never a sentence
-   * about the content being missing.
+   * `None` when there was no text to summarize and no description to stand in. The model's prose
+   * only when there was text.
    */
   readonly summary: Option.Option<string>;
   readonly type: Link.LinkType;
@@ -148,10 +148,9 @@ export const normalizeTags = (tags: ReadonlyArray<string>): ReadonlyArray<Tag.Ta
   return result;
 };
 
-/** A real summary, or nothing: never an empty one, never one about the content being missing. */
-const usable = (summary: string): Option.Option<string> => {
-  const trimmed = summary.trim();
-  return trimmed === "" || JunkFilter.isMetaSummary(trimmed) ? Option.none() : Option.some(trimmed);
+const nonEmpty = (text: string): Option.Option<string> => {
+  const trimmed = text.trim();
+  return trimmed === "" ? Option.none() : Option.some(trimmed);
 };
 
 /** The page's own description as a one-line summary, when it has one. */
@@ -159,17 +158,19 @@ const descriptionSummary = (input: ClassifyInput): Option.Option<string> =>
   input.content.pipe(
     Option.flatMap((content) => content.description),
     Option.map((description) => description.trim().split(/\s*\n/)[0] ?? ""),
-    Option.flatMap(usable),
+    Option.flatMap(nonEmpty),
     Option.map((line) => ContentText.truncate(line, maxDescriptionSummaryLength)),
   );
 
 /**
- * The stored form of the model's output. The summary is the model's only when there was text to
- * summarize and the model wrote about the link; otherwise it is the page's description, or `None`.
+ * The stored form of the model's output. With body text the summary is the model's, as written:
+ * the prompt forbids writing about missing content, and no wording check second-guesses a real
+ * summary. With no body text the model had nothing to summarize, so its prose is never used: the
+ * summary is the page's own description, or `None`.
  */
 export const normalize = (output: ClassificationOutput, input: ClassifyInput): Classification => ({
   tags: normalizeTags(output.tags),
-  summary: (hasText(input) ? usable(output.summary) : Option.none<string>()).pipe(
+  summary: (hasText(input) ? nonEmpty(output.summary) : Option.none<string>()).pipe(
     Option.orElse(() => descriptionSummary(input)),
   ),
   type: output.type,

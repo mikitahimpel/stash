@@ -110,7 +110,7 @@ describe("classifyLink", () => {
     }).pipe(Effect.provide(FakeLanguageModel.layer({ ...reply, type: "video" }))),
   );
 
-  it.effect("drops a meta-summary and placeholder tags even if the model writes them", () =>
+  it.effect("with no text, never stores the model's prose, and drops placeholder tags", () =>
     Effect.gen(function* () {
       const result = yield* ClassifyLink.classifyLink(video);
       expect(result.summary).toEqual(Option.none());
@@ -118,18 +118,29 @@ describe("classifyLink", () => {
     }).pipe(Effect.provide(FakeLanguageModel.layer(junkReply))),
   );
 
-  it.effect("drops a meta-summary of a text that is only a consent page", () =>
+  // Real summaries that read like statements about missing content. No wording check may drop
+  // them: with page text, the summary is the model's, unchanged (reviews of #150).
+  it.effect.each([
+    "The video explains why the root cause of the outage could not be determined.",
+    "A postmortem page on an incident whose cause could not be identified.",
+    "How to show a fallback page when the server is unavailable.",
+    "The link between sleep and memory is missing from most models of learning.",
+    "A video on why some proteins cannot be classified by structure alone.",
+    "Explains why the title deed was not provided to the buyer.",
+    "Covers how text search behaves when an index is missing.",
+    "A talk about streaming: what to do when a video segment cannot be loaded.",
+    "Why the subject of the experiment could not be identified from the data.",
+    "No content is available offline unless you enable sync, the docs explain.",
+    "Full details are available in the linked documentation.",
+    "The text of the specification is available on GitHub.",
+    "An outage report: users were unable to access their accounts for three hours.",
+    "How to design pages without content layout shifts.",
+    "Explains why the root cause could not be determined by the incident team.",
+  ])("keeps the summary of a page with text unchanged: %s", (summary) =>
     Effect.gen(function* () {
-      const result = yield* ClassifyLink.classifyLink({
-        ...russian,
-        content: Option.map(russian.content, (content) => ({
-          ...content,
-          text: "Before you continue. We use cookies and data.",
-        })),
-      });
-      expect(result.summary).toEqual(Option.none());
-      expect(result.tags).toEqual(["youtube"]);
-    }).pipe(Effect.provide(FakeLanguageModel.layer(junkReply))),
+      const result = yield* ClassifyLink.classifyLink(russian);
+      expect(result.summary).toEqual(Option.some(summary));
+    }).pipe(Effect.provide(FakeLanguageModel.layer({ ...reply, summary }))),
   );
 
   it.effect("uses the first line of the page's description when there is no text", () =>

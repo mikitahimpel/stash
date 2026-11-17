@@ -32,8 +32,9 @@ import * as StoreText from "./store-text.ts";
 // - Permanent failures never fail: content that cannot be fetched (404, a PDF, …) is classified
 //   from its URL and title, and a classification the model refuses or cannot produce marks the
 //   link with `enrichment_error`.
-// - Nothing is stored about missing content (see `junk-filter.ts`): a link with no text gets its
-//   title, tags and type, and a `null` summary (or the page's own description). A title that is
+// - A link with no text gets its title, tags and type, and a `null` summary (or the page's own
+//   description), never the model's prose about nothing. Placeholder tags are dropped (see
+//   `junk-filter.ts`). A title that is
 //   only the site's name ("- YouTube") is no title, whether a page or the saving client gave it.
 
 /** The keyword-search excerpt kept in `links.text`. The full text is in R2. */
