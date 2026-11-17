@@ -14,6 +14,7 @@ const link = {
   tags: ["economics", "video essays"],
   sourceDeviceId: "device-1",
   createdAt: "2026-01-02T03:04:05.000Z",
+  imageUrl: null,
   enrichedAt: null,
 };
 
@@ -56,6 +57,15 @@ describe("Link", () => {
     }),
   );
 
+  it.effect("carries a preview image URL", () =>
+    Effect.gen(function* () {
+      const imageUrl = "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg";
+      const decoded = yield* Schema.decodeUnknownEffect(Link.Link)({ ...link, imageUrl });
+      expect(decoded.imageUrl).toBe(imageUrl);
+      expect((yield* Schema.encodeEffect(Link.Link)(decoded)).imageUrl).toBe(imageUrl);
+    }),
+  );
+
   it.effect("accepts nulls for fields enrichment fills later", () =>
     Effect.gen(function* () {
       const decoded = yield* Schema.decodeUnknownEffect(Link.Link)({
@@ -65,6 +75,7 @@ describe("Link", () => {
         type: null,
         summary: null,
         language: null,
+        imageUrl: null,
         sourceDeviceId: null,
         tags: [],
       });
@@ -74,6 +85,8 @@ describe("Link", () => {
 
   it.each([
     ["an invalid url", { url: "not a url" }],
+    ["an image that is not http(s)", { imageUrl: "data:image/png;base64,AAAA" }],
+    ["a missing image field", { imageUrl: undefined }],
     ["an unknown status", { status: "deleted" }],
     ["an empty id", { id: "" }],
     ["a bad timestamp", { createdAt: "yesterday" }],

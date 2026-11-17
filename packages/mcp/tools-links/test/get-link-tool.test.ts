@@ -20,12 +20,14 @@ describe("get_link", () => {
           "Type: video",
           "Tags: economics",
           "Saved: 2026-01-02T03:04:05.000Z",
+          "Image: https://example.com/videos/economics.jpg",
           "Summary: How markets set prices.",
         ].join("\n"),
       );
       assert.deepInclude(result.structuredContent, {
         id: Fixtures.video.id,
         url: Fixtures.video.url,
+        imageUrl: "https://example.com/videos/economics.jpg",
         createdAt: "2026-01-02T03:04:05.000Z",
       });
     }).pipe(Effect.provide(McpClient.layer(Fixtures.seed))),

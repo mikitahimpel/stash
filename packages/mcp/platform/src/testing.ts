@@ -88,6 +88,7 @@ export const makeLink = (
   tags: [],
   sourceDeviceId: null,
   createdAt: now,
+  imageUrl: null,
   enrichedAt: null,
   ...fields,
 });

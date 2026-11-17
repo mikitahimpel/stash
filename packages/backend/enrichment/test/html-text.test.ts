@@ -47,8 +47,19 @@ describe("HtmlText.parse", () => {
       title: Option.none(),
       description: Option.none(),
       lang: Option.none(),
+      image: Option.none(),
       text: "",
     });
+  });
+
+  it("reads the preview image as written: og:image first, then twitter:image", () => {
+    expect(HtmlText.parse(Fixtures.ogImagePage).image).toEqual(
+      Option.some("/images/preview.png?v=2"),
+    );
+    expect(HtmlText.parse(Fixtures.twitterImagePage).image).toEqual(
+      Option.some("https://cdn.example.com/twitter.png"),
+    );
+    expect(HtmlText.parse(Fixtures.articlePage).image).toEqual(Option.none());
   });
 });
 

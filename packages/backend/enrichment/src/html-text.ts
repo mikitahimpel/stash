@@ -10,6 +10,8 @@ export interface HtmlText {
   readonly description: Option.Option<string>;
   /** The `<html lang>` attribute as written, e.g. `en-US`. */
   readonly lang: Option.Option<string>;
+  /** The preview image (`og:image`, else `twitter:image`) as written: maybe relative. */
+  readonly image: Option.Option<string>;
   readonly text: string;
 }
 
@@ -135,7 +137,7 @@ export const toText = (html: string): string => {
     .join("\n");
 };
 
-/** Title, description, declared language and readable text of an HTML document. */
+/** Title, description, declared language, preview image and readable text of an HTML document. */
 export const parse = (html: string): HtmlText => {
   const withoutComments = html.replace(/<!--[\s\S]*?-->/g, " ");
   const meta = metaContent(withoutComments);
@@ -152,6 +154,12 @@ export const parse = (html: string): HtmlText => {
     description: nonEmpty(meta.get("description")).pipe(
       Option.orElse(() => nonEmpty(meta.get("og:description"))),
       Option.orElse(() => nonEmpty(meta.get("twitter:description"))),
+    ),
+    image: nonEmpty(meta.get("og:image")).pipe(
+      Option.orElse(() => nonEmpty(meta.get("og:image:secure_url"))),
+      Option.orElse(() => nonEmpty(meta.get("og:image:url"))),
+      Option.orElse(() => nonEmpty(meta.get("twitter:image"))),
+      Option.orElse(() => nonEmpty(meta.get("twitter:image:src"))),
     ),
     lang: nonEmpty(htmlTag === undefined ? undefined : parseAttributes(htmlTag)["lang"]),
     text: toText(region),

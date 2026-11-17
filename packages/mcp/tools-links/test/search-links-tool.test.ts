@@ -23,6 +23,11 @@ describe("search_links", () => {
         result.structuredContent.hits.map((hit: any) => hit.link.id),
         [Fixtures.video.id, Fixtures.bare.id],
       );
+      // Each hit carries the link's preview image, `null` when it has none.
+      assert.deepStrictEqual(
+        result.structuredContent.hits.map((hit: any) => hit.link.imageUrl),
+        ["https://example.com/videos/economics.jpg", null],
+      );
     }).pipe(Effect.provide(McpClient.layer(Fixtures.seed))),
   );
 

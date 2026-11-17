@@ -13,6 +13,9 @@ const routes = {
     body: "  Plain notes, and they are written in English for the test.  \n",
     contentType: "text/plain",
   },
+  "https://example.com/blog/preview": { body: Fixtures.ogImagePage },
+  "https://example.com/twitter": { body: Fixtures.twitterImagePage },
+  "https://example.com/inline": { body: Fixtures.dataImagePage },
   "https://example.com/paper.pdf": { body: "%PDF-1.7", contentType: "application/pdf" },
 };
 
@@ -25,6 +28,32 @@ describe("FetchPageText.fetchPageText", () => {
       expect(content.description).toEqual(Option.some("A walk through a small HTML parser."));
       expect(content.language).toEqual(Option.some("en"));
       expect(content.text).toMatch(/^Building a Tiny Parser\nThe parser reads the page/);
+    }).pipe(Effect.provide(FakeHttp.layer(routes))),
+  );
+
+  it.effect("takes og:image as the preview image, resolved against the page URL", () =>
+    Effect.gen(function* () {
+      const content = yield* FetchPageText.fetchPageText("https://example.com/blog/preview");
+      expect(content.imageUrl).toEqual(Option.some("https://example.com/images/preview.png?v=2"));
+      expect(content.author).toEqual(Option.none());
+    }).pipe(Effect.provide(FakeHttp.layer(routes))),
+  );
+
+  it.effect("falls back to twitter:image", () =>
+    Effect.gen(function* () {
+      const content = yield* FetchPageText.fetchPageText("https://example.com/twitter");
+      expect(content.imageUrl).toEqual(Option.some("https://cdn.example.com/twitter.png"));
+    }).pipe(Effect.provide(FakeHttp.layer(routes))),
+  );
+
+  it.effect("has no preview image for a data: URI, or when the page names none", () =>
+    Effect.gen(function* () {
+      const inline = yield* FetchPageText.fetchPageText("https://example.com/inline");
+      expect(inline.imageUrl).toEqual(Option.none());
+      const article = yield* FetchPageText.fetchPageText("https://example.com/article");
+      expect(article.imageUrl).toEqual(Option.none());
+      const text = yield* FetchPageText.fetchPageText("https://example.com/notes.txt");
+      expect(text.imageUrl).toEqual(Option.none());
     }).pipe(Effect.provide(FakeHttp.layer(routes))),
   );
 

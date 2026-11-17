@@ -14,6 +14,7 @@ import * as Schema from "effect/Schema";
 import * as ContentText from "./content-text.ts";
 import * as DetectLanguage from "./detect-language.ts";
 import * as EnrichPolicy from "./enrich-policy.ts";
+import * as JunkFilter from "./junk-filter.ts";
 
 /** The classifier model: small and fast, good at Russian and English. */
 export const model = "claude-haiku-5-5";
@@ -24,6 +25,9 @@ export const maxTags = 8;
 /** Longer texts are cut to this many characters before they reach the model. */
 export const maxPromptTextLength = 12_000;
 
+/** A description that stands in for the summary is cut to this many characters. */
+export const maxDescriptionSummaryLength = 300;
+
 /**
  * The structured output the model fills. It stays loose (plain strings) so the provider's JSON
  * schema has no constraints it might not support. `classifyLink` normalizes it.
@@ -33,7 +37,8 @@ export const ClassificationOutput = Schema.Struct({
     description: "3 to 6 topic tags: lowercase English, 1 to 3 words each, most specific first",
   }),
   summary: Schema.String.annotate({
-    description: "1 to 3 sentences on what the link is about, in the content's language",
+    description:
+      "1 to 3 sentences on what the link is about, in the content's language. Empty when there is no text.",
   }),
   type: Link.LinkType.annotate({ description: "What kind of resource the link is" }),
   language: Schema.String.annotate({
@@ -45,7 +50,11 @@ export type ClassificationOutput = typeof ClassificationOutput.Type;
 /** A link's classification, ready to store. */
 export interface Classification {
   readonly tags: ReadonlyArray<Tag.TagName>;
-  readonly summary: string;
+  /**
+   * `None` when there was no text to summarize and no description to stand in. Never a sentence
+   * about the content being missing.
+   */
+  readonly summary: Option.Option<string>;
   readonly type: Link.LinkType;
   /** An ISO 639-1 code, when the model gave a plausible one. */
   readonly language: Option.Option<string>;
@@ -90,7 +99,15 @@ Reply with:
   libraries' home pages, article for posts, docs and papers, other for anything else.
 - language: the ISO 639-1 code of the content's main language (en, ru, …).
 
-If the text is missing or is only a cookie banner or an error page, classify from the URL and title.`;
+Sometimes there is no text, or the text is only a cookie banner, a consent page or an error page.
+Then classify from the URL, the title, the channel and the description, and leave the summary
+empty (""). Never write about what is missing: no "could not be determined", "unavailable" or "no
+content", and no placeholder tags such as unclassified, unknown topic or missing title. Give fewer
+tags, or none, rather than a guessed one.`;
+
+/** Whether there is body text to summarize, not just a title and other metadata. */
+export const hasText = (input: ClassifyInput): boolean =>
+  Option.isSome(input.content) && input.content.value.text.trim() !== "";
 
 /** The user message: what is known about the link, with the text cut to `maxPromptTextLength`. */
 export const userMessage = (input: ClassifyInput): string => {
@@ -101,26 +118,28 @@ export const userMessage = (input: ClassifyInput): string => {
   if (Option.isSome(title)) lines.push(`Title: ${title.value}`);
   if (Option.isSome(input.content)) {
     const content = input.content.value;
+    if (Option.isSome(content.author)) lines.push(`Channel: ${content.author.value}`);
     if (Option.isSome(content.description)) lines.push(`Description: ${content.description.value}`);
     if (Option.isSome(content.language)) lines.push(`Detected language: ${content.language.value}`);
-    lines.push(`Source: ${content.source}`);
-    const text = ContentText.truncate(content.text, maxPromptTextLength);
-    lines.push("", "Text:", text === "" ? "(empty)" : text);
-  } else {
-    lines.push("", "Text: (could not be fetched)");
+    if (hasText(input)) {
+      lines.push(`Source: ${content.source}`);
+      lines.push("", "Text:", ContentText.truncate(content.text, maxPromptTextLength));
+      return lines.join("\n");
+    }
   }
+  lines.push("", "Text: (none; classify from the fields above and leave the summary empty)");
   return lines.join("\n");
 };
 
 const decodeTag = Schema.decodeUnknownOption(Tag.TagName);
 
-/** Lowercased, trimmed, valid and unique tags, at most `maxTags`. */
+/** Lowercased, trimmed, valid and unique tags, at most `maxTags`, without placeholder tags. */
 export const normalizeTags = (tags: ReadonlyArray<string>): ReadonlyArray<Tag.TagName> => {
   const seen = new Set<string>();
   const result: Array<Tag.TagName> = [];
   for (const raw of tags) {
     const tag = decodeTag(raw.trim().toLowerCase().replace(/\s+/g, " "));
-    if (Option.isNone(tag) || seen.has(tag.value)) continue;
+    if (Option.isNone(tag) || seen.has(tag.value) || JunkFilter.isJunkTag(tag.value)) continue;
     seen.add(tag.value);
     result.push(tag.value);
     if (result.length === maxTags) break;
@@ -128,9 +147,30 @@ export const normalizeTags = (tags: ReadonlyArray<string>): ReadonlyArray<Tag.Ta
   return result;
 };
 
-export const normalize = (output: ClassificationOutput): Classification => ({
+/** A real summary, or nothing: never an empty one, never one about the content being missing. */
+const usable = (summary: string): Option.Option<string> => {
+  const trimmed = summary.trim();
+  return trimmed === "" || JunkFilter.isMetaSummary(trimmed) ? Option.none() : Option.some(trimmed);
+};
+
+/** The page's own description as a one-line summary, when it has one. */
+const descriptionSummary = (input: ClassifyInput): Option.Option<string> =>
+  input.content.pipe(
+    Option.flatMap((content) => content.description),
+    Option.map((description) => description.trim().split(/\s*\n/)[0] ?? ""),
+    Option.flatMap(usable),
+    Option.map((line) => ContentText.truncate(line, maxDescriptionSummaryLength)),
+  );
+
+/**
+ * The stored form of the model's output. The summary is the model's only when there was text to
+ * summarize and the model wrote about the link; otherwise it is the page's description, or `None`.
+ */
+export const normalize = (output: ClassificationOutput, input: ClassifyInput): Classification => ({
   tags: normalizeTags(output.tags),
-  summary: output.summary.trim(),
+  summary: (hasText(input) ? usable(output.summary) : Option.none<string>()).pipe(
+    Option.orElse(() => descriptionSummary(input)),
+  ),
   type: output.type,
   language: DetectLanguage.normalizeTag(output.language),
 });
@@ -161,7 +201,7 @@ export const classifyLink = (
         (cause) => new ClassifyError({ permanent: permanentReasons.has(cause.reason._tag), cause }),
       ),
     );
-    return normalize(response.value);
+    return normalize(response.value, input);
   }).pipe(Effect.withSpan("classifyLink"));
 
 /** Anthropic as the `LanguageModel`, with the key from `AnthropicConfig`. */

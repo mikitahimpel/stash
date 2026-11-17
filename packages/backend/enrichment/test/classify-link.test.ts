@@ -18,6 +18,8 @@ const russian: ClassifyLink.ClassifyInput = {
   content: Option.some({
     title: Option.some("Как работает инфляция"),
     description: Option.none(),
+    author: Option.none(),
+    imageUrl: Option.none(),
     language: Option.some("ru"),
     text: "Инфляция — это рост общего уровня цен. ".repeat(1_000),
     source: "page",
@@ -31,13 +33,36 @@ const reply: ClassifyLink.ClassificationOutput = {
   language: "ru-RU",
 };
 
+const video: ClassifyLink.ClassifyInput = {
+  url: "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+  title: Option.some("A Synthetic Video, Told by oEmbed"),
+  content: Option.some({
+    title: Option.some("A Synthetic Video, Told by oEmbed"),
+    description: Option.none(),
+    author: Option.some("Synthetic Channel"),
+    imageUrl: Option.some("https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg"),
+    language: Option.none(),
+    text: "",
+    source: "metadata",
+  }),
+};
+
+/** What the model wrote before #147 when it was given nothing. */
+const junkReply: ClassifyLink.ClassificationOutput = {
+  tags: ["unclassified", "Missing Title", "youtube", "unknown topic"],
+  summary:
+    "The page text and title were unavailable, so the topic of this YouTube video cannot be determined.",
+  type: "video",
+  language: "en",
+};
+
 describe("classifyLink", () => {
   it.effect("asks for structured output and normalizes it", () =>
     Effect.gen(function* () {
       const result = yield* ClassifyLink.classifyLink(russian);
       expect(result).toEqual({
         tags: ["economics", "inflation", "central banks"],
-        summary: "Объяснение инфляции простыми словами.",
+        summary: Option.some("Объяснение инфляции простыми словами."),
         type: "article",
         language: Option.some("ru"),
       });
@@ -60,8 +85,70 @@ describe("classifyLink", () => {
         content: Option.none(),
       });
       const [prompt] = yield* FakeLanguageModel.FakeLanguageModel.use((fake) => fake.prompts);
-      expect(FakeLanguageModel.promptText(prompt!)).toContain("Text: (could not be fetched)");
+      expect(FakeLanguageModel.promptText(prompt!)).toContain("Text: (none;");
     }).pipe(Effect.provide(FakeLanguageModel.layer({ ...reply, type: "tool" }))),
+  );
+
+  it.effect("gives the model the title and channel of a video with no text", () =>
+    Effect.gen(function* () {
+      const result = yield* ClassifyLink.classifyLink(video);
+      const [prompt] = yield* FakeLanguageModel.FakeLanguageModel.use((fake) => fake.prompts);
+      const text = FakeLanguageModel.promptText(prompt!);
+      expect(text).toContain("Title: A Synthetic Video, Told by oEmbed");
+      expect(text).toContain("Channel: Synthetic Channel");
+      expect(text).toContain("Text: (none;");
+      expect(text).not.toContain("Source:");
+      // The system prompt forbids writing about what is missing.
+      expect(text).toContain("Never write about what is missing");
+      // The model's tags and type count. Its summary does not: there was nothing to summarize.
+      expect(result).toEqual({
+        tags: ["economics", "inflation", "central banks"],
+        summary: Option.none(),
+        type: "video",
+        language: Option.some("ru"),
+      });
+    }).pipe(Effect.provide(FakeLanguageModel.layer({ ...reply, type: "video" }))),
+  );
+
+  it.effect("drops a meta-summary and placeholder tags even if the model writes them", () =>
+    Effect.gen(function* () {
+      const result = yield* ClassifyLink.classifyLink(video);
+      expect(result.summary).toEqual(Option.none());
+      expect(result.tags).toEqual(["youtube"]);
+    }).pipe(Effect.provide(FakeLanguageModel.layer(junkReply))),
+  );
+
+  it.effect("drops a meta-summary of a text that is only a consent page", () =>
+    Effect.gen(function* () {
+      const result = yield* ClassifyLink.classifyLink({
+        ...russian,
+        content: Option.map(russian.content, (content) => ({
+          ...content,
+          text: "Before you continue. We use cookies and data.",
+        })),
+      });
+      expect(result.summary).toEqual(Option.none());
+      expect(result.tags).toEqual(["youtube"]);
+    }).pipe(Effect.provide(FakeLanguageModel.layer(junkReply))),
+  );
+
+  it.effect("uses the first line of the page's description when there is no text", () =>
+    Effect.gen(function* () {
+      const result = yield* ClassifyLink.classifyLink({
+        url: "https://example.com/board",
+        title: Option.some("Synthetic Board"),
+        content: Option.some({
+          title: Option.some("Synthetic Board"),
+          description: Option.some("A kanban board for small teams.\nSecond line."),
+          author: Option.none(),
+          imageUrl: Option.none(),
+          language: Option.none(),
+          text: "",
+          source: "page",
+        }),
+      });
+      expect(result.summary).toEqual(Option.some("A kanban board for small teams."));
+    }).pipe(Effect.provide(FakeLanguageModel.layer(junkReply))),
   );
 
   it.effect("retries retryable errors on the policy schedule", () =>

@@ -107,6 +107,7 @@ const links = (now: number) =>
     tags,
     sourceDeviceId: devices[device]!.id,
     createdAt: iso(now - age * day),
+    imageUrl: null,
     enrichedAt: iso(now - age * day + 60_000),
   }));
 
@@ -188,6 +189,7 @@ const saved = (now: number) => ({
   tags: [],
   sourceDeviceId: null,
   createdAt: iso(now),
+  imageUrl: null,
   enrichedAt: null,
   created: true,
 });

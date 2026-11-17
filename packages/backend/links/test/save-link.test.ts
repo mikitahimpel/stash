@@ -38,6 +38,7 @@ describe("saveLink", () => {
         tags: ["economics", "reading"],
         sourceDeviceId: LinksTestLayer.deviceId,
         createdAt: yield* DateTime.now,
+        imageUrl: null,
         enrichedAt: null,
         created: true,
       });

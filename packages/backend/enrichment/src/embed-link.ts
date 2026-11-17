@@ -12,6 +12,7 @@ export const maxEmbeddingTextLength = 4_000;
 /** What a link's vector embeds. */
 export interface EmbedInput {
   readonly title: Option.Option<string>;
+  /** `""` when the link has no summary. */
   readonly summary: string;
   readonly tags: ReadonlyArray<string>;
   readonly text: string;

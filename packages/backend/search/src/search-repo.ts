@@ -80,7 +80,7 @@ const LinkRow = Schema.Struct({
 });
 
 const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.status, l.type,
-  l.summary, l.language, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
+  l.summary, l.language, l.image_url AS imageUrl, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
   l.enriched_at AS enrichedAt,
   (SELECT json_group_array(name) FROM (SELECT t.name FROM link_tags AS lt
     JOIN tags AS t ON t.id = lt.tag_id WHERE lt.link_id = l.id ORDER BY t.name)) AS tags`;

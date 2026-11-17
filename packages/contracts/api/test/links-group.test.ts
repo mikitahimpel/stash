@@ -15,6 +15,7 @@ const link = {
   tags: [],
   sourceDeviceId: null,
   createdAt: "2026-01-02T03:04:05.000Z",
+  imageUrl: null,
   enrichedAt: null,
 };
 

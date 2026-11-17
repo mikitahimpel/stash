@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-// The enrichment columns of `links` (summary, type, language, text, enriched_at,
+// The enrichment columns of `links` (summary, type, language, text, image_url, enriched_at,
 // enrichment_error) and the link's tags. The links feature owns the rest of the table.
 
 /** What enrichment reads about a link. */
@@ -22,12 +22,20 @@ export type LinkToEnrich = typeof LinkToEnrich.Type;
 
 /** What a finished enrichment stores. */
 export interface Enrichment {
-  /** Becomes the link's title only when it has none. */
+  /** Becomes the link's title only when it has none, or has `staleTitle`. */
   readonly title: string | null;
-  readonly summary: string;
+  /**
+   * The stored title when it is junk (a bare site name such as "- YouTube"): `title` replaces it,
+   * even with `null`. A title set since enrichment read the link stays.
+   */
+  readonly staleTitle: string | null;
+  /** `null` when there was nothing to summarize. */
+  readonly summary: string | null;
   /** Becomes the link's type only when it has none, so a type set by hand wins. */
   readonly type: Link.LinkType;
   readonly language: string | null;
+  /** The preview image. `null` keeps the one already stored. */
+  readonly imageUrl: Link.Url | null;
   /** The keyword-search excerpt of the text. */
   readonly text: string | null;
   /** Added to the link's tags; tags given on save stay. */
@@ -48,12 +56,22 @@ export class EnrichmentRepo extends Context.Service<
       enrichment: Enrichment,
     ) => Effect.Effect<void, D1Database.DatabaseError>;
     /** Marks the link as permanently failed, so the consumer skips it from now on. */
+    /**
+     * Up to `limit` links saved before `before` (UTC ISO 8601) that are neither enriched nor
+     * marked failed, in random order, so a link that keeps failing cannot starve the others.
+     */
+    readonly listPending: (
+      before: string,
+      limit: number,
+    ) => Effect.Effect<ReadonlyArray<Link.LinkId>, D1Database.DatabaseError>;
     readonly markFailed: (
       id: Link.LinkId,
       reason: string,
     ) => Effect.Effect<void, D1Database.DatabaseError>;
   }
 >()("@stash/backend-enrichment/EnrichmentRepo") {}
+
+const PendingRow = Schema.Struct({ id: Link.LinkId });
 
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
@@ -68,9 +86,11 @@ export const make = Effect.gen(function* () {
       const tags = JSON.stringify(e.tags);
       return db
         .batch([
-          D1Database.sql`UPDATE links SET title = COALESCE(title, ${e.title}),
+          D1Database.sql`UPDATE links SET
+            title = CASE WHEN title IS NULL OR title = ${e.staleTitle} THEN ${e.title}
+              ELSE title END,
             summary = ${e.summary}, type = COALESCE(type, ${e.type}), language = ${e.language},
-            text = ${e.text}, enriched_at = ${e.enrichedAt}, enrichment_error = NULL
+            text = ${e.text}, image_url = COALESCE(${e.imageUrl}, image_url), enriched_at = ${e.enrichedAt}, enrichment_error = NULL
             WHERE id = ${id}`,
           D1Database.sql`INSERT OR IGNORE INTO tags (name)
             SELECT DISTINCT value FROM json_each(${tags})
@@ -81,6 +101,14 @@ export const make = Effect.gen(function* () {
         ])
         .pipe(Effect.asVoid);
     },
+    listPending: (before, limit) =>
+      D1Database.query(PendingRow)(
+        D1Database.sql`SELECT id FROM links WHERE enriched_at IS NULL AND enrichment_error IS NULL
+          AND created_at < ${before} ORDER BY random() LIMIT ${limit}`,
+      ).pipe(
+        provide,
+        Effect.map((rows) => rows.map((row) => row.id)),
+      ),
     markFailed: (id, reason) =>
       db
         .run(D1Database.sql`UPDATE links SET enrichment_error = ${reason} WHERE id = ${id}`)

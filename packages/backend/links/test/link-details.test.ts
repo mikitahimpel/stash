@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as DeleteLink from "../src/details/delete-link.ts";
 import * as GetLink from "../src/details/get-link.ts";
 import * as UpdateLink from "../src/details/update-link.ts";
+import * as ListLinks from "../src/list/list-links.ts";
 import * as SaveLink from "../src/save/save-link.ts";
 import * as LinksTestLayer from "./links-test-layer.ts";
 
@@ -31,6 +32,20 @@ describe("link details", () => {
       const saved = yield* save;
       expect(yield* GetLink.getLink(saved.id)).toEqual(saved);
       expect(yield* GetLink.getLink(missing).pipe(Effect.flip)).toEqual(notFound);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("answers the preview image enrichment stored, in details and in the list", () =>
+    Effect.gen(function* () {
+      const saved = yield* save;
+      expect(saved.imageUrl).toBeNull();
+      const imageUrl = "https://example.com/details.png";
+      yield* D1Database.Database.use((db) =>
+        db.run(D1Database.sql`UPDATE links SET image_url = ${imageUrl} WHERE id = ${saved.id}`),
+      );
+      expect((yield* GetLink.getLink(saved.id)).imageUrl).toBe(imageUrl);
+      const page = yield* ListLinks.listLinks({});
+      expect(page.items.map((link) => link.imageUrl)).toEqual([imageUrl]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );
 

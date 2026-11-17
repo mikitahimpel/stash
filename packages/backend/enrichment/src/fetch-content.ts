@@ -4,13 +4,16 @@ import * as Option from "effect/Option";
 import type * as ContentHttp from "./content-http.ts";
 import type * as ContentText from "./content-text.ts";
 import * as FetchPageText from "./fetch-page-text.ts";
-import * as FetchYoutubeTranscript from "./fetch-youtube-transcript.ts";
+import * as FetchYoutubeContent from "./fetch-youtube-content.ts";
 
-/** Readable text for any link: the transcript for a YouTube video, the page text otherwise. */
+/**
+ * What can be read of any link: oEmbed metadata and the transcript for a YouTube video or
+ * playlist, the page's text and preview image otherwise.
+ */
 export const fetchContent = (
   url: string,
 ): Effect.Effect<ContentText.ContentText, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
-  Option.match(FetchYoutubeTranscript.videoId(url), {
+  Option.match(FetchYoutubeContent.target(url), {
     onNone: () => FetchPageText.fetchPageText(url),
-    onSome: FetchYoutubeTranscript.fetchYoutubeTranscript,
+    onSome: FetchYoutubeContent.fetchYoutubeContent,
   });
