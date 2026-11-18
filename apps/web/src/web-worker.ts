@@ -13,6 +13,11 @@ export interface Fetcher {
 export interface WorkerEnv {
   /** Service Binding to the `Api` Worker. */
   readonly API: Fetcher;
+  /**
+   * The site's own origin. The Worker does not read it: it is set for the build, which bakes it
+   * into the extension it puts under `/downloads/` (see `alchemy.run.ts`).
+   */
+  readonly STASH_WEB_ORIGIN?: string;
   /** The built SPA (`apps/web/dist`), with the SPA fallback to `index.html`. */
   readonly ASSETS: Fetcher;
 }

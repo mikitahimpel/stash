@@ -301,9 +301,7 @@ describe("save current tab", () => {
       Effect.gen(function* () {
         yield* press;
         yield* Effect.map(badgeTitle, (title) =>
-          expect(title).toEqual(
-            Option.some("Queued. Set the API URL and device token in the Stash settings."),
-          ),
+          expect(title).toEqual(Option.some("Queued. Connect this browser in the Stash settings.")),
         ).pipe(eventually);
         expect(Option.isSome(yield* queued)).toBe(true);
       }),

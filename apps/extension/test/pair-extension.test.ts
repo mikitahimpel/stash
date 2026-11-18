@@ -112,7 +112,7 @@ describe("options page: pair with the web app", () => {
       yield* TestClock.adjust(PairExtension.waitAtMost);
       expect(yield* Fiber.join(fiber)).toEqual({
         _tag: "Failed",
-        message: "Not approved in time. Click Connect to try again.",
+        message: "Not approved in time. Connect again to retry.",
       });
     }).pipe(Effect.provide(Testing.make({ handler: api.handler })));
   });

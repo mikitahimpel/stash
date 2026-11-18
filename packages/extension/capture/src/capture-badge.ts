@@ -11,7 +11,8 @@ export const visibleSeconds = 4;
  * - `Saving`: the request is in flight.
  * - `Saved`: stored.
  * - `RateLimited` / `Offline`: queued, the retry alarm sends it after `retryInSeconds`.
- * - `NeedsSetup`: queued, the options page has no working API URL and device token.
+ * - `NeedsSetup`: queued, this browser is not connected on the options page (or the token was
+ *   rejected).
  * - `Unsupported`: no tab, or a page that is not http(s) (for example `about:` pages).
  * - `Failed`: the API rejected it, or extension storage failed.
  */
@@ -51,7 +52,7 @@ export const badge = (state: State): ToolbarAction.Badge => {
       return {
         text: "!",
         color: red,
-        title: "Queued. Set the API URL and device token in the Stash settings.",
+        title: "Queued. Connect this browser in the Stash settings.",
       };
     case "Unsupported":
       return { text: "!", color: red, title: "Only http(s) pages can be saved to Stash." };

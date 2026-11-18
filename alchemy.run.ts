@@ -231,7 +231,10 @@ export default Alchemy.Stack(
     // them): the Zen / Firefox extension (`stash-extension.xpi`, signed when `WEB_EXT_API_KEY` and
     // `WEB_EXT_API_SECRET` are set, see apps/extension/README.md) and the Mac agent with its
     // installer (`stash-mac-agent.mjs`, `install-mac-agent.sh`). `alchemy dev` skips them and keeps
-    // the plain build, which starts much faster.
+    // the plain build, which starts much faster. The build gets the site's own origin as
+    // `STASH_WEB_ORIGIN` (`env` also reaches the build command), and the extension build bakes it
+    // in (apps/extension/build-origin.ts), so the `.xpi` this site serves pairs with this site
+    // without asking for an address.
     const web = yield* Cloudflare.Website.StaticSite("Web", {
       cwd: "./apps/web",
       command: dev ? "pnpm run build" : "pnpm run build:deploy",
@@ -239,7 +242,7 @@ export default Alchemy.Stack(
       main: "./apps/web/src/web-worker.ts",
       ...named("web"),
       // Bindings must match `WorkerEnv` in apps/web/src/web-worker.ts.
-      env: { API: api },
+      env: { API: api, STASH_WEB_ORIGIN: origins.web },
       assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
       // Rebuild when an input of the build changes. The globs, and why they must stay narrow, are
       // in apps/web/scripts/build-memo.ts.

@@ -21,7 +21,7 @@ onMounted(async () => {
 const problems: Record<SaveAllAndClose.Problem, string> = {
   RateLimited: "Stash is rate limiting saves. Try again in a minute.",
   Offline: "Stash is unreachable. Try again later.",
-  NeedsSetup: "Set the API URL and device token in the Stash settings first.",
+  NeedsSetup: "Connect this browser in the Stash settings first.",
   Rejected: "Stash rejected some links.",
   CloseFailed: "The links are saved, but the tabs could not be closed.",
 };

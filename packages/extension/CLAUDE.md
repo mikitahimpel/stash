@@ -11,7 +11,7 @@ Features of the Zen / Firefox extension. Keep a later Safari Web Extension port 
 |---|---|---|
 | `capture/` | `@stash/ext-capture` | Hotkey saves the current tab, "Save all & close" for a window or Zen workspace |
 | `popup/` | `@stash/ext-popup` | The toolbar popup's logic: the current page and whether it is saved, save and undo, following enrichment, recent links, the connection, opening Stash and its search |
-| `tab-sync/` | `@stash/ext-tab-sync` | Periodic open-tab snapshots to the API |
+| `tab-sync/` | `@stash/ext-tab-sync` | Periodic open-tab snapshots to the API, and when they were last in sync |
 | `device-commands/` | `@stash/ext-device-commands` | Poll and execute remote commands (for example close a tab) |
 | `platform/` | `@stash/ext-platform` | `browser.*` services and the api client |
 
@@ -39,7 +39,7 @@ Never import `@stash/backend-*`, `@stash/mcp-*` or `@stash/web-*`. oxlint enforc
 `@stash/ext-platform` is the only package that touches `browser`, `chrome`, `fetch` or other
 runtime globals. It wraps `browser.tabs`, `browser.storage`, `browser.alarms`,
 `browser.commands`, the toolbar button (`browser.browserAction` / `browser.action`) and the
-extension's own pages (the options page, closing the popup) as Effect services, provides the authenticated api client (per-device API
+extension's own pages (the options page, closing the popup, the install event) as Effect services, provides the authenticated api client (per-device API
 token), and exports in-memory layers as `./testing`. Differences between browsers, including the
 future Safari port, live only here.
 
@@ -48,7 +48,8 @@ future Safari port, live only here.
 - Features depend on platform services and never call `browser.*` directly.
 - Background work is driven by alarms through the platform's `alarms` service, not by `setInterval`,
   because event pages get suspended.
-- The API token comes from extension storage, set on the options page. Never hardcode it.
+- The API token comes from extension storage, set on the options page. Never hardcode it, and
+  never commit a Stash address: the build gets its own from env (`apps/extension/build-origin.ts`).
 
 ## Testing
 

@@ -70,6 +70,15 @@ describe("testing layers", () => {
       yield* pages.closeCurrent;
       const control = yield* Testing.TestExtensionPages;
       expect([yield* control.optionsOpened, yield* control.closed]).toEqual([1, 2]);
+
+      const installed = yield* pages.installed.pipe(
+        Stream.take(1),
+        Stream.runCount,
+        Effect.forkChild,
+      );
+      yield* settle;
+      yield* control.install;
+      expect(yield* Fiber.join(installed)).toBe(1);
     }).pipe(Effect.provide(Testing.make({ tabs }))),
   );
 

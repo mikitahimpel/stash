@@ -351,22 +351,27 @@ export class TestExtensionPages extends Context.Service<
     readonly optionsOpened: Effect.Effect<number>;
     /** How many times the calling page closed itself. */
     readonly closed: Effect.Effect<number>;
+    /** Emits `ExtensionPages.installed`, as if the extension was just installed. */
+    readonly install: Effect.Effect<void>;
   }
 >()("@stash/ext-platform/TestExtensionPages") {}
 
-/** Opens and closes nothing: it only counts the calls. */
+/** Opens and closes nothing: it only counts the calls. Install with `TestExtensionPages.install`. */
 export const layerExtensionPages: Layer.Layer<ExtensionPages | TestExtensionPages> =
   Layer.effectContext(
     Effect.gen(function* () {
       const optionsOpened = yield* Ref.make(0);
       const closed = yield* Ref.make(0);
+      const installed = yield* PubSub.unbounded<void>();
       return Context.make(ExtensionPages, {
         openOptions: Ref.update(optionsOpened, (count) => count + 1),
         closeCurrent: Ref.update(closed, (count) => count + 1),
+        installed: Stream.fromPubSub(installed),
       }).pipe(
         Context.add(TestExtensionPages, {
           optionsOpened: Ref.get(optionsOpened),
           closed: Ref.get(closed),
+          install: Effect.asVoid(PubSub.publish(installed, undefined)),
         }),
       );
     }),
