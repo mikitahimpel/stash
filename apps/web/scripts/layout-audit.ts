@@ -2,8 +2,9 @@
 // It serves the built app with `vite preview`, answers the api from synthetic fixtures in the
 // browser (`layout-fixtures.ts`, seeded and first-run), and checks every page in the light theme at
 // desktop (1440) and phone (390) width against the rules in `layout-audit-rules.ts`: control
-// heights, phone hit areas, controls on one row, content edges, cards, gaps and mono text. It prints
-// a table of violations and exits 1 if there is any. One browser, one page at a time.
+// heights, phone hit areas, controls on one row, content edges, cards, row heights, gaps and mono
+// text. It prints a table of violations and exits 1 if there is any. One browser, one page at a
+// time.
 import { chromium, type Page } from "playwright";
 import { probe } from "./layout-audit-probe.ts";
 import { audit, type Violation } from "./layout-audit-rules.ts";
@@ -248,7 +249,13 @@ const main = async () => {
         const snapshot = await page.locator("body").evaluate(probe);
         const violations = audit(snapshot, { phone: viewport.phone });
         for (const violation of violations) found.push([name, violation]);
-        console.log(`${violations.length === 0 ? "✓" : "✗"} ${name}`);
+        // The media rows the page has and how tall they are, so a pass shows what was compared.
+        const heights = [...new Set(snapshot.rows.map((row) => Math.round(row.height)))];
+        const rows =
+          snapshot.rows.length === 0
+            ? ""
+            : ` (${snapshot.rows.length} rows, ${heights.join(" / ")}px)`;
+        console.log(`${violations.length === 0 ? "✓" : "✗"} ${name}${rows}`);
         await page.close();
       }
       await context.close();

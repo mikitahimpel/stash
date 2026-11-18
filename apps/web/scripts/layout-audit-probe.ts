@@ -188,13 +188,15 @@ export const probe = (body: HTMLElement): Snapshot => {
       ? { left: b.left, right: b.right, rightIsBox: true }
       : { left: inked.left, right: inked.right, rightIsBox: false };
   };
-  // The lines of a media row's text column: title, meta, summary, tags, the action bar.
-  const mediaRowLines = (row: Element) => {
-    const body = row.querySelector("[data-slot=media-row-body]");
-    return [...(body?.children ?? [])]
+  // The lines of a media row's text column: title, meta, summary, tags, the action bar. On a
+  // phone the tags and the action bar run under the preview too, across the row, so there they
+  // are not lines of the text column.
+  const mediaRowLines = (row: Element) =>
+    [...row.children]
+      .filter((line) => line.getAttribute("data-slot") !== "media-row-thumb")
       .filter(visible)
+      .filter((line) => css(line).gridColumnStart !== "1")
       .map((line) => ({ label: label(line), left: ink(line).left ?? box(line).left }));
-  };
 
   const addBlock = (el: Element, isCentered: boolean) => {
     const id = blocks.length;
@@ -320,5 +322,10 @@ export const probe = (body: HTMLElement): Snapshot => {
     mono.push(label(el));
   }
 
-  return { content, controls, blocks, gaps, groups, mono };
+  // Every media row that is not selected, by its height: they are all one height.
+  const rows = [...main.querySelectorAll("[data-media-row]")]
+    .filter((row) => visible(row) && row.getAttribute("data-state") !== "selected")
+    .map((row) => ({ label: label(row), height: box(row).height }));
+
+  return { content, controls, blocks, gaps, groups, rows, mono };
 };

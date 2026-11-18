@@ -61,8 +61,9 @@ layers.
   cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
-- Links and tabs are `<MediaRow>`s (preview, title, one meta line, summary, tags) under
-  `<GroupHeader>`s; other lists are `<ListRow>`s. See "Media rows" in
+- Links and tabs are `<MediaRow>`s (preview, title, one meta line, one summary line, one
+  `<TagLine>`) under `<GroupHeader>`s; other lists are `<ListRow>`s. Every media row of a list is
+  one height: a row never wraps or grows, and a list with tags passes the `tags` slot on every row. See "Media rows" in
   [docs/design.md](../../docs/design.md).
 - A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout

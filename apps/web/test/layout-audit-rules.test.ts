@@ -8,6 +8,7 @@ const page = (patch: Partial<Snapshot>): Snapshot => ({
   blocks: [],
   gaps: [],
   groups: [],
+  rows: [],
   mono: [],
   ...patch,
 });
@@ -135,5 +136,19 @@ describe("layout audit rules", () => {
 
   it("flags mono text outside the allowlist", () => {
     expect(rules(page({ mono: ['span "example.com"'] }))).toEqual(["mono"]);
+  });
+
+  it("flags a media row that is not as tall as the others", () => {
+    const row = (label: string, height: number) => ({ label, height });
+    expect(rules(page({ rows: [row("a", 114), row("b", 114.4), row("c", 113)] }))).toEqual([]);
+    const ragged = audit(
+      page({ rows: [row("short", 92), row("a", 114), row("b", 114), row("tall", 136)] }),
+      { phone: false },
+    );
+    expect(ragged.map((violation) => [violation.rule, violation.element])).toEqual([
+      ["row height", "short"],
+      ["row height", "tall"],
+    ]);
+    expect(rules(page({ rows: [row("only", 120)] }))).toEqual([]);
   });
 });

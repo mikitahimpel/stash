@@ -1,4 +1,5 @@
 import type * as Link from "@stash/contracts-domain/link";
+import * as SiteTitle from "@stash/web-ui/site-title";
 import * as DateTime from "effect/DateTime";
 
 /** The host a link points to, without `www.`. Prefers the canonical URL. */
@@ -7,6 +8,20 @@ export const domain = (link: Link.Link): string =>
 
 /** The title, or the URL while enrichment hasn't filled one in. */
 export const title = (link: Link.Link): string => link.title ?? link.url;
+
+/**
+ * The title as a row shows it: without the site's own name before or after it
+ * (`GitHub - … · GitHub`). The link's page and the stored title keep the whole of it.
+ */
+export const rowTitle = (link: Link.Link): string =>
+  SiteTitle.strip(title(link), link.canonicalUrl ?? link.url);
+
+/**
+ * The one line under a row's meta: the summary, else who published the link, else nothing (the
+ * line stays, empty, so every row has the same height).
+ */
+export const rowSummary = (link: Link.Link): string =>
+  link.summary !== null && link.summary.trim() !== "" ? link.summary : (link.author ?? "");
 
 export const typeLabels: Readonly<Record<Link.LinkType, string>> = {
   article: "Article",
@@ -20,16 +35,8 @@ const minute = 60_000;
 const hour = 60 * minute;
 const day = 24 * hour;
 
-/** How many tags a row shows before `+n`. */
+/** How many tags a row shows at most before `+n`; a narrow row shows fewer. */
 export const maxRowTags = 3;
-
-/** The tags a row shows, and how many it leaves out. */
-export const shownTags = <T>(
-  tags: ReadonlyArray<T>,
-): { readonly shown: ReadonlyArray<T>; readonly more: number } => ({
-  shown: tags.slice(0, maxRowTags),
-  more: Math.max(0, tags.length - maxRowTags),
-});
 
 /** How long ago `date` was, short: `now`, `12m`, `5h`, `3d`, `2w`, `4mo`, `1y`. */
 export const age = (date: DateTime.Utc, now: DateTime.Utc): string => {

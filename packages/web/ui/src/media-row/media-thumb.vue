@@ -3,7 +3,7 @@ import { Play } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
 import * as SiteCover from "./site-cover";
 
-// The preview of a `<MediaRow>`: 16:9, 120×68 (88×50 on phones), radius 8. A video carries a small
+// The preview of a `<MediaRow>`: 16:9, 160×90 (110×62 on phones), radius 8. A video carries a small
 // play mark. The image is remote (an `og:image`, a video thumbnail): it loads lazily and without a
 // referrer, so the other site learns nothing about this page and hotlink checks by referrer pass.
 //
@@ -59,7 +59,7 @@ const coverStyle = computed(() =>
     :data-cover="coverStyle === undefined ? undefined : ''"
     :style="coverStyle"
     :class="[
-      'relative flex h-[50px] w-[88px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-control text-row-title uppercase after:absolute after:inset-0 after:rounded-control after:border after:border-foreground/10 sm:h-[68px] sm:w-[120px] sm:gap-1',
+      'relative flex h-[62px] w-[110px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-control text-row-title uppercase after:absolute after:inset-0 after:rounded-control after:border after:border-foreground/10 sm:h-[90px] sm:w-[160px] sm:gap-1',
       coverStyle === undefined ? 'bg-sunken text-muted-foreground' : 'media-cover',
     ]"
   >

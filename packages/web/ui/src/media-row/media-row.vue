@@ -20,18 +20,35 @@ defineSlots<{
   title?: () => unknown;
   /** One line of metadata under the title; its items are separated by a middle dot. */
   meta?: () => unknown;
-  /** Extra lines: a summary, tags. */
-  default?: () => unknown;
+  /** One line of text under the meta: a summary. Cut with an ellipsis; not shown on phones. */
+  summary?: () => unknown;
+  /**
+   * The tags, a `<TagLine>`. A list whose rows have tags passes the slot on every row, also when
+   * the row has none: the line keeps its height. A list without tags (open tabs) leaves it out.
+   */
+  tags?: () => unknown;
   /** The row action bar, shown while the row is selected. */
   actions?: () => unknown;
 }>();
 
-// A list row with a preview: thumb · title (2 lines) · one meta line · extra lines. From `sm` up
-// the row's box sits exactly on the content edges and its content is inset by 12px, so the hover,
-// focus and selected background never reaches past the page's edge. On phones there is no hover and
-// the content uses the full width; a selected row's surface reaches 8px past the edges there.
-// In the meta line an item marked `data-shrink` (a channel, an author) gives way first; the first
-// item (the host) truncates too.
+// A list row with a preview, and one fixed height for every row of a list (#161): no row grows
+// with its content.
+//
+// From `sm` up the 16:9 preview (160×90) sets the height and the text column fills it exactly:
+// title (one line, 20) · meta (20) · summary (one line, 20) · tags (24), 2px apart. A line with
+// nothing in it stays empty and keeps its place.
+//
+// On phones the preview is 110×62 beside the title (two lines at most) with the meta line right
+// under it: the two share the preview's height, so a one-line title leaves the space below the
+// meta. There is no summary, and the tags take one line under both, across the row.
+//
+// Only the selected row is taller: it adds the action bar under its lines.
+//
+// From `sm` up the row's box sits exactly on the content edges and its content is inset by 12px,
+// so the hover, focus and selected background never reaches past the page's edge. On phones there
+// is no hover and the content uses the full width; a selected row's surface reaches 8px past the
+// edges there. In the meta line an item marked `data-shrink` (a channel, an author) gives way
+// first; the first item (the host) truncates too.
 </script>
 
 <template>
@@ -43,41 +60,60 @@ defineSlots<{
     :as-child="asChild"
     :class="
       cn(
-        'relative flex items-start gap-3 rounded-surface border border-transparent py-3 transition-colors has-[[data-slot=media-row-title]:focus-visible]:outline-2 has-[[data-slot=media-row-title]:focus-visible]:outline-offset-0 has-[[data-slot=media-row-title]:focus-visible]:outline-ring/40 sm:gap-4 sm:px-[11px] sm:py-[11px] sm:hover:bg-surface',
+        'relative grid grid-cols-[110px_minmax(0,1fr)] grid-rows-[auto_1fr] gap-x-3 gap-y-0.5 rounded-surface border border-transparent py-3 transition-colors has-[[data-slot=media-row-title]:focus-visible]:outline-2 has-[[data-slot=media-row-title]:focus-visible]:outline-offset-0 has-[[data-slot=media-row-title]:focus-visible]:outline-ring/40 sm:grid-cols-[160px_minmax(0,1fr)] sm:grid-rows-[20px_20px_20px_24px] sm:gap-x-4 sm:px-[11px] sm:py-[11px] sm:hover:bg-surface',
         selected && 'tactile-row-selected max-sm:-mx-2 max-sm:px-[7px]',
         props.class,
       )
     "
   >
-    <div v-if="$slots.thumb" data-slot="media-row-thumb" class="shrink-0">
+    <div
+      data-slot="media-row-thumb"
+      class="col-start-1 row-span-2 row-start-1 h-[62px] sm:row-span-4 sm:h-[90px]"
+    >
       <slot name="thumb" />
     </div>
-    <div data-slot="media-row-body" class="flex min-w-0 flex-1 flex-col gap-1">
-      <div v-if="$slots.title" class="flex min-w-0 items-start gap-2">
-        <span
-          v-if="unread"
-          data-slot="media-row-unread"
-          role="img"
-          aria-label="Not yet seen"
-          class="mt-[7px] size-1.5 shrink-0 rounded-full bg-signal"
-        />
-        <slot name="title" />
-      </div>
-      <div
-        v-if="$slots.meta"
-        data-slot="media-row-meta"
-        class="flex min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
-      >
-        <slot name="meta" />
-      </div>
-      <slot />
-      <div
-        v-if="selected && $slots.actions"
-        data-slot="media-row-actions"
-        class="relative flex flex-wrap items-center gap-2 pt-2"
-      >
-        <slot name="actions" />
-      </div>
+    <div
+      data-slot="media-row-title-line"
+      class="col-start-2 row-start-1 flex min-w-0 items-start gap-2 sm:h-5"
+    >
+      <span
+        v-if="unread"
+        data-slot="media-row-unread"
+        role="img"
+        aria-label="Not yet seen"
+        class="mt-[7px] size-1.5 shrink-0 rounded-full bg-signal"
+      />
+      <slot name="title" />
+    </div>
+    <div
+      data-slot="media-row-meta"
+      class="col-start-2 row-start-2 flex h-5 min-w-0 items-center self-start overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
+    >
+      <slot name="meta" />
+    </div>
+    <div
+      data-slot="media-row-summary"
+      class="col-start-2 row-start-3 h-5 min-w-0 truncate text-body text-muted-foreground max-sm:hidden"
+    >
+      <slot name="summary" />
+    </div>
+    <div
+      data-slot="media-row-tags"
+      :class="
+        cn(
+          'col-span-2 col-start-1 row-start-3 mt-1.5 h-6 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-4 sm:mt-0',
+          !$slots.tags && 'max-sm:hidden',
+        )
+      "
+    >
+      <slot name="tags" />
+    </div>
+    <div
+      v-if="selected && $slots.actions"
+      data-slot="media-row-actions"
+      class="relative col-span-2 col-start-1 row-start-4 flex flex-wrap items-center gap-2 pt-1.5 sm:col-span-1 sm:col-start-2 sm:row-start-5"
+    >
+      <slot name="actions" />
     </div>
   </Primitive>
 </template>

@@ -19,6 +19,11 @@ export interface Snapshot {
     readonly label: string;
     readonly edges: ReadonlyArray<{ readonly label: string; readonly left: number }>;
   }>;
+  /**
+   * Every media row on the page that is not selected (a selected row adds its action bar), by its
+   * height. The rows of a list are all one height (#161).
+   */
+  readonly rows: ReadonlyArray<{ readonly label: string; readonly height: number }>;
   /** Elements whose text renders in mono outside the allowlist (keys, device code, charts). */
   readonly mono: ReadonlyArray<string>;
 }
@@ -60,6 +65,7 @@ export interface Violation {
     | "right edge"
     | "card"
     | "row lines"
+    | "row height"
     | "gap"
     | "mono";
   readonly element: string;
@@ -158,6 +164,28 @@ const groups = (snapshot: Snapshot): Array<Violation> =>
       }));
   });
 
+/** Rows of one list may differ by this much: rounding of a line box. */
+export const rowHeightTolerance = 1;
+
+// Every media row is as tall as most of them: the height the rows share is the commonest one, and
+// any row more than a pixel off it is the odd one out.
+const rowHeights = (snapshot: Snapshot): Array<Violation> => {
+  const counts = new Map<number, number>();
+  for (const row of snapshot.rows) {
+    const key = Math.round(row.height);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const common = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+  if (common === undefined) return [];
+  return snapshot.rows
+    .filter((row) => Math.abs(row.height - common) > rowHeightTolerance)
+    .map((row) => ({
+      rule: "row height",
+      element: row.label,
+      detail: `${px(row.height)} tall, the other rows are ${px(common)}`,
+    }));
+};
+
 const gaps = (snapshot: Snapshot): Array<Violation> =>
   snapshot.gaps
     .filter((gap) => !spacingScale.some((step) => near(gap.px, step)))
@@ -184,6 +212,7 @@ export const audit = (
   ...rows(snapshot),
   ...edges(snapshot),
   ...groups(snapshot),
+  ...rowHeights(snapshot),
   ...gaps(snapshot),
   ...mono(snapshot),
 ];

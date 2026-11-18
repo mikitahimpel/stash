@@ -25,6 +25,24 @@ describe("MediaRow", () => {
   });
 });
 
+describe("MediaRow lines", () => {
+  it("keeps the summary line when there is no summary, so every row is one height", () => {
+    const bare = mount(MediaRow, {
+      slots: { title: "<a href='https://example.com/'>Example</a>" },
+    });
+    expect(bare.find("[data-slot=media-row-summary]").exists()).toBe(true);
+    expect(bare.find("[data-slot=media-row-summary]").text()).toBe("");
+    // A list without tags (open tabs) has no tags line on a phone.
+    expect(bare.find("[data-slot=media-row-tags]").classes()).toContain("max-sm:hidden");
+
+    const full = mount(MediaRow, {
+      slots: { title: "<a>Example</a>", summary: "A summary.", tags: "<span>#tag</span>" },
+    });
+    expect(full.find("[data-slot=media-row-summary]").text()).toBe("A summary.");
+    expect(full.find("[data-slot=media-row-tags]").classes()).not.toContain("max-sm:hidden");
+  });
+});
+
 describe("MediaThumb", () => {
   it("shows the image, or the site's initial when there is none", () => {
     const image = mount(MediaThumb, {
