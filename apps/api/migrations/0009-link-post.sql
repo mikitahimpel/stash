@@ -22,6 +22,7 @@ UPDATE links
     OR canonical_url LIKE 'https://twitter.com/%/status/%'
     OR canonical_url LIKE 'https://mobile.x.com/%/status/%'
     OR canonical_url LIKE 'https://mobile.twitter.com/%/status/%'
+    OR canonical_url LIKE 'https://m.twitter.com/%/status/%'
     OR canonical_url LIKE 'https://fxtwitter.com/%/status/%'
     OR canonical_url LIKE 'https://vxtwitter.com/%/status/%'
     OR canonical_url LIKE 'https://fixupx.com/%/status/%'

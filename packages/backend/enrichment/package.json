@@ -25,8 +25,7 @@
     "./parse-x-post": "./src/parse-x-post.ts",
     "./requeue-backfill": "./src/requeue-backfill.ts",
     "./requeue-pending": "./src/requeue-pending.ts",
-    "./store-text": "./src/store-text.ts",
-    "./x-post-url": "./src/x-post-url.ts"
+    "./store-text": "./src/store-text.ts"
   },
   "scripts": {
     "lint": "oxlint .",
@@ -38,6 +37,7 @@
   },
   "dependencies": {
     "@effect/ai-anthropic": "catalog:",
+    "@stash/backend-links": "workspace:*",
     "@stash/backend-platform": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
@@ -45,7 +45,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
-    "@stash/backend-links": "workspace:*",
     "@stash/config-tsconfig": "workspace:*",
     "@stash/config-vitest": "workspace:*",
     "@types/node": "catalog:",

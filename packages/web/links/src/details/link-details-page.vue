@@ -227,7 +227,8 @@ const leave = () => (back.history ? router.back() : void router.replace({ name: 
         />
       </template>
 
-      <header class="flex flex-col gap-3">
+      <!-- A post's lines and actions end where its card does. -->
+      <header :class="['flex flex-col gap-3', view.link.post !== undefined && 'max-w-xl']">
         <Badge variant="outline" data-slot="link-kind">{{ kind(view.link) }}</Badge>
         <h1
           :class="view.link.post === undefined ? 'line-clamp-3 text-title break-words' : 'sr-only'"

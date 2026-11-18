@@ -188,6 +188,26 @@ describe("enrichLink: a post on X", () => {
     ),
   );
 
+  it.effect("gives a link saved without a handle the handle's URL once the post is read", () =>
+    Effect.gen(function* () {
+      yield* D1Database.Database.use((db) =>
+        db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
+          ('nameless', 'https://x.com/i/status/${X.postId}', 'https://x.com/i/status/${X.postId}')`),
+      );
+      const id = Link.LinkId.make("nameless");
+      yield* EnrichLink.enrichLink(id);
+      expect((yield* stored(id)).canonicalUrl).toBe(postUrl);
+    }).pipe(
+      Effect.provide(
+        EnrichmentTestLayer.layer(
+          { [syndication]: { body: X.textPost, contentType: json } },
+          classification,
+          classification,
+        ),
+      ),
+    ),
+  );
+
   it.effect(
     "moves a link saved in an old form to the post's one URL, unless another link has it",
     () =>

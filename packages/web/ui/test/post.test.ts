@@ -53,7 +53,21 @@ describe("MediaRow for a post", () => {
     });
     expect(row.attributes("data-meta-first")).toBe("");
     expect(row.classes()).toContain("sm:grid-rows-[20px_20px_20px_24px]");
-    expect(row.find("[data-slot=media-row-meta]").classes()).toContain("row-start-1");
+    const first = row.find("[data-slot=media-row-meta-line]");
+    expect(first.classes()).toContain("row-start-1");
+    expect(first.find("[data-slot=media-row-meta]").text()).toBe("Author");
+    // Read: no dot. Unread: the dot is on this first line, as on every row.
+    expect(first.find("[data-slot=media-row-unread]").exists()).toBe(false);
+    const unread = mount(MediaRow, {
+      props: { metaFirst: true, unread: true },
+      slots: { title: "<a>Words</a>", meta: "<span>Author</span>" },
+    });
+    expect(
+      unread.find("[data-slot=media-row-meta-line] > [data-slot=media-row-unread]").exists(),
+    ).toBe(true);
+    expect(
+      unread.find("[data-slot=media-row-title-line] [data-slot=media-row-unread]").exists(),
+    ).toBe(false);
     const title = row.find("[data-slot=media-row-title-line]");
     expect(title.classes()).toEqual(
       expect.arrayContaining(["row-start-2", "sm:row-span-2", "sm:h-10"]),
@@ -224,7 +238,11 @@ describe("PostMedia", () => {
       "no-referrer",
     );
     await media.find("[data-slot=post-video-play]").trigger("click");
-    const srcdoc = media.find("[data-slot=post-video-player]").attributes("srcdoc") ?? "";
+    const frame = media.find("[data-slot=post-video-player]");
+    // An opaque origin: the frame's document cannot reach the app (no `allow-same-origin`).
+    expect(frame.attributes("sandbox")).toBe("allow-scripts");
+    expect(frame.attributes("allow")).toContain("fullscreen");
+    const srcdoc = frame.attributes("srcdoc") ?? "";
     expect(srcdoc).toContain('<meta name="referrer" content="no-referrer">');
     // The URL is an attribute value: its quotes and ampersands are escaped.
     expect(srcdoc).toContain('src="https://example.com/video.mp4?a=1&amp;b=&quot;2&quot;"');

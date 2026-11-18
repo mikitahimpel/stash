@@ -67,6 +67,9 @@ defineSlots<{
 // edges there. In the meta line only an item marked `data-shrink` (a channel, an author) gives
 // way: its shrink factor is so large that the first item (the host) stays whole until there is
 // nothing left of it, and only then truncates too.
+
+const metaLine =
+  "flex h-5 min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink-[1000000] [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate";
 </script>
 
 <template>
@@ -104,7 +107,7 @@ defineSlots<{
       "
     >
       <span
-        v-if="unread"
+        v-if="unread && !metaFirst"
         data-slot="media-row-unread"
         role="img"
         aria-label="Not yet seen"
@@ -112,14 +115,27 @@ defineSlots<{
       />
       <slot name="title" />
     </div>
+    <!-- A `metaFirst` row's first line is the meta line, so its dot is there, where every row's is. -->
     <div
+      v-if="metaFirst"
+      data-slot="media-row-meta-line"
+      class="col-start-2 row-start-1 flex h-5 min-w-0 items-center gap-2"
+    >
+      <span
+        v-if="unread"
+        data-slot="media-row-unread"
+        role="img"
+        aria-label="Not yet seen"
+        class="size-1.5 shrink-0 rounded-full bg-signal"
+      />
+      <div data-slot="media-row-meta" :class="cn(metaLine, 'flex-1')">
+        <slot name="meta" />
+      </div>
+    </div>
+    <div
+      v-else
       data-slot="media-row-meta"
-      :class="
-        cn(
-          'col-start-2 flex h-5 min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink-[1000000] [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-[\'·\'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate',
-          metaFirst ? 'row-start-1' : 'row-start-2 self-start',
-        )
-      "
+      :class="cn(metaLine, 'col-start-2 row-start-2 self-start')"
     >
       <slot name="meta" />
     </div>

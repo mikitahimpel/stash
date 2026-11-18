@@ -1,4 +1,6 @@
 import * as Link from "@stash/contracts-domain/link";
+import * as Option from "effect/Option";
+import * as XPostUrl from "./x-post-url.ts";
 
 // The canonical URL is the dedupe key (`links.canonical_url` is unique). The link keeps the URL it
 // was saved with, so canonicalization may drop anything that does not change what the page is.
@@ -50,31 +52,9 @@ const youtubeVideoId = (url: URL): string | undefined => {
     : undefined;
 };
 
-const xHosts = new Set([
-  "x.com",
-  "twitter.com",
-  "mobile.x.com",
-  "mobile.twitter.com",
-  "fxtwitter.com",
-  "vxtwitter.com",
-  "fixupx.com",
-  "fixvx.com",
-]);
-
-const xStatusPath = /^\/(?:([A-Za-z0-9_]{1,30})|i\/web)\/status(?:es)?\/(\d{1,25})(?:\/|$)/;
-
-/**
- * A post on X as `https://x.com/<handle>/status/<id>`, if this is a status URL on X, the old
- * twitter.com, a mobile host or an embed-fixing mirror. Handles don't differ by case.
- */
-const xPostUrl = (url: URL): string | undefined => {
-  if (!xHosts.has(url.hostname)) return undefined;
-  const match = xStatusPath.exec(url.pathname);
-  const id = match?.[2];
-  return id === undefined
-    ? undefined
-    : `https://x.com/${(match?.[1] ?? "i").toLowerCase()}/status/${id}`;
-};
+/** A post on X as `https://x.com/<handle>/status/<id>`, if this is a status URL (`XPostUrl`). */
+const xPostUrl = (url: URL): string | undefined =>
+  Option.getOrUndefined(Option.map(XPostUrl.target(url.href), XPostUrl.canonicalUrl));
 
 /** Hash routes (`#/path`, `#!/path`) address a page in a single-page app. Other fragments don't. */
 const isRouteFragment = (hash: string): boolean => hash.startsWith("#/") || hash.startsWith("#!");

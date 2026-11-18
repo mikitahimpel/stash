@@ -212,7 +212,8 @@ content, not as a table of text:
   phones the line runs under the preview and the text, across the row.
 - **A post on X is the same row in a post's order** (#170, `MediaRow meta-first`): the meta line
   comes first and starts with the author (`PostByline`: a 16px round picture, the name, a mark
-  for a verified account, the @handle), then the age and the device; under it the post's own
+  for a verified account, the @handle, which gives way first on a narrow row), then the age and the device; the unread dot
+  is on this first line, as on every row; under it the post's own
   words take two lines (`MediaRowTitle :lines="2"`, 14/20 in the foreground colour, never a
   summary of them), where other rows have a title and a summary. They are the row's target. The
   preview is the post's first photo or its video's poster (with the play mark); a post without
@@ -285,7 +286,9 @@ The page of a link to a post on X shows the post in the hero's place, the way X 
   post's own words (a long post gets a written one). Tags, actions, Details and Delete follow.
 - **Privacy**: every picture loads lazily with `referrerpolicy="no-referrer"`. A `<video>` has no
   such attribute, so the player is a frame whose own document sets `no-referrer` for everything
-  it loads (`PostMediaItems.playerDocument`); it does not exist before the press. X's video host
+  it loads (`PostMediaItems.playerDocument`); it does not exist before the press. The frame is
+  sandboxed (`sandbox="allow-scripts"`, never `allow-same-origin`), so its document has an opaque
+  origin and cannot reach the app. X's video host
   refuses requests that name another site, so this is also what makes the video play.
 - **A post that could not be read** (deleted, protected, or X gave no answer): the card says
   `Post unavailable` and that the link is kept; the URL, Open on X and every action stay.

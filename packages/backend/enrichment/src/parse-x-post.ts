@@ -2,7 +2,7 @@ import * as Link from "@stash/contracts-domain/link";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as HtmlText from "./html-text.ts";
-import * as XPostUrl from "./x-post-url.ts";
+import * as XPostUrl from "@stash/backend-links/x-post-url";
 
 // Pure readers of the two public sources of a post on X:
 //

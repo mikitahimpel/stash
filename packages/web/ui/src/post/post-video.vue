@@ -5,8 +5,11 @@ import * as PostMedia from "./post-media";
 
 // A post's video or GIF in its box: the poster (lazy, no referrer) with a play button, and after a
 // press the player in its place. Nothing of the video loads before that press. The player is a
-// frame whose document loads everything without a referrer (see `PostMedia.playerDocument`). A
-// video with no playable file is its poster alone.
+// frame whose document loads everything without a referrer (see `PostMedia.playerDocument`). The
+// frame is sandboxed without `allow-same-origin`: a `srcdoc` document would otherwise have this
+// page's origin, and its markup is built from a post's URLs. With an opaque origin it cannot reach
+// the app whatever it contains. `allow-scripts` is there only because a sandbox without it also
+// blocks `autoplay`; the document has no script. A video with no playable file is its poster alone.
 const props = defineProps<{ video: PostMedia.Video; label?: string | undefined }>();
 
 const playing = ref(false);
@@ -30,6 +33,7 @@ const name = computed(() => props.label ?? (props.video.kind === "gif" ? "GIF" :
       data-slot="post-video-player"
       :srcdoc="player"
       :title="`Playing ${name}`"
+      sandbox="allow-scripts"
       allow="autoplay; fullscreen; picture-in-picture"
       allowfullscreen
       referrerpolicy="no-referrer"

@@ -8,6 +8,7 @@ const hosts: ReadonlySet<string> = new Set([
   "twitter.com",
   "mobile.x.com",
   "mobile.twitter.com",
+  "m.twitter.com",
   "fxtwitter.com",
   "vxtwitter.com",
   "fixupx.com",

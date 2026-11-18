@@ -5,7 +5,7 @@ import * as Option from "effect/Option";
 import * as ContentHttp from "./content-http.ts";
 import * as ContentText from "./content-text.ts";
 import * as ParseXPost from "./parse-x-post.ts";
-import * as XPostUrl from "./x-post-url.ts";
+import * as XPostUrl from "@stash/backend-links/x-post-url";
 
 // A post on X, read without x.com itself (its pages are an app shell behind a login wall):
 //

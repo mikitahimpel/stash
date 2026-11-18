@@ -65,7 +65,8 @@ with a separate `test/tsconfig.json` that extends `@stash/config-tsconfig/node.j
 
 - `links/src/save-link.ts`, `links/src/links-repo.ts`, `links/src/links-handlers.ts`
 - `enrichment/src/content-fetcher.ts`, `enrichment/src/link-classifier.ts`
-- `enrichment/src/x-post-url.ts` (which URLs are posts), `enrichment/src/parse-x-post.ts` (pure
+- `links/src/save/x-post-url.ts` (which URLs are posts on X; the one list of hosts, used by save
+  and by enrichment), `enrichment/src/parse-x-post.ts` (pure
   readers of the two sources), `enrichment/src/fetch-x-post.ts`; the test fixtures
   (`test/x-post-fixtures.ts`) have the real endpoints' shape and invented content
 - `platform/src/d1-database.ts`, `platform/src/testing.ts`

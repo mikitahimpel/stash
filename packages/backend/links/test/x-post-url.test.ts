@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Option from "effect/Option";
-import * as XPostUrl from "../src/x-post-url.ts";
+import * as XPostUrl from "../src/save/x-post-url.ts";
 
 describe("XPostUrl", () => {
   it.each([
@@ -8,6 +8,7 @@ describe("XPostUrl", () => {
     ["https://twitter.com/Example_Writer/status/1700000000000000001?s=20&t=abc", "Example_Writer"],
     ["https://www.twitter.com/example_writer/statuses/1700000000000000001", "example_writer"],
     ["https://mobile.twitter.com/example_writer/status/1700000000000000001", "example_writer"],
+    ["https://m.twitter.com/example_writer/status/1700000000000000001", "example_writer"],
     ["https://fxtwitter.com/example_writer/status/1700000000000000001/en", "example_writer"],
     ["https://vxtwitter.com/example_writer/status/1700000000000000001", "example_writer"],
     ["https://x.com/example_writer/status/1700000000000000001/photo/2", "example_writer"],

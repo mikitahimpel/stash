@@ -6,7 +6,7 @@ import type * as ContentText from "./content-text.ts";
 import * as FetchPageText from "./fetch-page-text.ts";
 import * as FetchXPost from "./fetch-x-post.ts";
 import * as FetchYoutubeContent from "./fetch-youtube-content.ts";
-import * as XPostUrl from "./x-post-url.ts";
+import * as XPostUrl from "@stash/backend-links/x-post-url";
 
 type Fetched = Effect.Effect<
   ContentText.ContentText,

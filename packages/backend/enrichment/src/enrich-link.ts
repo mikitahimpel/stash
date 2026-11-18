@@ -19,7 +19,7 @@ import * as FetchContent from "./fetch-content.ts";
 import * as FetchXPost from "./fetch-x-post.ts";
 import * as JunkFilter from "./junk-filter.ts";
 import * as StoreText from "./store-text.ts";
-import * as XPostUrl from "./x-post-url.ts";
+import * as XPostUrl from "@stash/backend-links/x-post-url";
 
 // The enrichment pipeline for one link: fetch → classify → embed → store.
 //
@@ -183,11 +183,14 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
         Option.getOrNull,
       ),
       post: Option.getOrNull(Option.map(post, (p) => JSON.stringify(encodePost(p)))),
-      canonicalUrl: XPostUrl.target(link.url).pipe(
-        Option.map(XPostUrl.canonicalUrl),
-        Option.flatMap(decodeUrl),
-        Option.getOrNull,
-      ),
+      // The post's own address when it was read: a link saved as `/i/status/<id>` names no
+      // handle, and gets the handle's URL as its dedupe key once the handle is known.
+      canonicalUrl: XPostUrl.target(
+        Option.getOrElse(
+          Option.map(post, (p) => p.url),
+          () => link.url,
+        ),
+      ).pipe(Option.map(XPostUrl.canonicalUrl), Option.flatMap(decodeUrl), Option.getOrNull),
       tags: classification.tags,
       enrichedAt: DateTime.formatIso(now),
       metadataVersion: EnrichPolicy.metadataVersion,

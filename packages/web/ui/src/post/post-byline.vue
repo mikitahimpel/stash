@@ -4,8 +4,8 @@ import Avatar from "../avatar/avatar.vue";
 
 // Who wrote a post: picture, name, a mark for a verified account, and the @handle.
 //
-// - `row`: one muted line for a `<MediaRow>`'s meta line, with a 16px picture. The name gives way
-//   first on a narrow row, then the handle.
+// - `row`: one muted line for a `<MediaRow>`'s meta line, with a 16px picture. On a narrow row the
+//   handle gives way first, down to nothing, and only then the name.
 // - `card`: the header of a `<PostCard>`: a 40px picture, the name over the handle, and whatever
 //   the `meta` slot adds after the handle (a date).
 // - `quote`: one line with a 24px picture, for a quoted post.
@@ -47,7 +47,9 @@ defineSlots<{
       aria-label="Verified"
       class="size-3.5 shrink-0 text-signal"
     />
-    <span data-slot="post-author-handle" class="min-w-0 shrink-[4] truncate">@{{ handle }}</span>
+    <span data-slot="post-author-handle" class="min-w-0 shrink-[1000000] truncate"
+      >@{{ handle }}</span
+    >
   </span>
   <div
     v-else
