@@ -36,7 +36,9 @@ defineSlots<{
 //
 // From `sm` up the 16:9 preview (160×90) sets the height and the text column fills it exactly:
 // title (one line, 20) · meta (20) · summary (one line, 20) · tags (24), 2px apart. A line with
-// nothing in it stays empty and keeps its place.
+// nothing in it stays empty and keeps its place. A list without tags (open tabs) has three lines,
+// and they sit in the middle of the same height: 13px above the title and under the summary, so
+// the text never ends well above the preview's bottom (#164).
 //
 // On phones the preview is 110×62 beside the title (two lines at most) with the meta line right
 // under it: the two share the preview's height, so a one-line title leaves the space below the
@@ -47,8 +49,9 @@ defineSlots<{
 // From `sm` up the row's box sits exactly on the content edges and its content is inset by 12px,
 // so the hover, focus and selected background never reaches past the page's edge. On phones there
 // is no hover and the content uses the full width; a selected row's surface reaches 8px past the
-// edges there. In the meta line an item marked `data-shrink` (a channel, an author) gives way
-// first; the first item (the host) truncates too.
+// edges there. In the meta line only an item marked `data-shrink` (a channel, an author) gives
+// way: its shrink factor is so large that the first item (the host) stays whole until there is
+// nothing left of it, and only then truncates too.
 </script>
 
 <template>
@@ -60,7 +63,9 @@ defineSlots<{
     :as-child="asChild"
     :class="
       cn(
-        'relative grid grid-cols-[110px_minmax(0,1fr)] grid-rows-[auto_1fr] gap-x-3 gap-y-0.5 rounded-surface border border-transparent py-3 transition-colors has-[[data-slot=media-row-title]:focus-visible]:outline-2 has-[[data-slot=media-row-title]:focus-visible]:outline-offset-0 has-[[data-slot=media-row-title]:focus-visible]:outline-ring/40 sm:grid-cols-[160px_minmax(0,1fr)] sm:grid-rows-[20px_20px_20px_24px] sm:gap-x-4 sm:px-[11px] sm:py-[11px] sm:hover:bg-surface',
+        'relative grid grid-cols-[110px_minmax(0,1fr)] grid-rows-[auto_1fr] gap-x-3 gap-y-0.5 rounded-surface border border-transparent py-3 transition-colors has-[[data-slot=media-row-title]:focus-visible]:outline-2 has-[[data-slot=media-row-title]:focus-visible]:outline-offset-0 has-[[data-slot=media-row-title]:focus-visible]:outline-ring/40 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-x-4 sm:px-[11px] sm:py-[11px] sm:hover:bg-surface',
+        // Without a tags line the three lines are centred: 13 + 20·3 + 13, with the gaps, is 90.
+        $slots.tags ? 'sm:grid-rows-[20px_20px_20px_24px]' : 'sm:grid-rows-[33px_20px_20px_11px]',
         selected && 'tactile-row-selected max-sm:-mx-2 max-sm:px-[7px]',
         props.class,
       )
@@ -74,7 +79,12 @@ defineSlots<{
     </div>
     <div
       data-slot="media-row-title-line"
-      class="col-start-2 row-start-1 flex min-w-0 items-start gap-2 sm:h-5"
+      :class="
+        cn(
+          'col-start-2 row-start-1 flex min-w-0 items-start gap-2 sm:h-5',
+          !$slots.tags && 'sm:self-end',
+        )
+      "
     >
       <span
         v-if="unread"
@@ -87,7 +97,7 @@ defineSlots<{
     </div>
     <div
       data-slot="media-row-meta"
-      class="col-start-2 row-start-2 flex h-5 min-w-0 items-center self-start overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
+      class="col-start-2 row-start-2 flex h-5 min-w-0 items-center self-start overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink-[1000000] [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
     >
       <slot name="meta" />
     </div>
@@ -98,13 +108,9 @@ defineSlots<{
       <slot name="summary" />
     </div>
     <div
+      v-if="$slots.tags"
       data-slot="media-row-tags"
-      :class="
-        cn(
-          'col-span-2 col-start-1 row-start-3 mt-1.5 h-6 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-4 sm:mt-0',
-          !$slots.tags && 'max-sm:hidden',
-        )
-      "
+      class="col-span-2 col-start-1 row-start-3 mt-1.5 h-6 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-4 sm:mt-0"
     >
       <slot name="tags" />
     </div>

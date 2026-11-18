@@ -12,6 +12,7 @@ import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import { onMounted, ref } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import * as LinkDisplay from "../link-display.ts";
 import * as LinksAtoms from "../links-atoms.ts";
 import * as SaveRequest from "./save-request.ts";
 
@@ -101,7 +102,7 @@ const back = () =>
         <MediaRow as="li" data-slot="saved-link">
           <template #thumb>
             <MediaThumb
-              :src="view.link.imageUrl"
+              :src="LinkDisplay.image(view.link)"
               :url="view.link.url"
               :initial="view.host"
               :video="view.link.type === 'video'"

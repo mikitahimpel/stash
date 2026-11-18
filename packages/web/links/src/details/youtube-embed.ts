@@ -1,5 +1,5 @@
-// A YouTube link's embedded player. The address comes from the link's URL alone, with no request:
-// the player itself loads only when the user presses play (`<MediaHero>`).
+// A YouTube link's embedded player and its thumbnail. Both addresses come from the link's URL
+// alone, with no request: the player itself loads only when the user presses play (`<MediaHero>`).
 
 const hosts = new Set([
   "youtube.com",
@@ -43,4 +43,13 @@ export const player = (url: string): string | undefined => {
   return video === undefined
     ? undefined
     : `https://www.youtube-nocookie.com/embed/${video}?autoplay=1`;
+};
+
+/**
+ * The thumbnail YouTube keeps for every video, for a link that has no image of its own (one saved
+ * before enrichment read it, or whose enrichment failed). `undefined` for any other URL.
+ */
+export const thumbnail = (url: string): string | undefined => {
+  const video = id(url);
+  return video === undefined ? undefined : `https://i.ytimg.com/vi/${video}/hqdefault.jpg`;
 };

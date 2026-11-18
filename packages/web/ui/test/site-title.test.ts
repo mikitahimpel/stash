@@ -29,6 +29,11 @@ describe("SiteTitle.strip", () => {
     ["A well-known example", "https://example.com/known"],
     // Nothing but the name.
     ["Example", "https://example.com/"],
+    // An IP host has no name: `2` and `2.1` are not the site's.
+    ["2 - Router status", "http://192.0.2.1/status"],
+    ["Router status | 2.1", "http://192.0.2.1/status"],
+    ["192.0.2.1 - Router status", "http://192.0.2.1/status"],
+    ["Router status - 2001:db8::1", "http://[2001:db8::1]/status"],
     // Not a web page.
     ["Notes - blank", "about:blank"],
   ])("leaves %s as it is", (title, url) => {

@@ -33,9 +33,16 @@ const keydown = (
   return event;
 };
 
+// A page with no dialog open, unless `dialog` says so.
+const page = (dialog: () => boolean = () => false) =>
+  Object.assign(new EventTarget(), {
+    querySelector: (selector: string) =>
+      selector.includes("[role=dialog][data-state=open]") && dialog() ? {} : null,
+  });
+
 describe("Keyboard (live)", () => {
   it.effect("emits matching keydowns and stops their default action", () => {
-    const doc = new EventTarget();
+    const doc = page();
     vi.stubGlobal("document", doc);
     const field = { matches: (selector: string) => selector.includes("textarea") };
     return Effect.gen(function* () {
@@ -58,6 +65,7 @@ describe("Keyboard (live)", () => {
           typing: false,
           control: false,
           handled: false,
+          modal: false,
         },
       ]);
       expect([other, typed, composing, slash].map((event) => event.defaultPrevented)).toEqual([
@@ -70,7 +78,7 @@ describe("Keyboard (live)", () => {
   });
 
   it.effect("tells presses on controls and presses already handled apart", () => {
-    const doc = new EventTarget();
+    const doc = page();
     vi.stubGlobal("document", doc);
     const button = { matches: (selector: string) => selector.includes("button") };
     return Effect.gen(function* () {
@@ -94,8 +102,25 @@ describe("Keyboard (live)", () => {
     }).pipe(Effect.provide(Keyboard.layer));
   });
 
+  it.effect("says whether a dialog is open over the page", () => {
+    let open = false;
+    const doc = page(() => open);
+    vi.stubGlobal("document", doc);
+    return Effect.gen(function* () {
+      const keyboard = yield* Keyboard.Keyboard;
+      const fiber = yield* keyboard
+        .presses((press) => press.key === "s")
+        .pipe(Stream.take(2), Stream.runCollect, Effect.forkChild);
+      yield* settle;
+      keydown(doc, { key: "s" });
+      open = true;
+      keydown(doc, { key: "s" });
+      expect((yield* Fiber.join(fiber)).map((press) => press.modal)).toEqual([false, true]);
+    }).pipe(Effect.provide(Keyboard.layer));
+  });
+
   it.effect("stops listening when the stream ends", () => {
-    const doc = new EventTarget();
+    const doc = page();
     vi.stubGlobal("document", doc);
     return Effect.gen(function* () {
       const keyboard = yield* Keyboard.Keyboard;

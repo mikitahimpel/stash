@@ -30,6 +30,13 @@ describe("YoutubeEmbed", () => {
   ])("finds none in %s", (url) => {
     expect(YoutubeEmbed.id(url)).toBeUndefined();
     expect(YoutubeEmbed.player(url)).toBeUndefined();
+    expect(YoutubeEmbed.thumbnail(url)).toBeUndefined();
+  });
+
+  it("knows the video's thumbnail from its id", () => {
+    expect(YoutubeEmbed.thumbnail("https://youtu.be/synthetic01")).toBe(
+      "https://i.ytimg.com/vi/synthetic01/hqdefault.jpg",
+    );
   });
 
   it("plays on the cookie-less domain", () => {

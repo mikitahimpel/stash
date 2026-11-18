@@ -34,9 +34,11 @@ describe("link details page", () => {
           )
         : id === "v"
           ? ApiTesting.json(video)
-          : id === "bare"
-            ? ApiTesting.json(Fixtures.link("bare", { summary: null, tags: [], type: null }))
-            : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
+          : id === "v-bare"
+            ? ApiTesting.json({ ...video, id: "v-bare", imageUrl: null })
+            : id === "bare"
+              ? ApiTesting.json(Fixtures.link("bare", { summary: null, tags: [], type: null }))
+              : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
     "GET /links": () => Fixtures.page([]),
     "GET /devices": () => ApiTesting.json(devices),
     "DELETE /links/:id": () => new Response(null, { status: 204 }),
@@ -54,6 +56,16 @@ describe("link details page", () => {
     // The cover stands in for the missing image, and nothing offers to play an article.
     expect(wrapper.find("[data-slot=media-hero]").attributes("data-cover")).toBe("");
     expect(wrapper.find("[data-slot=media-hero-play]").exists()).toBe(false);
+  });
+
+  it("shows a YouTube video's own thumbnail when the link has no image", async () => {
+    const { wrapper } = await mountAt("/links/v-bare", routes);
+
+    const hero = wrapper.find("[data-slot=media-hero]");
+    expect(hero.find("img").attributes("src")).toBe(
+      "https://i.ytimg.com/vi/synthetic01/hqdefault.jpg",
+    );
+    expect(hero.attributes("data-cover")).toBeUndefined();
   });
 
   it("opens the link in a new tab from the primary button", async () => {

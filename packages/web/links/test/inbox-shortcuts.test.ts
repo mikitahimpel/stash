@@ -11,6 +11,7 @@ const press = (key: string, overrides: Partial<Keyboard.KeyPress> = {}): Keyboar
   typing: false,
   control: false,
   handled: false,
+  modal: false,
   ...overrides,
 });
 
@@ -27,6 +28,9 @@ describe("command", () => {
     expect(InboxShortcuts.command(press("s", { typing: true }))).toBeUndefined();
     expect(InboxShortcuts.command(press("ArrowDown", { handled: true }))).toBeUndefined();
     expect(InboxShortcuts.command(press("d", { metaKey: true }))).toBeUndefined();
+    // The Delete confirmation is open: S, D and E wait.
+    expect(InboxShortcuts.command(press("s", { modal: true }))).toBeUndefined();
+    expect(InboxShortcuts.command(press("e", { modal: true }))).toBeUndefined();
     expect(InboxShortcuts.command(press("e", { ctrlKey: true }))).toBeUndefined();
   });
 

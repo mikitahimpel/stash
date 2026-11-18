@@ -1,10 +1,22 @@
 import type * as Link from "@stash/contracts-domain/link";
 import * as SiteTitle from "@stash/web-ui/site-title";
 import * as DateTime from "effect/DateTime";
+import * as YoutubeEmbed from "./details/youtube-embed.ts";
 
 /** The host a link points to, without `www.`. Prefers the canonical URL. */
 export const domain = (link: Link.Link): string =>
   new URL(link.canonicalUrl ?? link.url).hostname.replace(/^www\./, "");
+
+/**
+ * The preview image: the link's own, else the thumbnail of the YouTube video it points to. `null`
+ * for any other link without one, which gets the generated cover.
+ */
+export const image = (link: Link.Link): string | null =>
+  link.imageUrl !== null && link.imageUrl !== ""
+    ? link.imageUrl
+    : (YoutubeEmbed.thumbnail(link.url) ??
+      (link.canonicalUrl === null ? undefined : YoutubeEmbed.thumbnail(link.canonicalUrl)) ??
+      null);
 
 /** The title, or the URL while enrichment hasn't filled one in. */
 export const title = (link: Link.Link): string => link.title ?? link.url;

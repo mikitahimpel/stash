@@ -180,11 +180,14 @@ content, not as a table of text:
 
 - **Every row of a list is one height** (#161), whatever it holds: 114px from `sm` up, 120px on
   phones (88px for open tabs, which have no tags line). Nothing wraps or grows; a line with nothing
-  in it stays empty and keeps its place. Only the selected row is taller, by its action bar.
+  in it stays empty and keeps its place. Only the selected row is taller, by its action bar. A
+  list without a tags line (open tabs) keeps the height from `sm` up and centres its three lines
+  in it, 13px from the preview's top and bottom (#164).
 - **Preview** on the left, 16:9: 160×90 from `sm` up, 110×62 on phones, radius 8. From `sm` up it
   sets the row's height and the text column fills it exactly, so the two end on one line top and
   bottom. It is the link's `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with
-  `referrerpolicy="no-referrer"`. A video carries a small play mark.
+  `referrerpolicy="no-referrer"`. A video carries a small play mark. A YouTube link without an
+  `imageUrl` shows the video's own thumbnail (`i.ytimg.com/vi/<id>/hqdefault.jpg`, from the URL).
 - **A link or tab with no image gets a generated cover** (#155), also when its image fails to
   load: a soft gradient in a hue of the site's own (a stable hash of the host; `.media-cover` in
   the kit's styles tones it light or deep per theme), the site's favicon in the centre (28px, 20px
@@ -200,7 +203,8 @@ content, not as a table of text:
   other links in the row (the host, a tag) sit above it. On Open now a click selects the row
   instead, and only the title opens the tab.
 - **One meta line**, muted 13: host · channel or author · age · device (the device is left out on
-  phones). The author gives way first when the line is too long.
+  phones). Only the author gives way when the line is too long: the host stays whole. A link
+  still being enriched ends the line with `summarizing…` on phones, which have no summary line.
 - **Summary**, one line with an ellipsis, from `sm` up only. A link with no summary shows who
   published it there, or nothing; an open tab shows its address.
 - **Tags** as 24px chips on one line (`TagLine`): as many as fit, three at most, then `+n`. On
