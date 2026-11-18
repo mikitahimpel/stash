@@ -74,8 +74,11 @@ popup:
 | <img src="../../docs/screenshots/extension-popup-not-paired-light.png" width="380"> | <img src="../../docs/screenshots/extension-popup-paired-light.png" width="380"> | <img src="../../docs/screenshots/extension-popup-saved-light.png" width="380"> |
 | <img src="../../docs/screenshots/extension-popup-not-paired-dark.png" width="380"> | <img src="../../docs/screenshots/extension-popup-paired-dark.png" width="380"> | <img src="../../docs/screenshots/extension-popup-saved-dark.png" width="380"> |
 
-- **This page** with **Save**. The button has the focus, so <kbd>Enter</kbd> saves. A page that is
-  in Stash already (`GET /links?url=…`) shows **Saved** and **Undo**, which deletes the link. After
+- **This page** with **Save**. The button has the focus, so <kbd>Enter</kbd> saves. Once the page
+  is saved the focus is in the search field, so no key press deletes anything by accident. Right
+  after a save the popup shows **Saved** and **Undo**, which deletes the link it just created. A
+  page that was in Stash already (`GET /links?url=…`) shows **Saved** and **Remove**, which asks
+  first (**Keep** / **Remove**). After
   a save the popup asks for the link every 2 seconds, for up to 40, and shows its tags and preview
   when enrichment is done.
 - **Search Stash**: type and press <kbd>Enter</kbd> to open `<stash>/search?q=…`. **Open Stash**

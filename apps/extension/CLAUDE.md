@@ -37,6 +37,9 @@ platform services. WXT-generated code is the only exception.
 - The toolbar popup (`entrypoints/popup/`) only shows state and calls its `actions`
   (`popup-actions.ts`, which run `@stash/ext-popup` effects). It pairs nothing itself: "Connect
   this browser" opens the options page, because a popup closes as soon as another tab opens.
+- Removing a link is a hard delete. The popup never puts the focus on Undo or Remove, offers the
+  one-click Undo only for a link its own Save just created (`created: true`), and asks before
+  removing any other.
 - Pages look like the web app. `assets/tokens.css` is a copy of the web design tokens
   (`packages/web/ui/src/styles.css`); keep the values in step by hand, never import `@stash/web-*`.
   Light and dark follow `prefers-color-scheme`.
@@ -44,7 +47,8 @@ platform services. WXT-generated code is the only exception.
 ## Testing
 
 Minimal wiring tests: entrypoints build their layers with `@stash/ext-platform/testing`. Feature
-behavior is tested in `packages/extension/*`.
+behavior is tested in `packages/extension/*`. The popup page has one page test for what only the
+page decides: the focus and the confirmation before a delete.
 
 ## File naming
 
@@ -58,7 +62,9 @@ behavior is tested in `packages/extension/*`.
 - The toolbar popup is `entrypoints/popup/` (`index.html`, `main.ts`, `popup-page.vue`,
   `popup-actions.ts`). `preview/popup/` mounts the same page over made-up states for the
   screenshots; it is not an entrypoint and is not in the build.
-- `test/background.test.ts`, `test/save-config.test.ts`, `test/popup-actions.test.ts`
+- `test/background.test.ts`, `test/save-config.test.ts`, `test/popup-actions.test.ts`,
+  `test/popup-page.test.ts` (mounts the page in happy-dom over fake `actions`: where the focus goes,
+  and that removing a link takes a deliberate click)
 
 ## Commands
 

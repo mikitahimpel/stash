@@ -47,12 +47,21 @@ const usable = (url: string | null | undefined) =>
   url !== null && url !== undefined && !broken.has(url) ? url : null;
 const initial = (host: string) => host.slice(0, 1);
 
+// Save, or Connect: the buttons that may hold the focus, so Enter saves (or connects).
 const primary = ref<HTMLButtonElement | null>(null);
-// The primary button holds the focus, so Enter saves (or connects).
-const focusPrimary = async () => {
+const field = ref<HTMLInputElement | null>(null);
+const keep = ref<HTMLButtonElement | null>(null);
+// Removing is a hard delete, so the focus never lands on it: once the page is in Stash the focus
+// goes to the search field, and Undo or Remove takes a click or a Tab.
+const focusNext = async () => {
   await nextTick();
-  primary.value?.focus();
+  (saved.value === null ? primary.value : field.value)?.focus();
 };
+
+// The link this popup created with its own Save. Only that one has a one-click Undo; a link that
+// was in Stash before has tags and history, so Remove asks first.
+const createdHere = ref<PopupLink.PopupLink["id"] | null>(null);
+const confirming = ref(false);
 
 const replace = (link: PopupLink.PopupLink) => {
   if (saved.value?.id === link.id) saved.value = link;
@@ -76,7 +85,7 @@ onMounted(async () => {
   view.value = loaded;
   saved.value = loaded.saved;
   recent.value = loaded.recent;
-  void focusPrimary();
+  void focusNext();
   if (loaded.saved !== null) void follow(loaded.saved);
 });
 
@@ -90,6 +99,7 @@ const save = async () => {
       return;
     }
     saved.value = result.link;
+    createdHere.value = result.created ? result.link.id : null;
     recent.value = [result.link, ...recent.value.filter((it) => it.id !== result.link.id)].slice(
       0,
       Math.max(recent.value.length, 1),
@@ -97,11 +107,22 @@ const save = async () => {
     void follow(result.link);
   } finally {
     busy.value = false;
-    void focusPrimary();
+    void focusNext();
   }
 };
 
-const undo = async () => {
+const askToRemove = async () => {
+  confirming.value = true;
+  await nextTick();
+  keep.value?.focus();
+};
+const keepIt = () => {
+  confirming.value = false;
+  void focusNext();
+};
+
+/** Deletes the page's link. The template reaches it from Undo, or from the confirmed Remove. */
+const remove = async () => {
   const link = saved.value;
   if (link === null) return;
   busy.value = true;
@@ -113,13 +134,19 @@ const undo = async () => {
       return;
     }
     saved.value = null;
+    createdHere.value = null;
     recent.value = recent.value.filter((it) => it.id !== link.id);
   } finally {
     busy.value = false;
-    void focusPrimary();
+    confirming.value = false;
+    void focusNext();
   }
 };
 
+// A held Enter repeats: after it saved, it must not go on to submit the search.
+const ignoreRepeat = (event: KeyboardEvent) => {
+  if (event.repeat) event.preventDefault();
+};
 const search = () => {
   if (webOrigin.value !== null) void props.actions.search(webOrigin.value, query.value);
 };
@@ -182,16 +209,44 @@ const openStash = () => {
           Connect this browser
         </button>
       </template>
+      <div v-else-if="saved && confirming" class="saved-row" role="group" aria-labelledby="ask">
+        <span id="ask" class="saved">Remove from Stash?</span>
+        <span class="choices">
+          <button ref="keep" class="button tactile-raised" type="button" @click="keepIt">
+            Keep
+          </button>
+          <button
+            class="button tactile-raised danger"
+            type="button"
+            :disabled="busy"
+            name="confirm-remove"
+            @click="remove"
+          >
+            Remove
+          </button>
+        </span>
+      </div>
       <div v-else-if="saved" class="saved-row">
         <span class="saved" role="status"><span aria-hidden="true">✓</span> Saved</span>
         <button
-          ref="primary"
+          v-if="saved.id === createdHere"
           class="button tactile-raised"
           type="button"
           :disabled="busy"
-          @click="undo"
+          name="undo"
+          @click="remove"
         >
           Undo
+        </button>
+        <button
+          v-else
+          class="button tactile-raised"
+          type="button"
+          :disabled="busy"
+          name="remove"
+          @click="askToRemove"
+        >
+          Remove
         </button>
       </div>
       <template v-else>
@@ -211,12 +266,14 @@ const openStash = () => {
 
     <form v-if="webOrigin" class="tools" role="search" @submit.prevent="search">
       <input
+        ref="field"
         v-model="query"
         class="field tactile-sunken"
         type="search"
         placeholder="Search Stash"
         aria-label="Search Stash"
         autocomplete="off"
+        @keydown.enter="ignoreRepeat"
       />
       <button class="button tactile-raised" type="button" @click="openStash">Open Stash</button>
     </form>
@@ -454,6 +511,13 @@ const openStash = () => {
   align-items: center;
   gap: 6px;
   font-weight: 500;
+}
+.choices {
+  display: flex;
+  gap: 8px;
+}
+.button.danger {
+  color: var(--destructive);
 }
 .error {
   margin: 0;
