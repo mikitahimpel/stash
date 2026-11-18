@@ -28,6 +28,18 @@ describe("background", () => {
     }),
   );
 
+  it.effect("opens the options page on a fresh install", () =>
+    Effect.gen(function* () {
+      yield* Layer.build(Background.layer);
+      const pages = yield* Testing.TestExtensionPages;
+      yield* Effect.repeat(Effect.yieldNow, { times: 20 });
+      expect(yield* pages.optionsOpened).toBe(0);
+      yield* pages.install;
+      yield* Effect.repeat(Effect.yieldNow, { times: 20 });
+      expect(yield* pages.optionsOpened).toBe(1);
+    }).pipe(Effect.scoped, Effect.provide(Testing.layer)),
+  );
+
   it.effect("polls device commands on an alarm", () => {
     const requests: Array<string> = [];
     const platform = Testing.make({

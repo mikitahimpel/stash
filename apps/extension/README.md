@@ -26,6 +26,16 @@ pnpm --filter @stash/extension build   # → apps/extension/.output/stash-<versi
 pnpm --filter @stash/extension package:xpi -- <out.xpi>   # what the deploy runs
 ```
 
+The deploy sets `STASH_WEB_ORIGIN` to the web app's own origin for this build, and
+`wxt.config.ts` bakes it into the bundle (`build-origin.ts`). The `.xpi` a Stash serves therefore
+knows where it came from, and its options page connects with one button. No address is committed:
+a build without the variable (the two commands above, `dev`) has no built-in Stash and asks for
+the address. To try the one-button path locally, set it yourself:
+
+```sh
+STASH_WEB_ORIGIN=http://localhost:8791 pnpm --filter @stash/extension build
+```
+
 WXT builds Firefox as Manifest V2 (its default for Firefox). The unpacked build is in
 `.output/firefox-mv2/`. `package:xpi` (`scripts/package-xpi.ts`) zips it, or signs it with
 `web-ext sign --channel unlisted` when the AMO key is set. AMO signs each version only once, so a
@@ -45,17 +55,33 @@ remote host it can't: load the extension by hand in Firefox or Zen at `about:deb
 
 ## Setup
 
-Open the extension's options page (`about:addons` → Stash → Preferences), enter your Stash address
-and click **Connect**. A Stash tab opens (sign in if asked) and asks to connect this browser.
+Installing the extension opens its options page (later: `about:addons` → Stash → Preferences).
+
+| Not connected | Waiting for approval | Connected | Stash unreachable |
+|---|---|---|---|
+| <img src="../../docs/screenshots/extension-options-unpaired-light.png" width="220"> | <img src="../../docs/screenshots/extension-options-pairing-light.png" width="220"> | <img src="../../docs/screenshots/extension-options-paired-light.png" width="220"> | <img src="../../docs/screenshots/extension-options-error-light.png" width="220"> |
+| <img src="../../docs/screenshots/extension-options-unpaired-dark.png" width="220"> | <img src="../../docs/screenshots/extension-options-pairing-dark.png" width="220"> | <img src="../../docs/screenshots/extension-options-paired-dark.png" width="220"> | <img src="../../docs/screenshots/extension-options-error-dark.png" width="220"> |
+
+Click **Connect to Stash**. There is nothing to type: the extension knows the Stash it was
+downloaded from. A Stash tab opens (sign in if asked) and asks to connect this browser.
 Both pages show the same four-character check code: compare them before you approve, so a request
 another page started can't pass for yours. Approve it, and the options page gets its own device
-token: there is nothing to copy. Under the
+token and comes back to the front: there is nothing to copy. Under the
 hood the page makes a one-time code, the web app registers a new Zen device and binds the code to
 it in one transaction (`POST /pairings`), and the options page claims the token with the code (`POST /pairings/claim`,
 polled every 2 seconds for up to 15 minutes).
 
-**Advanced** on the same page still takes an API URL (`https://<stash>/api`) and a device token
-by hand. It checks them with `GET /auth/me` and keeps the previous settings if the API rejects
+Once connected, the page shows the Stash and the device this browser acts as, the last page it
+saved (`GET /devices/activity`) and when its open tabs were last in sync, with **Open Stash**,
+**Sync tabs now** (sends the open tabs even when nothing changed) and **Disconnect** (asks first,
+then forgets the device token; the device stays listed in Stash until you remove it there). The
+page follows the browser's light or dark theme.
+`pnpm --filter @stash/extension screenshots:options` retakes the pictures from made-up data
+(`preview/options/`).
+
+**Use a different Stash** under the card takes another address to connect to, and under it
+**Enter a device token by hand** takes an API URL (`https://<stash>/api`) and a device token.
+It checks them with `GET /auth/me` and keeps the previous settings if the API rejects
 them.
 
 Once a device token is saved, the background page polls `GET /devices/:id/commands?status=pending`

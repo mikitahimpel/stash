@@ -4,13 +4,15 @@ import * as ExtensionConfig from "@stash/ext-platform/extension-config";
 import * as StashApiClient from "@stash/ext-platform/stash-api-client";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Base64Url from "effect/encoding/Base64Url";
 import * as Schedule from "effect/Schedule";
 
 // Pairing without copying a token (see `pairings` in `@stash/contracts-api`): the options page
 // makes a one-time code, opens the web app's `/connect/extension?code=…` in a tab, where the
 // signed-in owner approves this browser, and polls `pairings.claim` with the code until the api
-// hands over the device token. The api is same-origin under `/api` of the web app.
+// hands over the device token. The api is same-origin under `/api` of the web app. The address is
+// the one built into the extension (`build-origin.ts`), unless the user gave another.
 
 /** How often the page asks whether the owner approved yet. */
 export const pollInterval = Duration.seconds(2);
@@ -60,8 +62,9 @@ class InvalidOrigin {
 }
 
 /**
- * Opens the approval page, waits for the token and saves the config. `onCheck` gets the code's
- * check value as soon as the page opens, for the options page to show.
+ * Opens the approval page, waits for the token, saves the config and comes back to the tab it was
+ * started from (the options page). `onCheck` gets the code's check value as soon as the page opens,
+ * for the options page to show.
  */
 export const pair = Effect.fnUntraced(function* (
   input: string,
@@ -72,6 +75,7 @@ export const pair = Effect.fnUntraced(function* (
   const code = yield* generateCode;
   onCheck(checkValue(code));
   const tabs = yield* Tabs.Tabs;
+  const here = yield* tabs.current;
   yield* tabs.open(approveUrl(origin, code));
   const apiBaseUrl = `${origin}/api`;
   const client = yield* StashApiClient.anonymous(apiBaseUrl);
@@ -84,6 +88,11 @@ export const pair = Effect.fnUntraced(function* (
   );
   const config = yield* ExtensionConfig.ExtensionConfig;
   yield* config.set({ apiBaseUrl, deviceToken: created.token });
+  // Back to the options page, which now shows the connection. The Stash tab stays open.
+  yield* Option.match(here, {
+    onNone: () => Effect.void,
+    onSome: (tab) => Effect.ignore(tabs.focus(tab.id)),
+  });
   return origin;
 });
 
@@ -93,12 +102,12 @@ const message = (error: Effect.Error<ReturnType<typeof pair>>): string => {
       return "Enter the address of your Stash, for example https://stash.example.com.";
     case "TimeoutError":
     case "NotFound":
-      return "Not approved in time. Click Connect to try again.";
+      return "Not approved in time. Connect again to retry.";
     case "ConfigError":
     case "BrowserError":
       return "Could not save the connection in the extension's storage.";
     default:
-      return "Could not reach Stash at this address.";
+      return "Could not reach Stash at this address. Check your connection and try again.";
   }
 };
 

@@ -5,7 +5,8 @@
  * firing of a repeating alarm, after tab events settle (debounced), and when the config changes
  * on the options page. A snapshot whose hash equals the last one sent is skipped. The hash is
  * kept in extension storage, so a suspended event page that wakes up again doesn't resend the
- * same tabs.
+ * same tabs. When and how many tabs were last in step is kept there too (`lastSyncKey`), for the
+ * options page.
  *
  * The device id is the one the token belongs to (`GET /auth/me`).
  */
@@ -20,6 +21,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as TabsSnapshot from "./tabs-snapshot.ts";
 
@@ -28,6 +30,25 @@ export const alarmName = "stash/tab-sync";
 
 /** The `browser.storage.local` key that holds the hash of the last snapshot sent. */
 export const lastHashKey = "stash/tab-sync/last-hash";
+
+/** The `browser.storage.local` key that holds the `LastSync`. */
+export const lastSyncKey = "stash/tab-sync/last-sync";
+
+/** The last time Stash had this browser's open tabs: when (epoch ms) and how many. */
+export const LastSync = Schema.Struct({ at: Schema.Number, tabs: Schema.Number });
+export type LastSync = typeof LastSync.Type;
+
+const decodeLastSync = Schema.decodeUnknownOption(LastSync);
+
+/** The stored `LastSync`, or `None` before the first sync that went through. */
+export const lastSync: Effect.Effect<
+  Option.Option<LastSync>,
+  never,
+  Storage.Storage
+> = Effect.flatMap(Storage.Storage, (storage) => storage.get(lastSyncKey)).pipe(
+  Effect.map(Option.flatMap(decodeLastSync)),
+  Effect.orElseSucceed(() => Option.none()),
+);
 
 export interface Options {
   /** How often a snapshot is taken without tab events. Default 5 minutes. */
@@ -48,7 +69,15 @@ export const sync = Effect.gen(function* () {
   const now = yield* DateTime.now;
   const openTabs = TabsSnapshot.fromTabs(yield* tabs.query(), now);
   const hash = TabsSnapshot.hash(openTabs);
-  if (Option.getOrUndefined(yield* storage.get(lastHashKey)) === hash) return "skipped" as Outcome;
+  // Stash has these tabs, whether this run sent them or an earlier one did.
+  const inStep = storage.set(lastSyncKey, {
+    at: DateTime.toEpochMillis(now),
+    tabs: openTabs.length,
+  } satisfies LastSync);
+  if (Option.getOrUndefined(yield* storage.get(lastHashKey)) === hash) {
+    yield* inStep;
+    return "skipped" as Outcome;
+  }
 
   const principal = yield* client.auth.me();
   if (principal.kind !== "device") {
@@ -59,8 +88,14 @@ export const sync = Effect.gen(function* () {
     payload: { takenAt: now, tabs: openTabs },
   });
   yield* storage.set(lastHashKey, hash);
+  yield* inStep;
   return "posted" as Outcome;
 });
+
+/** Sends a snapshot now, also when it equals the last one sent ("Sync tabs now"). */
+export const syncNow = Effect.flatMap(Storage.Storage, (storage) =>
+  storage.remove(lastHashKey),
+).pipe(Effect.andThen(sync));
 
 // Logs only the error's tag (and the config reason), never its cause: a config that failed to
 // decode carries the stored token in its cause.

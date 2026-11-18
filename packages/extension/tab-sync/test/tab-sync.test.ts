@@ -71,6 +71,34 @@ describe("tab sync", () => {
     }).pipe(Effect.scoped, Effect.provide(platform));
   });
 
+  it.effect("remembers when Stash last had the tabs, and sends again on demand", () => {
+    const api = fakeApi();
+    const platform = Testing.make({ tabs, config, handler: api.handler });
+    return Effect.gen(function* () {
+      expect(yield* TabSync.lastSync).toEqual(Option.none());
+      expect(yield* TabSync.sync).toBe("posted");
+      expect(yield* TabSync.lastSync).toEqual(Option.some({ at: 0, tabs: 2 }));
+
+      // Unchanged tabs are not sent again, but they are still in step, as of now.
+      yield* TestClock.adjust("1 minute");
+      expect(yield* TabSync.sync).toBe("skipped");
+      expect(yield* TabSync.lastSync).toEqual(Option.some({ at: 60_000, tabs: 2 }));
+      expect(api.reports).toHaveLength(1);
+
+      expect(yield* TabSync.syncNow).toBe("posted");
+      expect(api.reports).toHaveLength(2);
+    }).pipe(Effect.provide(platform));
+  });
+
+  it.effect("leaves the last sync alone when the API fails", () => {
+    const api = fakeApi({ status: () => 503 });
+    const platform = Testing.make({ tabs, config, handler: api.handler });
+    return Effect.gen(function* () {
+      yield* Effect.exit(TabSync.syncNow);
+      expect(yield* TabSync.lastSync).toEqual(Option.none());
+    }).pipe(Effect.provide(platform));
+  });
+
   it.effect("on the alarm, skips unchanged tabs and posts changed ones", () => {
     const api = fakeApi();
     const platform = Testing.make({ tabs, config, handler: api.handler });

@@ -1,4 +1,5 @@
 import { defineConfig } from "wxt";
+import * as BuildOrigin from "./build-origin.ts";
 
 // Firefox / Zen first. WXT builds Firefox as Manifest V2 by default. Keep the manifest free of
 // Chrome-only keys so the Safari Web Extension conversion stays possible.
@@ -12,6 +13,8 @@ export default defineConfig({
     // Add it with the workspace sources when the extension goes to addons.mozilla.org.
     zipSources: false,
   },
+  // The Stash this build pairs with, from `STASH_WEB_ORIGIN` (see `build-origin.ts`).
+  vite: () => ({ define: BuildOrigin.define(process.env) }),
   hooks: {
     // `imports: false` still runs unimport over every bundled file outside `node_modules`, which
     // includes the symlinked workspace packages. It would rewrite `browser.*` in
@@ -26,7 +29,7 @@ export default defineConfig({
     name: "Stash",
     description: "Save links and open tabs to Stash.",
     // `tabs`, `storage` and `alarms` for the `@stash/ext-platform` services. The API origin is
-    // entered on the options page, so any http(s) origin may be the API.
+    // built in by the deploy or entered on the options page, so any http(s) origin may be the API.
     permissions: ["tabs", "storage", "alarms", "https://*/*", "http://*/*"],
     // The toolbar button opens the popup (`entrypoints/popup/`, WXT adds `default_popup`). The
     // background page still shows the result of a hotkey save as a badge on it.

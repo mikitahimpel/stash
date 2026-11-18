@@ -46,6 +46,7 @@ const fakeBrowser = () => {
     onUpdated: event<[number, Record<string, unknown>, unknown]>(),
   };
   const onClicked = event<[unknown]>();
+  const onInstalled = event<[{ reason: string }]>();
   const calls: Array<{ readonly api: string; readonly args: ReadonlyArray<unknown> }> = [];
   const record = (api: string, ...args: ReadonlyArray<unknown>) => calls.push({ api, args });
   const tabs = [
@@ -71,6 +72,7 @@ const fakeBrowser = () => {
     runtime: {
       getURL: (path: string) => `moz-extension://synthetic${path}`,
       openOptionsPage: async () => void record("runtime.openOptionsPage"),
+      onInstalled,
     },
     windows: {
       WINDOW_ID_NONE: -1,
@@ -222,6 +224,23 @@ describe("live layer", () => {
         { api: "runtime.openOptionsPage", args: [] },
       ]);
       expect(close).toHaveBeenCalledOnce();
+    }).pipe(Effect.provide(Live.layer));
+  });
+
+  it.effect("emits ExtensionPages.installed for a fresh install only", () => {
+    const fake = fakeBrowser();
+    vi.stubGlobal("browser", fake.api);
+    return Effect.gen(function* () {
+      const pages = yield* ExtensionPages.ExtensionPages;
+      const fiber = yield* pages.installed.pipe(Stream.take(1), Stream.runCount, Effect.forkChild);
+      yield* settle;
+      const onInstalled = fake.api.runtime.onInstalled;
+      onInstalled.emit({ reason: "update" });
+      onInstalled.emit({ reason: "browser_update" });
+      expect(fiber.pollUnsafe()).toBeUndefined();
+      onInstalled.emit({ reason: "install" });
+      expect(yield* Fiber.join(fiber)).toBe(1);
+      expect(onInstalled.size).toBe(0);
     }).pipe(Effect.provide(Live.layer));
   });
 
