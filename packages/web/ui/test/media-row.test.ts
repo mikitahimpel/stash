@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import MediaRowTitle from "../src/media-row/media-row-title.vue";
 import MediaRow from "../src/media-row/media-row.vue";
 import MediaThumb from "../src/media-row/media-thumb.vue";
+import * as SiteCover from "../src/media-row/site-cover";
 
 describe("MediaRow", () => {
   it("shows the unread dot and the action bar only when asked", async () => {
@@ -60,6 +61,97 @@ describe("MediaThumb", () => {
 
     await thumb.setProps({ src: "https://example.com/other.png" });
     expect(thumb.find("img").attributes("src")).toBe("https://example.com/other.png");
+  });
+});
+
+describe("MediaThumb cover", () => {
+  const url = "https://www.example.org/articles/1";
+
+  it("covers a link without an image: the site's hue, its favicon and its host", () => {
+    const thumb = mount(MediaThumb, { props: { src: null, url } });
+    expect(thumb.attributes("data-cover")).toBe("");
+    expect(thumb.classes()).toContain("media-cover");
+    expect(thumb.attributes("style")).toContain(`--cover-hue: ${SiteCover.hue("example.org")}`);
+    const icon = thumb.find("[data-slot=media-cover-icon]");
+    expect(icon.attributes()).toMatchObject({
+      src: "https://www.example.org/favicon.ico",
+      loading: "lazy",
+      referrerpolicy: "no-referrer",
+      alt: "",
+    });
+    expect(thumb.find("[data-slot=media-cover-host]").text()).toBe("example.org");
+  });
+
+  it("falls back to the initial when the favicon fails, and tries again for another site", async () => {
+    const thumb = mount(MediaThumb, { props: { url } });
+    await thumb.find("[data-slot=media-cover-icon]").trigger("error");
+    expect(thumb.find("img").exists()).toBe(false);
+    expect(thumb.find("[data-slot=media-cover-initial]").text()).toBe("e");
+    expect(thumb.find("[data-slot=media-cover-host]").text()).toBe("example.org");
+
+    await thumb.setProps({ url: "https://example.net/" });
+    expect(thumb.find("[data-slot=media-cover-icon]").attributes("src")).toBe(
+      "https://example.net/favicon.ico",
+    );
+  });
+
+  it("is no cover while the image shows, and comes back when the image fails", async () => {
+    const thumb = mount(MediaThumb, { props: { src: "https://example.org/og.png", url } });
+    expect(thumb.attributes("data-cover")).toBeUndefined();
+    expect(thumb.find("[data-slot=media-cover-icon]").exists()).toBe(false);
+    await thumb.find("img").trigger("error");
+    expect(thumb.attributes("data-cover")).toBe("");
+    expect(thumb.find("[data-slot=media-cover-host]").text()).toBe("example.org");
+  });
+
+  it("stays the neutral tile for something that is not a web page", () => {
+    const thumb = mount(MediaThumb, { props: { url: "about:blank", initial: "about" } });
+    expect(thumb.attributes("data-cover")).toBeUndefined();
+    expect(thumb.find("img").exists()).toBe(false);
+    expect(thumb.text()).toBe("a");
+  });
+});
+
+describe("SiteCover", () => {
+  it.each([
+    ["https://example.com/a/b?c=1", "example.com", "https://example.com/favicon.ico"],
+    ["https://www.example.org/", "example.org", "https://www.example.org/favicon.ico"],
+    [
+      "http://docs.example.net:8080/x",
+      "docs.example.net",
+      "http://docs.example.net:8080/favicon.ico",
+    ],
+  ])("reads the host and the favicon of %s", (url, host, icon) => {
+    expect(SiteCover.host(url)).toBe(host);
+    expect(SiteCover.favicon(url)).toBe(icon);
+  });
+
+  it.each([
+    "about:blank",
+    "file:///home/synthetic/notes.html",
+    "moz-extension://abc/page.html",
+    "nope",
+  ])("has neither for %s, which is not a web page", (url) => {
+    expect(SiteCover.host(url)).toBe("");
+    expect(SiteCover.favicon(url)).toBeNull();
+  });
+
+  it("gives a host one hue for good, and different hosts different hues", () => {
+    const hosts = [
+      "github.com",
+      "huggingface.co",
+      "example.com",
+      "example.org",
+      "docs.example.net",
+    ];
+    const hues = hosts.map(SiteCover.hue);
+    expect(hues).toEqual(hosts.map(SiteCover.hue));
+    for (const value of hues) {
+      expect(Number.isInteger(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(360);
+    }
+    expect(new Set(hues).size).toBe(hosts.length);
   });
 });
 

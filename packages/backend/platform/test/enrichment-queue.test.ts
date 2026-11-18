@@ -46,6 +46,13 @@ describe("EnrichmentQueue (live)", () => {
       yield* queue.sendBatch([]);
       expect(sent).toEqual([{ linkId: "link-1" }, [{ body: { linkId: "link-2" } }]]);
 
+      // A metadata backfill carries its task; a message without one is a full enrichment.
+      yield* queue.send({ linkId: linkId("link-3"), task: "metadata" });
+      expect(sent.at(-1)).toEqual({ linkId: "link-3", task: "metadata" });
+      const decode = Schema.decodeUnknownSync(EnrichmentQueue.EnrichmentMessage);
+      expect(decode({ linkId: "link-4" }).task).toBeUndefined();
+      expect(() => decode({ linkId: "link-4", task: "everything" })).toThrow();
+
       const failing = EnrichmentQueue.make({
         send: () => Promise.reject(new Error("queue down")),
         sendBatch: () => Promise.reject(new Error("queue down")),

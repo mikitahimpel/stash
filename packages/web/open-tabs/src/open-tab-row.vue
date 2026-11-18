@@ -7,8 +7,8 @@ import MediaThumb from "@stash/web-ui/media-thumb";
 import { useTemplateRef } from "vue";
 import type * as OpenTabsView from "./open-tabs-view.ts";
 
-// An open tab as a media row, the Inbox's look. A tab has no preview image, so its tile shows the
-// site's initial. A click anywhere on the row selects it (which shows its actions); only the title
+// An open tab as a media row, the Inbox's look. A tab has no preview image, so its tile is the
+// generated cover: the site's hue, its favicon and its host. A click anywhere on the row selects it (which shows its actions); only the title
 // opens the tab.
 defineProps<{ tab: OpenTabsView.TabRow; selected: boolean }>();
 const emit = defineEmits<{ select: []; archive: []; close: [] }>();
@@ -26,7 +26,7 @@ defineExpose({ focus });
     :data-tab="tab.key"
     v-bind="{ onClick: () => emit('select') }"
   >
-    <template #thumb><MediaThumb :initial="tab.host" /></template>
+    <template #thumb><MediaThumb :url="tab.url" :initial="tab.host" /></template>
     <template #title>
       <MediaRowTitle as-child :stretch="false">
         <a

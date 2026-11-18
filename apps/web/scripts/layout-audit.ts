@@ -158,6 +158,14 @@ const answer = async (page: Page, data: View["data"]) => {
       body: PreviewImages.forUrl(route.request().url()),
     }),
   );
+  // So are the favicons of the seeded tabs' sites (see `PreviewImages.faviconShim`).
+  await page.addInitScript(PreviewImages.faviconShim);
+  await page.route(PreviewImages.isFavicon, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: PreviewImages.favicon(route.request().url()),
+    }),
+  );
   return page.route("**/api/**", (route) => {
     const request = route.request();
     const body =

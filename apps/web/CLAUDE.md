@@ -82,7 +82,8 @@ Feature behavior is tested in `packages/web/*`.
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
   `scripts/layout-fixtures.ts`. `scripts/preview-images.ts` draws the fixtures' preview images
   (SVG); the audit and the screenshots answer `https://example.com/previews/*` with them in the
-  browser, so no real thumbnail is in the repo and nothing is fetched. Both it and the Connect walk serve the build with
+  browser, so no real thumbnail is in the repo and nothing is fetched. It also draws the favicons of the fixtures' tab sites
+  (`faviconShim` explains why they are asked for as `/favicon.ico?drawn`). Both it and the Connect walk serve the build with
   `scripts/preview-server.ts`.
 - `scripts/build-memo.ts`: the inputs of the build as the `memo.include` globs of the `Web`
   resource, the one module this app exports (`@stash/web/build-memo`, for `alchemy.run.ts`). A

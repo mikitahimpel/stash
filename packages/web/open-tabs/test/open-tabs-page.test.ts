@@ -91,6 +91,24 @@ describe("open-tabs-page", () => {
     expect(chartTicks(wrapper)).toBe(4);
   });
 
+  it("gives each tab a cover with its site's favicon and host, and the initial on error", async () => {
+    const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
+    const covers = wrapper.findAll("[data-tab] [data-slot=media-thumb][data-cover]");
+    expect(covers).toHaveLength(4);
+    const img = covers[0]!.find("[data-slot=media-cover-icon]");
+    expect(img.attributes()).toMatchObject({
+      src: "https://example.com/favicon.ico",
+      loading: "lazy",
+      referrerpolicy: "no-referrer",
+    });
+    expect(covers[0]!.find("[data-slot=media-cover-host]").text()).toBe("example.com");
+
+    await img.trigger("error");
+    const first = wrapper.findAll("[data-tab] [data-slot=media-thumb]")[0]!;
+    expect(first.find("img").exists()).toBe(false);
+    expect(first.find("[data-slot=media-cover-initial]").text()).toBe("e");
+  });
+
   it("filters rows and chart by device chip, with counts per device", async () => {
     const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
     const chip = (id: string) => wrapper.find(`[data-slot=toggle-chip][data-device=${id}]`);

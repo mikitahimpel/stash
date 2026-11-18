@@ -1,3 +1,4 @@
+import * as BackfillMetadata from "@stash/backend-enrichment/backfill-metadata";
 import * as EnrichLink from "@stash/backend-enrichment/enrich-link";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import * as Context from "effect/Context";
@@ -14,16 +15,26 @@ export class EnrichmentConsumer extends Context.Service<
 >()("@stash/api/EnrichmentConsumer") {}
 
 const received = (message: EnrichmentQueue.EnrichmentMessage) =>
-  Effect.log(`enrichment: received ${message.linkId}`);
+  Effect.log(
+    `enrichment: received ${message.linkId}${message.task === undefined ? "" : ` (${message.task})`}`,
+  );
 
 /** Logs each message and does nothing else. */
 export const layerNoop: Layer.Layer<EnrichmentConsumer> = Layer.succeed(EnrichmentConsumer)({
   consume: received,
 });
 
+const run = (
+  message: EnrichmentQueue.EnrichmentMessage,
+): Effect.Effect<{ readonly _tag: string }, unknown, EnrichLink.Requirements> =>
+  message.task === "metadata"
+    ? BackfillMetadata.backfillMetadata(message.linkId)
+    : EnrichLink.enrichLink(message.linkId);
+
 /**
- * Runs the enrichment pipeline for each message. Permanent failures are marked on the link and
- * succeed, so only transient failures reach `handleBatch` and are retried.
+ * Runs the enrichment pipeline for each message, or only the metadata backfill for a message with
+ * `task: "metadata"`. Permanent failures are marked on the link and succeed, so only transient
+ * failures reach `handleBatch` and are retried.
  */
 export const layer: Layer.Layer<EnrichmentConsumer, never, EnrichLink.Requirements> = Layer.effect(
   EnrichmentConsumer,
@@ -33,7 +44,7 @@ export const layer: Layer.Layer<EnrichmentConsumer, never, EnrichLink.Requiremen
     return {
       consume: (message) =>
         received(message).pipe(
-          Effect.andThen(EnrichLink.enrichLink(message.linkId)),
+          Effect.andThen(run(message)),
           Effect.tap((outcome) =>
             Effect.log(`enrichment: ${message.linkId} ${outcome._tag.toLowerCase()}`),
           ),

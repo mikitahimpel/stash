@@ -294,8 +294,9 @@ describe("SearchPage", () => {
     expect(first?.find("[data-slot=more-tags]").text()).toBe("+1");
     expect(first?.find("[data-slot=media-row-unread]").exists()).toBe(true);
 
-    // No image: the site's initial. Seen: no dot. No rank numbers anywhere.
-    expect(second?.find("[data-slot=media-thumb]").text()).toBe("e");
+    // No image: the generated cover. Seen: no dot. No rank numbers anywhere.
+    expect(second?.find("[data-slot=media-thumb]").attributes("data-cover")).toBe("");
+    expect(second?.find("[data-slot=media-cover-host]").text()).toBe("example.com");
     expect(second?.find("[data-slot=media-row-unread]").exists()).toBe(false);
     expect(wrapper.find("[data-slot=list-row-leading]").exists()).toBe(false);
   });
@@ -366,6 +367,20 @@ describe("SearchPage", () => {
     });
     await wrapper.find("input[type=search]").trigger("keydown", { key: "Enter" });
     expect(clicks).toEqual(["https://example.com/articles/a"]);
+  });
+
+  it("keeps the filters and the mode switch on one row, which scrolls sideways on a phone", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) });
+    await type(wrapper, "economics");
+    const row = wrapper.find("form [data-slot=scroll-row]");
+    const filters = row.find("[role=group][aria-label=Filters]");
+    expect(filters.findAll("button").length).toBeGreaterThanOrEqual(3);
+    expect(row.find("[role=radiogroup]").exists()).toBe(true);
+    // Neither the row nor the filter group wraps below `sm`.
+    expect(row.classes()).toContain("max-sm:overflow-x-auto");
+    expect(row.classes()).not.toContain("flex-wrap");
+    expect(filters.classes()).not.toContain("flex-wrap");
+    expect(filters.classes()).toContain("sm:flex-wrap");
   });
 
   it("says so when nothing matches", async () => {

@@ -203,7 +203,7 @@ onMounted(() => listen({ run }));
 
     <ul v-if="pending.length > 0" class="flex flex-col">
       <MediaRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
-        <template #thumb><MediaThumb :initial="host(link.url)" /></template>
+        <template #thumb><MediaThumb :url="link.url" :initial="host(link.url)" /></template>
         <template #title>
           <MediaRowTitle :stretch="false">{{ link.url }}</MediaRowTitle>
         </template>

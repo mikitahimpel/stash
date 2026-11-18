@@ -11,6 +11,7 @@ import GroupHeader from "@stash/web-ui/group-header";
 import Kbd from "@stash/web-ui/kbd";
 import ListRow from "@stash/web-ui/list-row";
 import ListRowTitle from "@stash/web-ui/list-row-title";
+import ScrollRow from "@stash/web-ui/scroll-row";
 import SearchField from "@stash/web-ui/search-field";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import Skeleton from "@stash/web-ui/skeleton";
@@ -24,7 +25,9 @@ import * as SearchAtoms from "./search-atoms.ts";
 import * as SearchRequest from "./search-request.ts";
 
 // The search field is the page's header. Under it sits one row of filter menus (type, device,
-// date) with the mode switch at the end; results are media rows with the query's terms marked.
+// date) with the mode switch at the end: on a phone that row is a single line that scrolls
+// sideways, so the results start right under it. Results are media rows with the query's terms
+// marked.
 // Before anything is typed the page offers the searches made on this device and the latest links.
 
 // The query of a link to this page (`/search?q=…`, see `routes.ts`): it replaces what was typed.
@@ -198,8 +201,8 @@ const onResultsClick = (event: MouseEvent) => {
           }"
         />
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
+      <ScrollRow>
+        <div class="flex items-center gap-2 sm:flex-wrap" role="group" aria-label="Filters">
           <FilterMenu
             label="Type"
             :options="typeOptions"
@@ -232,7 +235,7 @@ const onResultsClick = (event: MouseEvent) => {
           label="Search mode"
           size="sm"
         />
-      </div>
+      </ScrollRow>
     </form>
 
     <template v-if="searching">

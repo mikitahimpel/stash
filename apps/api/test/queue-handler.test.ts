@@ -84,4 +84,29 @@ describe("QueueHandler.layer", () => {
       expect(row).toMatchObject({ value: { enrichedAt: null, enrichmentError: null } });
     }).pipe(Effect.provide(layer)),
   );
+
+  it.effect("runs only the metadata backfill for a message with task metadata", () =>
+    Effect.gen(function* () {
+      yield* D1Database.Database.use((db) =>
+        db.run(D1Database.sql`INSERT INTO links (id, url, title, enriched_at)
+          VALUES ('link-video', 'https://youtu.be/aaaaaaaaaaa', 'A synthetic video',
+            '2026-03-10T00:01:00.000Z')`),
+      );
+      // The classifier has no key here, so a full enrichment would fail and be retried.
+      const backfill = message("m1", { linkId: "link-video", task: "metadata" });
+      yield* QueueHandler.handleBatch([backfill.message]);
+      expect(backfill.settled).toEqual(["ack"]);
+      const row = yield* D1Database.Database.use((db) =>
+        db.first(D1Database.sql`SELECT title, image_url AS imageUrl,
+          metadata_version AS metadataVersion FROM links WHERE id = 'link-video'`),
+      );
+      expect(row).toMatchObject({
+        value: {
+          title: "A synthetic video",
+          imageUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg",
+          metadataVersion: 1,
+        },
+      });
+    }).pipe(Effect.provide(layer)),
+  );
 });

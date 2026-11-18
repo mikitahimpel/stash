@@ -97,3 +97,71 @@ export const forUrl = (url: string): string => {
   for (const char of new URL(url).pathname) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
   return pictures[sum % pictures.length]!;
 };
+
+// Favicons. The app asks a tab's site for `/favicon.ico`. Playwright aborts every request whose
+// URL ends in `/favicon.ico` before a route sees it, so the scripts could never answer one (and
+// every tab would show its initial). `faviconShim` runs in the page before the app and adds
+// `?drawn` to such an image URL; the scripts then answer it with `favicon`. Either way nothing is
+// fetched from the network.
+
+/**
+ * An init script (a string, so no script here names the DOM globals): an `<img>` pointed at
+ * `…/favicon.ico` asks for `…/favicon.ico?drawn` instead.
+ */
+export const faviconShim = `(() => {
+  const drawn = (value) =>
+    typeof value === "string" && value.endsWith("/favicon.ico") ? value + "?drawn" : value;
+  const proto = HTMLImageElement.prototype;
+  const src = Object.getOwnPropertyDescriptor(proto, "src");
+  Object.defineProperty(proto, "src", {
+    ...src,
+    set(value) {
+      src.set.call(this, drawn(value));
+    },
+  });
+  const setAttribute = proto.setAttribute;
+  proto.setAttribute = function (name, value) {
+    return setAttribute.call(this, name, name === "src" ? drawn(value) : value);
+  };
+})();`;
+
+/** Whether a request asks a synthetic site (`example.com`, `docs.example.org`, …) for its icon. */
+export const isFavicon = (url: URL): boolean =>
+  url.pathname === "/favicon.ico" &&
+  url.search === "?drawn" &&
+  /(^|\.)example\.(com|org|net)$/.test(url.hostname);
+
+const faviconColors: ReadonlyArray<readonly [background: string, mark: string]> = [
+  ["#2563eb", "#ffffff"],
+  ["#f97316", "#ffffff"],
+  ["#111827", "#facc15"],
+  ["#16a34a", "#ffffff"],
+  ["#e11d48", "#ffffff"],
+  ["#f4e9d8", "#2b2118"],
+  ["#7c3aed", "#ffffff"],
+];
+
+const faviconMarks: ReadonlyArray<(fill: string) => string> = [
+  (fill) => `<circle cx="16" cy="16" r="7" fill="${fill}"/>`,
+  (fill) => `<path d="M9 23V9h6l8 14z" fill="${fill}"/>`,
+  (fill) =>
+    `<rect x="9" y="9" width="14" height="5" rx="1.5" fill="${fill}"/><rect x="9" y="18" width="9" height="5" rx="1.5" fill="${fill}"/>`,
+  (fill) => `<path d="M16 7l9 9-9 9-9-9z" fill="${fill}"/>`,
+  (fill) => `<path d="M12 9l12 7-12 7z" fill="${fill}"/>`,
+];
+
+/**
+ * The favicon of a synthetic site, drawn here: a coloured square with a simple mark, always the
+ * same for the same host. The scripts answer `https://<host>/favicon.ico?drawn` with it.
+ */
+export const favicon = (url: string): string => {
+  let sum = 0;
+  for (const char of new URL(url).hostname) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
+  const [background, mark] = faviconColors[sum % faviconColors.length]!;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
+    `<rect width="32" height="32" rx="7" fill="${background}"/>` +
+    faviconMarks[(sum >>> 3) % faviconMarks.length]!(mark) +
+    `</svg>`
+  );
+};

@@ -164,6 +164,7 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       ),
       tags: classification.tags,
       enrichedAt: DateTime.formatIso(now),
+      metadataVersion: EnrichPolicy.metadataVersion,
     });
     return {
       _tag: "Enriched",

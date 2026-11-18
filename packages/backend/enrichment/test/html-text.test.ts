@@ -74,6 +74,25 @@ describe("HtmlText.parse", () => {
   });
 });
 
+describe("HtmlText.parse on real sites' markup (#155)", () => {
+  it("reads a GitHub repository's social card", () => {
+    const page = HtmlText.parse(Fixtures.githubRepoPage);
+    expect(page.image).toEqual(Option.some(Fixtures.githubRepoImage));
+    expect(page.title).toEqual(
+      Option.some("GitHub - synthetic-owner/synthetic-repo: A synthetic repository for tests"),
+    );
+    expect(page.author).toEqual(Option.none());
+  });
+
+  it("reads a Hugging Face Space's thumbnail", () => {
+    const page = HtmlText.parse(Fixtures.huggingFaceSpacePage);
+    expect(page.image).toEqual(Option.some(Fixtures.huggingFaceSpaceImage));
+    expect(page.title).toEqual(
+      Option.some("Synthetic Space - a Hugging Face Space by synthetic-owner"),
+    );
+  });
+});
+
 describe("HtmlText.decodeEntities", () => {
   it("decodes named and numeric references and keeps unknown ones", () => {
     expect(HtmlText.decodeEntities("a &amp; b &#60; &#x3E; &hellip; &bogus; &#xFFFFFFF;")).toBe(

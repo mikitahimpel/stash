@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./backfill-metadata": "./src/backfill-metadata.ts",
     "./classify-link": "./src/classify-link.ts",
     "./content-http": "./src/content-http.ts",
     "./content-text": "./src/content-text.ts",
@@ -20,6 +21,7 @@
     "./fetch-youtube-transcript": "./src/fetch-youtube-transcript.ts",
     "./html-text": "./src/html-text.ts",
     "./junk-filter": "./src/junk-filter.ts",
+    "./requeue-backfill": "./src/requeue-backfill.ts",
     "./requeue-pending": "./src/requeue-pending.ts",
     "./store-text": "./src/store-text.ts"
   },

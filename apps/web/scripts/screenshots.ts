@@ -292,6 +292,14 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
             body: PreviewImages.forUrl(route.request().url()),
           }),
         );
+        // So are the favicons of the seeded tabs' sites (see `PreviewImages.faviconShim`).
+        await page.addInitScript(PreviewImages.faviconShim);
+        await page.route(PreviewImages.isFavicon, (route) =>
+          route.fulfill({
+            contentType: "image/svg+xml",
+            body: PreviewImages.favicon(route.request().url()),
+          }),
+        );
         if (view.empty) await answerEmpty(page);
         // Recent searches live in the browser: a returning user has some, everyone else none.
         const [key, value] = Fixtures.recentSearches(Date.now());

@@ -2,6 +2,7 @@ import * as AutoArchiveTabs from "@stash/backend-digest/auto-archive-tabs";
 import * as BuildWeeklyDigest from "@stash/backend-digest/build-weekly-digest";
 import type * as DigestsRepo from "@stash/backend-digest/digests-repo";
 import type * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
+import * as RequeueBackfill from "@stash/backend-enrichment/requeue-backfill";
 import * as RequeuePending from "@stash/backend-enrichment/requeue-pending";
 import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
@@ -23,7 +24,8 @@ export const weeklyDigestCron = "0 6 * * 1";
 
 /**
  * Every hour: send links that are still not enriched through the enrichment queue again. It picks
- * up lost messages, and links a migration reset for repair (#147).
+ * up lost messages, and links a migration reset for repair (#147). Then queue a few metadata
+ * backfills: enriched links that still miss their preview image or author (#155).
  */
 export const requeuePendingCron = "0 * * * *";
 
@@ -52,7 +54,9 @@ export type Requirements =
 const jobs: Record<string, Effect.Effect<unknown, unknown, Requirements>> = {
   [autoArchiveCron]: AutoArchiveTabs.autoArchiveTabs(),
   [weeklyDigestCron]: BuildWeeklyDigest.buildWeeklyDigest(),
-  [requeuePendingCron]: RequeuePending.requeuePending(),
+  [requeuePendingCron]: RequeuePending.requeuePending().pipe(
+    Effect.andThen(RequeueBackfill.requeueBackfill()),
+  ),
 };
 
 /** Dispatches each trigger to its job by cron expression. An unknown expression only logs. */

@@ -46,6 +46,7 @@ const tags = computed(() => LinkDisplay.shownTags(props.link.tags));
     <template #thumb>
       <MediaThumb
         :src="link.imageUrl"
+        :url="link.url"
         :initial="LinkDisplay.domain(link)"
         :video="link.type === 'video'"
       />

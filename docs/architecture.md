@@ -13,7 +13,7 @@ Stash collects links and open tabs from every device into one searchable, AI-org
 | iPhone | An Apple Shortcut in the Safari share sheet POSTs the link to the API. Open iPhone tabs are read on a Mac from Safari's iCloud Tabs database by `mac-agent`. |
 | Web app | Search (semantic + keyword, filtered by type, device and date), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
 | Claude (MCP) | Remote MCP server added as a custom connector. It works in claude.ai, desktop, the iOS app and Claude Code. |
-| Cron | Auto-archives Zen tabs older than N days (and closes them through the extension). Builds a weekly digest. Hourly, re-queues links still waiting for enrichment. |
+| Cron | Auto-archives Zen tabs older than N days (and closes them through the extension). Builds a weekly digest. Hourly, re-queues links still waiting for enrichment and backfills the preview image and author of links enriched before those fields existed. |
 
 ## Runtime topology
 
@@ -133,7 +133,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 ## Data model (initial)
 
-- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), author (a YouTube channel or a page's author, when the source names one), source_device_id, created_at, enriched_at, enrichment_error, enrichment_attempts (requeues by the hourly cron, capped)
+- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), author (a YouTube channel or a page's author, when the source names one), source_device_id, created_at, enriched_at, enrichment_error, enrichment_attempts (requeues by the hourly cron, capped), metadata_version (the image / author version the link was last read for; the hourly cron backfills enriched links with an older one that miss a field, once)
 - `tags`, `link_tags`
 - `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)
