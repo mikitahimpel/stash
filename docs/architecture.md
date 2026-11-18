@@ -11,7 +11,7 @@ Stash collects links and open tabs from every device into one searchable, AI-org
 |---|---|
 | Zen / Firefox extension | A toolbar popup saves the current page (or shows it is saved, with Undo), opens Stash and its search, and lists the latest saves. A hotkey saves the current tab without it. "Save all & close" saves a whole window or workspace. Reports open-tab snapshots and executes remote commands (e.g. close a tab). |
 | iPhone | An Apple Shortcut in the Safari share sheet POSTs the link to the API. Open iPhone tabs are read on a Mac from Safari's iCloud Tabs database by `mac-agent`. |
-| Web app | Search (semantic + keyword, filtered by type, device and date), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
+| Web app | Search from a field in the header that filters the Inbox in place (semantic + keyword, filtered by type, device and date), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
 | Claude (MCP) | Remote MCP server added as a custom connector. It works in claude.ai, desktop, the iOS app and Claude Code. |
 | Cron | Auto-archives Zen tabs older than N days (and closes them through the extension). Builds a weekly digest. Hourly, re-queues links still waiting for enrichment and backfills the preview image and author of links enriched before those fields existed. |
 

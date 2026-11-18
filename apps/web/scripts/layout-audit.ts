@@ -42,21 +42,26 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-section]").first().waitFor(),
   },
   {
-    name: "search",
-    path: "/search",
+    // Searching: the header's field filters the Inbox in place.
+    name: "inbox-search",
+    path: "/links",
     data: "seeded",
     prepare: async (page) => {
       await page.getByRole("searchbox", { name: "Search links" }).fill("economics");
-      await page.locator("[data-hit]").first().waitFor();
+      await page.locator("[data-slot=search-results] [data-slot=link-row]").first().waitFor();
     },
   },
   {
-    // Before anything is typed: recent searches and the latest links.
-    name: "search-start",
-    path: "/search",
+    // The focused, empty field of a returning user: recent searches hang under it.
+    name: "inbox-search-recent",
+    path: "/links",
     data: "seeded",
     recentSearches: true,
-    prepare: (page) => page.locator("[data-slot=recent-searches]").waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-slot=link-day]").first().waitFor();
+      await page.getByRole("searchbox", { name: "Search links" }).focus();
+      await page.locator("[data-recent]").first().waitFor();
+    },
   },
   {
     // A selected row, with its action bar.
@@ -85,17 +90,14 @@ const views: ReadonlyArray<View> = [
     name: "settings",
     path: "/settings",
     data: "seeded",
-    prepare: (page) => page.locator("[data-test=device]").first().waitFor(),
-  },
-  {
-    name: "connect",
-    path: "/connect",
-    data: "seeded",
-    prepare: (page) => page.locator("[data-source]").first().waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-source]").first().waitFor();
+      await page.locator("[data-test=device]").first().waitFor();
+    },
   },
   ...(["iphone", "extension", "mac", "claude"] as const).map((guide) => ({
-    name: `connect-${guide}`,
-    path: `/connect?guide=${guide}`,
+    name: `settings-${guide}`,
+    path: `/settings?guide=${guide}`,
     data: "seeded" as const,
     prepare: (page: Page) => page.locator(`[data-guide=${guide}]`).waitFor(),
   })),
@@ -124,22 +126,13 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-slot=start-saving]").waitFor(),
   },
   {
-    name: "search-empty",
-    path: "/search",
-    data: "empty",
-    prepare: (page) => page.getByRole("searchbox", { name: "Search links" }).waitFor(),
-  },
-  {
     name: "settings-empty",
     path: "/settings",
     data: "empty",
-    prepare: (page) => page.locator("[data-test=no-devices]").waitFor(),
-  },
-  {
-    name: "connect-empty",
-    path: "/connect",
-    data: "empty",
-    prepare: (page) => page.locator("[data-source]").first().waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-source]").first().waitFor();
+      await page.locator("[data-test=no-devices]").waitFor();
+    },
   },
   {
     name: "login",

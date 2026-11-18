@@ -18,7 +18,7 @@ interface Option {
   readonly title: string;
   readonly description: string;
   readonly action: string;
-  /** The guide of the Connect page it opens (`/connect?guide=…`). */
+  /** The guide of the Connect page it opens (`/settings?guide=…`). */
   readonly guide: "iphone" | "extension" | "mac" | "claude";
 }
 
@@ -92,7 +92,7 @@ const card = computed(() => cards[props.scenario]);
         </template>
         <template #trailing>
           <Button as-child variant="secondary" size="sm">
-            <RouterLink :to="{ name: 'connect', query: { guide: option.guide } }">
+            <RouterLink :to="{ name: 'settings', query: { guide: option.guide } }">
               {{ option.action }}
             </RouterLink>
           </Button>

@@ -64,7 +64,7 @@ const submit = async () => {
         <template #icon><TriangleAlert aria-hidden="true" /></template>
         <template #action>
           <Button as-child>
-            <RouterLink :to="{ name: 'connect', query: { guide: 'extension' } }">
+            <RouterLink :to="{ name: 'settings', query: { guide: 'extension' } }">
               Zen guide
             </RouterLink>
           </Button>

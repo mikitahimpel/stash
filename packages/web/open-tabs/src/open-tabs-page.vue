@@ -140,7 +140,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       <!-- The onboarding card offers the same action, one row per kind of device. -->
       <template v-if="all === undefined || all.length > 0" #actions>
         <Button as-child variant="primary" class="max-sm:w-full">
-          <RouterLink :to="{ name: 'settings', query: { add: 'device' } }">Add device</RouterLink>
+          <RouterLink :to="{ name: 'settings', hash: '#connections' }">Add device</RouterLink>
         </Button>
       </template>
     </PageHeader>
@@ -166,7 +166,6 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
     <template v-else>
       <SearchField
         :model-value="query"
-        shortcut="/"
         v-bind="{ placeholder: 'Filter tabs', 'aria-label': 'Filter tabs' }"
         @update:model-value="setQuery"
       />
@@ -264,7 +263,6 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         <span class="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
         <span class="flex items-center gap-1"><Kbd>E</Kbd> archive</span>
         <span class="flex items-center gap-1"><Kbd>W</Kbd> close on device</span>
-        <span class="flex items-center gap-1"><Kbd>/</Kbd> filter</span>
       </footer>
     </template>
 

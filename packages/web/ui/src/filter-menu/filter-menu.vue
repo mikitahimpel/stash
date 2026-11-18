@@ -13,12 +13,17 @@ const props = withDefaults(
   defineProps<{
     /** What it filters, as shown on the trigger: `Type: Any`. */
     label: string;
+    /**
+     * A choice that is always made (a mode, not a filter): the trigger shows the choice alone
+     * (`Hybrid ▾`, named by `label` for assistive tech) and the menu has no `Any`.
+     */
+    plain?: boolean;
     options: ReadonlyArray<SegmentedControlOption<T>>;
     /** The trigger's control height: `sm` (32) in filter bars, the default. */
     size?: "sm" | "md";
     class?: HTMLAttributes["class"];
   }>(),
-  { size: "sm" },
+  { size: "sm", plain: false },
 );
 /** The chosen option, `""` for any. */
 const model = defineModel<T | "">({ required: true });
@@ -37,8 +42,14 @@ const pick = (value: unknown) => {
          trigger, `Type: Any ▾`. -->
     <DropdownMenuTrigger as-child>
       <Button as-child :size="size" :class="props.class">
-        <button type="button" data-slot="filter-menu" :data-active="model !== '' || undefined">
-          <span
+        <button
+          type="button"
+          data-slot="filter-menu"
+          :data-active="(!plain && model !== '') || undefined"
+          :aria-label="plain ? `${label}: ${current}` : undefined"
+        >
+          <span v-if="plain">{{ current }}</span>
+          <span v-else
             ><span class="text-muted-foreground">{{ label }}:</span> {{ current }}</span
           >
           <ChevronDown aria-hidden="true" class="size-3.5" />
@@ -47,7 +58,7 @@ const pick = (value: unknown) => {
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start" class="min-w-40">
       <DropdownMenuRadioGroup :model-value="model" @update:model-value="pick">
-        <DropdownMenuRadioItem value="">Any</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem v-if="!plain" value="">Any</DropdownMenuRadioItem>
         <DropdownMenuRadioItem
           v-for="option in options"
           :key="option.value"

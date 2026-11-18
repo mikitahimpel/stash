@@ -2,10 +2,10 @@ import * as ApiToken from "@stash/contracts-domain/api-token";
 import type * as Device from "@stash/contracts-domain/device";
 import * as DateTime from "effect/DateTime";
 
-// What the Connect page shows for each way into Stash: whether it is connected, and its latest
+// What the Connect section of Settings shows for each way into Stash: whether it is connected, and its latest
 // activity. Pure, over the api's devices, their activity and the tokens.
 
-/** One card of the Connect page. */
+/** One row of the Connect section. */
 export type Source = "iphone" | "extension" | "mac" | "claude";
 
 export const sources: ReadonlyArray<Source> = ["iphone", "extension", "mac", "claude"];

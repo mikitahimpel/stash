@@ -1698,6 +1698,9 @@ importers:
       '@stash/web-platform':
         specifier: workspace:*
         version: link:../platform
+      '@stash/web-search':
+        specifier: workspace:*
+        version: link:../search
       '@stash/web-settings':
         specifier: workspace:*
         version: link:../settings
@@ -1942,6 +1945,9 @@ importers:
       '@stash/web-api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@stash/web-connect':
+        specifier: workspace:*
+        version: link:../connect
       '@stash/web-platform':
         specifier: workspace:*
         version: link:../platform

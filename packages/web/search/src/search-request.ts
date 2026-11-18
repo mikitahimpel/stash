@@ -8,7 +8,9 @@ import * as Schema from "effect/Schema";
 /** How far back a search looks. */
 export type Range = "week" | "month" | "year";
 
-/** What the search form holds. An empty `type`, `device`, `range` or `tag` means "any". */
+/**
+ * What a search is made of: the query and mode (with the device and date, they live in the URL,
+ * see `search-route.ts`) and the type and tag the Inbox filters by. An empty `type`, `device`, `range` or `tag` means "any". */
 export interface Form {
   readonly q: string;
   readonly mode: SearchGroup.SearchMode;
@@ -93,43 +95,3 @@ export const fromForm = (form: Form, now: DateTime.Utc): SearchGroup.SearchQuery
   if (q === "") return undefined;
   return { q, mode: form.mode, ...filters(form, now) };
 };
-
-/** Whether `link` passes the form's filters: what the api does for a search, done here for a list. */
-export const passes = (form: Form, now: DateTime.Utc, link: Link.Link): boolean => {
-  const wanted = filters(form, now);
-  return (
-    (wanted.type === undefined || link.type === wanted.type) &&
-    (wanted.tag === undefined || link.tags.includes(wanted.tag)) &&
-    (wanted.deviceId === undefined || link.sourceDeviceId === wanted.deviceId) &&
-    (wanted.since === undefined ||
-      DateTime.toEpochMillis(link.createdAt) >= DateTime.toEpochMillis(wanted.since))
-  );
-};
-
-const minute = 60_000;
-const day = 24 * hour;
-
-/** How long ago `then` (epoch milliseconds) was, short: `now`, `12m`, `5h`, `3d`, `2w`, `4mo`, `1y`. */
-export const age = (then: number, now: number): string => {
-  const ms = Math.max(0, now - then);
-  return ms < minute
-    ? "now"
-    : ms < hour
-      ? `${Math.floor(ms / minute)}m`
-      : ms < day
-        ? `${Math.floor(ms / hour)}h`
-        : ms < 14 * day
-          ? `${Math.floor(ms / day)}d`
-          : ms < 60 * day
-            ? `${Math.floor(ms / (7 * day))}w`
-            : ms < 365 * day
-              ? `${Math.floor(ms / (30 * day))}mo`
-              : `${Math.floor(ms / (365 * day))}y`;
-};
-
-/** The host a link points to, without `www.`. Prefers the canonical URL. */
-export const host = (link: Link.Link): string =>
-  new URL(link.canonicalUrl ?? link.url).hostname.replace(/^www\./, "");
-
-/** How many tags a row shows before `+n`. */
-export const maxRowTags = 3;

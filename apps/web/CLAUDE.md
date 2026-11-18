@@ -47,13 +47,16 @@ app shell doesn't use them either.
   deployed web origin (same-origin api, no `stash-api.` in the bundle, session cookie round-trip),
   see [docs/deploy.md](../../docs/deploy.md#check-a-deploy).
 - Adding a page means adding a route export in a feature package and mounting it here, in
-  `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `search`, `open-tabs`,
-  `connect`, `settings`), because the header nav links to them.
-- Shortcuts: ⌘K / Ctrl+K opens the search page and `/` focuses the current page's field. Both
-  focus the first `main input[type=search]` (`AppShortcuts.pageSearchField`), so a page marks its
-  search or filter field by making it a search input (`<SearchField />` from `@stash/web-ui`).
+  `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `open-tabs`,
+  `settings`), because the header nav links to them; `search` and `connect` are the redirects
+  below.
+- Shortcuts: ⌘K / Ctrl+K and `/` focus the search field in the header
+  (`AppShortcuts.searchField`, `header input[type=search]`), on any page, without navigating.
   The Inbox keys (↑/↓, ↵, S, D, E) live in `@stash/web-links/inbox-shortcuts`; `src/app-registry.ts`
   gives its `keyboard` atom the same live layer.
+- `/search?q=…` and `/connect[?guide=…]` are redirects (to `/links?q=…` and
+  `/settings?guide=…#connections`), kept for the extension, the docs and old links. The router's
+  `scrollBehavior` scrolls to an anchor, clear of the sticky header.
 
 ## Testing
 
@@ -64,9 +67,10 @@ Feature behavior is tested in `packages/web/*`.
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue` (the kit's `AppFrame` and `AppMain`),
   `src/app-header.vue` (the kit's `AppBar`: wordmark,
-  nav as text tabs, whose Search tab is the only search entry point, and the account menu from
+  nav as text tabs (Inbox, Open now, Settings), the search field (`@stash/web-search/search-box`
+  in `AppBarSearch`, the only search entry point) and the account menu from
   `@stash/web-auth/account-menu`, which holds the theme switch and the sync status). On phones the
-  nav is a bottom bar. See "Layout rules" in
+  nav is a bottom bar and the search field a full-width line under the header row. See "Layout rules" in
   [docs/design.md](../../docs/design.md).
 - `src/styles.css`: imports the kit's styles and lists every `@stash/web-*` feature package with
   templates under `@source`, or Tailwind drops the classes only that package uses.
@@ -91,7 +95,8 @@ Feature behavior is tested in `packages/web/*`.
   (`../extension/**` walks `node_modules`). `test/build-memo.test.ts` checks it. Add a glob here
   when `build:deploy` starts to read a new place.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
-  job runs it after the audit): walks each Connect guide, the extension approve page and `/save`
+  job runs it after the audit): walks each Connect guide (in Settings; the iPhone one through the old `/connect?guide=` address),
+  the extension approve page, `/search?q=` and `/save`
   in headless Chromium, one page at a time, against `Fixtures.connectable` (the seeded api plus
   the writes the guides make). Each guide creates its device or token, shows the prefilled values
   and turns to "Connected ✓" once the fixture reports the first save, check-in or use.

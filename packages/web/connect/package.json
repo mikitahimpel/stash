@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./routes": "./src/routes.ts",
+    "./connect-section": "./src/connect-section.vue",
     "./connect-status": "./src/connect-status.ts",
     "./connect-values": "./src/connect-values.ts",
     "./connect-atoms": "./src/connect-atoms.ts"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { injectRegistry, useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
-import { Plus } from "@lucide/vue";
 import type * as Device from "@stash/contracts-domain/device";
+import ConnectSection from "@stash/web-connect/connect-section";
+import type * as ConnectStatus from "@stash/web-connect/connect-status";
 import * as Theme from "@stash/web-platform/theme";
 import Button from "@stash/web-ui/button";
 import ErrorState from "@stash/web-ui/error-state";
@@ -18,12 +19,18 @@ import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import { computed, ref } from "vue";
-import { RouterLink } from "vue-router";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
 import * as SettingsRows from "./settings-rows.ts";
 import * as ThemeAtoms from "./theme-atoms.ts";
+
+// One page, three sections in this order: Devices & connections (the sources with their guides,
+// from `@stash/web-connect`, then the devices they registered), API tokens, Appearance.
+defineProps<{
+  /** The guide open in place (`/settings?guide=iphone`), if any. */
+  guide?: ConnectStatus.Source | undefined;
+}>();
 
 // Appearance: the theme preference, through the platform `Theme` service.
 const themeOptions: ReadonlyArray<SegmentedControlOption<Theme.Preference>> = [
@@ -121,35 +128,8 @@ const confirmRevoke = async () => {
   <div class="flex flex-col gap-6">
     <PageHeader title="Settings" v-bind="subtitle" />
 
-    <section aria-label="Appearance" class="flex flex-col gap-1">
-      <SectionHeader title="Appearance" />
-      <ul>
-        <ListRow as="li">
-          <template #title><ListRowTitle>Theme</ListRowTitle></template>
-          <template #trailing>
-            <SegmentedControl
-              v-model="preference"
-              :options="themeOptions"
-              label="Theme"
-              size="sm"
-              data-test="theme"
-            />
-          </template>
-        </ListRow>
-      </ul>
-    </section>
-
-    <section aria-label="Devices" class="flex flex-col gap-1">
-      <SectionHeader title="Devices" v-bind="counts.devices">
-        <template #actions>
-          <Button as-child variant="secondary" size="sm">
-            <RouterLink :to="{ name: 'connect' }" data-test="add-device">
-              <Plus aria-hidden="true" />
-              Add device
-            </RouterLink>
-          </Button>
-        </template>
-      </SectionHeader>
+    <ConnectSection :guide="guide">
+      <SectionHeader title="Devices" as="h3" v-bind="counts.devices" />
 
       <p v-if="issueError" role="alert" class="text-body text-destructive">
         {{ issueError }}
@@ -197,7 +177,7 @@ const confirmRevoke = async () => {
           </template>
         </ListRow>
       </ul>
-    </section>
+    </ConnectSection>
 
     <section aria-label="API tokens" class="flex flex-col gap-1">
       <SectionHeader title="API tokens" v-bind="counts.tokens" />
@@ -230,6 +210,24 @@ const confirmRevoke = async () => {
           </ListRow>
         </ul>
       </template>
+    </section>
+
+    <section aria-label="Appearance" class="flex flex-col gap-1">
+      <SectionHeader title="Appearance" />
+      <ul>
+        <ListRow as="li">
+          <template #title><ListRowTitle>Theme</ListRowTitle></template>
+          <template #trailing>
+            <SegmentedControl
+              v-model="preference"
+              :options="themeOptions"
+              label="Theme"
+              size="sm"
+              data-test="theme"
+            />
+          </template>
+        </ListRow>
+      </ul>
     </section>
 
     <NewTokenDialog

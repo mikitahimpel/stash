@@ -23,6 +23,7 @@
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "@stash/web-api-client": "workspace:*",
+    "@stash/web-connect": "workspace:*",
     "@stash/web-platform": "workspace:*",
     "@stash/web-ui": "workspace:*",
     "effect": "catalog:",

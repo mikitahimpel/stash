@@ -18,7 +18,6 @@ const start = () => {
       return ApiTesting.json(Fixtures.results("a"));
     },
   });
-  registry.mount(SearchAtoms.results);
   return registry;
 };
 
@@ -32,80 +31,35 @@ afterEach(() => {
 });
 
 describe("search atoms", () => {
-  it("sends nothing while the query is blank", async () => {
+  it("sends nothing when there is nothing to search for", async () => {
     const reg = start();
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis * 2);
-    expect(reg.get(SearchAtoms.results)).toBeNull();
+    reg.mount(SearchAtoms.results(undefined));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reg.get(SearchAtoms.results(undefined))).toBeNull();
     expect(requests).toEqual([]);
   });
 
-  it("waits until typing pauses and sends only the last query", async () => {
+  it("sends the query, the mode and the filters as query parameters", async () => {
     const reg = start();
-    for (const text of ["r", "ru", "rus", "rust"]) {
-      reg.set(SearchAtoms.q, text);
-      await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis - 50);
-    }
-    expect(requests).toEqual([]);
+    reg.mount(SearchAtoms.results({ q: "schema", mode: "keyword", type: "repo" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toEqual([{ q: "schema", mode: "keyword", type: "repo" }]);
+  });
 
-    await vi.advanceTimersByTimeAsync(50);
+  it("asks once for the same request, however often it is read", async () => {
+    const reg = start();
+    reg.mount(SearchAtoms.results({ q: "rust", mode: "hybrid" }));
+    reg.mount(SearchAtoms.results({ q: "rust", mode: "hybrid" }));
+    await vi.advanceTimersByTimeAsync(0);
     expect(requests).toEqual([{ q: "rust", mode: "hybrid" }]);
-  });
-
-  it("sends the mode and filters as query parameters", async () => {
-    const reg = start();
-    reg.set(SearchAtoms.mode, "keyword");
-    reg.set(SearchAtoms.type, "repo");
-    reg.set(SearchAtoms.tag, "Effect");
-    reg.set(SearchAtoms.q, "schema");
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
-    expect(requests).toEqual([{ q: "schema", mode: "keyword", type: "repo", tag: "effect" }]);
-  });
-
-  it("sends the device and the date range", async () => {
-    const reg = start();
-    reg.set(SearchAtoms.device, "device-1");
-    reg.set(SearchAtoms.range, "week");
-    reg.set(SearchAtoms.q, "schema");
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
-    expect(requests).toEqual([
-      {
-        q: "schema",
-        mode: "hybrid",
-        deviceId: "device-1",
-        since: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/),
-      },
-    ]);
-  });
-
-  it("applies a mode change at once, without waiting", async () => {
-    const reg = start();
-    reg.set(SearchAtoms.q, "rust");
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
-    reg.set(SearchAtoms.mode, "semantic");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(requests).toEqual([
-      { q: "rust", mode: "hybrid" },
-      { q: "rust", mode: "semantic" },
-    ]);
-  });
-
-  it("applies a tag change at once, without waiting", async () => {
-    const reg = start();
-    reg.set(SearchAtoms.q, "rust");
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
-    reg.set(SearchAtoms.tag, "async");
-    await vi.advanceTimersByTimeAsync(0);
-    expect(requests).toEqual([
-      { q: "rust", mode: "hybrid" },
-      { q: "rust", mode: "hybrid", tag: "async" },
-    ]);
   });
 
   it("holds the decoded hits", async () => {
     const reg = start();
-    reg.set(SearchAtoms.q, "rust");
-    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
-    const result = reg.get(SearchAtoms.results);
+    const atom = SearchAtoms.results({ q: "rust", mode: "hybrid" });
+    reg.mount(atom);
+    await vi.advanceTimersByTimeAsync(0);
+    const result = reg.get(atom);
     expect(result?._tag).toBe("Success");
     expect(result?._tag === "Success" && result.value.hits.map((hit) => hit.link.id)).toEqual([
       "a",

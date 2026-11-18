@@ -1,19 +1,19 @@
 import type { RouteRecordRaw } from "vue-router";
-import * as ConnectStatus from "./connect-status.ts";
 
-const isSource = (value: unknown): value is ConnectStatus.Source =>
-  typeof value === "string" && (ConnectStatus.sources as ReadonlyArray<string>).includes(value);
+/** The anchor of the "Devices & connections" section on the Settings page. */
+export const connectionsHash = "#connections";
 
 /**
- * The Connect page (`/connect`, `?guide=iphone|extension|mac|claude` opens that guide in place),
- * and `/connect/extension?code=…`, which the extension opens to be approved.
+ * Connect is the first section of Settings (`connect-section.vue`, mounted by
+ * `@stash/web-settings`). `/connect` and `/connect?guide=iphone|extension|mac|claude`, which the
+ * guides, the docs and the extension link to, go to that section with the same guide open.
+ * `/connect/extension?code=…` is the page the extension opens to be approved.
  */
 export const routes: ReadonlyArray<RouteRecordRaw> = [
   {
     path: "/connect",
     name: "connect",
-    component: () => import("./connect-page.vue"),
-    props: (route) => (isSource(route.query.guide) ? { guide: route.query.guide } : {}),
+    redirect: (to) => ({ name: "settings", query: to.query, hash: connectionsHash }),
   },
   {
     path: "/connect/extension",

@@ -10,11 +10,11 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the `/save` result |
-| `search/` | `@stash/web-search` | Search page (semantic and keyword): the field, type / device / date filters, results as media rows with marked matches, recent searches and the latest links before a query |
+| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; the `/save` result |
+| `search/` | `@stash/web-search` | Search without a page: the header's field (`search-box`, debounced into the Inbox's URL `/links?q=…`, recent searches under the focused empty field), the line over the results (`search-bar`: count, mode, type / device / date menus), the URL state (`search-route`), the results that keep the last answer while the next loads (`use-search-results`), term marking; `/search` redirects to the Inbox |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
-| `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens, first-run onboarding card (used by Inbox and Open now) |
-| `connect/` | `@stash/web-connect` | Connect page (`/connect`): one card per source (iPhone, Zen, Mac, Claude) with its status and a guide that creates the device and token, prefills every value and waits for the first save; extension pairing (`/connect/extension`) |
+| `settings/` | `@stash/web-settings` | One Settings page: Devices & connections (the section from `@stash/web-connect`, then the devices), API tokens, Appearance (theme atoms, also used by the app header); first-run onboarding card (used by Inbox and Open now) |
+| `connect/` | `@stash/web-connect` | The "Devices & connections" section of Settings (`connect-section`): one row per source (iPhone, Zen, Mac, Claude) with its status and a guide that creates the device and token, prefills every value and waits for the first save; `/connect[?guide=…]` redirects to it; extension pairing (`/connect/extension`) |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (a slot for the app's entries, Sign out) |
 | `ui/` | `@stash/web-ui` | "Stash tactile" design system ([docs/design.md](../../docs/design.md)): control tokens, Geist, primitives, app shell |
 | `api-client/` | `@stash/web-api-client` | `HttpApiClient` from contracts, plus shared atoms (`@effect/atom-vue`) |
@@ -64,8 +64,7 @@ layers.
 - Links and tabs are `<MediaRow>`s (preview, title, one meta line, summary, tags) under
   `<GroupHeader>`s; other lists are `<ListRow>`s. See "Media rows" in
   [docs/design.md](../../docs/design.md).
-- A page starts with `<PageHeader>` (title, one muted line, its primary action on the right; on
-  Search the search field takes its place) and
+- A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
   rules"). At most one `primary` key per screen.
 - Shared visual components go in `@stash/web-ui`. Feature-specific components stay in the feature.

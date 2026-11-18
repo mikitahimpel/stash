@@ -1,6 +1,5 @@
 import * as Keyboard from "@stash/web-platform/keyboard";
 import * as WebPlatform from "@stash/web-platform/live";
-import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 import * as Atom from "effect/reactivity/Atom";
 import * as Stream from "effect/Stream";
@@ -15,44 +14,19 @@ export const layer: Atom.Writable<Layer.Layer<Keyboard.Keyboard>> = Atom.make(
 
 const runtime = Atom.runtime((get) => get(layer));
 
-/**
- * The search or filter field of the current page, where the shortcuts put the focus. Pages mark
- * it as a search input (`<SearchField />` from `@stash/web-ui` is one).
- */
-export const pageSearchField = "main input[type=search]";
+/** The search field in the app header (`<SearchBox />`), where both shortcuts put the focus. */
+export const searchField = "header input[type=search]";
 
-/** `search`: ⌘K or Ctrl+K, anywhere. `filter`: `/`, unless the focus is in a text field. */
-export type Shortcut = "search" | "filter";
-
-export const shortcut = (press: Keyboard.KeyPress): Shortcut | undefined => {
-  if (press.altKey || press.shiftKey) return undefined;
-  if (press.key.toLowerCase() === "k" && press.metaKey !== press.ctrlKey) return "search";
-  if (press.key === "/" && !press.typing && !press.metaKey && !press.ctrlKey) return "filter";
-  return undefined;
+/** ⌘K or Ctrl+K, anywhere; `/`, unless the focus is in a text field. */
+export const isShortcut = (press: Keyboard.KeyPress): boolean => {
+  if (press.altKey || press.shiftKey) return false;
+  if (press.key.toLowerCase() === "k" && press.metaKey !== press.ctrlKey) return true;
+  return press.key === "/" && !press.typing && !press.metaKey && !press.ctrlKey;
 };
 
-/** Focuses the current page's search or filter field, if it has one. */
-export const focusPageSearch = runtime.fn(() =>
-  Keyboard.Keyboard.use((keyboard) => keyboard.focus(pageSearchField)),
-);
-
-/**
- * Handles the shortcuts while it runs: ⌘K / Ctrl+K calls `openSearch` (which navigates to the
- * search page and resolves once it is on screen) and focuses its field; `/` focuses the current
- * page's field. `openSearch` comes in an object, because a function passed to an atom setter is
- * taken as an updater.
- */
-export const listen = runtime.fn(
-  ({ openSearch }: { readonly openSearch: () => Promise<unknown> }) =>
-    Keyboard.Keyboard.use((keyboard) =>
-      keyboard
-        .presses((press) => shortcut(press) !== undefined)
-        .pipe(
-          Stream.runForEach((press) =>
-            (shortcut(press) === "search" ? Effect.promise(openSearch) : Effect.void).pipe(
-              Effect.andThen(keyboard.focus(pageSearchField)),
-            ),
-          ),
-        ),
-    ),
+/** Focuses the header's search field on each shortcut, while it runs. */
+export const listen = runtime.fn(() =>
+  Keyboard.Keyboard.use((keyboard) =>
+    keyboard.presses(isShortcut).pipe(Stream.runForEach(() => keyboard.focus(searchField))),
+  ),
 );

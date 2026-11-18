@@ -6,7 +6,13 @@
   "sideEffects": false,
   "exports": {
     "./routes": "./src/routes.ts",
-    "./search-atoms": "./src/search-atoms.ts"
+    "./search-atoms": "./src/search-atoms.ts",
+    "./search-request": "./src/search-request.ts",
+    "./search-route": "./src/search-route.ts",
+    "./use-search-results": "./src/use-search-results.ts",
+    "./term-highlight": "./src/term-highlight.ts",
+    "./search-box": "./src/search-box.vue",
+    "./search-bar": "./src/search-bar.vue"
   },
   "scripts": {
     "lint": "oxlint .",

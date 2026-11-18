@@ -74,9 +74,9 @@ describe("app router", () => {
   it.each([
     ["/links", "links"],
     ["/links/link-1", "link-details"],
-    ["/search", "search"],
     ["/open-now", "open-tabs"],
     ["/settings", "settings"],
+    ["/connect/extension", "connect-extension"],
   ])("resolves %s to the %s feature route", (path, name) => {
     const router = AppRouter.make(
       createMemoryHistory(),
@@ -94,6 +94,16 @@ describe("app router", () => {
     expect(router.currentRoute.value.name).toBe("links");
     await router.push("/no/such/page");
     expect(router.currentRoute.value.name).toBe("links");
+  });
+
+  it.each([
+    ["/search", "/links"],
+    ["/search?q=rust", "/links?q=rust"],
+    ["/connect", "/settings#connections"],
+    ["/connect?guide=mac", "/settings?guide=mac#connections"],
+  ])("takes the old address %s to %s", async (from, to) => {
+    const { router } = await mountApp(from);
+    expect(router.currentRoute.value.fullPath).toBe(to);
   });
 });
 
@@ -310,7 +320,7 @@ describe("app shell", () => {
   it("mounts with the nav and the current page", async () => {
     const { wrapper } = await mountApp();
     const labels = wrapper.findAll("nav").map((nav) => nav.findAll("a").map(accessibleName));
-    expect(labels).toEqual([["Inbox", "Open now", "Search", "Connect", "Settings"]]);
+    expect(labels).toEqual([["Inbox", "Open now", "Settings"]]);
     expect(wrapper.find("main h1").text()).toBe("Inbox");
   });
 
@@ -318,8 +328,10 @@ describe("app shell", () => {
     ["/links", "Inbox"],
     ["/links/link-1", "Inbox"],
     ["/open-now", "Open now"],
-    ["/search", "Search"],
+    ["/links?q=rust", "Inbox"],
     ["/settings", "Settings"],
+    ["/connect?guide=iphone", "Settings"],
+    [`/connect/extension?code=${"c".repeat(43)}`, "Settings"],
   ])("marks the section of %s as the current page", async (path, label) => {
     const { wrapper } = await mountApp(path);
     const current = wrapper.findAll("nav[aria-label=Main] a[aria-current=page]");
@@ -344,14 +356,103 @@ describe("app shell", () => {
 
   it("navigates when a nav link is clicked", async () => {
     const { wrapper, router } = await mountApp();
-    const search = wrapper.findAll("nav a").find((a) => accessibleName(a) === "Search");
-    await search?.trigger("click");
-    // The search page is lazy-loaded, and its first import can take longer than a flush.
-    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/search"), {
+    const settings = wrapper.findAll("nav a").find((a) => accessibleName(a) === "Settings");
+    await settings?.trigger("click");
+    // The page is lazy-loaded, and its first import can take longer than a flush.
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/settings"), {
       timeout: 10_000,
     });
     await flushPromises();
-    expect(wrapper.find("main h1").text()).toBe("Search");
+    expect(wrapper.find("main h1").text()).toBe("Settings");
+  });
+
+  it("opens the guide of /connect?guide=… in the first section of Settings", async () => {
+    const { wrapper, router } = await mountApp("/connect?guide=claude");
+    await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Settings"), {
+      timeout: 10_000,
+    });
+    const sections = wrapper.findAll("main section").map((el) => el.attributes("aria-label"));
+    expect(sections).toEqual(["Devices & connections", "API tokens", "Appearance"]);
+    expect(wrapper.find("section#connections").exists()).toBe(true);
+    expect(router.currentRoute.value.query).toEqual({ guide: "claude" });
+  });
+});
+
+describe("header search", () => {
+  const field = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.find<HTMLInputElement>("header input[type=search]");
+
+  it.each(["/links", "/open-now", "/settings", "/links/link-1"])(
+    "is one field in the header of %s",
+    async (path) => {
+      const { wrapper } = await mountApp(path);
+      expect(wrapper.findAll("header form[role=search] input[type=search]")).toHaveLength(1);
+      expect(field(wrapper).attributes("aria-label")).toBe("Search links");
+    },
+  );
+
+  it("typing on another page opens the Inbox with the query, and its results", async () => {
+    const registry = AppRegistry.make({
+      transport: ApiTesting.layer({
+        "GET /auth/me": () => ApiTesting.json({ kind: "user" }),
+        "GET /links": () => ApiTesting.json({ items: [], nextCursor: null }),
+        "GET /devices": () => ApiTesting.json([]),
+        "GET /search": () =>
+          ApiTesting.json({
+            hits: [
+              {
+                score: 1,
+                link: {
+                  id: "link-1",
+                  url: "https://example.com/rust",
+                  canonicalUrl: null,
+                  title: "Rust in anger",
+                  status: "new",
+                  type: "article",
+                  summary: null,
+                  language: "en",
+                  tags: [],
+                  sourceDeviceId: null,
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  imageUrl: null,
+                  author: null,
+                  enrichedAt: "2026-01-01T00:01:00.000Z",
+                },
+              },
+            ],
+          }),
+      }),
+      theme: theme(),
+      recentSearches: PlatformTesting.layerRecentSearches,
+    });
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push("/settings");
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    await flushPromises();
+
+    await field(wrapper).setValue("rust");
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/links?q=rust"), {
+      timeout: 10_000,
+    });
+    await vi.waitFor(
+      () =>
+        expect(wrapper.find("main [data-slot=search-summary]").text()).toBe("1 result for “rust”"),
+      { timeout: 10_000 },
+    );
+    expect(wrapper.find("main h1").text()).toBe("Inbox");
+    expect(wrapper.find("main [data-slot=match-mark]").text()).toBe("Rust");
+    expect(field(wrapper).element.value).toBe("rust");
+
+    // Clearing the field gives the Inbox back.
+    await field(wrapper).setValue("");
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe("/links"), {
+      timeout: 10_000,
+    });
+    await vi.waitFor(() =>
+      expect(wrapper.find("main [data-slot=search-summary]").exists()).toBe(false),
+    );
   });
 });
 
@@ -364,39 +465,23 @@ describe("shortcuts", () => {
     run(Context.get(keyboard, PlatformTesting.TestKeyboard).focused);
 
   it.each([
-    ["⌘K", { key: "k", metaKey: true }],
-    ["Ctrl+K", { key: "k", ctrlKey: true }],
-  ])("%s navigates to search and focuses its field", async (_, key) => {
-    const { router, keyboard } = await mountApp("/links");
+    ["⌘K", "/open-now", { key: "k", metaKey: true }],
+    ["Ctrl+K", "/settings", { key: "k", ctrlKey: true }],
+    ["/", "/links", { key: "/" }],
+  ])("%s focuses the header's search field on %s, without navigating", async (_, path, key) => {
+    const { router, keyboard } = await mountApp(path);
     expect(await press(keyboard, key)).toBe(true);
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("search"), {
-      timeout: 10_000,
-    });
     await vi.waitFor(async () =>
-      expect(await focused(keyboard)).toEqual([AppShortcuts.pageSearchField]),
+      expect(await focused(keyboard)).toEqual([AppShortcuts.searchField]),
     );
+    expect(router.currentRoute.value.fullPath).toBe(path);
   });
 
-  it("the Search tab navigates to search and focuses its field", async () => {
-    const { wrapper, router, keyboard } = await mountApp("/links");
-    await wrapper.find("a[aria-keyshortcuts]").trigger("click");
-    await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("search"), {
-      timeout: 10_000,
-    });
-    await vi.waitFor(async () =>
-      expect(await focused(keyboard)).toEqual([AppShortcuts.pageSearchField]),
-    );
-  });
-
-  it("/ focuses the page's field without navigating, unless typing", async () => {
-    const { router, keyboard } = await mountApp("/open-now");
+  it("leaves / alone while typing, and plain keys always", async () => {
+    const { keyboard } = await mountApp("/open-now");
     expect(await press(keyboard, { key: "/", typing: true })).toBe(false);
     expect(await press(keyboard, { key: "k" })).toBe(false);
-    expect(await press(keyboard, { key: "/" })).toBe(true);
-    await vi.waitFor(async () =>
-      expect(await focused(keyboard)).toEqual([AppShortcuts.pageSearchField]),
-    );
-    expect(router.currentRoute.value.name).toBe("open-tabs");
+    expect(await press(keyboard, { key: "k", metaKey: true, typing: true })).toBe(true);
   });
 
   it("stops listening once the shell unmounts", async () => {
@@ -445,19 +530,21 @@ describe("header controls", () => {
     }
   });
 
-  it("has exactly one Search entry point and one account menu", async () => {
+  it("has the wordmark, three tabs, the search field and one account menu", async () => {
     const { wrapper } = await mountApp("/links");
-    const names = wrapper.find("header").findAll("button, a").map(accessibleName);
-    expect(names).toEqual([
-      "stash",
-      "Inbox",
-      "Open now",
-      "Search",
-      "Connect",
-      "Settings",
-      "Account",
-    ]);
-    expect(wrapper.find("nav a[aria-keyshortcuts]").text()).toContain("⌘K");
+    const header = wrapper.find("header");
+    const names = header.findAll("button, a").map(accessibleName);
+    expect(names).toEqual(["stash", "Inbox", "Open now", "Settings", "Account"]);
+    // Search is the field itself, with its shortcuts, not a tab.
+    expect(header.findAll("input")).toHaveLength(1);
+    expect(header.find("input[type=search]").attributes("aria-keyshortcuts")).toBe(
+      "Meta+K Control+K /",
+    );
+    // The field sits between the nav and the account menu.
+    const order = [...header.element.querySelectorAll("nav, form[role=search], button")].map(
+      (el) => el.tagName,
+    );
+    expect(order).toEqual(["NAV", "FORM", "BUTTON"]);
   });
 
   it("holds the theme switch, the sync status and Sign out in the account menu", async () => {
