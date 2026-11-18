@@ -178,7 +178,11 @@ content, not as a table of text:
 - **Preview** on the left, 16:9: 120×68 from `sm` up, 88×50 on phones, radius 8. It is the link's
   `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with `referrerpolicy="no-referrer"`.
   With no image, or when it fails to load, the tile is neutral and shows the site's initial. A
-  video carries a small play mark. An open tab has no image, so its tile is always the initial.
+  video carries a small play mark.
+- **An open tab has no picture**, so its row is compact (#155): a 32px sunken tile (`SiteIcon`)
+  with the site's favicon at 16px, taken from `/favicon.ico` on the tab's origin and loaded like a
+  preview (lazily, no referrer). A site without one there, or a tab that is not a web page, shows
+  the site's initial.
 - **Title** 15/600 (`text-row-title`), two lines at most, with an accent dot before it while the
   link is not yet seen. It is the row's target: its hit area covers the whole row, and other links
   in the row (the host, a tag) sit above it. On Open now a click selects the row instead, and only
@@ -218,6 +222,8 @@ in a second line above the chart.
 The page is a search page, not a dashboard: a 44px field at the top (focused on arrival; `⌘K`
 opens the page from anywhere), then one row of `sm` filter menus (`Type`, `Device`, `Date`) with
 the mode switch (`Hybrid` · `Meaning` · `Keywords`) at the end of the row once there is a query.
+On a phone that row is a `ScrollRow`: one line that scrolls sideways and never wraps, so the
+results start right under it (#155).
 There are no tag chips in the filter row; a tag clicked on a result filters by it and shows as one
 chip that clears it. Results update as you type (debounced), as media rows under a `Results`
 group header, with the query's terms marked in the accent (`MatchMark` `tone="signal"`) in titles
@@ -305,7 +311,8 @@ row, Search before a query, plus Login, in the light theme at 1440 and 390 wide.
 - every page-level block starts on the content edge (± 0.5px), trailing controls end on it, rows
   inside a card share one edge, and every line of a row starts where its title does; a media row
   is measured by its box, which must sit on both content edges (or, where its background reaches
-  past them, as for a selected row on a phone, by its content);
+  past them, as for a selected row on a phone, by its content); a `ScrollRow`, which on a phone
+  runs off both screen edges, is measured by its content box;
 - every vertical gap between page-level blocks is on the spacing scale;
 - text renders in mono only inside keys, the device code and charts.
 
@@ -352,7 +359,8 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
-| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; the site's initial without an image or when it fails to load; `video`), `tag-chip` (24px); text role `text-row-title` |
+| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; the site's initial without an image or when it fails to load; `video`), `site-icon` (32px tile, 16px favicon, the site's initial as fallback; for rows without a picture), `tag-chip` (24px); text role `text-row-title` |
+| ScrollRow | `scroll-row`: a row of controls that wraps from `sm` up and is one sideways-scrolling line on phones, running off both screen edges |
 | GroupHeader | `group-header` (`title`, `count`, `#actions`): 13/600 uppercase with a rule, above a group of rows |
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |
 | Card | `card`, `card-header`, `card-title`, … |

@@ -91,6 +91,25 @@ describe("open-tabs-page", () => {
     expect(chartTicks(wrapper)).toBe(4);
   });
 
+  it("shows each tab's site icon, and the site's initial when the icon does not load", async () => {
+    const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
+    const icons = wrapper.findAll("[data-tab] [data-slot=site-icon]");
+    expect(icons).toHaveLength(4);
+    const img = icons[0]!.find("img");
+    expect(img.attributes()).toMatchObject({
+      src: "https://example.com/favicon.ico",
+      loading: "lazy",
+      referrerpolicy: "no-referrer",
+    });
+    // A row has no preview tile any more.
+    expect(wrapper.find("[data-tab] [data-slot=media-thumb]").exists()).toBe(false);
+
+    await img.trigger("error");
+    const first = wrapper.findAll("[data-tab] [data-slot=site-icon]")[0]!;
+    expect(first.find("img").exists()).toBe(false);
+    expect(first.text()).toBe("e");
+  });
+
   it("filters rows and chart by device chip, with counts per device", async () => {
     const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
     const chip = (id: string) => wrapper.find(`[data-slot=toggle-chip][data-device=${id}]`);

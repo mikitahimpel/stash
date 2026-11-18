@@ -152,31 +152,33 @@ const links: ReadonlyArray<SeedLink> = [
   ["Shipping a monorepo with turbo", "tools/turbo", "tool", ["tooling"], "seen", 28.9, 0],
 ];
 
-type SeedTab = readonly [title: string, path: string, ageDays: number];
+// A tab is `[title, host and path, age in days]`. The hosts differ, as real tabs do, so Open now
+// shows more than one favicon.
+type SeedTab = readonly [title: string, page: string, ageDays: number];
 
 const tabs: Readonly<Record<(typeof devices)[number]["id"], ReadonlyArray<SeedTab>>> = {
   "seed-device-laptop": [
-    ["Pull request: visual polish pass", "pulls/125", 0.05],
-    ["Effect documentation: Layers", "docs/layers", 0.4],
-    ["D1 query planner notes", "notes/d1", 1.1],
-    ["Design review checklist", "design/checklist", 2.4],
-    ["Quarterly planning doc", "docs/planning", 4.8],
-    ["Old benchmark results", "bench/old", 9.5],
-    ["Conference talk recording", "talks/edge", 12.3],
-    ["Forgotten RFC draft", "rfc/draft", 18],
+    ["Pull request: visual polish pass", "git.example.com/pulls/125", 0.05],
+    ["Effect documentation: Layers", "docs.example.org/docs/layers", 0.4],
+    ["D1 query planner notes", "notes.example.net/notes/d1", 1.1],
+    ["Design review checklist", "docs.example.org/design/checklist", 2.4],
+    ["Quarterly planning doc", "docs.example.org/docs/planning", 4.8],
+    ["Old benchmark results", "example.net/bench/old", 9.5],
+    ["Conference talk recording", "video.example.com/talks/edge", 12.3],
+    ["Forgotten RFC draft", "git.example.com/rfc/draft", 18],
   ],
   "seed-device-desktop": [
-    ["Recipe: weeknight noodles", "recipes/noodles", 0.7],
-    ["Bike maintenance guide", "bikes/maintenance", 3.3],
-    ["Train timetable", "travel/trains", 5.5],
-    ["Long read on city planning", "reads/cities", 8.2],
-    ["Photo editing tutorial", "photo/editing", 15],
+    ["Recipe: weeknight noodles", "example.org/recipes/noodles", 0.7],
+    ["Bike maintenance guide", "example.net/bikes/maintenance", 3.3],
+    ["Train timetable", "example.com/travel/trains", 5.5],
+    ["Long read on city planning", "news.example.org/reads/cities", 8.2],
+    ["Photo editing tutorial", "video.example.com/photo/editing", 15],
   ],
   "seed-device-phone": [
-    ["Weather this week", "weather", 0.2],
-    ["Podcast episode notes", "podcasts/notes", 1.8],
-    ["Museum opening hours", "museum/hours", 6.1],
-    ["Saved article on sleep", "reads/sleep", 10.7],
+    ["Weather this week", "example.com/weather", 0.2],
+    ["Podcast episode notes", "notes.example.net/podcasts/notes", 1.8],
+    ["Museum opening hours", "example.org/museum/hours", 6.1],
+    ["Saved article on sleep", "news.example.org/reads/sleep", 10.7],
   ],
 };
 
@@ -254,14 +256,14 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
   });
   let tabCount = 0;
   for (const [deviceId, deviceTabs] of Object.entries(tabs)) {
-    for (const [title, path, ageDays] of deviceTabs) {
+    for (const [title, page, ageDays] of deviceTabs) {
       tabCount++;
       statements.push(
         db
           .prepare(
             "INSERT INTO open_tabs (device_id, url, title, opened_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
           )
-          .bind(deviceId, `https://example.com/${path}`, title, iso(now, ageDays), iso(now, 0.01)),
+          .bind(deviceId, `https://${page}`, title, iso(now, ageDays), iso(now, 0.01)),
       );
     }
   }

@@ -131,6 +131,9 @@ const tabAges: ReadonlyArray<ReadonlyArray<number>> = [
   [0.1, 0.8, 4, 10],
 ];
 
+/** Tabs sit on several sites, so the rows show more than one favicon. */
+const tabHosts = ["example.org", "docs.example.com", "news.example.net", "example.com"];
+
 const tabs = (now: number) => ({
   devices: devices.map((device, d) => ({
     device: { ...device, createdAt: iso(now - 40 * day) },
@@ -138,7 +141,7 @@ const tabs = (now: number) => ({
       deviceId: device.id,
       takenAt: iso(now - (d + 1) * 60_000),
       tabs: tabAges[d]!.map((age, t) => ({
-        url: `https://example.org/${device.kind}/${d}-${t}`,
+        url: `https://${tabHosts[(d + t) % tabHosts.length]!}/${device.kind}/${d}-${t}`,
         title: `${["Reference", "Draft", "Article", "Docs", "Issue", "Video"][t % 6]} ${d + 1}.${t + 1}`,
         openedAt: iso(now - age * day),
         lastSeenAt: iso(now - 60_000),

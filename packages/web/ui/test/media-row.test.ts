@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import MediaRowTitle from "../src/media-row/media-row-title.vue";
 import MediaRow from "../src/media-row/media-row.vue";
 import MediaThumb from "../src/media-row/media-thumb.vue";
+import SiteIcon from "../src/media-row/site-icon.vue";
 
 describe("MediaRow", () => {
   it("shows the unread dot and the action bar only when asked", async () => {
@@ -60,6 +61,36 @@ describe("MediaThumb", () => {
 
     await thumb.setProps({ src: "https://example.com/other.png" });
     expect(thumb.find("img").attributes("src")).toBe("https://example.com/other.png");
+  });
+});
+
+describe("SiteIcon", () => {
+  it("shows the favicon small, lazily and without a referrer", () => {
+    const icon = mount(SiteIcon, {
+      props: { src: "https://example.com/favicon.ico", initial: "example.com" },
+    });
+    const img = icon.find("img");
+    expect(img.attributes("src")).toBe("https://example.com/favicon.ico");
+    expect(img.attributes("loading")).toBe("lazy");
+    expect(img.attributes("referrerpolicy")).toBe("no-referrer");
+    expect(img.attributes("alt")).toBe("");
+    expect(img.attributes("width")).toBe("16");
+    expect(icon.attributes("data-empty")).toBeUndefined();
+  });
+
+  it("shows the site's initial without an icon, or when it fails to load", async () => {
+    expect(mount(SiteIcon, { props: { src: null, initial: "example.org" } }).text()).toBe("e");
+    const icon = mount(SiteIcon, {
+      props: { src: "https://example.com/favicon.ico", initial: "example.com" },
+    });
+    await icon.find("img").trigger("error");
+    expect(icon.find("img").exists()).toBe(false);
+    expect(icon.text()).toBe("e");
+    expect(icon.attributes("data-empty")).toBe("");
+
+    // Another site's icon gets its own try.
+    await icon.setProps({ src: "https://example.org/favicon.ico" });
+    expect(icon.find("img").attributes("src")).toBe("https://example.org/favicon.ico");
   });
 });
 

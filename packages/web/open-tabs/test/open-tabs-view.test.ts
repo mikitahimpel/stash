@@ -28,6 +28,25 @@ describe("age", () => {
   });
 });
 
+describe("favicon", () => {
+  it.each([
+    ["https://example.com/a/b?c=1", "https://example.com/favicon.ico"],
+    ["https://www.example.org/", "https://www.example.org/favicon.ico"],
+    ["http://docs.example.net:8080/x", "http://docs.example.net:8080/favicon.ico"],
+  ])("is /favicon.ico on the origin of %s", (url, icon) => {
+    expect(OpenTabsView.favicon(url)).toBe(icon);
+  });
+
+  it.each([
+    "about:blank",
+    "file:///home/synthetic/notes.html",
+    "moz-extension://abc/page.html",
+    "nope",
+  ])("is nothing for %s, which is not a web page", (url) => {
+    expect(OpenTabsView.favicon(url)).toBeNull();
+  });
+});
+
 describe("group", () => {
   const all = decode(
     Fixtures.allTabs(
@@ -46,6 +65,7 @@ describe("group", () => {
         deviceName: "Device laptop",
         url: "https://example.com/a",
         host: "example.com",
+        favicon: "https://example.com/favicon.ico",
         title: "Example a",
         age: { label: "1h", tone: "fresh", ms: 3_600_000 },
       },
@@ -55,6 +75,7 @@ describe("group", () => {
         deviceName: "Device laptop",
         url: "https://example.com/b",
         host: "example.com",
+        favicon: "https://example.com/favicon.ico",
         title: null,
         age: { label: "1h", tone: "fresh", ms: 3_600_000 },
       },

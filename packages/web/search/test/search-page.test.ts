@@ -353,6 +353,20 @@ describe("SearchPage", () => {
     expect(clicks).toEqual(["https://example.com/articles/a"]);
   });
 
+  it("keeps the filters and the mode switch on one row, which scrolls sideways on a phone", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) });
+    await type(wrapper, "economics");
+    const row = wrapper.find("form [data-slot=scroll-row]");
+    const filters = row.find("[role=group][aria-label=Filters]");
+    expect(filters.findAll("button").length).toBeGreaterThanOrEqual(3);
+    expect(row.find("[role=radiogroup]").exists()).toBe(true);
+    // Neither the row nor the filter group wraps below `sm`.
+    expect(row.classes()).toContain("max-sm:overflow-x-auto");
+    expect(row.classes()).not.toContain("flex-wrap");
+    expect(filters.classes()).not.toContain("flex-wrap");
+    expect(filters.classes()).toContain("sm:flex-wrap");
+  });
+
   it("says so when nothing matches", async () => {
     const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) });
     await type(wrapper, "nothing like this");

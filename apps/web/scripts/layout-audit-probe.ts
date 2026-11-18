@@ -9,12 +9,20 @@ export const probe = (body: HTMLElement): Snapshot => {
   const css = (el: Element, pseudo?: string) => view.getComputedStyle(el, pseudo);
   const box = (el: Element) => {
     const r = el.getBoundingClientRect();
+    // A ScrollRow pads itself on a phone (and pulls the padding back with margins) so the
+    // controls it scrolls are not clipped; the row a reader sees is its content box.
+    const pad =
+      el.getAttribute("data-slot") === "scroll-row"
+        ? css(el)
+        : { paddingLeft: "0", paddingRight: "0", paddingTop: "0", paddingBottom: "0" };
+    const top = r.top + view.scrollY + parseFloat(pad.paddingTop);
+    const bottom = r.bottom + view.scrollY - parseFloat(pad.paddingBottom);
     return {
-      left: r.left + view.scrollX,
-      right: r.right + view.scrollX,
-      top: r.top + view.scrollY,
-      bottom: r.bottom + view.scrollY,
-      height: r.height,
+      left: r.left + view.scrollX + parseFloat(pad.paddingLeft),
+      right: r.right + view.scrollX - parseFloat(pad.paddingRight),
+      top,
+      bottom,
+      height: bottom - top,
     };
   };
   const visible = (el: Element): boolean => {
