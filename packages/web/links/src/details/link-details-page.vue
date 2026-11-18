@@ -86,6 +86,9 @@ const formatDate = (date: DateTime.Utc) =>
   });
 
 const deleteFailed = ref(false);
+// After a delete the page has nothing to show: back to the Inbox it was opened from, with its
+// filters or search, else to the Inbox.
+const leave = () => (back.history ? router.back() : void router.replace({ name: "links" }));
 </script>
 
 <template>
@@ -114,7 +117,7 @@ const deleteFailed = ref(false);
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load the link" @retry="retry" />
     <article v-else class="flex max-w-3xl flex-col gap-6" data-slot="link-details">
       <MediaHero
-        :src="view.link.imageUrl"
+        :src="LinkDisplay.image(view.link)"
         :url="view.link.url"
         :initial="LinkDisplay.domain(view.link)"
         :embed="YoutubeEmbed.player(view.link.url)"
@@ -202,7 +205,7 @@ const deleteFailed = ref(false);
           v-model:failed="deleteFailed"
           :link="view.link"
           variant="destructive"
-          :after-remove="() => router.replace({ name: 'links' })"
+          :after-remove="leave"
         />
         <span v-if="deleteFailed" role="alert" class="text-meta text-destructive">
           That didn't work. Try again.

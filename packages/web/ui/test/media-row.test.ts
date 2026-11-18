@@ -32,14 +32,16 @@ describe("MediaRow lines", () => {
     });
     expect(bare.find("[data-slot=media-row-summary]").exists()).toBe(true);
     expect(bare.find("[data-slot=media-row-summary]").text()).toBe("");
-    // A list without tags (open tabs) has no tags line on a phone.
-    expect(bare.find("[data-slot=media-row-tags]").classes()).toContain("max-sm:hidden");
+    // A list without tags (open tabs) has no tags line: its three lines are centred instead.
+    expect(bare.find("[data-slot=media-row-tags]").exists()).toBe(false);
+    expect(bare.classes()).toContain("sm:grid-rows-[33px_20px_20px_11px]");
 
     const full = mount(MediaRow, {
       slots: { title: "<a>Example</a>", summary: "A summary.", tags: "<span>#tag</span>" },
     });
     expect(full.find("[data-slot=media-row-summary]").text()).toBe("A summary.");
-    expect(full.find("[data-slot=media-row-tags]").classes()).not.toContain("max-sm:hidden");
+    expect(full.find("[data-slot=media-row-tags]").exists()).toBe(true);
+    expect(full.classes()).toContain("sm:grid-rows-[20px_20px_20px_24px]");
   });
 });
 

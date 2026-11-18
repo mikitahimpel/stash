@@ -32,11 +32,19 @@ const commands: Readonly<Record<string, Command>> = {
 
 /**
  * The command of `press`, if it is one. Keys typed into a field, keys a control on the page
- * already handled (such as arrows on the feed tabs) and keys with a modifier are not commands, and
- * neither is ↵ on a link or button, which follows or presses it.
+ * already handled (such as arrows on the feed tabs), keys with a modifier and keys pressed while a
+ * dialog is open (the Delete confirmation) are not commands, and neither is ↵ on a link or
+ * button, which follows or presses it.
  */
 export const command = (press: Keyboard.KeyPress): Command | undefined => {
-  if (press.typing || press.handled || press.metaKey || press.ctrlKey || press.altKey) {
+  if (
+    press.typing ||
+    press.handled ||
+    press.modal ||
+    press.metaKey ||
+    press.ctrlKey ||
+    press.altKey
+  ) {
     return undefined;
   }
   const found = commands[press.key.length === 1 ? press.key.toLowerCase() : press.key];

@@ -16,7 +16,8 @@ import * as LinkDisplay from "../link-display.ts";
 
 // One link as a media row, the same height for every link: preview · title (without the site's
 // name) · host · channel or author · age · device, then one line of summary (or who published it)
-// and one line of tags. The whole row opens the link's page. As a search result it is the same
+// and one line of tags. A link still being enriched says `summarizing…` on the summary line, and
+// on phones, which have none, at the end of the meta line. The whole row opens the link's page. As a search result it is the same
 // row, with the query's terms marked in the title and the summary.
 const props = defineProps<{
   link: Link.Link;
@@ -52,7 +53,7 @@ const summary = computed(() =>
   >
     <template #thumb>
       <MediaThumb
-        :src="link.imageUrl"
+        :src="LinkDisplay.image(link)"
         :url="link.url"
         :initial="LinkDisplay.domain(link)"
         :video="link.type === 'video'"
@@ -86,6 +87,10 @@ const summary = computed(() =>
         link.author
       }}</span>
       <span>{{ LinkDisplay.age(link.createdAt, now) }}</span>
+      <!-- Phones have no summary line, so the row says it here. -->
+      <span v-if="link.enrichedAt === null" data-slot="link-summarizing-meta" class="sm:hidden"
+        >summarizing…</span
+      >
       <span v-if="device !== undefined" data-slot="link-device" class="max-sm:hidden">{{
         device
       }}</span>

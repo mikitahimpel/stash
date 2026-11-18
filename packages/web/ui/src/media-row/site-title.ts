@@ -16,8 +16,15 @@ const hostOf = (url: string): string => {
 
 const plain = (text: string): string => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
-/** The names a site goes by in a title: `github` and `github.com` for `docs.github.com`. */
+// An address, not a name: `192.0.2.1`, `[2001:db8::1]` (a URL's hostname is already normalized).
+const ip = /^(?:\d{1,3}(?:\.\d{1,3}){3}|\[.*\])$/;
+
+/**
+ * The names a site goes by in a title: `github` and `github.com` for `docs.github.com`. None for
+ * an IP host, whose labels are numbers and not a name.
+ */
 const names = (host: string): ReadonlySet<string> => {
+  if (ip.test(host)) return new Set();
   const labels = host.split(".").filter((label) => label !== "");
   if (labels.length < 2) return new Set();
   const last = labels.at(-1)!;

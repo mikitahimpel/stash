@@ -21,6 +21,8 @@ export interface KeyPress {
   readonly control: boolean;
   /** Whether an element under the page already handled the key (`event.defaultPrevented`). */
   readonly handled: boolean;
+  /** Whether a dialog is open over the page: the page's own shortcuts wait until it closes. */
+  readonly modal: boolean;
 }
 
 /**
@@ -47,6 +49,9 @@ const textField =
 const control =
   "a[href], button, summary, [role=button], [role=link], [role=radio], [role=tab], [role=checkbox], [role=menuitem], [role=option]";
 
+// An open dialog, as the kit's `<Dialog>` (reka-ui) renders it.
+const openDialog = "[role=dialog][data-state=open], [role=alertdialog][data-state=open]";
+
 const matches = (target: EventTarget | null, selector: string): boolean =>
   target !== null &&
   "matches" in target &&
@@ -71,6 +76,7 @@ export const layer: Layer.Layer<Keyboard> = Layer.succeed(Keyboard)({
           typing: matches(event.target, textField),
           control: matches(event.target, control),
           handled: event.defaultPrevented,
+          modal: document.querySelector(openDialog) !== null,
         };
         if (!match(press)) return;
         event.preventDefault();

@@ -201,7 +201,7 @@ export class TestKeyboard extends Context.Service<
   TestKeyboard,
   {
     /**
-     * Simulates a key press. Modifiers, `typing`, `control` and `handled` default to `false`. Answers whether a `presses`
+     * Simulates a key press. Modifiers, `typing`, `control`, `handled` and `modal` default to `false`. Answers whether a `presses`
      * stream took it.
      */
     readonly press: (press: Partial<KeyPress> & Pick<KeyPress, "key">) => Effect.Effect<boolean>;
@@ -237,6 +237,7 @@ export const layerKeyboard: Layer.Layer<Keyboard | TestKeyboard> = Layer.effectC
               typing: false,
               control: false,
               handled: false,
+              modal: false,
               ...press,
             };
             // Every listener sees the press, as with `addEventListener`.

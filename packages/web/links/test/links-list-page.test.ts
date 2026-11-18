@@ -149,6 +149,33 @@ describe("inbox page", () => {
 
     expect(wrapper.find("[data-slot=link-row]").text()).toContain("summarizing…");
     expect(wrapper.find("[data-slot=link-row]").text()).not.toContain("A summary of article a.");
+    // Phones have no summary line: the meta line says it there.
+    const meta = wrapper.find("[data-slot=media-row-meta] [data-slot=link-summarizing-meta]");
+    expect(meta.text()).toBe("summarizing…");
+    expect(meta.classes()).toContain("sm:hidden");
+  });
+
+  it("leaves summarizing… out of the meta line once enrichment ran", async () => {
+    const api = listing({ first: Fixtures.page([Fixtures.link("a")]) });
+    const { wrapper } = await mountAt("/links", api.routes);
+
+    expect(wrapper.find("[data-slot=link-summarizing-meta]").exists()).toBe(false);
+  });
+
+  it("shows a YouTube video's own thumbnail on a row whose link has no image", async () => {
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.link("v", { url: "https://www.youtube.com/watch?v=synthetic01", type: "video" }),
+        Fixtures.link("a"),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+
+    const [video, article] = wrapper.findAll("[data-slot=media-thumb]");
+    expect(video!.find("img").attributes("src")).toBe(
+      "https://i.ytimg.com/vi/synthetic01/hqdefault.jpg",
+    );
+    expect(article!.attributes("data-cover")).toBe("");
   });
 
   const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
