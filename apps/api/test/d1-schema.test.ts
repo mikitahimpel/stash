@@ -42,6 +42,24 @@ describe("D1 migrations", () => {
     for (const file of migrationFiles) expect(file).toMatch(/^\d{4}-[a-z0-9-]+\.sql$/);
   });
 
+  // D1 builds SQLite with SQLITE_MAX_LIKE_PATTERN_LENGTH = 50 and fails the whole migration batch
+  // with "LIKE or GLOB pattern too complex" (#152). node:sqlite allows 50 000, so check the text.
+  it("keeps every LIKE and GLOB pattern within D1's 50 bytes", () => {
+    const encoder = new TextEncoder();
+    for (const file of migrationFiles) {
+      const sql = Fs.readFileSync(`${migrationsDir}${file}`, "utf8").replaceAll(/--.*$/gm, "");
+      const operators = sql.match(/\b(?:LIKE|GLOB)\b/gi) ?? [];
+      const patterns = [...sql.matchAll(/\b(?:LIKE|GLOB)\s+'((?:[^']|'')*)'/gi)].map((match) =>
+        String(match[1]).replaceAll("''", "'"),
+      );
+      // Every pattern is a literal, so its length is known here.
+      expect(patterns.length, file).toBe(operators.length);
+      for (const pattern of patterns) {
+        expect(encoder.encode(pattern).length, `${file}: ${pattern}`).toBeLessThanOrEqual(50);
+      }
+    }
+  });
+
   it("creates every table", () => {
     const tables = db
       .prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name")
