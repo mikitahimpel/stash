@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import * as LinksAtoms from "../src/links-atoms.ts";
 import * as InboxShortcuts from "../src/list/inbox-shortcuts.ts";
 import { routes } from "../src/routes.ts";
 
@@ -26,6 +27,7 @@ export const mountAt = async (path: string, api: ApiTesting.Routes) => {
     initialValues: [
       [InboxShortcuts.keyboard, Layer.succeedContext(keyboard)],
       [SearchAtoms.recentLayer, PlatformTesting.layerRecentSearches],
+      [LinksAtoms.clipboard, PlatformTesting.layerClipboard],
     ],
   });
   const wrapper = mount(defineComponent({ render: () => h(RouterView) }), {

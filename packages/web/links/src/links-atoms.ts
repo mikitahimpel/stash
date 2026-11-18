@@ -1,8 +1,11 @@
+import * as Clipboard from "@effect/platform-browser/Clipboard";
 import type * as LinksGroup from "@stash/contracts-api/links";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
+import * as WebPlatform from "@stash/web-platform/live";
 import * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Atom from "effect/reactivity/Atom";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
@@ -168,4 +171,19 @@ export const devices = ApiAtoms.query(["devices"], (client) => client.devices.li
 /** Deletes a link. */
 export const remove = ApiAtoms.mutation(["links"], (client, id: Link.LinkId) =>
   client.links.remove({ params: { id } }),
+);
+
+/**
+ * The `Clipboard` that `copy` writes to. Defaults to the browser's, from `@stash/web-platform`.
+ * Tests replace it per registry through `initialValues`.
+ */
+export const clipboard: Atom.Writable<Layer.Layer<Clipboard.Clipboard>> = Atom.make(
+  WebPlatform.layerClipboard,
+).pipe(Atom.keepAlive);
+
+const clipboardRuntime = Atom.runtime((get) => get(clipboard));
+
+/** Copies a link's URL from its page. */
+export const copy = clipboardRuntime.fn((text: string) =>
+  Effect.flatMap(Clipboard.Clipboard, (clipboard) => clipboard.writeString(text)),
 );

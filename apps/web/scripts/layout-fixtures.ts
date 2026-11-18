@@ -125,6 +125,33 @@ const links = (now: number) =>
     enrichedAt: iso(now - age * day + 60_000),
   }));
 
+/**
+ * A YouTube link, for the link page with a player (`/links/seed-link-youtube`). It is in no list.
+ * The video id is invented, and the thumbnail is one of the drawn previews.
+ */
+export const youtubeLinkId = "seed-link-youtube";
+const youtube = (now: number) => ({
+  id: youtubeLinkId,
+  url: "https://www.youtube.com/watch?v=synthetic01",
+  canonicalUrl: null,
+  title: "How central banks set interest rates, explained with one chart",
+  status: "new",
+  type: "video",
+  summary:
+    "A synthetic summary of a talk: what a policy rate is, how it reaches mortgages and savings, and why the effect arrives a year late. Long enough to wrap over a few lines of reading text.",
+  language: "en",
+  tags: ["economics", "explainer", "housing"],
+  sourceDeviceId: devices[2].id,
+  createdAt: iso(now - 3 * day),
+  imageUrl: `${PreviewImages.origin}economics/central-banks.svg`,
+  author: "Plain Economics",
+  enrichedAt: iso(now - 3 * day + 60_000),
+});
+
+/** Seeded links for the link page: an article with an og:image, and one with no image. */
+export const articleLinkId = "seed-link-2";
+export const coverLinkId = "seed-link-3";
+
 const tabAges: ReadonlyArray<ReadonlyArray<number>> = [
   [0.05, 0.4, 1.5, 3, 9, 12],
   [0.2, 2, 5, 8.5, 16],
@@ -255,6 +282,7 @@ export const seeded = (now: number): Fixtures => {
       if (path === "/devices/activity") return activity(now, all);
       if (path === "/connect/info") return info;
       if (path === "/links") return listLinks(all, url);
+      if (path === `/links/${youtubeLinkId}`) return youtube(now);
       if (path.startsWith("/links/")) return all.find((link) => `/links/${link.id}` === path);
       if (path === "/devices")
         return devices.map((d) => ({ ...d, createdAt: iso(now - 40 * day) }));

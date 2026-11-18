@@ -18,7 +18,7 @@ One control language for every interactive element, so a page can't read as two 
 | Phone hit area | every tappable control at least 44 tall, without looking different | `hit-area` (an invisible `::after` below `sm`) |
 | Radius | **8** every control · **12** surfaces (cards, menus, dialogs, toasts) · full for the avatar only | `rounded-control` · `rounded-surface` |
 | Surface | `raised` (button, segmented thumb, menu trigger, chip on) · `primary` (one per screen) · `sunken` (input, search, segmented track, chip off) · `ghost` (row and toolbar actions); one 1px border, one focus ring | `controlSurfaces` |
-| Text | title 28/600 · **label 14/500** (controls, row titles, section headers) · **body 14/400** · **meta 13/400**, muted, **sans** | `text-title` · `text-label` · `text-body` · `text-meta` |
+| Text | title 28/600 · **label 14/500** (controls, row titles, section headers) · **body 14/400** · **meta 13/400**, muted, **sans** | `text-title` · `text-label` · `text-body` · `text-meta`; reading text (a link's summary on its page) is 16/1.6, `text-prose` |
 | Mono | only keys (`⌘K`, `Kbd`), the device code, chart axis labels and values to copy (read-only `<Input mono>`, such as the Connect guides' commands) | `font-mono` in `Kbd` / `DeviceCode` / `Input mono`, `chart-text` |
 | Guides | numbered steps (`StepList`, `Step`: a sunken number, a label title, its content under it) and a quiet `Disclosure` for advanced options | `@stash/web-ui/step-list`, `/step`, `/disclosure` |
 | Spacing | only 4 · 8 · 12 · 16 · 24 · 32 · 48 | `1 · 2 · 3 · 4 · 6 · 8 · 12` |
@@ -205,6 +205,35 @@ content, not as a table of text:
 title 15/600 > meta 13. Groups sit **32px** apart, a group header **8px** above its rows, and the
 lines of a row **4px** apart.
 
+### Link page (#159)
+
+`/links/<id>` is one link at reading size, in a column at most 768px wide:
+
+- **Back** (`secondary` `sm`): to the Inbox the page was opened from (`Inbox`, or `Results` while
+  it was searching), by stepping back in the history, so its filters or search (they are in its
+  URL) and its scroll position return (the router restores the scroll on the way back). Opened
+  directly, it links to the Inbox.
+- **Hero** (`MediaHero`): the preview image, 16:9, radius 12, or the generated cover of "Media
+  rows" at full size. A YouTube link carries a play button (44px tall); pressing it, or the
+  preview, swaps in the player from `youtube-nocookie.com/embed/<id>`. The `<iframe>` does not
+  exist before that press, so opening the page tells YouTube nothing. The app sets no
+  Content-Security-Policy, so there is nothing to allow.
+- **Type and status** as one quiet outline badge above the title (`Video · New`), apart from the
+  tags.
+- **Title**: the page's `h1`, 28/600, three lines at most. Under it **one meta line** (`MetaLine`:
+  host · channel or author · `saved 3d ago` · device) and the page's one `primary`, **Open**, which
+  opens the URL in a new tab.
+- **Summary** as reading text: 16/1.6 (`text-prose`), at most 65ch wide. **Tags** as chips; a tag
+  opens the Inbox filtered by it.
+- **Actions**: `Mark seen` `Mark done` `Archive` as `secondary` `sm` buttons with their keys
+  (`S`, `D`, `E`, as in the Inbox), only those that apply to the link's status. **Delete** stands
+  apart at the end of the page, `destructive`, and asks first.
+- **Details**, a closed `Disclosure` near the end: saved date, language, the URL and, when it
+  differs, the canonical URL, each truncated to one line with a copy button.
+- **Phone**: the hero runs from one screen edge to the other without the radius, Open takes the
+  full width, and the actions are a bar fixed to the bottom of the screen above the nav
+  (`ActionBar`, 56px; `AppMain` pads the page's end for it).
+
 ### Rows
 
 Every other list (Settings devices and tokens, Start saving, recent searches) is built
@@ -295,7 +324,8 @@ hairline below.
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
 `/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Inbox while searching
 (`inbox-search-*`), the focused empty search field with recent searches (`inbox-search-recent-*`),
-Open now, the `/save` result, Settings, Settings with each guide open (`settings-iphone-*` and so
+Open now, the `/save` result, a link's page three times (`link-youtube`, `link-article`,
+`link-cover`, answered in the browser from the audit's fixtures), Settings, Settings with each guide open (`settings-iphone-*` and so
 on), the extension's approve page, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
 [`docs/screenshots/`](screenshots/). Inbox, Open now and Settings are also captured as a
 first-run user with no data (`inbox-empty-light-desktop.png` and so on), with the browser answering
@@ -311,7 +341,8 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
 `vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now and
 Settings, each seeded and as a first-run user, Inbox and Open now with a selected row, the Inbox
 while searching, the search field's recent searches, Settings with each guide open, the
-extension's approve page, `/save`, plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
+extension's approve page, `/save`, a link's page (a YouTube video, an article with an image, a
+link with none), plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
 (`apps/web/scripts/layout-fixtures.ts`), and the fixtures' preview images are drawn in
 `scripts/preview-images.ts`, so nothing is fetched from the network. On each page it checks:
 
@@ -324,7 +355,8 @@ extension's approve page, `/save`, plus Login, in the light theme at 1440 and 39
   inside a card share one edge, and every line of a row starts where its title does; a media row
   is measured by its box, which must sit on both content edges (or, where its background reaches
   past them, as for a selected row on a phone, by its content); a `ScrollRow`, which on a phone
-  runs off both screen edges, is measured by its content box;
+  runs off both screen edges, is measured by its content box a `MediaHero` that spans the
+  whole screen on a phone counts as on the edges;
 - every vertical gap between page-level blocks is on the spacing scale;
 - text renders in mono only inside keys, the device code and charts.
 
@@ -372,6 +404,9 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
 | MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
+| MediaHero | `media-hero` (`src`, `url`, `embed`, `title`): a link's preview on its own page, with a play button that loads the player on demand |
+| MetaLine | `meta-line`: the dot-separated meta line outside a row |
+| ActionBar | `action-bar` (`label`): an item's actions, a bottom bar on phones |
 | ScrollRow | `scroll-row`: a row of controls that wraps from `sm` up and is one sideways-scrolling line on phones, running off both screen edges |
 | GroupHeader | `group-header` (`title`, `count`, `#actions`): 13/600 uppercase with a rule, above a group of rows |
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |

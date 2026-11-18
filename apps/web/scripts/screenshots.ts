@@ -4,6 +4,8 @@
 // Chromium in both themes at desktop and phone width into `docs/screenshots/`, seeded and as a
 // first-run user with no data (`*-empty-*.png`). On the way it checks that no page scrolls sideways
 // and that every button has an accessible name, and exits 1 if one does.
+// `STASH_SCREENSHOTS_VIEWS=link-,ui` limits the run to the views whose name starts with one of the
+// listed prefixes.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as Fs from "node:fs";
@@ -41,6 +43,11 @@ interface View {
   readonly empty?: boolean;
   /** A returning user: the browser already holds recent searches. */
   readonly recentSearches?: boolean;
+  /**
+   * The page's links and devices come from the audit's fixtures (`layout-fixtures.ts`), answered
+   * in the browser: the seed has no YouTube link, and its ids are its own.
+   */
+  readonly fixtures?: boolean;
 }
 
 const views: ReadonlyArray<View> = [
@@ -90,6 +97,21 @@ const views: ReadonlyArray<View> = [
     signedIn: true,
     prepare: (page) => page.locator("[data-slot=saved-link]").waitFor(),
   },
+  // A link's page: a YouTube video (thumbnail and play button), an article with an og:image, and
+  // a link with no image (the generated cover). The links come from the audit's fixtures.
+  ...(
+    [
+      ["link-youtube", Fixtures.youtubeLinkId],
+      ["link-article", Fixtures.articleLinkId],
+      ["link-cover", Fixtures.coverLinkId],
+    ] as const
+  ).map(([name, id]) => ({
+    name,
+    path: `/links/${id}`,
+    signedIn: true,
+    fixtures: true,
+    prepare: (page: Page) => page.locator("[data-slot=link-details] h1").waitFor(),
+  })),
   {
     name: "settings",
     path: "/settings",
@@ -258,6 +280,19 @@ const answerEmpty = (page: Page) =>
       : route.fallback();
   });
 
+const answerFixtures = (page: Page) => {
+  const fixtures = Fixtures.seeded(Date.now());
+  return page.route("**/api/**", (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname.replace(/^\/api/, "");
+    const answer =
+      route.request().method() === "GET" && (path.startsWith("/links") || path === "/devices")
+        ? fixtures.answer("GET", url)
+        : undefined;
+    return answer === undefined ? route.fallback() : route.fulfill({ json: answer });
+  });
+};
+
 const capture = async (browser: Browser, sessionToken: string): Promise<Array<string>> => {
   const problems: Array<string> = [];
   for (const theme of themes) {
@@ -268,7 +303,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         deviceScaleFactor: 1,
         reducedMotion: "reduce",
       });
-      for (const view of views) {
+      for (const view of views.filter(wanted)) {
         await context.clearCookies();
         if (view.signedIn) {
           await context.addCookies([
@@ -292,6 +327,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
           }),
         );
         if (view.empty) await answerEmpty(page);
+        if (view.fixtures) await answerFixtures(page);
         // Recent searches live in the browser: a returning user has some, everyone else none.
         const [key, value] = Fixtures.recentSearches(Date.now());
         // As a string, so the script itself never names the DOM globals.
@@ -338,6 +374,13 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
   }
   return problems;
 };
+
+// `STASH_SCREENSHOTS_VIEWS=link-,ui` captures only the views whose name starts with one of these.
+const only = (process.env["STASH_SCREENSHOTS_VIEWS"] ?? "")
+  .split(",")
+  .filter((name) => name !== "");
+const wanted = (view: View) =>
+  only.length === 0 || only.some((prefix) => view.name.startsWith(prefix));
 
 const main = async () => {
   const alchemyEnv: Record<string, string | undefined> = {

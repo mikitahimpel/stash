@@ -46,7 +46,7 @@ const headerClearance = 120;
 
 /**
  * The app router, with the auth guard installed: every route but the login page needs a session,
- * checked against the api of `registry`. `main.ts` passes the browser history (`createWebHistory`),
+ * checked against the api of `registry`. It restores the scroll position on the way back. `main.ts` passes the browser history (`createWebHistory`),
  * and tests pass `createMemoryHistory`.
  */
 export const make = (history: RouterHistory, registry: AtomRegistry.AtomRegistry): Router => {
@@ -54,9 +54,16 @@ export const make = (history: RouterHistory, registry: AtomRegistry.AtomRegistry
     history,
     routes: [...routes],
     // An anchor (`/settings#connections`, where `/connect` leads) scrolls to its section, clear
-    // of the sticky header; back and forward return to where the page was.
-    scrollBehavior: (to, _from, saved) =>
-      saved ?? (to.hash === "" ? undefined : { el: to.hash, top: headerClearance }),
+    // of the sticky header; back and forward return to where the page was (from a link's page
+    // to the place in the Inbox it was opened from). Another page starts at its top, and a change
+    // of the query alone (a filter, a search) leaves the scroll alone.
+    scrollBehavior: (to, from, saved) =>
+      saved ??
+      (to.hash !== ""
+        ? { el: to.hash, top: headerClearance }
+        : to.path === from.path
+          ? false
+          : { top: 0 }),
   });
   AuthGuard.install(router, registry);
   return router;
