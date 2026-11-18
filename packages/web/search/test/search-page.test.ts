@@ -279,8 +279,9 @@ describe("SearchPage", () => {
     expect(first?.find("[data-slot=more-tags]").text()).toBe("+1");
     expect(first?.find("[data-slot=media-row-unread]").exists()).toBe(true);
 
-    // No image: the site's initial. Seen: no dot. No rank numbers anywhere.
-    expect(second?.find("[data-slot=media-thumb]").text()).toBe("e");
+    // No image: the generated cover. Seen: no dot. No rank numbers anywhere.
+    expect(second?.find("[data-slot=media-thumb]").attributes("data-cover")).toBe("");
+    expect(second?.find("[data-slot=media-cover-host]").text()).toBe("example.com");
     expect(second?.find("[data-slot=media-row-unread]").exists()).toBe(false);
     expect(wrapper.find("[data-slot=list-row-leading]").exists()).toBe(false);
   });

@@ -32,8 +32,6 @@ export interface TabRow {
   readonly url: Link.Url;
   /** The url's host without `www.`, or the whole url when it has none. */
   readonly host: string;
-  /** The site's icon, `null` for a url that is not a web page (`about:`, `file:`). */
-  readonly favicon: string | null;
   /** As the device reported it, `null` when the tab has none. */
   readonly title: string | null;
   readonly age: Age;
@@ -69,21 +67,6 @@ export const age = (openedAt: DateTime.Utc | null, now: DateTime.Utc): Age => {
           : `${Math.floor(ms / day)}d`;
   const tone = ms < day ? "fresh" : ms < oldAfterDays * day ? "aging" : "old";
   return { label, tone, ms };
-};
-
-/**
- * Where a site keeps its icon by convention: `/favicon.ico` on the tab's own origin. `null` for a
- * url that is not http(s). A site without one there shows its initial instead.
- */
-export const favicon = (url: string): string | null => {
-  try {
-    const { protocol, host } = new URL(url);
-    return (protocol === "https:" || protocol === "http:") && host !== ""
-      ? `${protocol}//${host}/favicon.ico`
-      : null;
-  } catch {
-    return null;
-  }
 };
 
 const host = (url: string): string => {
@@ -131,7 +114,6 @@ export const group = (
               deviceName: device.name,
               url: tab.url,
               host: host(tab.url),
-              favicon: favicon(tab.url),
               title: tab.title,
               age: age(tab.openedAt, now),
             })),

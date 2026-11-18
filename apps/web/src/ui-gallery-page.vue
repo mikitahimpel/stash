@@ -160,6 +160,8 @@ const mediaRows = [
     tags: [],
   },
 ] as const;
+/** The page a row stands for: the cover of a row without an image comes from it. */
+const siteUrl = (host: string) => `https://${host}/`;
 const selectedMedia = ref(1);
 const sort = ref("recent");
 
@@ -358,7 +360,7 @@ const swatches = [
               v-bind="{ onClick: () => (selectedMedia = index) }"
             >
               <template #thumb>
-                <MediaThumb :src="row.image" :initial="row.host" :video="row.video" />
+                <MediaThumb :src="row.image" :url="siteUrl(row.host)" :video="row.video" />
               </template>
               <template #title>
                 <MediaRowTitle as-child :stretch="false">

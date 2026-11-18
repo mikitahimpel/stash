@@ -60,7 +60,7 @@
     "./media-row": "./src/media-row/media-row.vue",
     "./media-row-title": "./src/media-row/media-row-title.vue",
     "./media-thumb": "./src/media-row/media-thumb.vue",
-    "./site-icon": "./src/media-row/site-icon.vue",
+    "./site-cover": "./src/media-row/site-cover.ts",
     "./group-header": "./src/group-header/group-header.vue",
     "./tag-chip": "./src/tag-chip/tag-chip.vue",
     "./app-bar": "./src/app-shell/app-bar.vue",

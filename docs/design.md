@@ -177,12 +177,14 @@ content, not as a table of text:
 
 - **Preview** on the left, 16:9: 120×68 from `sm` up, 88×50 on phones, radius 8. It is the link's
   `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with `referrerpolicy="no-referrer"`.
-  With no image, or when it fails to load, the tile is neutral and shows the site's initial. A
-  video carries a small play mark.
-- **An open tab has no picture**, so its row is compact (#155): a 32px sunken tile (`SiteIcon`)
-  with the site's favicon at 16px, taken from `/favicon.ico` on the tab's origin and loaded like a
-  preview (lazily, no referrer). A site without one there, or a tab that is not a web page, shows
-  the site's initial.
+  A video carries a small play mark.
+- **A link or tab with no image gets a generated cover** (#155), also when its image fails to
+  load: a soft gradient in a hue of the site's own (a stable hash of the host; `.media-cover` in
+  the kit's styles tones it light or deep per theme), the site's favicon in the centre (28px, 20px
+  on phones; `/favicon.ico` on the page's origin, loaded like a preview: lazily, no referrer) and
+  the host in small type under it. When the favicon fails the site's initial takes its place. An
+  open tab has no image, so its tile is always the cover. `MediaThumb` builds it from `url`; a
+  URL that is not a web page keeps the neutral tile with an initial.
 - **Title** 15/600 (`text-row-title`), two lines at most, with an accent dot before it while the
   link is not yet seen. It is the row's target: its hit area covers the whole row, and other links
   in the row (the host, a tag) sit above it. On Open now a click selects the row instead, and only
@@ -359,7 +361,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
-| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; the site's initial without an image or when it fails to load; `video`), `site-icon` (32px tile, 16px favicon, the site's initial as fallback; for rows without a picture), `tag-chip` (24px); text role `text-row-title` |
+| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
 | ScrollRow | `scroll-row`: a row of controls that wraps from `sm` up and is one sideways-scrolling line on phones, running off both screen edges |
 | GroupHeader | `group-header` (`title`, `count`, `#actions`): 13/600 uppercase with a rule, above a group of rows |
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |

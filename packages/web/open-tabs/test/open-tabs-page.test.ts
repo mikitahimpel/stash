@@ -91,23 +91,22 @@ describe("open-tabs-page", () => {
     expect(chartTicks(wrapper)).toBe(4);
   });
 
-  it("shows each tab's site icon, and the site's initial when the icon does not load", async () => {
+  it("gives each tab a cover with its site's favicon and host, and the initial on error", async () => {
     const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
-    const icons = wrapper.findAll("[data-tab] [data-slot=site-icon]");
-    expect(icons).toHaveLength(4);
-    const img = icons[0]!.find("img");
+    const covers = wrapper.findAll("[data-tab] [data-slot=media-thumb][data-cover]");
+    expect(covers).toHaveLength(4);
+    const img = covers[0]!.find("[data-slot=media-cover-icon]");
     expect(img.attributes()).toMatchObject({
       src: "https://example.com/favicon.ico",
       loading: "lazy",
       referrerpolicy: "no-referrer",
     });
-    // A row has no preview tile any more.
-    expect(wrapper.find("[data-tab] [data-slot=media-thumb]").exists()).toBe(false);
+    expect(covers[0]!.find("[data-slot=media-cover-host]").text()).toBe("example.com");
 
     await img.trigger("error");
-    const first = wrapper.findAll("[data-tab] [data-slot=site-icon]")[0]!;
+    const first = wrapper.findAll("[data-tab] [data-slot=media-thumb]")[0]!;
     expect(first.find("img").exists()).toBe(false);
-    expect(first.text()).toBe("e");
+    expect(first.find("[data-slot=media-cover-initial]").text()).toBe("e");
   });
 
   it("filters rows and chart by device chip, with counts per device", async () => {

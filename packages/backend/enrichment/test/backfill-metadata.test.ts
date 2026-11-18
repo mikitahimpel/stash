@@ -19,6 +19,8 @@ const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 const answeringOembed = {
   [oembed]: { body: Fixtures.oembedVideo, contentType: "application/json" },
 };
+const githubUrl = "https://github.com/synthetic-owner/synthetic-repo";
+const huggingFaceUrl = "https://huggingface.co/spaces/synthetic-owner/synthetic-space";
 const enrichedAt = "2026-03-10T00:01:00.000Z";
 
 /** A link as an enrichment before #147 / #148 left it: enriched, no image, no author. */
@@ -134,6 +136,38 @@ describe("backfillMetadata", () => {
       Effect.provide(
         EnrichmentTestLayer.layer({
           "https://example.com/blog/preview": { body: Fixtures.ogImagePage },
+        }),
+      ),
+    ),
+  );
+
+  it.effect("fills the social card of a GitHub repository and of a Hugging Face Space", () =>
+    Effect.gen(function* () {
+      const repo = yield* insertEnriched("repo", githubUrl);
+      const space = yield* insertEnriched("space", huggingFaceUrl);
+      expect(yield* BackfillMetadata.backfillMetadata(repo)).toEqual({
+        _tag: "Backfilled",
+        filled: ["imageUrl"],
+      });
+      expect(yield* BackfillMetadata.backfillMetadata(space)).toEqual({
+        _tag: "Backfilled",
+        filled: ["imageUrl"],
+      });
+      expect(yield* row(repo)).toMatchObject({
+        title: "A good title",
+        summary: "A good summary.",
+        imageUrl: Fixtures.githubRepoImage,
+        author: null,
+        metadataVersion: EnrichPolicy.metadataVersion,
+      });
+      expect(yield* row(space)).toMatchObject({ imageUrl: Fixtures.huggingFaceSpaceImage });
+      // Read once: the cron has nothing left to send.
+      expect(yield* RequeueBackfill.requeueBackfill()).toBe(0);
+    }).pipe(
+      Effect.provide(
+        EnrichmentTestLayer.layer({
+          [githubUrl]: { body: Fixtures.githubRepoPage },
+          [huggingFaceUrl]: { body: Fixtures.huggingFaceSpacePage },
         }),
       ),
     ),

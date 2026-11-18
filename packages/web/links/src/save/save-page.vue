@@ -102,6 +102,7 @@ const back = () =>
           <template #thumb>
             <MediaThumb
               :src="view.link.imageUrl"
+              :url="view.link.url"
               :initial="view.host"
               :video="view.link.type === 'video'"
             />

@@ -39,6 +39,7 @@ const moreTags = computed(() => props.link.tags.length - tags.value.length);
     <template #thumb>
       <MediaThumb
         :src="link.imageUrl"
+        :url="link.url"
         :initial="SearchRequest.host(link)"
         :video="link.type === 'video'"
       />

@@ -101,17 +101,22 @@ describe("inbox page", () => {
     ]);
     expect(video!.find("[data-slot=more-tags]").text()).toBe("+2");
 
-    // No image: the site's initial. Seen: no dot. No summary, no author: no line for them.
+    // No image: the generated cover, with the site's favicon and host. Seen: no dot. No summary, no author: no line for them.
     expect(plain!.find("[data-slot=media-thumb]").attributes("data-empty")).toBe("");
-    expect(plain!.find("[data-slot=media-thumb]").text()).toBe("e");
+    expect(plain!.find("[data-slot=media-cover-icon]").attributes("src")).toBe(
+      "https://www.example.com/favicon.ico",
+    );
+    expect(plain!.find("[data-slot=media-cover-host]").text()).toBe("example.com");
     expect(plain!.find("[data-slot=media-row-unread]").exists()).toBe(false);
     expect(plain!.find("[data-slot=link-author]").exists()).toBe(false);
     expect(plain!.find("[data-slot=link-summary]").exists()).toBe(false);
 
-    // A preview that fails to load gives way to the initial.
+    // A preview that fails to load gives way to the cover, and a failed favicon to the initial.
     await image.trigger("error");
+    expect(video!.find("[data-slot=media-thumb]").attributes("data-cover")).toBe("");
+    await video!.find("[data-slot=media-cover-icon]").trigger("error");
     expect(video!.find("[data-slot=media-thumb] img").exists()).toBe(false);
-    expect(video!.find("[data-slot=media-thumb]").text()).toBe("e");
+    expect(video!.find("[data-slot=media-cover-initial]").text()).toBe("e");
   });
 
   it("says summarizing… until enrichment ran", async () => {

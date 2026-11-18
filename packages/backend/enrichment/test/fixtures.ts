@@ -150,3 +150,56 @@ export const emptyAppPage = `<html><head><title>Synthetic Board</title>
 <meta property="og:description" content="A kanban board for small teams.">
 <meta property="og:image" content="https://example.com/board.png">
 </head><body><div id="app"></div><script>boot()</script></body></html>`;
+
+// The `<head>` of a GitHub repository page and of a Hugging Face Space page, as those sites write
+// their meta tags (attribute order, self-closing tags, the image's alt and size next to it). The
+// owner, repository, Space and hash are invented.
+
+export const githubRepoImage =
+  "https://opengraph.githubassets.com/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef/synthetic-owner/synthetic-repo";
+
+export const githubRepoPage = `<!DOCTYPE html>
+<html lang="en" data-color-mode="auto" data-light-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <link rel="dns-prefetch" href="https://github.githubassets.com">
+    <title>GitHub - synthetic-owner/synthetic-repo: A synthetic repository for tests</title>
+    <meta name="description" content="A synthetic repository for tests. Contribute to synthetic-owner/synthetic-repo development by creating an account on GitHub.">
+    <link rel="fluid-icon" href="https://github.com/fluidicon.png" title="GitHub">
+    <meta property="fb:app_id" content="0000000000000000">
+    <meta name="apple-itunes-app" content="app-id=0000000000" />
+    <meta name="twitter:image" content="${githubRepoImage}" /><meta name="twitter:site" content="@github" /><meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="GitHub - synthetic-owner/synthetic-repo: A synthetic repository for tests" />
+    <meta property="og:image" content="${githubRepoImage}" /><meta property="og:image:alt" content="A synthetic repository for tests." /><meta property="og:image:width" content="1200" /><meta property="og:image:height" content="600" /><meta property="og:site_name" content="GitHub" /><meta property="og:type" content="object" /><meta property="og:title" content="GitHub - synthetic-owner/synthetic-repo: A synthetic repository for tests" /><meta property="og:url" content="https://github.com/synthetic-owner/synthetic-repo" />
+    <meta name="hostname" content="github.com">
+    <link rel="icon" class="js-site-favicon" type="image/svg+xml" href="https://github.githubassets.com/favicons/favicon.svg">
+  </head>
+  <body class="logged-out env-production">
+    <main><article class="markdown-body"><h1>synthetic-repo</h1>
+    <p>A synthetic repository for tests. It has a readme with a few lines of English text.</p></article></main>
+  </body>
+</html>`;
+
+export const huggingFaceSpaceImage =
+  "https://cdn-thumbnails.huggingface.co/social-thumbnails/spaces/synthetic-owner/synthetic-space.png";
+
+export const huggingFaceSpacePage = `<!doctype html>
+<html class="">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+		<meta name="description" content="A synthetic Space that greets whoever opens it." />
+		<meta property="fb:app_id" content="0000000000000000" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:site" content="@huggingface" />
+		<meta name="twitter:image" content="${huggingFaceSpaceImage}" />
+		<meta property="og:title" content="Synthetic Space - a Hugging Face Space by synthetic-owner" />
+		<meta property="og:type" content="website" />
+		<meta property="og:url" content="https://huggingface.co/spaces/synthetic-owner/synthetic-space" />
+		<meta property="og:image" content="${huggingFaceSpaceImage}" />
+		<link rel="stylesheet" href="/front/build/kube-0000000/style.css" />
+		<title>Synthetic Space - a Hugging Face Space by synthetic-owner</title>
+	</head>
+	<body class="flex flex-col min-h-dvh">
+		<div class="flex min-h-dvh flex-col"><main class="flex flex-1 flex-col"><iframe src="https://synthetic-owner-synthetic-space.hf.space" title="Space app"></iframe></main></div>
+	</body>
+</html>`;

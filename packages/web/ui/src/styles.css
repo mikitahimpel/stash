@@ -280,6 +280,29 @@
   box-shadow: var(--key-shadow);
 }
 
+/*
+ * The generated cover of a link or tab without a preview image (`MediaThumb`): a soft gradient in
+ * the site's own hue (`--cover-hue`, set from a hash of the host), light in the light theme and
+ * deep in the dark one. The text on it (the host, the initial) keeps the hue and reads at more
+ * than 4.5:1 on both ends of the gradient.
+ */
+.media-cover {
+  background-image: linear-gradient(
+    135deg,
+    oklch(0.95 0.04 var(--cover-hue)),
+    oklch(0.88 0.075 calc(var(--cover-hue) + 35))
+  );
+  color: oklch(0.36 0.07 var(--cover-hue));
+}
+.dark .media-cover {
+  background-image: linear-gradient(
+    135deg,
+    oklch(0.36 0.06 var(--cover-hue)),
+    oklch(0.26 0.075 calc(var(--cover-hue) + 35))
+  );
+  color: oklch(0.9 0.045 var(--cover-hue));
+}
+
 @utility tactile-row-selected {
   background: linear-gradient(180deg, var(--row-selected-from), var(--row-selected-to));
   border: 1px solid var(--row-selected-border);
