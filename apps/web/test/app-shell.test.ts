@@ -316,6 +316,84 @@ describe("cached pages", () => {
   });
 });
 
+describe("header tabs", () => {
+  const tabs = { devices: [] };
+  const mountWithTabs = async (path: string) => {
+    const requests = { tabs: 0 };
+    const registry = AppRegistry.make({
+      transport: ApiTesting.layer({
+        "GET /auth/me": () => ApiTesting.json({ kind: "user" }),
+        "GET /tabs": () => {
+          requests.tabs++;
+          return ApiTesting.json(tabs);
+        },
+        "GET /devices": () => ApiTesting.json([]),
+        "GET /tokens": () => ApiTesting.json([]),
+        "GET /links": () => ApiTesting.json({ items: [], nextCursor: null }),
+      }),
+      theme: theme(),
+    });
+    const router = AppRouter.make(createMemoryHistory(), registry);
+    await router.push(path);
+    const wrapper = mount(AppLayout, {
+      global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
+    });
+    await flushPromises();
+    return { wrapper, router, requests };
+  };
+  const tab = (wrapper: ReturnType<typeof mount>, label: string) =>
+    wrapper.findAll("nav a").find((link) => accessibleName(link) === label)!;
+
+  it.each(["pointerenter", "touchstart", "focus"])(
+    "loads a tab's first data on %s, before the click",
+    async (event) => {
+      const { wrapper, requests } = await mountWithTabs("/links");
+      await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Inbox"), {
+        timeout: 10_000,
+      });
+      expect(requests.tabs).toBe(0);
+      await tab(wrapper, "Open now").trigger(event);
+      await vi.waitFor(() => expect(requests.tabs).toBe(1), { timeout: 10_000 });
+      // The page that opens right after shows what the hover loaded, without asking again.
+      await tab(wrapper, "Open now").trigger("click");
+      await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Open now"), {
+        timeout: 10_000,
+      });
+      await flushPromises();
+      expect(requests.tabs).toBe(1);
+    },
+  );
+
+  it("opens a tab where it was left, and another page at its top", async () => {
+    const scrolled: Array<number> = [];
+    // The test's page, without naming the global the app must not use.
+    const page = globalThis as unknown as Window;
+    const scrollTo = vi.spyOn(page, "scrollTo").mockImplementation(((
+      ...args: [ScrollToOptions] | [number, number]
+    ) => {
+      scrolled.push(typeof args[0] === "number" ? (args[1] ?? 0) : (args[0].top ?? 0));
+    }) as Window["scrollTo"]);
+    const scrollY = vi.spyOn(page, "scrollY", "get");
+    try {
+      const { router } = await mountWithTabs("/open-now");
+      // Down the page, then away: Settings starts at its top.
+      scrollY.mockReturnValue(640);
+      await router.push("/settings");
+      await vi.waitFor(() => expect(scrolled.at(-1)).toBe(0));
+      // Back by the tab (not by the history): Open now is where it was left.
+      scrollY.mockReturnValue(0);
+      await router.push("/open-now");
+      await vi.waitFor(() => expect(scrolled.at(-1)).toBe(640));
+      // And Settings, left at its top, opens at its top.
+      await router.push("/settings");
+      await vi.waitFor(() => expect(scrolled.at(-1)).toBe(0));
+    } finally {
+      scrollTo.mockRestore();
+      scrollY.mockRestore();
+    }
+  });
+});
+
 describe("app shell", () => {
   it("mounts with the nav and the current page", async () => {
     const { wrapper } = await mountApp();

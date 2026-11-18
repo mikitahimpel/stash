@@ -9,6 +9,7 @@ import Kbd from "@stash/web-ui/kbd";
 import PageHeader from "@stash/web-ui/page-header";
 import SearchField from "@stash/web-ui/search-field";
 import GroupHeader from "@stash/web-ui/group-header";
+import MediaRowSkeleton from "@stash/web-ui/media-row-skeleton";
 import Skeleton from "@stash/web-ui/skeleton";
 import Toaster from "@stash/web-ui/toaster";
 import ToggleChip from "@stash/web-ui/toggle-chip";
@@ -41,10 +42,14 @@ const success = <A>(result: AsyncResult.AsyncResult<A, unknown>): A | undefined 
   AsyncResult.isSuccess(result) ? result.value : undefined;
 
 const all = computed(() => success(view.value));
-// The skeleton only shows on a first load that takes a while: the tabs stay cached between visits.
+// The skeleton only shows on a first load that takes a while (the tabs stay cached between
+// visits), and then for long enough not to flash. It is the page's own frame: the field, the
+// chips, the chart and the list's rows.
 const skeleton = useDelayedLoading(
   () => all.value === undefined && !AsyncResult.isFailure(view.value),
 );
+/** How many rows the skeleton has: about a screen of them. */
+const skeletonRows = 5;
 const groups = computed(() => success(shown.value) ?? []);
 const chips = computed(() =>
   (success(searched.value) ?? []).map((group) => ({
@@ -59,17 +64,15 @@ const rows = computed(() => sections.value.flatMap((section) => section.tabs));
 const stale = computed(() => sections.value.find((section) => section.id === "old")?.tabs ?? []);
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-// The counts under the title, once the tabs have loaded.
+// The counts under the title, once the tabs have loaded. The line keeps its place until then.
 const subtitle = computed(() =>
   all.value === undefined || all.value.length === 0
-    ? {}
-    : {
-        subtitle: [
-          plural(total.value, "tab", "tabs"),
-          plural(chips.value.length, "device", "devices"),
-          ...(stale.value.length > 0 ? [`${stale.value.length} older than 7 days`] : []),
-        ].join(" · "),
-      },
+    ? ""
+    : [
+        plural(total.value, "tab", "tabs"),
+        plural(chips.value.length, "device", "devices"),
+        ...(stale.value.length > 0 ? [`${stale.value.length} older than 7 days`] : []),
+      ].join(" · "),
 );
 
 const pickDevice = (id: Device.DeviceId | null) => setDevice(device.value === id ? null : id);
@@ -136,32 +139,35 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
 
 <template>
   <section class="flex flex-col gap-6">
-    <PageHeader title="Open now" v-bind="subtitle">
-      <!-- The onboarding card offers the same action, one row per kind of device. -->
-      <template v-if="all === undefined || all.length > 0" #actions>
+    <PageHeader title="Open now" :subtitle="subtitle">
+      <!-- In every state of the page, so the header never changes (on phones the button has a
+           line of its own). The onboarding card offers the same action per kind of device. -->
+      <template #actions>
         <Button as-child variant="primary" class="max-sm:w-full">
           <RouterLink :to="{ name: 'settings', hash: '#connections' }">Add device</RouterLink>
         </Button>
       </template>
     </PageHeader>
 
+    <div v-if="skeleton" data-state="loading" class="flex flex-col gap-6" aria-busy="true">
+      <Skeleton shape="control" />
+      <div class="flex gap-2">
+        <Skeleton v-for="i in 3" :key="i" shape="chip" />
+      </div>
+      <Skeleton shape="chart" />
+      <section class="flex flex-col gap-2">
+        <GroupHeader placeholder />
+        <ul class="flex flex-col">
+          <MediaRowSkeleton v-for="i in skeletonRows" :key="i" as="li" />
+        </ul>
+      </section>
+    </div>
     <ErrorState
-      v-if="all === undefined && AsyncResult.isFailure(view)"
+      v-else-if="all === undefined && AsyncResult.isFailure(view)"
       title="Couldn't load open tabs"
       @retry="retry"
     />
-    <template v-else-if="all === undefined">
-      <div v-if="skeleton" data-state="loading" class="flex flex-col gap-6">
-        <Skeleton shape="control" />
-        <div class="flex gap-2">
-          <Skeleton v-for="i in 3" :key="i" shape="chip" />
-        </div>
-        <Skeleton shape="chart" />
-        <div class="flex flex-col gap-3">
-          <Skeleton v-for="i in 4" :key="i" shape="media" />
-        </div>
-      </div>
-    </template>
+    <div v-else-if="all === undefined" aria-busy="true" />
     <StartSavingCard v-else-if="all.length === 0" scenario="tabs" data-state="empty" />
     <template v-else>
       <SearchField

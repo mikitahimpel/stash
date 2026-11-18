@@ -5,7 +5,7 @@ import ErrorState from "@stash/web-ui/error-state";
 import ListRow from "@stash/web-ui/list-row";
 import ListRowTitle from "@stash/web-ui/list-row-title";
 import SectionHeader from "@stash/web-ui/section-header";
-import Skeleton from "@stash/web-ui/skeleton";
+import ListRowSkeleton from "@stash/web-ui/list-row-skeleton";
 import StatusDot from "@stash/web-ui/status-dot";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
@@ -86,11 +86,16 @@ const count = computed(() => {
   <section id="connections" aria-label="Devices & connections" class="flex flex-col gap-1">
     <SectionHeader title="Devices & connections" v-bind="count" />
 
-    <div v-if="AsyncResult.isInitial(snapshot)" class="flex flex-col gap-1" aria-busy="true">
-      <template v-if="loading">
-        <Skeleton v-for="n in 4" :key="n" shape="row" />
-      </template>
-    </div>
+    <!-- One skeleton row per source, the list's own rows: nothing moves when they load. Before
+         the skeleton shows (a fast load never shows it) the rows already hold their place. -->
+    <ul
+      v-if="loading || AsyncResult.isInitial(snapshot)"
+      aria-busy="true"
+      :data-state="loading ? 'loading' : undefined"
+      :class="loading ? undefined : 'invisible'"
+    >
+      <ListRowSkeleton v-for="source in sources" :key="source.id" as="li" leading trailing />
+    </ul>
     <ErrorState
       v-else-if="AsyncResult.isFailure(snapshot)"
       title="Couldn't load your devices"
@@ -118,9 +123,14 @@ const count = computed(() => {
           </ListRowTitle>
         </template>
         <template #meta>
-          <span data-test="status">{{
-            ConnectStatus.describe(source.id, statuses!.get(source.id)!, now)
-          }}</span>
+          <!-- One line, so every row is one height (and the skeleton's): a long status is cut
+               on a phone, and whole in its tooltip. -->
+          <span
+            data-test="status"
+            class="max-w-full truncate"
+            :title="ConnectStatus.describe(source.id, statuses!.get(source.id)!, now)"
+            >{{ ConnectStatus.describe(source.id, statuses!.get(source.id)!, now) }}</span
+          >
           <span class="max-sm:hidden">{{ source.what }}</span>
         </template>
         <template v-if="guide !== source.id" #trailing>

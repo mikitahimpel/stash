@@ -220,8 +220,10 @@ describe("inbox page", () => {
     expect(rows[2]?.find("a").attributes("href")).toBe("/settings?guide=claude");
 
     expect(wrapper.find("svg[role=img]").exists()).toBe(false);
-    expect(wrapper.find("[role=radiogroup]").exists()).toBe(false);
-    expect(wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
+    // The frame of the page is the one it had while loading: the filters stay, and the counts'
+    // line keeps its place, empty.
+    expect(wrapper.find("[role=radiogroup]").exists()).toBe(true);
+    expect(wrapper.find("[data-slot=page-header-subtitle]").text()).toBe("");
     expect(wrapper.find("[data-slot=empty-state]").exists()).toBe(false);
   });
 

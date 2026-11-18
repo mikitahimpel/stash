@@ -58,9 +58,17 @@ layers.
   page that reads them, so a page opened again shows its data at once and refreshes it in the
   background. A feature whose page is a header tab exports `preload` (the page's code) and
   `prefetch` (its code and first data, `ApiAtoms.prefetch`) from `./routes`; the app header calls
-  them on idle and on hover. Pages show a skeleton only on a first load that takes over 200 ms
-  (`useDelayedLoading` from `@stash/web-ui/use-delayed-loading`), and a failed load with nothing
-  cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
+  them on idle and on hover. Pages show a skeleton only on a first load that takes over 150 ms,
+  and then for at least 300 ms (`useDelayedLoading` from `@stash/web-ui/use-delayed-loading`: the
+  page shows the skeleton while it is true), and a failed load with nothing cached as
+  `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
+- **Nothing moves when data arrives.** A skeleton is the real layout with placeholder blocks:
+  `<MediaRowSkeleton>` and `<ListRowSkeleton>` for rows, `<GroupHeader placeholder>`, and
+  `<Skeleton>` shapes for the rest, in the same containers and gaps as the loaded page. The frame
+  of a page (header, filters) is the same while loading, loaded, empty and failed: `<PageHeader>`
+  gets `subtitle=""` until the counts are there, and a section whose place depends on a list of
+  unknown length appears with the data instead of moving. `pnpm --filter @stash/web
+  check:loading` measures it (see "Loading states" in [docs/design.md](../../docs/design.md)).
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
 - Links and tabs are `<MediaRow>`s (preview, title, one meta line, one summary line, one

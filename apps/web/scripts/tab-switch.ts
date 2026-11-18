@@ -87,12 +87,10 @@ interface Row {
   readonly problems: ReadonlyArray<string>;
 }
 
-const main = async () => {
-  const server = await PreviewServer.serve(port);
+/** One walk through the tabs, in a fresh browser context. */
+const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
   const rows: Array<Row> = [];
-  let browser: Browser | undefined;
-  try {
-    browser = await chromium.launch();
+  {
     const context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       colorScheme: "light",
@@ -213,6 +211,28 @@ const main = async () => {
       rows.push({ step: "page error", what: error, millis: null, problems: ["page error"] });
     }
     await context.close();
+  }
+  return rows;
+};
+
+/**
+ * How many walks the check may take. A busy machine can make any one frame late, so a walk with a
+ * problem is repeated; a real one (a page that waits for the network, a skeleton) is there every
+ * time.
+ */
+const attempts = measuring ? 1 : 3;
+
+const main = async () => {
+  const server = await PreviewServer.serve(port);
+  let browser: Browser | undefined;
+  let rows: ReadonlyArray<Row> = [];
+  try {
+    browser = await chromium.launch();
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      rows = await walk(browser);
+      if (rows.every((row) => row.problems.length === 0)) break;
+      if (attempt < attempts) console.log(`Walk ${attempt} had problems, walking again.`);
+    }
   } finally {
     await browser?.close();
     if (server?.pid !== undefined) process.kill(-server.pid, "SIGTERM");

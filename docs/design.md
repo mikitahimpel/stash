@@ -149,11 +149,12 @@ only for keys, the device code and chart axis labels (see "Tokens").
 
 Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as the page's only
 `h1`, **28px/600**, tight tracking, and under it one regular-sans muted line
-(`6 unread · 30 saved in 30 days`). The line appears once there is something to count, so a
-first-run page has the title alone. The page's **primary action** sits on the right, in the
+(`6 unread · 30 saved in 30 days`). The line keeps its place while there is nothing to count
+(loading, or a first-run page: `subtitle=""`), so the header is one height in every state (see
+"Loading states"). The page's **primary action** sits on the right, in the
 `#actions` slot: Inbox has the Save a link field (sunken input and primary Save; Enter submits, and
-the new row shows at once), Open now has Add device (except on its onboarding card, which offers
-it per device), Settings has none. Search has no page: its field is in the app header (see
+the new row shows at once), Open now has Add device (also over its onboarding card, which offers
+the same per device), Settings has none. Search has no page: its field is in the app header (see
 "Search"), and its results show under the Inbox's header. Sections inside a page keep `<SectionHeader>`
 (14px/500). `PageHeader` carries its own 24px bottom margin, which adds to the page's `gap-6`.
 
@@ -286,7 +287,7 @@ and `/` focus it; `esc` clears it and leaves it.
   links) redirects to `/links?q=…`.
 - **No jump between queries.** The page header and the line stay; the last results stay on screen
   (the line is `aria-busy`) until the next answer arrives. A skeleton shows only for a first
-  answer that takes over 200 ms.
+  answer that takes over 150 ms (see "Loading states").
 - **Recent searches** (the last 6 of the 8 kept) hang under the focused, empty field
   (`FieldPopup`); each can be run again (click, or `↑`/`↓` and `↵`) or removed. They stay in the
   browser (`localStorage` through `@stash/web-platform/recent-searches`) and are never sent to the
@@ -313,13 +314,53 @@ hairline below.
 
 - Left: the logo (`<Wordmark>`: the 28px Well mark and `stash`, see "Logo"), then the nav as plain text tabs (Inbox, Open now, Settings) with a 2px
   underline on the active one, no tray and no borders.
-- Middle: **the search field** (`<AppBarSearch>`, a `sm` `SearchField` with a `⌘K` keycap), as
-  wide as the row allows between the nav and the account button. It is the only Search entry
-  point; see "Search".
+- Right, before the account button: **the search field** (`<AppBarSearch>`, a `sm` `SearchField`
+  with a `⌘K` keycap), compact: 300px wide. While it has the focus it is 480px (or what the row
+  has left), growing to the left into the free space of its own place, so the nav and the account
+  button never move. It is the only Search entry point; see "Search".
+- **The tabs answer at once** (#167). The code of every tab loads when the app is idle, and the
+  pointer, a finger or the focus on a tab loads its first data (`preload` / `prefetch` of the
+  feature's `./routes`, through `src/app-prefetch.ts`). A tab that was open paints from its cached
+  data in the first frame and refreshes behind it, without a skeleton; the tab is marked from the
+  click on, also while a page still loads its code; and each tab opens where it was left (its
+  scroll position), unless it opens at another address (a filter, a search).
+  `pnpm --filter @stash/web check:tab-switch` holds the built app to it: under 100 ms from the
+  click to the painted rows, no skeleton, a refresh behind, the scroll kept.
 - Right: **one account menu button** (the login's initial on a round avatar) holding the theme
   switch (System / Light / Dark as radio items), the sync status and Sign out. An 8px accent dot on
   the button appears only when offline; otherwise the status stays in the menu.
 - Every icon-only control has an accessible name (`aria-label`) and a tooltip (`title`).
+
+### Loading states (#167)
+
+Nothing moves when data arrives.
+
+- **A skeleton is the real layout with placeholder blocks**, not a drawing of it: rows are
+  `<MediaRowSkeleton>` (the real `<MediaRow>`: 114px from `sm` up, 120px on phones with a tags
+  line, 88px without) and `<ListRowSkeleton>` (the real `<ListRow>`), a group is
+  `<GroupHeader placeholder>`, and `<Skeleton>` has a shape with the box of everything else (a
+  line of text, the page title, a badge, a 16:9 hero, a field, a chip, the chart). They sit in the
+  same containers and gaps as the loaded page.
+- **It shows after 150 ms and then stays at least 300 ms** (`useDelayedLoading`), so a fast answer
+  never shows one and a slow one never flashes it. Cached data shows at once.
+- **The frame of a page is the same in every state**: loading, loaded, empty and failed. The page
+  header keeps the line of its counts (`subtitle=""` until they are there) and its action; the
+  Inbox keeps its filters over the first-run card; empty and error states stand where the list
+  does. In Settings the lists hold their rows' place before the skeleton shows, and the sections
+  under the devices (API tokens, Appearance) come in with the data, at their place, because the
+  number of devices decides where they start.
+- **Images are sized before they load**: a row's preview is 160×90 (110×62), a hero is 16:9.
+- What the skeleton can't know is the data: how many devices the chart has lanes for (it assumes
+  three), whether the first group of open tabs has actions, how many lines a link's title takes.
+  There the content replaces the skeleton in one frame; nothing that was on screen moves.
+
+`pnpm --filter @stash/web check:loading` (after a build; CI job `layout-audit`) opens the Inbox,
+Open now, a link's page and Settings on the built app with an api that takes 800 ms, at 1440 and
+390 wide, and fails when a part of a skeleton is more than 1px off the box of what replaces it
+(the first rows and their previews, the page header, the filters, the hero) or when the page's
+Cumulative Layout Shift is over 0.01; the first-run pages are held to the same limit. With
+`--screenshots` it writes each page while loading and once loaded to
+`docs/screenshots/loading-<page>-<width>-skeleton.png` and `-loaded.png`.
 
 ### Phone (< 640px)
 
@@ -337,6 +378,7 @@ hairline below.
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
 `/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Inbox while searching
 (`inbox-search-*`), the focused empty search field with recent searches (`inbox-search-recent-*`),
+the app header alone with the search field at rest and focused (`header-*`, `header-focused-*`),
 Open now, the `/save` result, a link's page three times (`link-youtube`, `link-article`,
 `link-cover`, answered in the browser from the audit's fixtures), Settings, Settings with each guide open (`settings-iphone-*` and so
 on), the extension's approve page, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into

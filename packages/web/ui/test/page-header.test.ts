@@ -11,6 +11,15 @@ describe("PageHeader", () => {
     expect(wrapper.find("[data-slot=page-header-actions]").exists()).toBe(false);
   });
 
+  it("keeps the subtitle's line for a page whose line comes with its data", () => {
+    const wrapper = mount(PageHeader, { props: { title: "Open now", subtitle: "" } });
+
+    const line = wrapper.find("[data-slot=page-header-subtitle]");
+    expect(line.exists()).toBe(true);
+    expect(line.text()).toBe("");
+    expect(line.classes()).toContain("min-h-5");
+  });
+
   it("renders the subtitle and actions when given", () => {
     const wrapper = mount(PageHeader, {
       props: { title: "Open now", subtitle: "17 tabs · 3 devices" },

@@ -4,7 +4,11 @@ import { cn } from "../cn";
 
 const props = defineProps<{
   title: string;
-  /** One muted line under the title, for example `6 unread · 159 saved in 30 days`. */
+  /**
+   * One muted line under the title, for example `6 unread · 159 saved in 30 days`. A page whose
+   * line comes with its data passes `""` until it has it (and when there is nothing to say): the
+   * line keeps its place, so the header is one height in every state of the page.
+   */
   subtitle?: string;
   class?: HTMLAttributes["class"];
 }>();
@@ -24,7 +28,11 @@ defineSlots<{ actions?: () => unknown }>();
       <h1 class="text-title text-foreground">
         {{ title }}
       </h1>
-      <p v-if="subtitle" data-slot="page-header-subtitle" class="text-body text-muted-foreground">
+      <p
+        v-if="subtitle !== undefined"
+        data-slot="page-header-subtitle"
+        class="min-h-5 text-body text-muted-foreground"
+      >
         {{ subtitle }}
       </p>
     </div>

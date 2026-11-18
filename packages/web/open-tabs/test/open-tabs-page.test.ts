@@ -269,11 +269,12 @@ describe("open-tabs-page", () => {
       "Zen extension",
       "iPhone",
     ]);
-    // One action per kind of device, and no second Add device in the page header.
+    // One action per kind of device. The header is the one the page had while loading: Add
+    // device stays, and the counts' line keeps its place, empty.
     expect(card.findAll("li").map((row) => row.find("a").text())).toEqual(["Add Zen", "Add Mac"]);
-    expect(none.wrapper.find("[data-slot=page-header-actions]").exists()).toBe(false);
+    expect(none.wrapper.find("[data-slot=page-header-actions]").text()).toBe("Add device");
     expect(none.wrapper.find("[data-slot=tab-age-chart]").exists()).toBe(false);
-    expect(none.wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
+    expect(none.wrapper.find("[data-slot=page-header-subtitle]").text()).toBe("");
     none.wrapper.unmount();
     const empty = await mountPage({
       "GET /tabs": () => ApiTesting.json(Fixtures.allTabs(Fixtures.deviceTabs("laptop", null))),
@@ -289,7 +290,7 @@ describe("open-tabs-page", () => {
     expect(wrapper.findAll(".tactile-primary").map((el) => el.text())).toEqual(["Add device"]);
   });
 
-  it("shows a skeleton after 200 ms, then an error state with Retry when the tabs can't load", async () => {
+  it("shows a skeleton after 150 ms, then an error state with Retry when the tabs can't load", async () => {
     let respond: () => void = () => {};
     let responded = new Promise<void>((resolve) => (respond = resolve));
     let requests = 0;
@@ -321,14 +322,14 @@ describe("open-tabs-page", () => {
     beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
     afterEach(() => vi.useRealTimers());
 
-    it("never shows the skeleton for a response faster than 200 ms", async () => {
+    it("never shows the skeleton for a response faster than 150 ms", async () => {
       let respond: () => void = () => {};
       const responded = new Promise<void>((resolve) => (respond = resolve));
       const { wrapper } = await mountPage({
         "GET /tabs": () =>
           Effect.promise(() => responded.then(() => ApiTesting.json(laptopAndPhone()))),
       });
-      await vi.advanceTimersByTimeAsync(150);
+      await vi.advanceTimersByTimeAsync(140);
       expect(wrapper.find("[data-state=loading]").exists()).toBe(false);
       respond();
       await eventually(() => expect(titles(wrapper)).toHaveLength(4));

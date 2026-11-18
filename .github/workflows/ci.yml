@@ -41,3 +41,9 @@ jobs:
       - run: pnpm --filter @stash/web audit:layout
       # The Connect guides end to end on the same build and fixtures, one page at a time.
       - run: pnpm --filter @stash/web walk:connect
+      # The header tabs on the same build: a switch to a visited tab paints within 100 ms from
+      # cached data, without a skeleton, and keeps the tab's scroll position.
+      - run: pnpm --filter @stash/web check:tab-switch
+      # The loading states on the same build, with a slow api: every skeleton has the box of what
+      # replaces it, and no page shifts (CLS at most 0.01).
+      - run: pnpm --filter @stash/web check:loading

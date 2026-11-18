@@ -67,8 +67,8 @@ Feature behavior is tested in `packages/web/*`.
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue` (the kit's `AppFrame` and `AppMain`),
   `src/app-header.vue` (the kit's `AppBar`: the logo,
-  nav as text tabs (Inbox, Open now, Settings), the search field (`@stash/web-search/search-box`
-  in `AppBarSearch`, the only search entry point) and the account menu from
+  nav as text tabs (Inbox, Open now, Settings), the compact search field (`@stash/web-search/search-box`
+  in `AppBarSearch`, the only search entry point; 300px, 480px while focused) and the account menu from
   `@stash/web-auth/account-menu`, which holds the theme switch and the sync status). On phones the
   nav is a bottom bar and the search field a full-width line under the header row. See "Layout rules" in
   [docs/design.md](../../docs/design.md).
@@ -98,6 +98,19 @@ Feature behavior is tested in `packages/web/*`.
   `../` glob is not filtered by `.gitignore`, so each one names real inputs and never a whole app
   (`../extension/**` walks `node_modules`). `test/build-memo.test.ts` checks it. Add a glob here
   when `build:deploy` starts to read a new place.
+- `scripts/tab-switch.ts` (`pnpm --filter @stash/web check:tab-switch`, after a build; the same
+  CI job): clicks through the header tabs on the built app with an api that answers after 300 ms,
+  and fails when a switch to a visited tab takes over 100 ms from the click to the painted rows,
+  shows a skeleton, doesn't refresh behind, or loses the tab's scroll position; also when a first
+  visit doesn't show its layout at once or a hovered tab doesn't open with its rows. A walk with a
+  problem is repeated twice (a busy machine makes single frames late). `STASH_SWITCH_CPU`,
+  `STASH_SWITCH_NETWORK=slow`, `STASH_SWITCH_API_DELAY` and `STASH_SWITCH_PROFILE=<dir>` turn it
+  into a measurement. Its in-page timing is `scripts/tab-switch-probe.ts`.
+- `scripts/loading-states.ts` (`pnpm --filter @stash/web check:loading`, after a build; the same
+  CI job): the skeletons' boxes against the loaded content and the Cumulative Layout Shift of
+  each page with a slow api, see "Loading states" in [docs/design.md](../../docs/design.md).
+  `--screenshots` writes `docs/screenshots/loading-*.png`. Its in-page measuring is
+  `scripts/loading-states-probe.ts`.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
   job runs it after the audit): walks each Connect guide (in Settings; the iPhone one through the old `/connect?guide=` address),
   the extension approve page, `/search?q=` and `/save`
@@ -114,6 +127,11 @@ Feature behavior is tested in `packages/web/*`.
   by side in a grid, with a theme switch
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
+- `src/app-prefetch.ts`: the header tabs' `preload` and `prefetch` (from each feature's
+  `./routes`) by route name. `main.ts` loads the tabs' code once the app is idle
+  (`@stash/web-platform/idle`), and the header loads a tab's first data when the pointer, a finger
+  or the focus is on it. `app-router.ts` keeps each tab's scroll position
+  (`@stash/web-platform/page-scroll`).
 - `src/app-registry.ts` (the atom registry with the live layers, among them the recent searches
   of `@stash/web-search/search-atoms`)
 - `src/web-worker.ts` (the `Web` Worker entry, see Rules)
