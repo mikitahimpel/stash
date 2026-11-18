@@ -5,6 +5,7 @@ import type * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as HttpClientError from "effect/http/HttpClientError";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -41,18 +42,31 @@ const dieOnDefect = <A, E, R>(
 /** How long a query keeps its last result once no page reads it. */
 export const idleTTL: Duration.Duration = Duration.minutes(10);
 
+// When each query was last asked for a fresh answer, per registry: by its first load, by the
+// refresh behind a page that opens it, or by `prefetch`.
+const askedAt = new WeakMap<AtomRegistry.AtomRegistry, WeakMap<Atom.Atom<any>, number>>();
+const lastAsked = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<any>): number | undefined =>
+  askedAt.get(registry)?.get(atom);
+const markAsked = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<any>): void => {
+  let times = askedAt.get(registry);
+  if (times === undefined) askedAt.set(registry, (times = new WeakMap()));
+  times.set(atom, Date.now());
+};
+
 // Stale-while-revalidate. The result outlives the page that reads it (for `idleTTL`), so a page that
 // opens again shows the cached success at once, and a refresh runs behind it. While that refresh
 // runs the result stays a `Success` (with `waiting`), so pages keep their rows instead of a
 // skeleton. A cached failure is not retried by itself: pages offer Retry for that.
 const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(atom: A) => {
   const source = Atom.setIdleTTL(atom, idleTTL);
-  return Atom.transform(
+  const self: Atom.Atom<any> = Atom.transform(
     source,
     (get) => {
       const current = get.once(source);
       get.subscribe(source, (value) => get.setSelf(value));
+      if (AsyncResult.isInitial(current)) markAsked(get.registry, self);
       if (AsyncResult.isSuccess(current) && !current.waiting) {
+        markAsked(get.registry, self);
         let active = true;
         get.addFinalizer(() => (active = false));
         get.registry.schedulerAsync.makeDispatcher().scheduleTask(() => {
@@ -62,7 +76,8 @@ const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(ato
       return current;
     },
     { initialValueTarget: source },
-  ) as unknown as A;
+  );
+  return self as unknown as A;
 };
 
 /**
@@ -139,3 +154,75 @@ export const pages = <A, E>(
       ),
     ),
   );
+
+/** How long `prefetch` keeps reading its queries, in ms: the time a page has to take them over. */
+export const prefetchHoldMillis = 5000;
+
+/**
+ * How old an answer may be, in ms, before `prefetch` asks again: long enough that the page which
+ * opens right after a hover doesn't ask twice, short enough that the next hover brings what
+ * changed meanwhile (a link saved on another device).
+ */
+export const prefetchFreshMillis = 1500;
+
+interface Hold {
+  readonly unmount: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+// One hold per query and registry: a second `prefetch` renews it instead of adding another.
+const holds = new WeakMap<AtomRegistry.AtomRegistry, Map<Atom.Atom<any>, Hold>>();
+
+/**
+ * Loads `queries` (`query` or `pages` atoms) ahead of the page that reads them, for a tab the
+ * pointer is on: what is not cached is fetched, and a cached answer older than
+ * `prefetchFreshMillis` is asked for again, whether or not something reads the query right now.
+ * The queries stay read for `prefetchHoldMillis` after that, so the page that opens meanwhile
+ * shows the answer without asking the api a second time. A `prefetch` that finds its answers
+ * fresh changes nothing, so the hold of a query ends `prefetchHoldMillis` after it was last
+ * asked, however often the pointer comes back. Returns the function that lets go of the queries
+ * sooner.
+ */
+export const prefetch = (
+  registry: AtomRegistry.AtomRegistry,
+  queries: ReadonlyArray<Atom.Atom<AsyncResult.AsyncResult<any, any>>>,
+): (() => void) => {
+  let held = holds.get(registry);
+  if (held === undefined) holds.set(registry, (held = new Map()));
+  const mine = held;
+  const release = (query: Atom.Atom<any>) => {
+    const hold = mine.get(query);
+    if (hold === undefined) return;
+    mine.delete(query);
+    clearTimeout(hold.timer);
+    hold.unmount();
+  };
+  for (const query of queries) {
+    const before = lastAsked(registry, query);
+    // Mounting loads a query nothing has read yet, and refreshes one that lost its last reader
+    // (`revalidated`); either way it is asked now.
+    const unmount = mine.has(query) ? undefined : registry.mount(query);
+    const result = registry.get(query);
+    const stale =
+      before !== undefined &&
+      lastAsked(registry, query) === before &&
+      Date.now() - before >= prefetchFreshMillis;
+    // Already read by a page or an earlier prefetch, so mounting asked nothing: ask here.
+    if (stale && AsyncResult.isSuccess(result) && !result.waiting) {
+      markAsked(registry, query);
+      registry.refresh(query);
+    }
+    const asked = unmount !== undefined || lastAsked(registry, query) !== before;
+    const hold = mine.get(query);
+    if (hold === undefined) {
+      if (unmount !== undefined) {
+        mine.set(query, { unmount, timer: setTimeout(() => release(query), prefetchHoldMillis) });
+      }
+    } else if (asked) {
+      clearTimeout(hold.timer);
+      hold.timer = setTimeout(() => release(query), prefetchHoldMillis);
+    }
+  }
+  return () => {
+    for (const query of queries) release(query);
+  };
+};

@@ -12,7 +12,7 @@ import PageHeader from "@stash/web-ui/page-header";
 import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
-import Skeleton from "@stash/web-ui/skeleton";
+import ListRowSkeleton from "@stash/web-ui/list-row-skeleton";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
@@ -48,8 +48,12 @@ const preference = computed({
 
 const registry = injectRegistry();
 const rows = useAtomValue(() => SettingsAtoms.rows);
-// The skeleton only shows on a first load that takes a while: the rows stay cached between visits.
+// The skeleton only shows on a first load that takes a while (the rows stay cached between
+// visits), and then for long enough not to flash. Its rows are the list's own rows.
 const loading = useDelayedLoading(() => AsyncResult.isInitial(rows.value));
+// The sections under the devices wait for the rows: how many devices there are decides where
+// they start, so they come in at their place instead of moving there.
+const settled = computed(() => !loading.value && !AsyncResult.isInitial(rows.value));
 const retry = () => SettingsAtoms.refresh(registry);
 const now = DateTime.nowUnsafe();
 // Section counts, once the rows have loaded.
@@ -63,13 +67,12 @@ const counts = computed(() =>
 );
 // The counts under the title, once the rows have loaded.
 const subtitle = computed(() => {
-  if (!AsyncResult.isSuccess(rows.value)) return {};
+  // The line keeps its place until the rows are there.
+  if (!AsyncResult.isSuccess(rows.value)) return "";
   const { devices, tokens } = rows.value.value;
   const active = tokens.filter((row) => row.token.revokedAt === null).length;
-  if (devices.length === 0 && active === 0) return {};
-  return {
-    subtitle: `${devices.length} ${devices.length === 1 ? "device" : "devices"} · ${active} active ${active === 1 ? "token" : "tokens"}`,
-  };
+  if (devices.length === 0 && active === 0) return "";
+  return `${devices.length} ${devices.length === 1 ? "device" : "devices"} · ${active} active ${active === 1 ? "token" : "tokens"}`;
 });
 const deviceNames = computed(
   () =>
@@ -126,7 +129,7 @@ const confirmRevoke = async () => {
 
 <template>
   <div class="flex flex-col gap-6">
-    <PageHeader title="Settings" v-bind="subtitle" />
+    <PageHeader title="Settings" :subtitle="subtitle" />
 
     <ConnectSection :guide="guide">
       <SectionHeader title="Devices" as="h3" v-bind="counts.devices" />
@@ -135,11 +138,16 @@ const confirmRevoke = async () => {
         {{ issueError }}
       </p>
 
-      <div v-if="AsyncResult.isInitial(rows)" class="flex flex-col gap-1" aria-busy="true">
-        <template v-if="loading">
-          <Skeleton v-for="n in 2" :key="n" shape="row" />
-        </template>
-      </div>
+      <!-- Before the skeleton shows (a fast load never shows it) the rows already hold their
+           place. -->
+      <ul
+        v-if="loading || AsyncResult.isInitial(rows)"
+        aria-busy="true"
+        :data-state="loading ? 'loading' : undefined"
+        :class="loading ? undefined : 'invisible'"
+      >
+        <ListRowSkeleton v-for="n in 2" :key="n" as="li" trailing />
+      </ul>
       <ErrorState
         v-else-if="AsyncResult.isFailure(rows)"
         title="Couldn't load devices"
@@ -179,7 +187,7 @@ const confirmRevoke = async () => {
       </ul>
     </ConnectSection>
 
-    <section aria-label="API tokens" class="flex flex-col gap-1">
+    <section v-if="settled" aria-label="API tokens" class="flex flex-col gap-1">
       <SectionHeader title="API tokens" v-bind="counts.tokens" />
       <template v-if="AsyncResult.isSuccess(rows)">
         <ul v-if="rows.value.tokens.length === 0">
@@ -212,7 +220,7 @@ const confirmRevoke = async () => {
       </template>
     </section>
 
-    <section aria-label="Appearance" class="flex flex-col gap-1">
+    <section v-if="settled" aria-label="Appearance" class="flex flex-col gap-1">
       <SectionHeader title="Appearance" />
       <ul>
         <ListRow as="li">

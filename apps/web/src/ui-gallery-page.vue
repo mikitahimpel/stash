@@ -49,6 +49,8 @@ import MediaThumb from "@stash/web-ui/media-thumb";
 import MetaLine from "@stash/web-ui/meta-line";
 import TagChip from "@stash/web-ui/tag-chip";
 import TagLine from "@stash/web-ui/tag-line";
+import ListRowSkeleton from "@stash/web-ui/list-row-skeleton";
+import MediaRowSkeleton from "@stash/web-ui/media-row-skeleton";
 import Skeleton from "@stash/web-ui/skeleton";
 import Tabs from "@stash/web-ui/tabs";
 import TabsList from "@stash/web-ui/tabs-list";
@@ -389,7 +391,7 @@ const swatches = [
               </template>
             </MediaRow>
           </ul>
-          <Skeleton shape="media" />
+          <MediaRowSkeleton tags />
         </section>
 
         <section class="flex flex-col gap-3">
@@ -513,7 +515,7 @@ const swatches = [
           <ErrorState title="Couldn't load open tabs" @retry="toast('default')" />
           <div class="flex flex-col gap-2" aria-busy="true">
             <Skeleton shape="title" class="w-2/3" />
-            <Skeleton shape="row" />
+            <ListRowSkeleton trailing />
             <Skeleton shape="control" />
             <Skeleton shape="chip" />
           </div>

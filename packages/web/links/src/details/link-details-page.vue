@@ -48,7 +48,9 @@ const view = computed(() =>
   }),
 );
 
-// The skeleton only shows on a first load that takes a while: the link stays cached.
+// The skeleton only shows on a first load that takes a while (the link stays cached), and then
+// for long enough not to flash. It has the article's own blocks: the preview, the kind, the title,
+// the meta line with Open, and the summary.
 const loading = useDelayedLoading(() => view.value.state === "loading");
 const retry = () => registry.refresh(details());
 
@@ -102,13 +104,21 @@ const leave = () => (back.history ? router.back() : void router.replace({ name: 
       </RouterLink>
     </Button>
 
-    <div v-if="view.state === 'loading'" class="flex max-w-3xl flex-col gap-6" aria-busy="true">
-      <template v-if="loading">
-        <Skeleton shape="hero" />
+    <div v-if="loading" class="flex max-w-3xl flex-col gap-6" aria-busy="true" data-state="loading">
+      <Skeleton shape="hero" />
+      <div class="flex flex-col gap-3">
+        <Skeleton shape="badge" />
         <Skeleton shape="title" class="w-2/3" />
-        <Skeleton shape="line" class="w-1/3" />
-      </template>
+        <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+          <Skeleton class="w-1/3" />
+          <Skeleton shape="control" class="w-[86px] max-sm:w-full" />
+        </div>
+      </div>
+      <div class="flex max-w-[65ch] flex-col">
+        <Skeleton v-for="n in 3" :key="n" shape="prose" :class="n === 3 ? 'w-2/3' : 'w-full'" />
+      </div>
     </div>
+    <div v-else-if="view.state === 'loading'" aria-busy="true" />
     <EmptyState
       v-else-if="view.state === 'missing'"
       title="Link not found"

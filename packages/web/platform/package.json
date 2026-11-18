@@ -5,10 +5,12 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./idle": "./src/idle.ts",
     "./keyboard": "./src/keyboard.ts",
     "./live": "./src/live.ts",
     "./network": "./src/network.ts",
     "./page-origin": "./src/page-origin.ts",
+    "./page-scroll": "./src/page-scroll.ts",
     "./recent-searches": "./src/recent-searches.ts",
     "./share": "./src/share.ts",
     "./testing": "./src/testing.ts",

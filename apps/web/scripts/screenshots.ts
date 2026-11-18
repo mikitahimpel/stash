@@ -48,6 +48,8 @@ interface View {
    * in the browser: the seed has no YouTube link, and its ids are its own.
    */
   readonly fixtures?: boolean;
+  /** Captures only this element (the app header) instead of the page. */
+  readonly clip?: string;
 }
 
 const views: ReadonlyArray<View> = [
@@ -68,6 +70,25 @@ const views: ReadonlyArray<View> = [
     path: "/open-now",
     signedIn: true,
     prepare: (page) => page.locator("[data-section]").first().waitFor(),
+  },
+  // The app header alone: the compact search field at rest, and grown while it has the focus
+  // (the nav and the account button stay where they are). On phones it is a full-width line.
+  {
+    name: "header",
+    path: "/links",
+    signedIn: true,
+    clip: "[data-slot=app-bar]",
+    prepare: (page) => page.locator("[data-slot=link-day]").first().waitFor(),
+  },
+  {
+    name: "header-focused",
+    path: "/links",
+    signedIn: true,
+    clip: "[data-slot=app-bar]",
+    prepare: async (page) => {
+      await page.locator("[data-slot=link-day]").first().waitFor();
+      await page.getByRole("searchbox", { name: "Search links" }).focus();
+    },
   },
   {
     // Searching: the header's field filters the Inbox in place.
@@ -364,7 +385,8 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
           view.maxHeight ?? defaultMaxHeight,
         );
         await page.setViewportSize({ width: viewport.width, height });
-        await page.screenshot({ path: Path.join(outDir, file) });
+        if (view.clip === undefined) await page.screenshot({ path: Path.join(outDir, file) });
+        else await page.locator(view.clip).screenshot({ path: Path.join(outDir, file) });
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         console.log(`✓ ${file}`);
         await page.close();

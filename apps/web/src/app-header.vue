@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useAtomSet, useAtomValue } from "@effect/atom-vue";
 import { Monitor, Moon, Sun } from "@lucide/vue";
 import AccountMenu from "@stash/web-auth/account-menu";
 import * as Theme from "@stash/web-platform/theme";
@@ -16,9 +15,11 @@ import NavTab from "@stash/web-ui/nav-tab";
 import StatusDot from "@stash/web-ui/status-dot";
 import Wordmark from "@stash/web-ui/wordmark";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
-import { computed, onMounted } from "vue";
+import { injectRegistry, useAtomSet, useAtomValue } from "@effect/atom-vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import * as AppNetwork from "./app-network.ts";
+import * as AppPrefetch from "./app-prefetch.ts";
 import * as AppShortcuts from "./app-shortcuts.ts";
 import * as ThemeAtoms from "@stash/web-settings/theme-atoms";
 
@@ -33,14 +34,41 @@ const nav = [
   { name: "settings", label: "Settings", under: ["/connect"] },
 ] as const;
 
+// Where a navigation that is still running leads. The tab of that page is marked from the click
+// on, so a page that has to wait (for its code, on a first visit) answers the click at once.
+const heading = ref<string>();
+const stopBefore = router.beforeEach((to) => {
+  heading.value = to.path;
+});
+const stopAfter = router.afterEach(() => {
+  heading.value = undefined;
+});
+const stopError = router.onError(() => {
+  heading.value = undefined;
+});
+onBeforeUnmount(() => {
+  stopBefore();
+  stopAfter();
+  stopError();
+});
+
 // The section of the current page. Pages below a section (`/links/:id`) keep it marked.
-const current = computed(() =>
-  nav.find((item) =>
+const current = computed(() => {
+  const here = heading.value ?? route.path;
+  return nav.find((item) =>
     [router.resolve({ name: item.name }).path, ...item.under].some(
-      (path) => route.path === path || route.path.startsWith(`${path}/`),
+      (path) => here === path || here.startsWith(`${path}/`),
     ),
-  ),
-);
+  );
+});
+
+// The pointer, a finger or the keyboard focus on a tab: its code and first data load before the
+// click (and a tab that was open refreshes its cached data).
+const registry = injectRegistry();
+// The tab of the page that is open is left alone: its page reads its data already.
+const prefetch = (name: string) => {
+  if (route.name !== name) AppPrefetch.prefetch(name, registry);
+};
 
 const listen = useAtomSet(() => AppShortcuts.listen);
 // Runs until the header unmounts, which disposes the atom and stops listening.
@@ -87,7 +115,14 @@ const pickTheme = (value: unknown) => {
         custom
       >
         <NavTab as-child :active="item === current">
-          <a :href="href" :aria-current="item === current ? 'page' : undefined" @click="navigate">
+          <a
+            :href="href"
+            :aria-current="item === current ? 'page' : undefined"
+            @click="navigate"
+            @pointerenter="prefetch(item.name)"
+            @touchstart.passive="prefetch(item.name)"
+            @focus="prefetch(item.name)"
+          >
             {{ item.label }}
           </a>
         </NavTab>

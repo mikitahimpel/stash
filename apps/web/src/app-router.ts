@@ -7,6 +7,8 @@ import * as OpenTabs from "@stash/web-open-tabs/routes";
 import { createRouter, type Router, type RouterHistory, type RouteRecordRaw } from "vue-router";
 import * as Search from "@stash/web-search/routes";
 import * as Settings from "@stash/web-settings/routes";
+import * as PageScroll from "@stash/web-platform/page-scroll";
+import * as AppPrefetch from "./app-prefetch.ts";
 
 /** The routes of every feature package, mounted at the top level. */
 export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
@@ -46,24 +48,34 @@ const headerClearance = 120;
 
 /**
  * The app router, with the auth guard installed: every route but the login page needs a session,
- * checked against the api of `registry`. It restores the scroll position on the way back. `main.ts` passes the browser history (`createWebHistory`),
+ * checked against the api of `registry`. It restores the scroll position on the way back, and
+ * each header tab keeps its own. `main.ts` passes the browser history (`createWebHistory`),
  * and tests pass `createMemoryHistory`.
  */
 export const make = (history: RouterHistory, registry: AtomRegistry.AtomRegistry): Router => {
+  // Where each header tab was left: its address and how far down it was scrolled.
+  const left = new Map<unknown, { readonly fullPath: string; readonly top: number }>();
   const router = createRouter({
     history,
     routes: [...routes],
     // An anchor (`/settings#connections`, where `/connect` leads) scrolls to its section, clear
     // of the sticky header; back and forward return to where the page was (from a link's page
-    // to the place in the Inbox it was opened from). Another page starts at its top, and a change
-    // of the query alone (a filter, a search) leaves the scroll alone.
-    scrollBehavior: (to, from, saved) =>
-      saved ??
-      (to.hash !== ""
-        ? { el: to.hash, top: headerClearance }
-        : to.path === from.path
-          ? false
-          : { top: 0 }),
+    // to the place in the Inbox it was opened from). A header tab opens where it was left, as
+    // long as it opens at the same address (not with another filter or a search). Another page
+    // starts at its top, and a change of the query alone (a filter, a search) leaves the scroll
+    // alone.
+    scrollBehavior: (to, from, saved) => {
+      if (saved) return saved;
+      if (to.hash !== "") return { el: to.hash, top: headerClearance };
+      if (to.path === from.path) return false;
+      const place = left.get(to.name);
+      return { top: place?.fullPath === to.fullPath ? place.top : 0 };
+    },
+  });
+  router.beforeEach((_to, from) => {
+    if (typeof from.name === "string" && AppPrefetch.tabNames.includes(from.name)) {
+      left.set(from.name, { fullPath: from.fullPath, top: PageScroll.pageScrollTop() });
+    }
   });
   AuthGuard.install(router, registry);
   return router;

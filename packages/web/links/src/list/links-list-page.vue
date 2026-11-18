@@ -18,7 +18,7 @@ import MediaRow from "@stash/web-ui/media-row";
 import MediaRowTitle from "@stash/web-ui/media-row-title";
 import MediaThumb from "@stash/web-ui/media-thumb";
 import PageHeader from "@stash/web-ui/page-header";
-import Skeleton from "@stash/web-ui/skeleton";
+import MediaRowSkeleton from "@stash/web-ui/media-row-skeleton";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
@@ -114,8 +114,11 @@ const view = computed(() => {
   };
 });
 
-// Skeletons only on a first load that takes a while: the feed stays cached between visits.
+// Skeletons only on a first load that takes a while (the feed stays cached between visits), and
+// then for long enough not to flash. They are the list's own rows, so nothing moves when it loads.
 const loading = useDelayedLoading(() => view.value.state === "loading");
+/** How many rows the skeleton has: about a screen of them. */
+const skeletonRows = 6;
 const retry = () =>
   searching.value ? found.retry() : registry.refresh(LinksAtoms.feed(filters.value));
 
@@ -131,11 +134,10 @@ const history = computed(() =>
     : undefined,
 );
 
-// The counts of the last 30 days, once there is something to count.
+// The counts of the last 30 days, once there is something to count. The line keeps its place
+// until then, so the header never changes height.
 const subtitle = computed(() =>
-  history.value === undefined || history.value.saved === 0
-    ? {}
-    : { subtitle: SavedRead.headline(history.value) },
+  history.value === undefined || history.value.saved === 0 ? "" : SavedRead.headline(history.value),
 );
 
 const filtered = computed(
@@ -259,7 +261,7 @@ onMounted(() => listen({ run }));
 
 <template>
   <section class="flex flex-col gap-6">
-    <PageHeader title="Inbox" v-bind="subtitle">
+    <PageHeader title="Inbox" :subtitle="subtitle">
       <template #actions><SaveLinkField /></template>
     </PageHeader>
 
@@ -271,7 +273,8 @@ onMounted(() => listen({ run }));
       :devices="deviceOptions"
       @change="setSearch"
     />
-    <LinksFilters v-else-if="!firstRun" :filters="filters" @change="setFilters" />
+    <!-- Also over the first-run card: the line is there while the page loads, and stays. -->
+    <LinksFilters v-else :filters="filters" @change="setFilters" />
 
     <ul v-if="pending.length > 0" class="flex flex-col">
       <MediaRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
@@ -286,11 +289,18 @@ onMounted(() => listen({ run }));
       </MediaRow>
     </ul>
 
-    <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
-      <template v-if="loading">
-        <Skeleton v-for="n in 3" :key="n" shape="media" />
-      </template>
+    <div v-if="loading" class="flex flex-col gap-8" aria-busy="true" data-state="loading">
+      <ul v-if="searching" class="flex flex-col">
+        <MediaRowSkeleton v-for="n in skeletonRows" :key="n" as="li" tags />
+      </ul>
+      <section v-else class="flex flex-col gap-2">
+        <GroupHeader placeholder />
+        <ul class="flex flex-col">
+          <MediaRowSkeleton v-for="n in skeletonRows" :key="n" as="li" tags />
+        </ul>
+      </section>
     </div>
+    <div v-else-if="view.state === 'loading'" aria-busy="true" />
     <StartSavingCard v-else-if="firstRun" scenario="links" />
     <EmptyState
       v-else-if="view.state === 'empty' && pending.length === 0 && !AsyncResult.isInitial(anySaved)"

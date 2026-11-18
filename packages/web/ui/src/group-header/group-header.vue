@@ -8,12 +8,14 @@ import { cn } from "../cn";
 // than the page.
 const props = withDefaults(
   defineProps<{
-    title: string;
+    title?: string;
     count?: number | string;
+    /** A group that is still loading: a bar where the title goes, on the same line box. */
+    placeholder?: boolean;
     as?: "h2" | "h3" | "h4";
     class?: HTMLAttributes["class"];
   }>(),
-  { as: "h2" },
+  { as: "h2", title: "", placeholder: false },
 );
 
 defineSlots<{ actions?: () => unknown }>();
@@ -28,7 +30,14 @@ defineSlots<{ actions?: () => unknown }>();
       :is="as"
       class="flex shrink-0 items-baseline gap-2 text-meta font-semibold tracking-[0.06em] text-foreground uppercase"
     >
-      {{ title }}
+      <span
+        v-if="placeholder"
+        data-slot="group-header-placeholder"
+        aria-hidden="true"
+        class="flex h-5 items-center"
+        ><span class="h-3 w-20 animate-pulse rounded-sm bg-hairline"
+      /></span>
+      <template v-else>{{ title }}</template>
       <span
         v-if="count !== undefined"
         data-slot="group-header-count"

@@ -13,9 +13,9 @@ const setup = (initial: boolean) => {
 };
 
 describe("useDelayedLoading", () => {
-  it("never turns on for a load faster than 200 ms", async () => {
+  it("never turns on for a load faster than 150 ms", async () => {
     const { scope, loading, shown } = setup(true);
-    vi.advanceTimersByTime(199);
+    vi.advanceTimersByTime(149);
     expect(shown.value).toBe(false);
     loading.value = false;
     await nextTick();
@@ -24,13 +24,55 @@ describe("useDelayedLoading", () => {
     scope.stop();
   });
 
-  it("turns on after 200 ms of loading and off once loaded", async () => {
+  it("holds nothing back when the skeleton was never shown", async () => {
     const { scope, loading, shown } = setup(true);
-    vi.advanceTimersByTime(200);
+    // The answer comes just before the skeleton would show: the minimum doesn't apply.
+    vi.advanceTimersByTime(140);
+    loading.value = false;
+    await nextTick();
+    expect(shown.value).toBe(false);
+    vi.advanceTimersByTime(10);
+    expect(shown.value).toBe(false);
+    vi.advanceTimersByTime(300);
+    expect(shown.value).toBe(false);
+    scope.stop();
+  });
+
+  it("turns on after 150 ms of loading and stays for at least 300 ms", async () => {
+    const { scope, loading, shown } = setup(true);
+    vi.advanceTimersByTime(150);
+    expect(shown.value).toBe(true);
+    // The answer comes 50 ms after the skeleton: it stays for the other 250.
+    vi.advanceTimersByTime(50);
+    loading.value = false;
+    await nextTick();
+    expect(shown.value).toBe(true);
+    vi.advanceTimersByTime(249);
+    expect(shown.value).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(shown.value).toBe(false);
+    scope.stop();
+  });
+
+  it("turns off at once when the load ends after the minimum", async () => {
+    const { scope, loading, shown } = setup(true);
+    vi.advanceTimersByTime(150 + 300);
     expect(shown.value).toBe(true);
     loading.value = false;
     await nextTick();
     expect(shown.value).toBe(false);
+    scope.stop();
+  });
+
+  it("stays on when a new load starts while it is held", async () => {
+    const { scope, loading, shown } = setup(true);
+    vi.advanceTimersByTime(200);
+    loading.value = false;
+    await nextTick();
+    loading.value = true;
+    await nextTick();
+    vi.advanceTimersByTime(1000);
+    expect(shown.value).toBe(true);
     scope.stop();
   });
 
