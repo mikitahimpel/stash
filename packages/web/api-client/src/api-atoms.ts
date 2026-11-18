@@ -5,6 +5,7 @@ import type * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as HttpClientError from "effect/http/HttpClientError";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
+import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -139,3 +140,28 @@ export const pages = <A, E>(
       ),
     ),
   );
+
+/** How long `prefetch` keeps reading its queries, in ms: the time a page has to take them over. */
+export const prefetchHoldMillis = 10_000;
+
+/**
+ * Loads `queries` ahead of the page that reads them, for a tab the pointer is on. Nothing cached
+ * yet is fetched, and a cached result is refreshed (as if a page had opened it). The queries
+ * stay read for `prefetchHoldMillis`, so the page that opens meanwhile shows them without asking
+ * the api a second time. Returns the function that lets go of them sooner.
+ */
+export const prefetch = (
+  registry: AtomRegistry.AtomRegistry,
+  queries: ReadonlyArray<Atom.Atom<unknown>>,
+): (() => void) => {
+  const unmounts = queries.map((query) => registry.mount(query));
+  let held = true;
+  const release = () => {
+    if (!held) return;
+    held = false;
+    clearTimeout(timer);
+    for (const unmount of unmounts) unmount();
+  };
+  const timer = setTimeout(release, prefetchHoldMillis);
+  return release;
+};

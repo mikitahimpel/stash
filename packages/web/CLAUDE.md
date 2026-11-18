@@ -44,7 +44,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`) and `page-origin`, and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`), the plain readers `page-origin`, `page-scroll` and `idle` (`whenIdle`), and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 
@@ -56,7 +56,9 @@ layers.
   `apps/web` mounts the routes.
 - Api queries (`ApiAtoms.query`, `ApiAtoms.pages`) are cached and revalidated: they outlive the
   page that reads them, so a page opened again shows its data at once and refreshes it in the
-  background. Pages show a skeleton only on a first load that takes over 200 ms
+  background. A feature whose page is a header tab exports `preload` (the page's code) and
+  `prefetch` (its code and first data, `ApiAtoms.prefetch`) from `./routes`; the app header calls
+  them on idle and on hover. Pages show a skeleton only on a first load that takes over 200 ms
   (`useDelayedLoading` from `@stash/web-ui/use-delayed-loading`), and a failed load with nothing
   cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
