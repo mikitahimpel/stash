@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { Play } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
+import Avatar from "../avatar/avatar.vue";
 import * as SiteCover from "./site-cover";
 
 // The preview of a `<MediaRow>`: 16:9, 160×90 (110×62 on phones), radius 8. A video carries a small
 // play mark. The image is remote (an `og:image`, a video thumbnail): it loads lazily and without a
 // referrer, so the other site learns nothing about this page and hotlink checks by referrer pass.
+//
+// A post without media shows its author's picture on that cover instead of the favicon.
 //
 // With no image, or one that fails to load, the tile is a generated cover (#155): a soft gradient
 // in a hue of the site's own (a stable hash of its host, toned for each theme in `styles.css`),
@@ -20,8 +23,13 @@ const props = withDefaults(
     /** Shown when there is no favicon: the first letter of this. Defaults to the url's host. */
     initial?: string | undefined;
     video?: boolean;
+    /**
+     * A person's picture for the generated cover, in the favicon's place and larger: the author
+     * of a post that has no image of its own. `name` is whose it is, for the initial.
+     */
+    avatar?: { readonly src: string | null; readonly name: string } | undefined;
   }>(),
-  { src: undefined, url: undefined, initial: undefined, video: false },
+  { src: undefined, url: undefined, initial: undefined, video: false, avatar: undefined },
 );
 
 const failed = ref(false);
@@ -74,8 +82,15 @@ const coverStyle = computed(() =>
       @error="failed = true"
     />
     <template v-else>
+      <Avatar
+        v-if="avatar !== undefined"
+        data-slot="media-cover-avatar"
+        :src="avatar.src"
+        :name="avatar.name"
+        size="lg"
+      />
       <img
-        v-if="icon !== null"
+        v-else-if="icon !== null"
         data-slot="media-cover-icon"
         :src="icon"
         alt=""

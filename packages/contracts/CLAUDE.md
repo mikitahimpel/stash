@@ -10,7 +10,7 @@ contracts. Contracts depend on no context.
 
 | Package | Name | Contents |
 |---|---|---|
-| `domain/` | `@stash/contracts-domain` | Effect Schema for link, tag, device, tab, command, token, digest, and tagged errors |
+| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), tag, device, tab, command, token, digest, and tagged errors |
 | `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect; plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
 
 ## May depend on

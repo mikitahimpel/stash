@@ -11,7 +11,7 @@ packages implement it.
 | Package | Name | Contents |
 |---|---|---|
 | `links/` | `@stash/backend-links` | Save, list and filter, get, patch, delete, batch import, rate limit |
-| `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text, preview image and author, YouTube oEmbed metadata and transcripts, text to R2), classifier (Claude via `@effect/ai`) with a junk filter, embedder, queue consumer, hourly requeue of pending links and metadata backfill (image and author of links enriched earlier, once per `metadataVersion`) |
+| `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text, preview image and author, YouTube oEmbed metadata and transcripts, posts on X from the public syndication endpoint with oEmbed as the fallback and never from x.com's HTML, text to R2), classifier (Claude via `@effect/ai`) with a junk filter, embedder, queue consumer, hourly requeue of pending links and metadata backfill (image and author of links enriched earlier, once per `metadataVersion`) |
 | `search/` | `@stash/backend-search` | FTS5 keyword search and Vectorize semantic search behind one `SearchService` (hybrid) |
 | `tabs/` | `@stash/backend-tabs` | Open-tab snapshots, devices, remote commands |
 | `auth/` | `@stash/backend-auth` | GitHub Device Flow login and sessions, API tokens (per device, or a user token such as the MCP connector's `Claude (MCP)`; only hashes stored), the internal mint endpoint, auth middleware |
@@ -65,5 +65,8 @@ with a separate `test/tsconfig.json` that extends `@stash/config-tsconfig/node.j
 
 - `links/src/save-link.ts`, `links/src/links-repo.ts`, `links/src/links-handlers.ts`
 - `enrichment/src/content-fetcher.ts`, `enrichment/src/link-classifier.ts`
+- `enrichment/src/x-post-url.ts` (which URLs are posts), `enrichment/src/parse-x-post.ts` (pure
+  readers of the two sources), `enrichment/src/fetch-x-post.ts`; the test fixtures
+  (`test/x-post-fixtures.ts`) have the real endpoints' shape and invented content
 - `platform/src/d1-database.ts`, `platform/src/testing.ts`
 - `links/test/save-link.test.ts`

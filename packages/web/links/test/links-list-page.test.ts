@@ -143,6 +143,86 @@ describe("inbox page", () => {
     expect(row.find("[data-slot=tag-chip]").exists()).toBe(false);
   });
 
+  it("shows a post on X by its author and its own words, on two lines", async () => {
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.postLink("p"),
+        Fixtures.postLink(
+          "photos",
+          { media: [Fixtures.photo(1), Fixtures.photo(2)] },
+          { imageUrl: "https://pbs.twimg.com/media/Synthetic1.jpg?name=small" },
+        ),
+        Fixtures.postLink(
+          "video",
+          { media: [Fixtures.video] },
+          { imageUrl: Fixtures.video.posterUrl },
+        ),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+    const [text, photos, video] = wrapper.findAll("[data-slot=link-row]");
+
+    // The author leads, on the row's first line: picture, name, verified mark, @handle, then the age.
+    expect(text!.attributes("data-meta-first")).toBe("");
+    const meta = text!.find("[data-slot=media-row-meta]");
+    expect(meta.findAll(":scope > *").map((item) => item.text())).toEqual([
+      "Example Writer@example_writer",
+      expect.stringMatching(/^\d+(mo|y)$/),
+    ]);
+    const picture = meta.find("[data-slot=avatar] img");
+    expect(picture.attributes("src")).toContain("synthetic_normal.jpg");
+    expect(picture.attributes("referrerpolicy")).toBe("no-referrer");
+    expect(picture.attributes("loading")).toBe("lazy");
+    expect(meta.find("[data-slot=post-verified]").exists()).toBe(true);
+    // The post's own words are the row's target, on two lines; there is no summary line.
+    const words = text!.find("[data-slot=media-row-title]");
+    expect(words.text()).toBe(
+      "An example post about tiny parsers, see example.com/parsers by @example_reader #parsing",
+    );
+    expect(words.attributes("data-lines")).toBe("2");
+    expect(words.attributes("href")).toBe("/links/p");
+    expect(text!.find("[data-slot=media-row-summary]").exists()).toBe(false);
+    expect(text!.find("[data-slot=tag-line]").exists()).toBe(true);
+    // No media: the author's picture, large, on the generated cover.
+    expect(text!.find("[data-slot=media-thumb]").attributes("data-cover")).toBe("");
+    expect(text!.find("[data-slot=media-cover-avatar] img").attributes("src")).toContain(
+      "synthetic_200x200.jpg",
+    );
+
+    // Media: the first photo or the video's poster is the preview, a video with its mark.
+    expect(photos!.find("[data-slot=media-thumb] > img").attributes("src")).toBe(
+      "https://pbs.twimg.com/media/Synthetic1.jpg?name=small",
+    );
+    expect(photos!.find("[data-slot=media-thumb-video]").exists()).toBe(false);
+    expect(video!.find("[data-slot=media-thumb] > img").attributes("src")).toBe(
+      Fixtures.video.posterUrl,
+    );
+    expect(video!.find("[data-slot=media-thumb-video]").exists()).toBe(true);
+  });
+
+  it("says so when a post is unavailable, and keeps the row", async () => {
+    const gone = { state: "unavailable", id: "1", url: "https://x.com/example_writer/status/1" };
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.link("gone", { url: gone.url, title: null, summary: null, post: gone }),
+        Fixtures.link("named", {
+          url: gone.url,
+          title: "A saved title",
+          summary: null,
+          post: gone,
+        }),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+    const [bare, named] = wrapper.findAll("[data-slot=link-row]");
+
+    expect(bare!.attributes("data-meta-first")).toBeUndefined();
+    expect(bare!.find("[data-slot=media-row-title]").text()).toBe("Post unavailable");
+    expect(bare!.find("[data-slot=link-host]").text()).toBe("x.com");
+    expect(named!.find("[data-slot=media-row-title]").text()).toBe("A saved title");
+    expect(named!.find("[data-slot=link-summary]").text()).toBe("Post unavailable");
+  });
+
   it("says summarizing… until enrichment ran", async () => {
     const api = listing({ first: Fixtures.page([Fixtures.link("a", { enrichedAt: null })]) });
     const { wrapper } = await mountAt("/links", api.routes);

@@ -290,6 +290,8 @@ export const probe = (body: HTMLElement): Snapshot => {
     if (el.matches("input[type=hidden]")) continue;
     // A tag on a row is a 24px chip above the row's own target, not a control.
     if (el.matches("[data-slot=tag-chip]")) continue;
+    // A photo of a post is a picture that opens large: it has the picture's size, not a control's.
+    if (el.matches("[data-slot=post-photo]")) continue;
     // A media row's title: its target is the whole row, so only its hit area counts.
     const mediaTitle = el.matches("a[data-slot=media-row-title]");
     const target = el.matches("input")

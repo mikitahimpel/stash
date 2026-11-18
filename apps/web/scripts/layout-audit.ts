@@ -128,6 +128,22 @@ const views: ReadonlyArray<View> = [
     data: "seeded" as const,
     prepare: (page: Page) => page.locator("[data-slot=link-details] h1").waitFor(),
   })),
+  // A post on X as a card (#170): words only, one photo, four photos, a video, a reply that
+  // quotes a post, and a post that could not be read.
+  ...(Object.entries(Fixtures.postLinkIds) as ReadonlyArray<[string, string]>).map(
+    ([kind, id]) => ({
+      name: `post-${kind}`,
+      path: `/links/${id}`,
+      data: "seeded" as const,
+      prepare: async (page: Page) => {
+        await page.locator("[data-slot=post], [data-slot=post-unavailable]").waitFor();
+        // Every picture of the post is in before the page is measured or captured.
+        await page.waitForFunction(
+          "[...document.querySelectorAll('[data-slot=link-details] img')].every((img) => img.complete)",
+        );
+      },
+    }),
+  ),
   {
     name: "inbox-empty",
     path: "/links",

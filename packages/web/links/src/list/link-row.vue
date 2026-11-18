@@ -11,14 +11,21 @@ import TagLine from "@stash/web-ui/tag-line";
 import type * as DateTime from "effect/DateTime";
 import { computed } from "vue";
 import { type RouteLocationRaw, RouterLink } from "vue-router";
+import PostByline from "@stash/web-ui/post-byline";
 import LinkActions from "../link-actions.vue";
 import * as LinkDisplay from "../link-display.ts";
+import * as PostDisplay from "../post-display.ts";
 
 // One link as a media row, the same height for every link: preview · title (without the site's
 // name) · host · channel or author · age · device, then one line of summary (or who published it)
 // and one line of tags. A link still being enriched says `summarizing…` on the summary line, and
 // on phones, which have none, at the end of the meta line. The whole row opens the link's page. As a search result it is the same
 // row, with the query's terms marked in the title and the summary.
+//
+// A post on X is the same row in a post's order (#170): the author's picture, name and @handle
+// lead the meta line, on top, and the post's own words take the two lines under it, where other
+// rows have a title and a summary. Its preview is its first photo or its video's poster, else
+// the author's picture on the generated cover.
 const props = defineProps<{
   link: Link.Link;
   selected: boolean;
@@ -32,8 +39,13 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ select: []; open: [] }>();
 
+const post = computed(() => PostDisplay.available(props.link));
+const image = computed(() => LinkDisplay.image(props.link));
 const title = computed(() =>
-  TermHighlight.split(LinkDisplay.rowTitle(props.link), props.highlight ?? ""),
+  TermHighlight.split(
+    post.value === undefined ? LinkDisplay.rowTitle(props.link) : PostDisplay.rowText(post.value),
+    props.highlight ?? "",
+  ),
 );
 const summary = computed(() =>
   TermHighlight.split(LinkDisplay.rowSummary(props.link), props.highlight ?? ""),
@@ -45,7 +57,9 @@ const summary = computed(() =>
     as="li"
     :selected="selected"
     :unread="link.status === 'new'"
+    :meta-first="post !== undefined"
     data-slot="link-row"
+    :data-post="post === undefined ? undefined : ''"
     v-bind="{
       'aria-current': selected ? true : undefined,
       onClick: () => emit('select'),
@@ -53,17 +67,27 @@ const summary = computed(() =>
   >
     <template #thumb>
       <MediaThumb
-        :src="LinkDisplay.image(link)"
+        :src="image"
         :url="link.url"
         :initial="LinkDisplay.domain(link)"
-        :video="link.type === 'video'"
+        :video="
+          post === undefined
+            ? link.type === 'video'
+            : image !== null && PostDisplay.startsWithVideo(post)
+        "
+        :avatar="
+          post === undefined || image !== null
+            ? undefined
+            : { src: PostDisplay.avatar(post.author, 'large'), name: post.author.name }
+        "
       />
     </template>
     <template #title>
-      <MediaRowTitle as-child>
+      <MediaRowTitle as-child :lines="post === undefined ? 1 : 2">
         <RouterLink
           :to="{ name: 'link-details', params: { id: link.id } }"
-          :title="LinkDisplay.title(link)"
+          :title="post === undefined ? LinkDisplay.title(link) : post.text"
+          :data-post-text="post === undefined ? undefined : ''"
           @click="emit('open')"
         >
           <template v-for="(part, i) in title" :key="i">
@@ -74,7 +98,16 @@ const summary = computed(() =>
       </MediaRowTitle>
     </template>
     <template #meta>
+      <PostByline
+        v-if="post !== undefined"
+        size="row"
+        :name="post.author.name"
+        :handle="post.author.handle"
+        :avatar="PostDisplay.avatar(post.author)"
+        :verified="post.author.verified"
+      />
       <a
+        v-else
         :href="link.url"
         target="_blank"
         rel="noopener noreferrer"
@@ -83,9 +116,12 @@ const summary = computed(() =>
         @click.stop
         >{{ LinkDisplay.domain(link) }}</a
       >
-      <span v-if="link.author !== null" data-slot="link-author" data-shrink="">{{
-        link.author
-      }}</span>
+      <span
+        v-if="post === undefined && link.author !== null"
+        data-slot="link-author"
+        data-shrink=""
+        >{{ link.author }}</span
+      >
       <span>{{ LinkDisplay.age(link.createdAt, now) }}</span>
       <!-- Phones have no summary line, so the row says it here. -->
       <span v-if="link.enrichedAt === null" data-slot="link-summarizing-meta" class="sm:hidden"

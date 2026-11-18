@@ -22,6 +22,39 @@ const video = Fixtures.link("v", {
   sourceDeviceId: "device-1",
 });
 
+const quoted = Fixtures.quotedPost({
+  id: "1700000000000000004",
+  url: "https://x.com/example_quoted/status/1700000000000000004",
+  author: { name: "Example Quoted", handle: "example_quoted", avatarUrl: null, verified: false },
+  text: "The quoted example",
+  entities: [],
+  counts: null,
+});
+
+const posts: Record<string, unknown> = {
+  post: Fixtures.postLink("post", { replyTo: "example_reader" }),
+  photos: Fixtures.postLink("photos", {
+    media: [1, 2, 3, 4].map(Fixtures.photo),
+  }),
+  video: Fixtures.postLink("video", { media: [Fixtures.video] }),
+  quote: Fixtures.postLink("quote", { quoted }),
+  long: {
+    ...Fixtures.postLink("long", { long: true }),
+    summary: "A written summary of the long post.",
+  },
+  "gone-post": Fixtures.link("gone-post", {
+    url: "https://x.com/example_writer/status/1700000000000000009",
+    title: null,
+    summary: null,
+    type: null,
+    post: {
+      state: "unavailable",
+      id: "1700000000000000009",
+      url: "https://x.com/example_writer/status/1700000000000000009",
+    },
+  }),
+};
+
 describe("link details page", () => {
   const routes: ApiTesting.Routes = {
     "GET /links/:id": (_, { id = "" }) =>
@@ -38,7 +71,9 @@ describe("link details page", () => {
             ? ApiTesting.json({ ...video, id: "v-bare", imageUrl: null })
             : id === "bare"
               ? ApiTesting.json(Fixtures.link("bare", { summary: null, tags: [], type: null }))
-              : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
+              : id in posts
+                ? ApiTesting.json(posts[id])
+                : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
     "GET /links": () => Fixtures.page([]),
     "GET /devices": () => ApiTesting.json(devices),
     "DELETE /links/:id": () => new Response(null, { status: 204 }),
@@ -184,5 +219,158 @@ describe("link details page", () => {
       .trigger("click");
     // The feed page is a lazy route, so the navigation can outlast `settle`.
     await vi.waitFor(() => expect(router.currentRoute.value.name).toBe("links"));
+  });
+
+  describe("a post on X", () => {
+    it("shows the post as a card: author, date, words with their links, and quiet counts", async () => {
+      const { wrapper } = await mountAt("/links/post", routes);
+      const card = wrapper.find("[data-slot=post]");
+
+      expect(card.find("[data-slot=post-author-name]").text()).toBe("Example Writer");
+      expect(card.find("[data-slot=post-author-handle]").text()).toBe("@example_writer");
+      expect(card.find("[data-slot=post-verified]").exists()).toBe(true);
+      expect(card.find("[data-slot=post-byline] a").attributes("href")).toBe(
+        "https://x.com/example_writer",
+      );
+      expect(card.find("[data-slot=post-day]").text()).toBe("Jan 2, 2026");
+      expect(card.find("[data-slot=post-reply-to]").text()).toBe("Replying to @example_reader");
+      const picture = card.find("[data-slot=avatar] img");
+      expect(picture.attributes("referrerpolicy")).toBe("no-referrer");
+      expect(picture.attributes("loading")).toBe("lazy");
+
+      // The words keep their line break; links, mentions and hashtags open on their own.
+      const words = card.find("[data-slot=post-text]");
+      expect(words.text()).toBe(
+        "An example post about tiny parsers,\nsee example.com/parsers by @example_reader #parsing",
+      );
+      const entities = words.findAll("[data-slot=post-entity]");
+      expect(entities.map((entity) => [entity.text(), entity.attributes("href")])).toEqual([
+        ["example.com/parsers", "https://example.com/parsers?from=post"],
+        ["@example_reader", "https://x.com/example_reader"],
+        ["#parsing", "https://x.com/hashtag/parsing"],
+      ]);
+      for (const entity of entities) {
+        expect(entity.attributes("target")).toBe("_blank");
+        expect(entity.attributes("rel")).toBe("noopener noreferrer");
+      }
+      expect(card.find("[data-slot=post-facts]").text()).toMatch(
+        /· Jan 2, 2026.*56 replies.*1\.2K likes$/,
+      );
+
+      // The post stands in for the preview and the visible title; the kind says what it is.
+      expect(wrapper.find("[data-slot=media-hero]").exists()).toBe(false);
+      expect(wrapper.find("h1").classes()).toContain("sr-only");
+      expect(wrapper.find("[data-slot=link-kind]").text()).toBe("Post · New");
+      // Its words are above already: no second copy as a summary.
+      expect(wrapper.find("[data-slot=link-summary]").exists()).toBe(false);
+    });
+
+    it("opens the post on X as the primary action, and copies its text", async () => {
+      const { wrapper } = await mountAt("/links/post", routes);
+      const open = wrapper.find("[data-action=open]");
+      expect(open.text()).toBe("Open on X");
+      expect(open.attributes("href")).toBe(
+        "https://x.com/example_writer/status/1700000000000000001",
+      );
+
+      const copy = wrapper.find("[data-action=copy]");
+      expect(copy.text()).toBe("Copy text");
+      await copy.trigger("click");
+      await settle();
+      expect(copy.text()).toBe("Copied");
+      expect(copy.attributes("data-state")).toBe("copied");
+    });
+
+    it("shows up to four photos as a grid, and opens one large", async () => {
+      const { wrapper } = await mountAt("/links/photos", routes);
+      const grid = wrapper.find("[data-slot=post-media]");
+      expect(grid.attributes("data-count")).toBe("4");
+      const photos = grid.findAll("[data-slot=post-photo]");
+      expect(photos.map((photo) => photo.attributes("aria-label"))).toEqual([
+        "Open photo 1 of 4",
+        "Open photo 2 of 4",
+        "Open photo 3 of 4",
+        "Open photo 4 of 4",
+      ]);
+      const image = photos[1]!.find("img");
+      expect(image.attributes("src")).toBe(
+        "https://pbs.twimg.com/media/Synthetic2.jpg?name=medium",
+      );
+      expect(image.attributes("referrerpolicy")).toBe("no-referrer");
+      expect(image.attributes("loading")).toBe("lazy");
+
+      await photos[1]!.trigger("click");
+      await settle();
+      const page = new DOMWrapper(wrapper.element.ownerDocument.body);
+      const large = page.find("[data-slot=post-lightbox-photo]");
+      expect(large.attributes("src")).toBe("https://pbs.twimg.com/media/Synthetic2.jpg?name=large");
+      expect(large.attributes("referrerpolicy")).toBe("no-referrer");
+      expect(page.find("[data-slot=post-lightbox-count]").text()).toBe("2 / 4");
+
+      await page.find("[data-slot=post-lightbox-next]").trigger("click");
+      expect(page.find("[data-slot=post-lightbox-photo]").attributes("src")).toContain(
+        "Synthetic3",
+      );
+      await page.find("[data-slot=post-lightbox-close]").trigger("click");
+      await settle();
+      expect(page.find("[data-slot=post-lightbox-photo]").exists()).toBe(false);
+    });
+
+    it("plays a video in place, and loads nothing of it before the press", async () => {
+      const { wrapper } = await mountAt("/links/video", routes);
+      const video = wrapper.find("[data-slot=post-video]");
+      expect(video.find("iframe").exists()).toBe(false);
+      const poster = video.find("img");
+      expect(poster.attributes("src")).toBe(Fixtures.video.posterUrl);
+      expect(poster.attributes("referrerpolicy")).toBe("no-referrer");
+
+      await video.find("[data-slot=post-video-play]").trigger("click");
+      const player = video.find("[data-slot=post-video-player]");
+      // The player's own document loads the mp4 without a referrer.
+      expect(player.attributes("srcdoc")).toContain('<meta name="referrer" content="no-referrer">');
+      expect(player.attributes("srcdoc")).toContain(
+        'src="https://video.twimg.com/ext_tw_video/1700000000000000002/pu/vid/1280x720/c.mp4?tag=12"',
+      );
+      expect(video.find("[data-slot=post-video-play]").exists()).toBe(false);
+    });
+
+    it("nests the quoted post as a card of its own", async () => {
+      const { wrapper } = await mountAt("/links/quote", routes);
+      const nested = wrapper.find("[data-slot=post] [data-slot=post-quoted]");
+      expect(nested.attributes("data-nested")).toBe("");
+      expect(nested.find("[data-slot=post-author-name]").text()).toBe("Example Quoted");
+      expect(nested.find("[data-slot=post-author-handle]").text()).toBe("@example_quoted");
+      expect(nested.find("[data-slot=post-text]").text()).toBe("The quoted example");
+      expect(nested.find("[data-slot=post-byline] a").attributes("href")).toBe(
+        "https://x.com/example_quoted/status/1700000000000000004",
+      );
+    });
+
+    it("says a long post is only its beginning, and shows its written summary", async () => {
+      const { wrapper } = await mountAt("/links/long", routes);
+      expect(wrapper.find("[data-slot=post-long]").text()).toContain("this is its beginning");
+      expect(wrapper.find("[data-slot=link-summary]").text()).toBe(
+        "A written summary of the long post.",
+      );
+    });
+
+    it("says a post is unavailable, and keeps its URL and its actions", async () => {
+      const { wrapper } = await mountAt("/links/gone-post", routes);
+      const card = wrapper.find("[data-slot=post-unavailable]");
+      expect(card.text()).toContain("Post unavailable");
+      expect(card.text()).toContain("The link is kept.");
+      expect(wrapper.find("[data-slot=post]").exists()).toBe(false);
+      expect(wrapper.find("h1").text()).toBe("Post unavailable");
+      expect(wrapper.find("[data-slot=link-kind]").text()).toBe("Post · New");
+      const open = wrapper.find("[data-action=open]");
+      expect(open.text()).toBe("Open on X");
+      expect(open.attributes("href")).toBe(
+        "https://x.com/example_writer/status/1700000000000000009",
+      );
+      expect(wrapper.find("[data-action=copy][data-state]").text()).not.toBe("Copy text");
+      expect(wrapper.find("[data-slot=link-url]").text()).toContain(
+        "https://x.com/example_writer/status/1700000000000000009",
+      );
+    });
   });
 });

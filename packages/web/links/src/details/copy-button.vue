@@ -6,11 +6,14 @@ import * as Exit from "effect/Exit";
 import { ref, watch } from "vue";
 import * as LinksAtoms from "../links-atoms.ts";
 
-// Copies a value shown beside it (a link's URL), and says so for a moment's glance.
+// Copies a value shown beside it (a link's URL) or named by its own text (a post's words), and
+// says so for a moment's glance.
 const props = defineProps<{
   /** Names the value for screen readers: `URL`, `Canonical URL`. */
   label: string;
   value: string;
+  /** With a text the button is a labelled one (`Copy text`), not an icon beside a value. */
+  text?: string;
 }>();
 
 const copy = AtomVue.useAtomSet(() => LinksAtoms.copy, { mode: "promiseExit" });
@@ -25,7 +28,11 @@ const copyValue = async () => {
 </script>
 
 <template>
-  <Button as-child variant="ghost" size="icon-sm">
+  <Button
+    as-child
+    :variant="text === undefined ? 'ghost' : 'secondary'"
+    :size="text === undefined ? 'icon-sm' : 'md'"
+  >
     <button
       type="button"
       data-action="copy"
@@ -42,6 +49,7 @@ const copyValue = async () => {
     >
       <Check v-if="state === 'copied'" aria-hidden="true" />
       <Copy v-else aria-hidden="true" />
+      <template v-if="text !== undefined">{{ state === "copied" ? "Copied" : text }}</template>
     </button>
   </Button>
 </template>

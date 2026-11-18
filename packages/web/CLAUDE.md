@@ -10,7 +10,7 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; a link's page (`/links/<id>`: preview or YouTube player, summary, tags, actions, details); the `/save` result |
+| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; a link's page (`/links/<id>`: preview or YouTube player, summary, tags, actions, details); a post on X as a row in a post's order and, on its page, as a post card (`post-display`); the `/save` result |
 | `search/` | `@stash/web-search` | Search without a page: the header's field (`search-box`, debounced into the Inbox's URL `/links?q=…`, recent searches under the focused empty field), the line over the results (`search-bar`: count, mode, type / device / date menus), the URL state (`search-route`), the results that keep the last answer while the next loads (`use-search-results`), term marking; `/search` redirects to the Inbox |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | One Settings page: Devices & connections (the section from `@stash/web-connect`, then the devices), API tokens, Appearance (theme atoms, also used by the app header); first-run onboarding card (used by Inbox and Open now) |
@@ -74,7 +74,12 @@ layers.
 - Links and tabs are `<MediaRow>`s (preview, title, one meta line, one summary line, one
   `<TagLine>`) under `<GroupHeader>`s; other lists are `<ListRow>`s. Every media row of a list is
   one height: a row never wraps or grows, and a list with tags passes the `tags` slot on every row. See "Media rows" in
-  [docs/design.md](../../docs/design.md).
+  [docs/design.md](../../docs/design.md). A post on X is a `<MediaRow meta-first>`: the author's
+  line (`<PostByline size="row">`) first, then its words on two lines.
+- A post's own page shows it with the kit's `<PostCard>`, `<PostByline>`, `<PostText>` and
+  `<PostMedia>` (photo grid, lightbox, video); see "Post page" in
+  [docs/design.md](../../docs/design.md). Remote pictures always load lazily with
+  `referrerpolicy="no-referrer"`, and a video only inside `<PostMedia>`'s frame.
 - A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
   rules"). At most one `primary` key per screen.

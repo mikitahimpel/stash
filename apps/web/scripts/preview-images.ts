@@ -79,6 +79,19 @@ export const photo = (sky: string, sun: string, near: string, far: string) =>
       `<path d="M0 156l70-34 60 22 76-40 114 46v30H0z" fill="${near}"/>`,
   );
 
+/** A person's picture: a square in one colour with a head and shoulders. */
+export const avatar = (background: string, foreground: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">` +
+  `<rect width="200" height="200" fill="${background}"/>` +
+  `<circle cx="100" cy="82" r="38" fill="${foreground}"/>` +
+  `<path d="M24 200c0-44 34-70 76-70s76 26 76 70z" fill="${foreground}"/></svg>`;
+
+const avatars: ReadonlyArray<string> = [
+  avatar("#2f4858", "#f6ae2d"),
+  avatar("#5b3a8c", "#e9d8fd"),
+  avatar("#1f6f5c", "#d1fae5"),
+];
+
 const pictures: ReadonlyArray<string> = [
   chart("#12324a", "#ffb347"),
   card("#f4e9d8", "#2b2118", "example.com", "Field guide"),
@@ -94,8 +107,12 @@ const pictures: ReadonlyArray<string> = [
 /** The SVG for a preview URL: always the same picture for the same URL. */
 export const forUrl = (url: string): string => {
   let sum = 0;
-  for (const char of new URL(url).pathname) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
-  return pictures[sum % pictures.length]!;
+  const path = new URL(url).pathname;
+  for (const char of path) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
+  // `…/previews/avatars/<name>.svg` is a person's picture.
+  return path.includes("/avatars/")
+    ? avatars[sum % avatars.length]!
+    : pictures[sum % pictures.length]!;
 };
 
 // Favicons. The app asks a tab's site for `/favicon.ico`. Playwright aborts every request whose
