@@ -66,7 +66,7 @@ Feature behavior is tested in `packages/web/*`.
 ## File naming
 
 - `src/main.ts`, `src/app-router.ts`, `src/app-layout.vue` (the kit's `AppFrame` and `AppMain`),
-  `src/app-header.vue` (the kit's `AppBar`: wordmark,
+  `src/app-header.vue` (the kit's `AppBar`: the logo,
   nav as text tabs (Inbox, Open now, Settings), the search field (`@stash/web-search/search-box`
   in `AppBarSearch`, the only search entry point) and the account menu from
   `@stash/web-auth/account-menu`, which holds the theme switch and the sync status). On phones the
@@ -89,6 +89,10 @@ Feature behavior is tested in `packages/web/*`.
   browser, so no real thumbnail is in the repo and nothing is fetched. It also draws the favicons of the fixtures' tab sites
   (`faviconShim` explains why they are asked for as `/favicon.ico?drawn`). Both it and the Connect walk serve the build with
   `scripts/preview-server.ts`.
+- `scripts/brand-icons.ts` (`pnpm --filter @stash/web icons`): draws `public/favicon.svg`, the
+  favicon PNGs, the `apple-touch-icon` and the manifest icons from the kit's logo SVGs, and
+  `docs/screenshots/brand-icons.png`; see "Logo" in [docs/design.md](../../docs/design.md#logo).
+  Never export an icon by hand. `test/brand-icons.test.ts` checks the sizes and the opaque icons.
 - `scripts/build-memo.ts`: the inputs of the build as the `memo.include` globs of the `Web`
   resource, the one module this app exports (`@stash/web/build-memo`, for `alchemy.run.ts`). A
   `../` glob is not filtered by `.gitignore`, so each one names real inputs and never a whole app
@@ -114,4 +118,4 @@ Feature behavior is tested in `packages/web/*`.
   of `@stash/web-search/search-atoms`)
 - `src/web-worker.ts` (the `Web` Worker entry, see Rules)
 - `vite.config.ts` (it also publishes `docs/ios-shortcut.md` and `docs/mcp-connector.md` at
-  `/docs/*`, for the onboarding card), `public/manifest.webmanifest`, `public/icons/*`
+  `/docs/*`, for the onboarding card), `public/manifest.webmanifest`, `public/favicon.svg`, `public/icons/*`
