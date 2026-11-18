@@ -44,7 +44,9 @@ import GroupHeader from "@stash/web-ui/group-header";
 import MatchMark from "@stash/web-ui/match-mark";
 import MediaRow from "@stash/web-ui/media-row";
 import MediaRowTitle from "@stash/web-ui/media-row-title";
+import MediaHero from "@stash/web-ui/media-hero";
 import MediaThumb from "@stash/web-ui/media-thumb";
+import MetaLine from "@stash/web-ui/meta-line";
 import TagChip from "@stash/web-ui/tag-chip";
 import Skeleton from "@stash/web-ui/skeleton";
 import Tabs from "@stash/web-ui/tabs";
@@ -392,6 +394,30 @@ const swatches = [
             </MediaRow>
           </ul>
           <Skeleton shape="media" />
+        </section>
+
+        <section class="flex flex-col gap-3">
+          <SectionHeader title="Link page" />
+          <div class="grid gap-6 sm:grid-cols-2">
+            <MediaHero
+              :src="preview"
+              url="https://example.com/"
+              embed="about:blank"
+              title="a synthetic video"
+            />
+            <MediaHero url="https://example.org/" />
+          </div>
+          <MetaLine>
+            <span>example.com</span>
+            <span data-shrink="">Synthetic Channel</span>
+            <span>saved 2h ago</span>
+            <span>iPhone</span>
+          </MetaLine>
+          <p class="max-w-[65ch] text-prose">
+            Reading text, 16/1.6: a link's summary on its own page, at most about 65 characters to a
+            line.
+          </p>
+          <Skeleton shape="hero" class="sm:w-1/2" />
         </section>
 
         <section class="flex flex-col gap-3">

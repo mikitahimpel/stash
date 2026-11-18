@@ -10,7 +10,7 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; the `/save` result |
+| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; a link's page (`/links/<id>`: preview or YouTube player, summary, tags, actions, details); the `/save` result |
 | `search/` | `@stash/web-search` | Search without a page: the header's field (`search-box`, debounced into the Inbox's URL `/links?q=…`, recent searches under the focused empty field), the line over the results (`search-bar`: count, mode, type / device / date menus), the URL state (`search-route`), the results that keep the last answer while the next loads (`use-search-results`), term marking; `/search` redirects to the Inbox |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | One Settings page: Devices & connections (the section from `@stash/web-connect`, then the devices), API tokens, Appearance (theme atoms, also used by the app header); first-run onboarding card (used by Inbox and Open now) |

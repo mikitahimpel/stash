@@ -113,6 +113,20 @@ const views: ReadonlyArray<View> = [
     data: "seeded",
     prepare: (page) => page.locator("[data-action=back]").waitFor(),
   },
+  // A link's page: a YouTube video with its thumbnail and play button, an article with an
+  // og:image, and a link with no image (the generated cover).
+  ...(
+    [
+      ["link-youtube", Fixtures.youtubeLinkId],
+      ["link-article", Fixtures.articleLinkId],
+      ["link-cover", Fixtures.coverLinkId],
+    ] as const
+  ).map(([name, id]) => ({
+    name,
+    path: `/links/${id}`,
+    data: "seeded" as const,
+    prepare: (page: Page) => page.locator("[data-slot=link-details] h1").waitFor(),
+  })),
   {
     name: "inbox-empty",
     path: "/links",

@@ -202,11 +202,19 @@ export const probe = (body: HTMLElement): Snapshot => {
     const slot = el.getAttribute("data-slot");
     const row = isRow(el);
     const own = (surface(el) || clips(el) || el.matches("svg, img, canvas")) && !row;
-    const measured = isMediaRow(el)
-      ? mediaRowEdges(el)
-      : own
-        ? { ...box(el), rightIsBox: true }
-        : ink(el);
+    // A MediaHero on a phone runs from one screen edge to the other, past the content edges on
+    // purpose: there it counts as sitting on them.
+    const bleeds =
+      slot === "media-hero" &&
+      box(el).left <= 0.5 &&
+      box(el).right >= doc.documentElement.clientWidth - 0.5;
+    const measured = bleeds
+      ? { left: content.left, right: content.right, rightIsBox: true }
+      : isMediaRow(el)
+        ? mediaRowEdges(el)
+        : own
+          ? { ...box(el), rightIsBox: true }
+          : ink(el);
     blocks.push({
       label: label(el),
       left: row ? rowLeft(el) : measured.left,
@@ -234,9 +242,16 @@ export const probe = (body: HTMLElement): Snapshot => {
   };
 
   const walk = (el: Element, inCentered: boolean) => {
-    const children = [...el.children].filter(
-      (child) => visible(child) && !["absolute", "fixed"].includes(css(child).position),
-    );
+    // An element with `display: contents` has no box of its own: its children stand in for it.
+    const flow = (parent: Element): Array<Element> =>
+      [...parent.children].flatMap((child) =>
+        !visible(child) || ["absolute", "fixed"].includes(css(child).position)
+          ? []
+          : css(child).display === "contents"
+            ? flow(child)
+            : [child],
+      );
+    const children = flow(el);
     // Vertical gaps between stacked siblings.
     children.forEach((child, i) => {
       const next = children[i + 1];

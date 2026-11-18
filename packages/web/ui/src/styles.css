@@ -217,6 +217,9 @@
   --text-row-title--font-weight: 600;
   --text-body: 14px;
   --text-body--line-height: 20px;
+  /* Reading text: a link's summary on its own page. */
+  --text-prose: 16px;
+  --text-prose--line-height: 1.6;
   --text-meta: 13px;
   --text-meta--line-height: 20px;
   --text-key: 11px;
@@ -301,6 +304,16 @@
     oklch(0.26 0.075 calc(var(--cover-hue) + 35))
   );
   color: oklch(0.9 0.045 var(--cover-hue));
+}
+
+/*
+ * Phones: a page with an `<ActionBar>` (fixed above the nav bar, 56px) ends that much lower, so
+ * its last line clears the bar. `<AppMain>` adds `--action-bar-space` to its bottom padding.
+ */
+@media (width < 40rem) {
+  [data-slot="app-main"]:has([data-slot="action-bar"]) {
+    --action-bar-space: 56px;
+  }
 }
 
 @utility tactile-row-selected {

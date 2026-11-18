@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import MediaRowTitle from "../src/media-row/media-row-title.vue";
+import MediaHero from "../src/media-hero/media-hero.vue";
 import MediaRow from "../src/media-row/media-row.vue";
 import MediaThumb from "../src/media-row/media-thumb.vue";
 import * as SiteCover from "../src/media-row/site-cover";
@@ -164,5 +165,55 @@ describe("MediaRowTitle", () => {
       slots: { default: "Example" },
     });
     expect(plain.classes()).not.toContain("after:absolute");
+  });
+});
+
+describe("MediaHero", () => {
+  it("shows the image without a referrer, or the site's cover when there is none", async () => {
+    const hero = mount(MediaHero, {
+      props: { src: "https://example.com/og.png", url: "https://www.example.com/a" },
+    });
+    expect(hero.find("img").attributes("src")).toBe("https://example.com/og.png");
+    expect(hero.find("img").attributes("referrerpolicy")).toBe("no-referrer");
+    expect(hero.attributes("data-cover")).toBeUndefined();
+
+    await hero.find("img").trigger("error");
+    expect(hero.attributes("data-cover")).toBe("");
+    expect(hero.find("[data-slot=media-cover-icon]").attributes("src")).toBe(
+      "https://www.example.com/favicon.ico",
+    );
+    expect(hero.find("[data-slot=media-cover-host]").text()).toBe("example.com");
+
+    await hero.find("[data-slot=media-cover-icon]").trigger("error");
+    expect(hero.find("[data-slot=media-cover-initial]").text()).toBe("e");
+  });
+
+  it("has no play button without a player", () => {
+    const hero = mount(MediaHero, { props: { src: "https://example.com/og.png" } });
+    expect(hero.find("button").exists()).toBe(false);
+  });
+
+  it("creates the player only on a press of play, anywhere on the preview", async () => {
+    const props = {
+      src: "https://example.com/frame.png",
+      embed: "https://player.example.com/embed/1",
+      title: "A synthetic talk",
+    };
+    const hero = mount(MediaHero, { props });
+    expect(hero.find("iframe").exists()).toBe(false);
+    expect(hero.find("button").attributes("aria-label")).toBe("Play A synthetic talk");
+
+    await hero.find("button").trigger("click");
+    expect(hero.find("iframe").attributes("src")).toBe("https://player.example.com/embed/1");
+    expect(hero.find("iframe").attributes("title")).toBe("A synthetic talk");
+    expect(hero.find("button").exists()).toBe(false);
+
+    const other = mount(MediaHero, { props });
+    await other.trigger("click");
+    expect(other.find("iframe").exists()).toBe(true);
+
+    // Another link's player doesn't start by itself.
+    await other.setProps({ embed: "https://player.example.com/embed/2" });
+    expect(other.find("iframe").exists()).toBe(false);
   });
 });

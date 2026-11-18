@@ -28,7 +28,7 @@ the theme tokens and an `@source` for this package, so the app build picks up th
   it). `:root` holds the light theme. `@stash/web-platform/theme` sets the class.
 - **Control tokens** (one control language, docs/design.md "Tokens"): heights `h-control-sm|md|lg`
   (32 / 36 / 44), radii `rounded-control` (8) and `rounded-surface` (12), text roles `text-title`,
-  `text-label` (14/500), `text-body` (14/400), `text-meta` (13/400), `text-key` and `chart-text`
+  `text-label` (14/500), `text-body` (14/400), `text-prose` (16/1.6, reading text), `text-meta` (13/400), `text-key` and `chart-text`
   (mono, keys and chart axes only). `hit-area` grows a control's hit area to 44px on phones without
   changing how it looks. `src/control/control-variants.ts` (`./control-variants`) holds the shared
   base, surfaces (`raised`, `primary`, `sunken`, `ghost`) and sizes every control is built from.
@@ -53,13 +53,16 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 | kbd | `kbd` (keycap) |
 | badge | `badge`, `badge-variants` |
 | list-row | `list-row` (slots `leading`, `title`, `meta`, `trailing`, default for extra lines, `actions` while `selected`), `list-row-title` (`as-child` for a link, `muted`) |
+| media-hero | `media-hero` (a link's preview on its own page: 16:9, radius 12, edge to edge on phones; the image or the generated cover; with `embed` a play button that swaps the player's `<iframe>` in, which exists only after that press) |
+| meta-line | `meta-line` (one dot-separated muted line outside a row; `data-shrink` marks the item that gives way) |
+| action-bar | `action-bar` (`label`; a row of buttons from `sm` up, a 56px bar fixed above the nav on phones, which `app-main` pads for) |
 | section-header | `section-header` (`title`, `count`, `as`, `#actions` slot) |
 | page-header | `page-header` (`title`, `subtitle`, `#actions` slot) |
 | card | `card`, `card-header`, `card-title`, `card-description`, `card-content`, `card-footer` |
 | dialog | `dialog`, `dialog-trigger`, `dialog-content`, `dialog-header`, `dialog-footer`, `dialog-title`, `dialog-description`, `dialog-close` |
 | dropdown-menu | `dropdown-menu`, `dropdown-menu-trigger`, `dropdown-menu-content`, `dropdown-menu-item`, `dropdown-menu-label`, `dropdown-menu-separator`, `dropdown-menu-radio-group`, `dropdown-menu-radio-item` |
 | toast | `toaster`, `toast-message` (type) |
-| skeleton | `skeleton` (`shape`: `line`, `title`, `row`, `control`, `chip`, `chart`) |
+| skeleton | `skeleton` (`shape`: `line`, `title`, `row`, `media`, `hero`, `control`, `chip`, `chart`) |
 | empty-state / error-state | `empty-state` (`title`, `description`, `#icon`, `#action`), `error-state` |
 | app shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark`, `centered-screen` |
 | other | `device-code`, `status-dot`, `match-mark`, `text-link` (prose links only), `color-swatch` |
