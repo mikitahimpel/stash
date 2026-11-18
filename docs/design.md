@@ -320,7 +320,8 @@ hairline below.
   button never move. It is the only Search entry point; see "Search".
 - **The tabs answer at once** (#167). The code and the first data of every tab load when the app
   is idle (one read per tab; a phone has no hover), and the pointer, a finger or the focus on a tab
-  loads its first data again (`preload` / `prefetch` of the
+  asks for its data again when the answer is older than 1.5 s (`ApiAtoms.prefetch`; the page that
+  opens right after doesn't ask twice, and a change made on another device shows on the way back) (`preload` / `prefetch` of the
   feature's `./routes`, through `src/app-prefetch.ts`). A tab that was open paints from its cached
   data in the first frame and refreshes behind it, without a skeleton; the tab is marked from the
   click on, also while a page still loads its code; and each tab opens where it was left (its

@@ -65,7 +65,10 @@ const current = computed(() => {
 // The pointer, a finger or the keyboard focus on a tab: its code and first data load before the
 // click (and a tab that was open refreshes its cached data).
 const registry = injectRegistry();
-const prefetch = (name: string) => AppPrefetch.prefetch(name, registry);
+// The tab of the page that is open is left alone: its page reads its data already.
+const prefetch = (name: string) => {
+  if (route.name !== name) AppPrefetch.prefetch(name, registry);
+};
 
 const listen = useAtomSet(() => AppShortcuts.listen);
 // Runs until the header unmounts, which disposes the atom and stops listening.

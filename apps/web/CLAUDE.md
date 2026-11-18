@@ -101,7 +101,9 @@ Feature behavior is tested in `packages/web/*`.
 - `scripts/tab-switch.ts` (`pnpm --filter @stash/web check:tab-switch`, after a build; the same
   CI job): clicks through the header tabs on the built app with an api that answers after 300 ms,
   and fails when a switch to a visited tab takes over 100 ms from the click to the painted rows,
-  shows a skeleton, doesn't refresh behind, or loses the tab's scroll position; also when a first
+  shows a skeleton, doesn't ask for the tab's own data again (`/auth/me` doesn't count), or loses
+  the tab's scroll position; when a link saved "on another device" between two visits of the Inbox
+  doesn't show; also when a first
   visit or a hovered tab doesn't open with its layout and rows at once. A walk with a
   problem is repeated twice (a busy machine makes single frames late). `STASH_SWITCH_CPU`,
   `STASH_SWITCH_NETWORK=slow`, `STASH_SWITCH_API_DELAY` and `STASH_SWITCH_PROFILE=<dir>` turn it

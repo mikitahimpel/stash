@@ -6,12 +6,16 @@
 // It fails when a switch to a tab that was already open
 // - takes more than `budgetMillis` from the click to the frame that shows the tab's rows,
 // - shows a skeleton or an empty page area, then or while the tab refreshes behind,
-// - doesn't ask the api again (the cached rows must be revalidated),
+// - doesn't ask the api for the tab's own data again (the cached rows must be revalidated; the
+//   auth guard's `/auth/me` doesn't count),
 // - or loses the tab's scroll position.
 // And when the first visit of a tab doesn't show its layout (the page title) and its rows within
 // the budget, which needs the tab's code and first data to be there before the click (the app
 // loads both while it is idle), or when a tab the pointer rested on
 // doesn't open with its rows, which needs the hover to have loaded its data.
+//
+// It also saves a link "on another device" (the fixture gains one) while another tab is open, and
+// fails when the Inbox doesn't show it on the way back.
 //
 // `STASH_SWITCH_CPU` (a slowdown factor, default 1), `STASH_SWITCH_API_DELAY` (ms, default 300)
 // and `STASH_SWITCH_NETWORK=slow` (the build's files over a throttled network) make it a
@@ -44,18 +48,63 @@ interface Tab {
   readonly title: string;
   /** The tab's rows: its data is on screen. */
   readonly rows: string;
+  /** The api path of the tab's own data: a visit must ask for it again. */
+  readonly data: string;
 }
 
 const tabs = {
-  inbox: { label: "Inbox", title: "Inbox", rows: "[data-slot=link-day] [data-slot=link-row]" },
-  openNow: { label: "Open now", title: "Open now", rows: "[data-section] [data-tab]" },
-  settings: { label: "Settings", title: "Settings", rows: "[data-test=device]" },
+  inbox: {
+    label: "Inbox",
+    title: "Inbox",
+    rows: "[data-slot=link-day] [data-slot=link-row]",
+    data: "/api/links",
+  },
+  openNow: {
+    label: "Open now",
+    title: "Open now",
+    rows: "[data-section] [data-tab]",
+    data: "/api/tabs",
+  },
+  settings: {
+    label: "Settings",
+    title: "Settings",
+    rows: "[data-test=device]",
+    data: "/api/devices",
+  },
 } as const satisfies Record<string, Tab>;
+
+/** A little over `ApiAtoms.prefetchFreshMillis`: after it, a visit asks the api again. */
+const freshMillis = 1700;
 
 const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
-const answer = async (page: Page, requests: Array<string>) => {
+/** The link the walk saves "on another device" between two visits of the Inbox. */
+const elsewhere = { id: "seed-link-elsewhere", title: "Saved on another device" };
+
+interface Api {
+  /** The paths asked for since the last switch began. */
+  readonly requests: Array<string>;
+  /** Whether the link saved on another device is in the feed yet. */
+  savedElsewhere: boolean;
+}
+
+const answer = async (page: Page, api: Api) => {
+  const { requests } = api;
   const fixtures = Fixtures.seeded(Date.now());
+  // The feed with one more link at its top, as if another device had just saved it.
+  const withElsewhere = (body: unknown) => {
+    const feed = body as { readonly items?: ReadonlyArray<Record<string, unknown>> };
+    const first = feed.items?.[0];
+    return first === undefined
+      ? body
+      : {
+          ...feed,
+          items: [
+            { ...first, ...elsewhere, url: "https://example.com/elsewhere", status: "new" },
+            ...feed.items!,
+          ],
+        };
+  };
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -73,7 +122,11 @@ const answer = async (page: Page, requests: Array<string>) => {
     const request = route.request();
     const url = new URL(request.url());
     requests.push(url.pathname);
-    const body = fixtures.answer(request.method(), url);
+    const answered = fixtures.answer(request.method(), url);
+    const body =
+      api.savedElsewhere && request.method() === "GET" && url.pathname === "/api/links"
+        ? withElsewhere(answered)
+        : answered;
     await sleep(apiDelay);
     return body === undefined
       ? route.fulfill({ status: 404, json: { _tag: "NotFound" } })
@@ -100,8 +153,9 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
     const page = await context.newPage();
     const errors: Array<string> = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    const requests: Array<string> = [];
-    await answer(page, requests);
+    const api: Api = { requests: [], savedElsewhere: false };
+    const { requests } = api;
+    await answer(page, api);
     const cdp: CDPSession = await context.newCDPSession(page);
     if (slowNetwork) {
       // "Fast 3G": 150 ms of latency, 1.6 Mbit/s down.
@@ -182,11 +236,18 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
      */
     const again = async (tab: Tab, { scrollY = 0, hover = false } = {}) => {
       const step = `${hover ? "hovered" : "visited"}: ${tab.label}`;
+      // A tab's answer counts as fresh for a moment (`ApiAtoms.prefetchFreshMillis`): a visit
+      // right after another one rightly asks nothing, so the walk lets that moment pass.
+      await sleep(freshMillis);
       if (hover) {
+        requests.length = 0;
+        // Away from the nav first, so the pointer comes onto the tab.
+        await page.mouse.move(700, 500);
         await page.getByRole("navigation", { name: "Main" }).getByText(tab.label).hover();
         await sleep(apiDelay + 250);
         await page.waitForLoadState("networkidle");
       }
+      const hovered = [...requests];
       const painted = await go(step, tab);
       // The refresh behind the rows: they stay, and no skeleton takes their place.
       await sleep(apiDelay + 250);
@@ -196,8 +257,10 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
         ...(painted.painted! > budgetMillis ? [`over ${budgetMillis} ms`] : []),
         ...(settled.skeleton ? ["showed a skeleton"] : []),
         ...(settled.blank ? ["showed an empty page"] : []),
-        // A hover has just loaded the data, so the page that opens right after doesn't ask again.
-        ...(requests.length === 0 && !hover ? ["didn't refresh its data"] : []),
+        // The tab's own data, not the auth guard's `/auth/me`. A hover asks for it, and the page
+        // that opens right after doesn't ask a second time.
+        ...(![...hovered, ...requests].includes(tab.data) ? [`didn't ask for ${tab.data}`] : []),
+        ...(hover && requests.includes(tab.data) ? [`asked for ${tab.data} twice`] : []),
         ...(Math.abs(painted.scrollY - scrollY) > 1
           ? [`scrolled to ${painted.scrollY}, was at ${scrollY}`]
           : []),
@@ -218,6 +281,26 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
     await page.waitForFunction("window.scrollY === 600");
     await again(tabs.openNow);
     await again(tabs.inbox, { scrollY: 600 });
+
+    // A link saved on another device while Open now is open: the Inbox shows it on the way back,
+    // from the refresh behind its cached rows.
+    await again(tabs.openNow);
+    api.savedElsewhere = true;
+    await again(tabs.inbox, { scrollY: 600 });
+    const arrived = await page
+      .locator("[data-slot=link-row]", { hasText: elsewhere.title })
+      .first()
+      .waitFor({ timeout: apiDelay + 5000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    rows.push({
+      step: "saved elsewhere: Inbox",
+      what: "the new link",
+      millis: null,
+      problems: arrived ? [] : ["a link saved on another device never showed"],
+    });
 
     for (const error of errors) {
       rows.push({ step: "page error", what: error, millis: null, problems: ["page error"] });

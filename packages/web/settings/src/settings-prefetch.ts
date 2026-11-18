@@ -12,5 +12,7 @@ export const run = (registry: AtomRegistry.AtomRegistry): (() => void) =>
     SettingsAtoms.devices,
     SettingsAtoms.tokens,
     SettingsAtoms.reports,
-    ConnectAtoms.snapshot,
+    ConnectAtoms.devices,
+    ConnectAtoms.activity,
+    ConnectAtoms.tokens,
   ]);
