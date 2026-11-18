@@ -41,8 +41,10 @@ describe("saveLink", () => {
         imageUrl: null,
         author: null,
         enrichedAt: null,
+        updatedAt: saved.updatedAt,
         created: true,
       });
+      expect(saved.updatedAt).toBeDefined();
       expect(yield* drain).toEqual([{ linkId: saved.id }]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Exit, Layer } from "effect";
+import { DateTime, Effect, Exit, Layer } from "effect";
 import { HttpClient, type HttpClientRequest } from "effect/http";
 import { HttpApiClient, HttpApiMiddleware, HttpApiSecurity, OpenApi } from "effect/http-api";
 import * as Api from "../src/stash-api.ts";
@@ -33,6 +33,7 @@ const routes = [
   ["pairings", "approve", "POST", "/pairings"],
   ["pairings", "claim", "POST", "/pairings/claim"],
   ["connect", "info", "GET", "/connect/info"],
+  ["events", "stream", "GET", "/events"],
 ] as const;
 
 // Loosely typed view of the definition, for reflection only.
@@ -77,6 +78,7 @@ describe("StashApi", () => {
         "connect",
         "devices",
         "digest",
+        "events",
         "links",
         "pairings",
         "search",
@@ -123,6 +125,7 @@ describe("StashApi", () => {
     ["devices", "activity", ["200", "401"]],
     ["pairings", "approve", ["201", "401", "409"]],
     ["pairings", "claim", ["201", "404"]],
+    ["events", "stream", ["204", "401", "426"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);
   });
@@ -173,6 +176,7 @@ describe("HttpApiClient", () => {
           "connect",
           "devices",
           "digest",
+          "events",
           "links",
           "pairings",
           "search",
@@ -192,6 +196,20 @@ describe("HttpApiClient", () => {
         seen: "false",
         limit: "10",
         sort: "recent",
+      });
+
+      // The catch-up filters travel as one parameter each.
+      yield* client.links
+        .list({
+          query: {
+            ids: ["link-1" as never, "link-2" as never],
+            updatedSince: DateTime.makeUnsafe("2026-01-02T03:04:05.000Z"),
+          },
+        })
+        .pipe(Effect.exit);
+      expect(Object.fromEntries(sent[1]!.urlParams)).toEqual({
+        ids: "link-1,link-2",
+        updatedSince: "2026-01-02T03:04:05.000Z",
       });
     }),
   );

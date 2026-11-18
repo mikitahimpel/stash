@@ -1,7 +1,7 @@
 // Boots the root `alchemy.run.ts` under `alchemy dev` (no Cloudflare credentials) and drives the
 // real Worker in workerd over HTTP: health, the HttpApi behind `Authorization` (401 without a
 // credential, a bearer token seeded by its hash), CORS, D1 and its migrations, and one queue
-// message through the consumer.
+// message through the consumer, and the live stream of link changes over its Durable Object.
 import { type ChildProcess, spawn } from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as Http from "node:http";
@@ -43,6 +43,58 @@ const call = (method: string, path: string, options: CallOptions = {}): Promise<
     });
     req.on("error", reject);
     req.end(body);
+  });
+
+/**
+ * Opens `path` as a WebSocket with `headers` (the global `WebSocket` takes none) and collects the
+ * text messages the server sends. Server frames are not masked, and these are all short text.
+ */
+const openStream = (
+  path: string,
+  headers: Record<string, string>,
+): Promise<{ readonly messages: Array<string>; readonly close: () => void }> =>
+  new Promise((resolve, reject) => {
+    const req = Http.request(`${baseUrl}${path}`, {
+      headers: {
+        ...headers,
+        connection: "Upgrade",
+        upgrade: "websocket",
+        "sec-websocket-version": "13",
+        "sec-websocket-key": Crypto.randomBytes(16).toString("base64"),
+      },
+    });
+    req.on("response", (res) => reject(new Error(`no upgrade: ${res.statusCode}`)));
+    req.on("error", reject);
+    req.on("upgrade", (_res, socket, head) => {
+      const messages: Array<string> = [];
+      let buffer = Buffer.from(head);
+      const read = () => {
+        while (buffer.length >= 2) {
+          const opcode = buffer[0]! & 0x0f;
+          let length = buffer[1]! & 0x7f;
+          let offset = 2;
+          if (length === 126) {
+            if (buffer.length < 4) return;
+            length = buffer.readUInt16BE(2);
+            offset = 4;
+          } else if (length === 127) {
+            if (buffer.length < 10) return;
+            length = Number(buffer.readBigUInt64BE(2));
+            offset = 10;
+          }
+          if (buffer.length < offset + length) return;
+          if (opcode === 1) messages.push(buffer.toString("utf8", offset, offset + length));
+          buffer = buffer.subarray(offset + length);
+        }
+      };
+      socket.on("data", (chunk: Buffer) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        read();
+      });
+      read();
+      resolve({ messages, close: () => socket.destroy() });
+    });
+    req.end();
   });
 
 let dev: ChildProcess | undefined;
@@ -162,6 +214,74 @@ describe("alchemy dev (local, no credentials)", () => {
 
     const wrong = await call("GET", "/tokens", { headers: { authorization: `${authorization}x` } });
     expect(wrong.status).toBe(401);
+  });
+
+  it("streams a link's change over the LinkEvents Durable Object", async () => {
+    const token = `stash_smoke-${Crypto.randomBytes(32).toString("base64url")}`;
+    const hash = Crypto.createHash("sha256").update(token).digest("hex");
+    expect((await call("POST", "/_smoke/api-token", { body: { hash } })).status).toBe(201);
+    const authorization = `Bearer ${token}`;
+
+    // Guarded like every endpoint, and a plain request is told to upgrade.
+    await expect(openStream("/events", {})).rejects.toThrow("no upgrade: 401");
+    expect((await call("GET", "/events", { headers: { authorization } })).status).toBe(426);
+
+    const stream = await openStream("/events", { authorization });
+    const second = await openStream("/events", { authorization });
+    try {
+      const events = (from: { readonly messages: Array<string> }) =>
+        from.messages.map((text) => JSON.parse(text) as { type: string; link?: { id: string } });
+      await waitFor(
+        "stream.ready",
+        async () => (events(stream)[0]?.type === "stream.ready" ? true : undefined),
+        10_000,
+      );
+
+      const saved = await call("POST", "/links", {
+        headers: { authorization },
+        body: { url: `https://example.com/smoke/live/${Crypto.randomUUID()}` },
+      });
+      const link = JSON.parse(saved.body) as { id: string };
+      const patched = await call("PATCH", `/links/${link.id}`, {
+        headers: { authorization },
+        body: { status: "seen" },
+      });
+      expect(patched.status).toBe(200);
+
+      // Every open stream of the user gets the whole link, once.
+      for (const open of [stream, second]) {
+        await waitFor(
+          "link.updated",
+          async () =>
+            events(open).some((event) => event.type === "link.updated") ? true : undefined,
+          10_000,
+        );
+        const updates = events(open).filter((event) => event.type === "link.updated");
+        expect(updates).toHaveLength(1);
+        expect(updates[0]).toMatchObject({ link: { id: link.id, status: "seen" } });
+      }
+
+      // The catch-up call a client makes after a gap finds the same change.
+      const { updatedAt } = JSON.parse(patched.body) as { updatedAt: string };
+      const since = await call("GET", `/links?updatedSince=${encodeURIComponent(updatedAt)}`, {
+        headers: { authorization },
+      });
+      expect(JSON.parse(since.body)).toMatchObject({
+        items: expect.arrayContaining([expect.objectContaining({ id: link.id })]),
+      });
+
+      const removed = await call("DELETE", `/links/${link.id}`, { headers: { authorization } });
+      expect(removed.status).toBe(204);
+      await waitFor(
+        "link.deleted",
+        async () =>
+          events(stream).some((event) => event.type === "link.deleted") ? true : undefined,
+        10_000,
+      );
+    } finally {
+      stream.close();
+      second.close();
+    }
   });
 
   it("allows CORS from the web origin only", async () => {

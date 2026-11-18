@@ -39,6 +39,10 @@ export interface ListFilter {
   readonly seen?: boolean;
   /** Only the link stored under this canonical URL. */
   readonly canonicalUrl?: Link.Url;
+  /** Only links that changed at or after this moment (UTC ISO 8601, as `updated_at` holds it). */
+  readonly updatedSince?: string;
+  /** Only links with these ids. */
+  readonly ids?: ReadonlyArray<Link.LinkId>;
   readonly after?: ListPosition;
   readonly limit: number;
 }
@@ -131,7 +135,8 @@ const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.st
     SELECT t.name FROM link_tags lt JOIN tags t ON t.id = lt.tag_id
     WHERE lt.link_id = l.id ORDER BY t.name
   )) AS tags,
-  l.source_device_id AS sourceDeviceId, l.created_at AS createdAt, l.enriched_at AS enrichedAt`;
+  l.source_device_id AS sourceDeviceId, l.created_at AS createdAt, l.enriched_at AS enrichedAt,
+  COALESCE(l.updated_at, l.created_at) AS updatedAt`;
 
 /** `[{ id, tags }]` as JSON: the tag rows and link-tag rows for these links, if they exist. */
 const tagStatements = (json: string): ReadonlyArray<D1Database.Statement> => [
@@ -251,6 +256,14 @@ export const make = Effect.gen(function* () {
       if (filter.canonicalUrl !== undefined) {
         conditions.push("l.canonical_url = ?");
         params.push(filter.canonicalUrl);
+      }
+      if (filter.updatedSince !== undefined) {
+        conditions.push("l.updated_at >= ?");
+        params.push(filter.updatedSince);
+      }
+      if (filter.ids !== undefined) {
+        conditions.push("l.id IN (SELECT value FROM json_each(?))");
+        params.push(JSON.stringify(filter.ids));
       }
       if (filter.tag !== undefined) {
         conditions.push(`EXISTS (SELECT 1 FROM link_tags lt JOIN tags t ON t.id = lt.tag_id

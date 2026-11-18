@@ -1,5 +1,6 @@
 import * as SaveLink from "@stash/backend-links/save-link";
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Testing from "@stash/backend-platform/testing";
 import * as Vectors from "@stash/backend-platform/vectors";
 import * as Link from "@stash/contracts-domain/link";
@@ -85,7 +86,31 @@ const keywordSearch = (q: string) =>
       WHERE links_fts MATCH ${q}`),
   ).pipe(Effect.map((rows) => rows.map((r) => r["id"])));
 
+const published = Effect.flatMap(Testing.TestLinkEvents, (events) => events.published);
+
 describe("enrichLink", () => {
+  it.effect("stores the enrichment when the live stream cannot be reached", () =>
+    Effect.gen(function* () {
+      const { id, outcome } = yield* saveAndConsume({ url: articleUrl });
+      expect(outcome).toEqual({ _tag: "Enriched", source: "page" });
+      expect(yield* row(id)).toMatchObject({ summary: classification.summary });
+    }).pipe(
+      // The object behind the stream rejects every call.
+      Effect.provide(
+        LinkEvents.layer(
+          {
+            idFromName: (name) => name,
+            get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
+          },
+          "example-user",
+        ),
+      ),
+      Effect.provide(
+        EnrichmentTestLayer.layer({ [articleUrl]: { body: Fixtures.articlePage } }, classification),
+      ),
+    ),
+  );
+
   it.effect(
     "saving a link then consuming its message yields tags, summary, vector and R2 text",
     () =>
@@ -123,6 +148,22 @@ describe("enrichLink", () => {
         // The classifier saw the page text.
         const [prompt] = yield* FakeLanguageModel.FakeLanguageModel.use((fake) => fake.prompts);
         expect(FakeLanguageModel.promptText(prompt!)).toContain("Source: page");
+
+        // The live stream: exactly one event, the whole link as it is stored now.
+        const events = yield* published;
+        expect(events).toHaveLength(1);
+        expect(events[0]).toMatchObject({
+          type: "link.updated",
+          link: {
+            id,
+            title: "Building a Tiny Parser & Why It Works",
+            summary: classification.summary,
+            type: "article",
+            tags: ["html", "parsing", "reading", "typescript"],
+          },
+        });
+        const event = events[0]!;
+        expect(event.type === "link.updated" && event.link.enrichedAt).not.toBeNull();
       }).pipe(
         Effect.provide(
           EnrichmentTestLayer.layer(
@@ -139,6 +180,8 @@ describe("enrichLink", () => {
       const before = yield* row(id);
       expect(yield* EnrichLink.enrichLink(id)).toEqual({ _tag: "Skipped" });
       expect(yield* row(id)).toEqual(before);
+      // The redelivery stored nothing, so it published nothing: still the one event.
+      expect(yield* published).toHaveLength(1);
       const prompts = yield* FakeLanguageModel.FakeLanguageModel.use((fake) => fake.prompts);
       expect(prompts).toHaveLength(1);
     }).pipe(
@@ -181,6 +224,8 @@ describe("enrichLink", () => {
       });
       // Marked links are skipped from now on.
       expect(yield* EnrichLink.enrichLink(id)).toEqual({ _tag: "Skipped" });
+      // Nothing a client shows changed.
+      expect(yield* published).toEqual([]);
       expect(yield* Vectors.Vectors.use((v) => v.query(Testing.fakeEmbedding("x")))).toEqual([]);
     }).pipe(
       Effect.provide(

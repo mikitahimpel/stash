@@ -13,6 +13,8 @@
     "./github-config": "./src/github-config.ts",
     "./http-client": "./src/http-client.ts",
     "./kv": "./src/kv.ts",
+    "./link-events": "./src/link-events.ts",
+    "./link-events-object": "./src/link-events-object.ts",
     "./live": "./src/live.ts",
     "./stash-config": "./src/stash-config.ts",
     "./testing": "./src/testing.ts",

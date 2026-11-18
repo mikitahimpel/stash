@@ -40,6 +40,8 @@ const apiProxy = {
   "^/api(?:[/?]|$)": {
     target: process.env["STASH_DEV_API_URL"] || "http://localhost:8787",
     changeOrigin: true,
+    // The live updates are a WebSocket (`/api/events`).
+    ws: true,
     rewrite: (path: string) => {
       const rest = path.slice("/api".length);
       return rest.startsWith("/") ? rest : `/${rest}`;

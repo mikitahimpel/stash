@@ -5,6 +5,7 @@ import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
 import * as GithubConfig from "./github-config.ts";
 import * as Kv from "./kv.ts";
+import * as LinkEvents from "./link-events.ts";
 import * as StashConfig from "./stash-config.ts";
 import * as Vectors from "./vectors.ts";
 
@@ -19,6 +20,8 @@ export interface PlatformEnv extends StashConfig.Env, GithubConfig.Env {
   readonly BLOBS: R2Bucket;
   readonly KV: KVNamespace;
   readonly AI: Ai;
+  /** The `LinkEvents` Durable Object class of the `Api` Worker itself. */
+  readonly LINK_EVENTS: DurableObjectNamespace;
 }
 
 /** Every platform service. */
@@ -29,6 +32,7 @@ export type Services =
   | Blobs.Blobs
   | Kv.Kv
   | Ai.Ai
+  | LinkEvents.LinkEvents
   | StashConfig.StashConfig
   | GithubConfig.GithubConfig;
 
@@ -43,6 +47,7 @@ export const layer = (
     Blobs.layer(env.BLOBS),
     Kv.layer(env.KV),
     Ai.layer(env.AI),
+    LinkEvents.layer(env.LINK_EVENTS, env.ALLOWED_GITHUB_LOGIN),
     StashConfig.layerFromEnv(env),
     GithubConfig.layerFromEnv(env),
   );

@@ -180,6 +180,12 @@ export default Alchemy.Stack(
         ENRICHMENT_QUEUE: queue,
         KV: kv,
         BLOBS: blobs,
+        // The Worker's own Durable Object class `LinkEvents` (apps/api/src/worker.ts): one object
+        // per user holds the open WebSockets of `GET /events` (the live link updates). Alchemy
+        // creates the class with SQLite storage, the only kind a new namespace can have, and
+        // drives its class migration. A namespace has no name of its own: it belongs to the
+        // Worker script, which `named("api")` fixes, so `PROD_NAMES` has nothing to pin here.
+        LINK_EVENTS: Cloudflare.DurableObject("LinkEvents"),
         ...(vectors === undefined ? {} : { VECTORS: vectors, AI: Cloudflare.Workers.AI() }),
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: origins.web,

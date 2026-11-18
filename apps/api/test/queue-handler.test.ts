@@ -3,6 +3,7 @@
 // pipeline itself is tested in `@stash/backend-enrichment`.
 import * as ClassifyLink from "@stash/backend-enrichment/classify-link";
 import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
+import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
 import { describe, expect, it } from "@effect/vitest";
@@ -39,10 +40,11 @@ const layerNotFound = Layer.succeed(HttpClient.HttpClient)(
 
 // Without an Anthropic key, as under `alchemy dev`.
 const layer = QueueHandler.layer.pipe(
-  Layer.provide(EnrichmentRepo.layer),
+  Layer.provide(Layer.mergeAll(EnrichmentRepo.layer, LinksRepo.layer)),
   Layer.provideMerge(
     Layer.mergeAll(
       layerDatabase,
+      Testing.layerLinkEvents,
       ClassifyLink.layerMissingKey,
       Testing.layerBlobs,
       Testing.layerVectors,
@@ -106,6 +108,13 @@ describe("QueueHandler.layer", () => {
           imageUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg",
           metadataVersion: 1,
         },
+      });
+      // The filled thumbnail reaches the live stream as one `link.updated`.
+      const events = yield* Testing.TestLinkEvents.use((stream) => stream.published);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: "link.updated",
+        link: { id: "link-video", imageUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg" },
       });
     }).pipe(Effect.provide(layer)),
   );

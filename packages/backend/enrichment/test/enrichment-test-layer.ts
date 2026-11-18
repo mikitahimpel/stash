@@ -11,8 +11,8 @@ import * as EnrichmentRepo from "../src/enrichment-repo.ts";
 import * as FakeHttp from "./fake-http.ts";
 import * as FakeLanguageModel from "./fake-language-model.ts";
 
-// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002, 0006, 0007, 0008 and 0009,
-// the source of truth). Packages never reach into another package's files, so tests keep their own copy.
+// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002, 0006, 0007, 0008, 0009
+// and 0010, the source of truth). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
@@ -39,7 +39,8 @@ CREATE TABLE links (
   author TEXT,
   post TEXT,
   enrichment_attempts INTEGER NOT NULL DEFAULT 0,
-  metadata_version INTEGER NOT NULL DEFAULT 0
+  metadata_version INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);
@@ -82,6 +83,24 @@ CREATE TRIGGER links_fts_after_update AFTER UPDATE OF seq, title, summary, text 
   INSERT INTO links_fts (rowid, title, summary, text)
   VALUES (new.seq, new.title, new.summary, new.text);
 END;
+
+CREATE TRIGGER links_touch_after_insert AFTER INSERT ON links BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE seq = new.seq;
+END;
+
+CREATE TRIGGER links_touch_after_update
+AFTER UPDATE OF url, canonical_url, title, status, type, summary, language, source_device_id,
+  enriched_at, image_url, author, post ON links BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE seq = new.seq;
+END;
+
+CREATE TRIGGER link_tags_touch_after_insert AFTER INSERT ON link_tags BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = new.link_id;
+END;
+
+CREATE TRIGGER link_tags_touch_after_delete AFTER DELETE ON link_tags BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = old.link_id;
+END;
 `;
 
 const layerDatabase: Layer.Layer<D1Database.Database> = Layer.effectDiscard(
@@ -93,7 +112,7 @@ const layerDatabase: Layer.Layer<D1Database.Database> = Layer.effectDiscard(
 
 /**
  * The links feature (to save links), the enrichment repo, and fakes for everything external: D1,
- * the queue (with its consumer side), R2, Vectorize, Workers AI, HTTP and the language model.
+ * the queue (with its consumer side), the live stream (with what was published), R2, Vectorize, Workers AI, HTTP and the language model.
  */
 export const layer = (
   routes: Readonly<Record<string, FakeHttp.Route>>,
@@ -108,6 +127,7 @@ export const layer = (
       Layer.mergeAll(
         layerDatabase,
         Testing.layerEnrichmentQueue,
+        Testing.layerLinkEvents,
         Testing.layerKv,
         Testing.layerBlobs,
         Testing.layerVectors,

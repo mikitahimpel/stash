@@ -1,5 +1,5 @@
-import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as SaveLinksBatch from "@stash/backend-links/save-links-batch";
+import * as UpdateLink from "@stash/backend-links/update-link";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as EnqueueCommand from "@stash/backend-tabs/enqueue-command";
@@ -26,7 +26,6 @@ export const autoArchiveTabs = Effect.fn("autoArchiveTabs")(function* () {
   const config = yield* StashConfig.StashConfig;
   const openTabs = yield* OpenTabsRepo.OpenTabsRepo;
   const commands = yield* CommandsRepo.CommandsRepo;
-  const links = yield* LinksRepo.LinksRepo;
   const cutoff = DateTime.subtract(yield* DateTime.now, { days: config.archiveAfterDays });
 
   let archived = 0;
@@ -53,7 +52,13 @@ export const autoArchiveTabs = Effect.fn("autoArchiveTabs")(function* () {
       ),
     );
     for (const link of saved) {
-      if (link.status === "new") yield* links.update(link.id, { status: "archived" });
+      // Through the links feature, so an open page sees the link leave its feed (`GET /events`).
+      // A link deleted since the save a moment ago has nothing left to archive.
+      if (link.status === "new") {
+        yield* UpdateLink.updateLink(link.id, { status: "archived" }).pipe(
+          Effect.catchTag("NotFound", () => Effect.void),
+        );
+      }
     }
     for (const tab of tabs) {
       yield* EnqueueCommand.enqueueCommand(device.id, { kind: "close-tab", url: tab.url });

@@ -6,6 +6,7 @@ import * as RequeueBackfill from "@stash/backend-enrichment/requeue-backfill";
 import * as RequeuePending from "@stash/backend-enrichment/requeue-pending";
 import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import type * as DevicesRepo from "@stash/backend-tabs/devices-repo";
@@ -48,6 +49,7 @@ export type Requirements =
   | DevicesRepo.DevicesRepo
   | LinksRepo.LinksRepo
   | EnrichmentQueue.EnrichmentQueue
+  | LinkEvents.LinkEvents
   | DigestsRepo.DigestsRepo
   | EnrichmentRepo.EnrichmentRepo;
 

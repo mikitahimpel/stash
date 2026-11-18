@@ -27,7 +27,8 @@ CREATE TABLE links (
   enriched_at TEXT,
   image_url TEXT,
   author TEXT,
-  post TEXT
+  post TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE tags (

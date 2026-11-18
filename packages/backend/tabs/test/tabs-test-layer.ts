@@ -53,7 +53,8 @@ CREATE TABLE links (
   enriched_at TEXT,
   image_url TEXT,
   author TEXT,
-  post TEXT
+  post TEXT,
+  updated_at TEXT
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);

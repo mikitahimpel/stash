@@ -7,8 +7,8 @@ import * as Layer from "effect/Layer";
 import * as LinksRepo from "../src/links-repo.ts";
 import * as SaveRateLimiter from "../src/save/save-rate-limiter.ts";
 
-// The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql` and
-// `0004-connect-status-and-pairings.sql` (the source of truth). Packages never reach into another package's files, so tests keep their own copy.
+// The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql`,
+// `0004-connect-status-and-pairings.sql` and `0009-link-post.sql` and `0010-link-updated-at.sql` (the source of truth). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
@@ -35,7 +35,8 @@ CREATE TABLE links (
   enriched_at TEXT,
   image_url TEXT,
   author TEXT,
-  post TEXT
+  post TEXT,
+  updated_at TEXT
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);
@@ -50,6 +51,24 @@ CREATE TABLE link_tags (
   tag_id INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
   PRIMARY KEY (link_id, tag_id)
 ) WITHOUT ROWID;
+
+CREATE TRIGGER links_touch_after_insert AFTER INSERT ON links BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE seq = new.seq;
+END;
+
+CREATE TRIGGER links_touch_after_update
+AFTER UPDATE OF url, canonical_url, title, status, type, summary, language, source_device_id,
+  enriched_at, image_url, author, post ON links BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE seq = new.seq;
+END;
+
+CREATE TRIGGER link_tags_touch_after_insert AFTER INSERT ON link_tags BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = new.link_id;
+END;
+
+CREATE TRIGGER link_tags_touch_after_delete AFTER DELETE ON link_tags BEGIN
+  UPDATE links SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = old.link_id;
+END;
 `;
 
 /** A synthetic device that exists in every test database. */
@@ -69,10 +88,18 @@ export const layerDatabase: Layer.Layer<D1Database.Database> = Layer.effectDisca
   }).pipe(Effect.orDie),
 ).pipe(Layer.provideMerge(Testing.layerD1Database));
 
-/** The repo, the limiter and in-memory platform services, with the queue's consumer side. */
+/**
+ * The repo, the limiter and in-memory platform services, with the queue's consumer side and the
+ * published link events.
+ */
 export const layer = (rateLimit: SaveRateLimiter.Options = SaveRateLimiter.defaultOptions) =>
   Layer.mergeAll(LinksRepo.layer, SaveRateLimiter.layer(rateLimit)).pipe(
     Layer.provideMerge(
-      Layer.mergeAll(layerDatabase, Testing.layerEnrichmentQueue, Testing.layerKv),
+      Layer.mergeAll(
+        layerDatabase,
+        Testing.layerEnrichmentQueue,
+        Testing.layerKv,
+        Testing.layerLinkEvents,
+      ),
     ),
   );
