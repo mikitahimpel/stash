@@ -178,9 +178,13 @@ A filter bar is one row of `sm` controls, all 32px on one centre line.
 Links and tabs (Inbox, Search, Open now, the `/save` result) are `MediaRow`s, so a list reads as
 content, not as a table of text:
 
-- **Preview** on the left, 16:9: 120×68 from `sm` up, 88×50 on phones, radius 8. It is the link's
-  `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with `referrerpolicy="no-referrer"`.
-  A video carries a small play mark.
+- **Every row of a list is one height** (#161), whatever it holds: 114px from `sm` up, 120px on
+  phones (88px for open tabs, which have no tags line). Nothing wraps or grows; a line with nothing
+  in it stays empty and keeps its place. Only the selected row is taller, by its action bar.
+- **Preview** on the left, 16:9: 160×90 from `sm` up, 110×62 on phones, radius 8. From `sm` up it
+  sets the row's height and the text column fills it exactly, so the two end on one line top and
+  bottom. It is the link's `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with
+  `referrerpolicy="no-referrer"`. A video carries a small play mark.
 - **A link or tab with no image gets a generated cover** (#155), also when its image fails to
   load: a soft gradient in a hue of the site's own (a stable hash of the host; `.media-cover` in
   the kit's styles tones it light or deep per theme), the site's favicon in the centre (28px, 20px
@@ -188,14 +192,19 @@ content, not as a table of text:
   the host in small type under it. When the favicon fails the site's initial takes its place. An
   open tab has no image, so its tile is always the cover. `MediaThumb` builds it from `url`; a
   URL that is not a web page keeps the neutral tile with an initial.
-- **Title** 15/600 (`text-row-title`), two lines at most, with an accent dot before it while the
-  link is not yet seen. It is the row's target: its hit area covers the whole row, and other links
-  in the row (the host, a tag) sit above it. On Open now a click selects the row instead, and only
-  the title opens the tab.
+- **Title** 15/600 (`text-row-title`), one line with an ellipsis (two lines at most on phones),
+  with an accent dot before it while the link is not yet seen. The whole title is in its `title`
+  attribute. A row shows it without the site's own name before or after it (`GitHub - … · GitHub`,
+  `… | Example`: `@stash/web-ui/site-title`, when the name equals the host's); the stored title and
+  the link's page keep it whole. It is the row's target: its hit area covers the whole row, and
+  other links in the row (the host, a tag) sit above it. On Open now a click selects the row
+  instead, and only the title opens the tab.
 - **One meta line**, muted 13: host · channel or author · age · device (the device is left out on
   phones). The author gives way first when the line is too long.
-- **Summary**, at most two lines, only when the link has one. **Tags** as 24px chips, at most
-  three, then `+n`.
+- **Summary**, one line with an ellipsis, from `sm` up only. A link with no summary shows who
+  published it there, or nothing; an open tab shows its address.
+- **Tags** as 24px chips on one line (`TagLine`): as many as fit, three at most, then `+n`. On
+  phones the line runs under the preview and the text, across the row.
 - The row's box sits **exactly on the content edges** and its content is inset by 12px, so the
   hover, focus and selected background ends on the edge and the preview sits 12px inside it. On
   phones there is no hover and the content uses the full width.
@@ -203,7 +212,7 @@ content, not as a table of text:
 **Levels:** page title 28/600 > `GroupHeader` (a day in the Inbox, `Results`, `Older than 7 days`:
 13/600 uppercase, a muted count, a hairline rule to the edge, optional `ghost` `sm` actions) > row
 title 15/600 > meta 13. Groups sit **32px** apart, a group header **8px** above its rows, and the
-lines of a row **4px** apart.
+lines of a media row **2px** apart (20 + 20 + 20 + 24 and three gaps make the preview's 90).
 
 ### Link page (#159)
 
@@ -352,11 +361,15 @@ link with none), plus Login, in the light theme at 1440 and 390 wide. The api is
   chip on a row is not a control;
 - controls on one row share their height and vertical centre;
 - every page-level block starts on the content edge (± 0.5px), trailing controls end on it, rows
-  inside a card share one edge, and every line of a row starts where its title does; a media row
+  inside a card share one edge, and every line of a row starts where its title does (on a phone a media row's tags
+  and action bar run under the preview too and are not such lines); a media row
   is measured by its box, which must sit on both content edges (or, where its background reaches
   past them, as for a selected row on a phone, by its content); a `ScrollRow`, which on a phone
   runs off both screen edges, is measured by its content box a `MediaHero` that spans the
   whole screen on a phone counts as on the edges;
+- every media row on a page is the same height (± 1px), except the selected one, which adds its
+  action bar; the seeded Inbox mixes a video with no summary, an article with one, a title too
+  long for its line and links with no image or no tags;
 - every vertical gap between page-level blocks is on the spacing scale;
 - text renders in mono only inside keys, the device code and charts.
 
@@ -403,7 +416,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
-| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
+| MediaRow | `media-row` (one fixed height; slots `thumb`, `title`, `meta`, `summary`, `tags`, `#actions` while `selected`; `unread`), `media-row-title` (15/600, one line, two on phones, the whole row's target unless `:stretch="false"`), `site-title` (a title without the site's own name), `tag-line` (the tags on one line: as many chips as fit, then `+n`), `media-thumb` (16:9, 160×90, 110×62 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
 | MediaHero | `media-hero` (`src`, `url`, `embed`, `title`): a link's preview on its own page, with a play button that loads the player on demand |
 | MetaLine | `meta-line`: the dot-separated meta line outside a row |
 | ActionBar | `action-bar` (`label`): an item's actions, a bottom bar on phones |

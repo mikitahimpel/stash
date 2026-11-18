@@ -4,12 +4,14 @@ import Kbd from "@stash/web-ui/kbd";
 import MediaRow from "@stash/web-ui/media-row";
 import MediaRowTitle from "@stash/web-ui/media-row-title";
 import MediaThumb from "@stash/web-ui/media-thumb";
+import * as SiteTitle from "@stash/web-ui/site-title";
 import { useTemplateRef } from "vue";
 import type * as OpenTabsView from "./open-tabs-view.ts";
 
-// An open tab as a media row, the Inbox's look. A tab has no preview image, so its tile is the
-// generated cover: the site's hue, its favicon and its host. A click anywhere on the row selects it (which shows its actions); only the title
-// opens the tab.
+// An open tab as a media row, the Inbox's look and its one row height: title (without the site's
+// name) · host · device · age, then the tab's address where a link has its summary. A tab has no
+// preview image, so its tile is the generated cover: the site's hue, its favicon and its host. A
+// click anywhere on the row selects it (which shows its actions); only the title opens the tab.
 defineProps<{ tab: OpenTabsView.TabRow; selected: boolean }>();
 const emit = defineEmits<{ select: []; archive: []; close: [] }>();
 
@@ -34,10 +36,10 @@ defineExpose({ focus });
           :href="tab.url"
           target="_blank"
           rel="noopener noreferrer"
-          :title="tab.url"
+          :title="tab.title ?? tab.url"
           data-slot="open-tab-title"
           @focus="emit('select')"
-          >{{ tab.title ?? tab.url }}</a
+          >{{ tab.title === null ? tab.url : SiteTitle.strip(tab.title, tab.url) }}</a
         >
       </MediaRowTitle>
     </template>
@@ -50,6 +52,9 @@ defineExpose({ focus });
         :class="['tabular-nums', tab.age.tone === 'old' && 'text-signal']"
         >{{ tab.age.tone === "unknown" ? "—" : tab.age.label }}</span
       >
+    </template>
+    <template #summary>
+      <span data-slot="open-tab-url">{{ tab.url }}</span>
     </template>
     <template #actions>
       <Button as-child variant="ghost" size="sm">

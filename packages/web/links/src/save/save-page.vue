@@ -109,7 +109,10 @@ const back = () =>
           </template>
           <template #title>
             <MediaRowTitle as-child>
-              <RouterLink :to="{ name: 'link-details', params: { id: view.link.id } }">
+              <RouterLink
+                :to="{ name: 'link-details', params: { id: view.link.id } }"
+                :title="view.title"
+              >
                 {{ view.title }}
               </RouterLink>
             </MediaRowTitle>
@@ -118,9 +121,7 @@ const back = () =>
             <span>{{ view.host }}</span>
             <span v-if="view.link.author !== null" data-shrink="">{{ view.link.author }}</span>
           </template>
-          <p v-if="view.link.summary" class="line-clamp-2 text-body text-muted-foreground">
-            {{ view.link.summary }}
-          </p>
+          <template #summary>{{ view.link.summary ?? "" }}</template>
         </MediaRow>
       </ul>
       <p v-if="undoError" role="alert" class="text-meta text-destructive">{{ undoError }}</p>

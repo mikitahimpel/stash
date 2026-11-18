@@ -23,6 +23,9 @@ type SeedLink = readonly [
   device: number,
 ];
 
+// The top of the list is mixed on purpose (#161): a video with a summary and more tags than fit, an
+// article with a title too long for its line, a link with no image, a video with no summary, and
+// a title that ends with the site's own name. Every row is still one height.
 const links: ReadonlyArray<SeedLink> = [
   [
     "How interest rates move housing prices",
@@ -34,7 +37,7 @@ const links: ReadonlyArray<SeedLink> = [
     2,
   ],
   [
-    "A field guide to SQLite full-text search",
+    "A field guide to SQLite full-text search: tokenizers, ranking functions, prefix queries and what to measure before you ship it",
     "db/fts5",
     "article",
     ["sqlite", "search"],
@@ -43,9 +46,9 @@ const links: ReadonlyArray<SeedLink> = [
     0,
   ],
   ["Effect v4 release notes", "effect/v4", "article", ["effect", "typescript"], "new", 0.6, 0],
-  ["Designing keyboard-first web apps", "ux/keyboard", "article", ["design", "ux"], "seen", 1.2, 1],
+  ["Designing keyboard-first web apps", "ux/keyboard", "video", ["design", "ux"], "seen", 1.2, 1],
   [
-    "Workers Static Assets in practice",
+    "Workers Static Assets in practice | Example",
     "cloudflare/assets",
     "article",
     ["cloudflare"],

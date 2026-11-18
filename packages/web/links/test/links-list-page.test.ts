@@ -119,6 +119,30 @@ describe("inbox page", () => {
     expect(video!.find("[data-slot=media-cover-initial]").text()).toBe("e");
   });
 
+  it("shows the title without the site's name, and who published a link with no summary", async () => {
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.link("a", {
+          title: "Example - owner/repo: a tiny queue · Example",
+          summary: null,
+          author: "Synthetic Channel",
+          tags: [],
+        }),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+    const row = wrapper.find("[data-slot=link-row]");
+
+    const title = row.find("[data-slot=media-row-title]");
+    expect(title.text()).toBe("owner/repo: a tiny queue");
+    // The whole title, as stored, is a hover away.
+    expect(title.attributes("title")).toBe("Example - owner/repo: a tiny queue · Example");
+    expect(row.find("[data-slot=link-summary]").text()).toBe("Synthetic Channel");
+    // No tags: the line is there, empty, so the row is as tall as the others.
+    expect(row.find("[data-slot=tag-line]").exists()).toBe(true);
+    expect(row.find("[data-slot=tag-chip]").exists()).toBe(false);
+  });
+
   it("says summarizing… until enrichment ran", async () => {
     const api = listing({ first: Fixtures.page([Fixtures.link("a", { enrichedAt: null })]) });
     const { wrapper } = await mountAt("/links", api.routes);

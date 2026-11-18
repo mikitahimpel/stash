@@ -48,6 +48,7 @@ import MediaHero from "@stash/web-ui/media-hero";
 import MediaThumb from "@stash/web-ui/media-thumb";
 import MetaLine from "@stash/web-ui/meta-line";
 import TagChip from "@stash/web-ui/tag-chip";
+import TagLine from "@stash/web-ui/tag-line";
 import Skeleton from "@stash/web-ui/skeleton";
 import Tabs from "@stash/web-ui/tabs";
 import TabsList from "@stash/web-ui/tabs-list";
@@ -318,7 +319,7 @@ const swatches = [
               >
                 <template #title>
                   <ListRowTitle as-child>
-                    <a href="https://row.com/">{{ row.title }}</a>
+                    <a href="https://row.com/" :title="row.title">{{ row.title }}</a>
                   </ListRowTitle>
                 </template>
                 <template #meta>
@@ -366,7 +367,7 @@ const swatches = [
               </template>
               <template #title>
                 <MediaRowTitle as-child :stretch="false">
-                  <a href="https://row.com/">
+                  <a href="https://row.com/" :title="row.title">
                     <template v-if="row.match"
                       >The <MatchMark tone="signal">economics</MatchMark> of open source</template
                     >
@@ -380,13 +381,8 @@ const swatches = [
                 <span>{{ row.age }}</span>
                 <span class="max-sm:hidden">{{ row.device }}</span>
               </template>
-              <p v-if="row.summary" class="line-clamp-2 text-body text-muted-foreground">
-                {{ row.summary }}
-              </p>
-              <div v-if="row.tags.length > 0" class="flex flex-wrap items-center gap-1">
-                <TagChip v-for="tag in row.tags" :key="tag">#{{ tag }}</TagChip>
-                <TagChip>+2</TagChip>
-              </div>
+              <template #summary>{{ row.summary }}</template>
+              <template #tags><TagLine :tags="row.tags" /></template>
               <template #actions>
                 <Button variant="ghost" size="sm"><ExternalLink />Open</Button>
                 <Button variant="ghost" size="sm"><Archive />Archive</Button>

@@ -19,7 +19,7 @@ const shapes = {
   line: "h-4 rounded-sm",
   title: "h-6 rounded-sm",
   row: "h-13 rounded-control",
-  media: "h-[74px] rounded-surface sm:h-[92px]",
+  media: "h-[120px] rounded-surface sm:h-[114px]",
   hero: "aspect-video rounded-surface max-sm:-mx-4 max-sm:rounded-none",
   control: "h-control-md rounded-control",
   chip: "h-control-sm w-20 rounded-control",

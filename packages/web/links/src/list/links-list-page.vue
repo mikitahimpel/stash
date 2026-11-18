@@ -277,9 +277,12 @@ onMounted(() => listen({ run }));
       <MediaRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
         <template #thumb><MediaThumb :url="link.url" :initial="host(link.url)" /></template>
         <template #title>
-          <MediaRowTitle :stretch="false">{{ link.url }}</MediaRowTitle>
+          <MediaRowTitle :stretch="false" v-bind="{ title: link.url }">{{
+            link.url
+          }}</MediaRowTitle>
         </template>
         <template #meta><span>saving…</span></template>
+        <template #tags />
       </MediaRow>
     </ul>
 
