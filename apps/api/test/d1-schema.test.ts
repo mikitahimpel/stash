@@ -428,3 +428,107 @@ describe("migration 0006: preview images and the repair of junk enrichments (#14
     expect(rows(database)).toEqual(first);
   });
 });
+
+describe("migration 0009: posts on X (#170)", () => {
+  const enriched = "2026-01-01T00:01:00.000Z";
+  const migration = Fs.readFileSync(`${migrationsDir}0009-link-post.sql`, "utf8");
+  const post = "/example_writer/status/1700000000000000001";
+
+  // Links as they were stored before the migration.
+  const seeded = (): DatabaseSync => {
+    const before = new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
+    for (const file of migrationFiles.filter((name) => prefix(name) < 9)) {
+      before.exec(Fs.readFileSync(`${migrationsDir}${file}`, "utf8"));
+    }
+    const insert = before.prepare(
+      `INSERT INTO links (id, url, canonical_url, title, summary, enriched_at, enrichment_error,
+         enrichment_attempts) VALUES (?, ?, ?, 'A title', 'A summary.', ?, ?, ?)`,
+    );
+    const hosts = {
+      x: "x.com",
+      twitter: "twitter.com",
+      "mobile-x": "mobile.x.com",
+      "mobile-twitter": "mobile.twitter.com",
+      fx: "fxtwitter.com",
+      vx: "vxtwitter.com",
+      fixupx: "fixupx.com",
+      fixvx: "fixvx.com",
+    };
+    for (const [id, host] of Object.entries(hosts)) {
+      insert.run(
+        id,
+        `https://${host}${post}?s=20`,
+        `https://${host}${post}?s=20`,
+        enriched,
+        null,
+        0,
+      );
+    }
+    insert.run("failed", "https://x.com/a/status/2", "https://x.com/a/status/2", null, "fetch", 5);
+    insert.run(
+      "profile",
+      "https://x.com/example_writer",
+      "https://x.com/example_writer",
+      enriched,
+      null,
+      0,
+    );
+    insert.run(
+      "page",
+      "https://example.com/a/status/1",
+      "https://example.com/a/status/1",
+      enriched,
+      null,
+      0,
+    );
+    return before;
+  };
+
+  const rows = (database: DatabaseSync) =>
+    Object.fromEntries(
+      database
+        .prepare(
+          `SELECT id, title, summary, post, enriched_at, enrichment_error, enrichment_attempts
+           FROM links`,
+        )
+        .all()
+        .map((row) => [String(row["id"]), row]),
+    );
+
+  it("stores a post as JSON, and nothing by default", () => {
+    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
+      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    const stored = () => db.prepare("SELECT post FROM links WHERE id = 'l1'").get()?.["post"];
+    expect(stored()).toBeNull();
+    db.exec(`UPDATE links SET post = '{"state":"unavailable"}' WHERE id = 'l1'`);
+    expect(stored()).toBe('{"state":"unavailable"}');
+  });
+
+  it("puts every stored link to a post back into the not-enriched state, and only those", () => {
+    const database = seeded();
+    database.exec(migration);
+    const after = rows(database);
+    for (const id of [
+      "x",
+      "twitter",
+      "mobile-x",
+      "mobile-twitter",
+      "fx",
+      "vx",
+      "fixupx",
+      "fixvx",
+    ]) {
+      // The title and the summary stay until the post is read.
+      expect(after[id], id).toMatchObject({
+        title: "A title",
+        summary: "A summary.",
+        post: null,
+        enriched_at: null,
+      });
+    }
+    // A link that had failed for good gets its attempts back.
+    expect(after["failed"]).toMatchObject({ enrichment_error: null, enrichment_attempts: 0 });
+    for (const id of ["profile", "page"])
+      expect(after[id]).toMatchObject({ enriched_at: enriched });
+  });
+});

@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-// The enrichment columns of `links` (summary, type, language, text, image_url, author, enriched_at,
+// The enrichment columns of `links` (summary, type, language, text, image_url, author, post, enriched_at,
 // enrichment_error, enrichment_attempts, metadata_version) and the link's tags. The links feature owns the rest of the table.
 
 /** What enrichment reads about a link. */
@@ -44,6 +44,17 @@ export interface Enrichment {
   readonly imageUrl: Link.Url | null;
   /** The channel or author. `null` keeps the one already stored. */
   readonly author: string | null;
+  /**
+   * The post of a link to X, as the JSON of `Link.LinkPost`. `null` keeps the one already stored
+   * (and leaves any other link without one).
+   */
+  readonly post: string | null;
+  /**
+   * The link's dedupe URL in its one form (a post's `https://x.com/<handle>/status/<id>`), for a
+   * link saved before that form was known. Skipped when another link already has it. `null`
+   * keeps the stored one.
+   */
+  readonly canonicalUrl: Link.Url | null;
   /** The keyword-search excerpt of the text. */
   readonly text: string | null;
   /** Added to the link's tags; tags given on save stay. */
@@ -142,10 +153,13 @@ export const make = Effect.gen(function* () {
               ELSE title END,
             summary = ${e.summary}, type = COALESCE(type, ${e.type}), language = ${e.language},
             text = ${e.text}, image_url = COALESCE(${e.imageUrl}, image_url),
-            author = COALESCE(${e.author}, author), enriched_at = ${e.enrichedAt},
+            author = COALESCE(${e.author}, author), post = COALESCE(${e.post}, post),
+            enriched_at = ${e.enrichedAt},
             enrichment_error = NULL, enrichment_attempts = 0,
             metadata_version = ${e.metadataVersion}
             WHERE id = ${id}`,
+          D1Database.sql`UPDATE OR IGNORE links SET canonical_url = ${e.canonicalUrl}
+            WHERE id = ${id} AND ${e.canonicalUrl} IS NOT NULL`,
           D1Database.sql`INSERT OR IGNORE INTO tags (name)
             SELECT DISTINCT value FROM json_each(${tags})
             WHERE EXISTS (SELECT 1 FROM links WHERE id = ${id})`,

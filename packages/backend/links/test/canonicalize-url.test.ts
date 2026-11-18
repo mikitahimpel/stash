@@ -44,6 +44,28 @@ describe("canonicalize", () => {
     ["https://www.youtube.com/embed/abc123", "https://youtube.com/watch?v=abc123"],
     ["https://www.youtube.com/live/abc123", "https://youtube.com/watch?v=abc123"],
     ["https://www.youtube.com/@channel", "https://youtube.com/@channel"],
+    // Posts on X.
+    [
+      "https://twitter.com/Example_Writer/status/1700000000000000001?s=20&t=abc",
+      "https://x.com/example_writer/status/1700000000000000001",
+    ],
+    [
+      "https://mobile.twitter.com/example_writer/status/1700000000000000001/photo/1",
+      "https://x.com/example_writer/status/1700000000000000001",
+    ],
+    [
+      "https://www.fxtwitter.com/example_writer/status/1700000000000000001",
+      "https://x.com/example_writer/status/1700000000000000001",
+    ],
+    [
+      "https://vxtwitter.com/example_writer/status/1700000000000000001",
+      "https://x.com/example_writer/status/1700000000000000001",
+    ],
+    [
+      "https://x.com/i/web/status/1700000000000000001",
+      "https://x.com/i/status/1700000000000000001",
+    ],
+    ["https://twitter.com/Example_Writer?lang=en", "https://twitter.com/Example_Writer?lang=en"],
     [
       "https://www.youtube.com/playlist?list=PL1&utm_source=x",
       "https://youtube.com/playlist?list=PL1",

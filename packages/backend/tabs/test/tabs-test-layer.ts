@@ -52,7 +52,8 @@ CREATE TABLE links (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   enriched_at TEXT,
   image_url TEXT,
-  author TEXT
+  author TEXT,
+  post TEXT
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);

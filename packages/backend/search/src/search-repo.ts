@@ -6,7 +6,9 @@ import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
 /** Narrows a search. Every set field must match. */
 export interface SearchFilters {
@@ -88,14 +90,31 @@ const placeholders = (count: number) => Array.from({ length: count }, () => "?")
 const KeywordRow = Schema.Struct({ linkId: Link.LinkId, rank: Schema.Number });
 const IdRow = Schema.Struct({ id: Link.LinkId });
 
+const decodePost = Schema.decodeUnknownOption(Schema.fromJsonString(Link.LinkPost));
+const encodePost = Schema.encodeSync(Link.LinkPost);
+/**
+ * `links.post`: the JSON of a `Link.LinkPost`, or NULL. JSON this version cannot read (a shape
+ * from another version) is no post, never a failed query.
+ */
+const PostColumn = Schema.NullOr(Schema.String).pipe(
+  Schema.decodeTo(
+    Schema.NullOr(Schema.toType(Link.LinkPost)),
+    SchemaTransformation.transform({
+      decode: (json) => (json === null ? null : Option.getOrNull(decodePost(json))),
+      encode: (post) => (post === null ? null : JSON.stringify(encodePost(post))),
+    }),
+  ),
+);
+
 /** A `links` row with its tags as a JSON array, decoded into a `Link`. */
 const LinkRow = Schema.Struct({
   ...Link.Link.fields,
   tags: Schema.fromJsonString(Schema.Array(Tag.TagName)),
+  post: PostColumn,
 });
 
 const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.status, l.type,
-  l.summary, l.language, l.image_url AS imageUrl, l.author, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
+  l.summary, l.language, l.image_url AS imageUrl, l.author, l.post, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
   l.enriched_at AS enrichedAt,
   (SELECT json_group_array(name) FROM (SELECT t.name FROM link_tags AS lt
     JOIN tags AS t ON t.id = lt.tag_id WHERE lt.link_id = l.id ORDER BY t.name)) AS tags`;
@@ -144,7 +163,13 @@ export const make = Effect.gen(function* () {
           ...ids,
         ),
       ).pipe(
-        Effect.map((links) => new Map(links.map((link) => [link.id, link]))),
+        // A link that is no post has no `post` key.
+        Effect.map(
+          (rows) =>
+            new Map(
+              rows.map(({ post, ...link }) => [link.id, post === null ? link : { ...link, post }]),
+            ),
+        ),
         provide,
       );
     },

@@ -50,6 +50,32 @@ const youtubeVideoId = (url: URL): string | undefined => {
     : undefined;
 };
 
+const xHosts = new Set([
+  "x.com",
+  "twitter.com",
+  "mobile.x.com",
+  "mobile.twitter.com",
+  "fxtwitter.com",
+  "vxtwitter.com",
+  "fixupx.com",
+  "fixvx.com",
+]);
+
+const xStatusPath = /^\/(?:([A-Za-z0-9_]{1,30})|i\/web)\/status(?:es)?\/(\d{1,25})(?:\/|$)/;
+
+/**
+ * A post on X as `https://x.com/<handle>/status/<id>`, if this is a status URL on X, the old
+ * twitter.com, a mobile host or an embed-fixing mirror. Handles don't differ by case.
+ */
+const xPostUrl = (url: URL): string | undefined => {
+  if (!xHosts.has(url.hostname)) return undefined;
+  const match = xStatusPath.exec(url.pathname);
+  const id = match?.[2];
+  return id === undefined
+    ? undefined
+    : `https://x.com/${(match?.[1] ?? "i").toLowerCase()}/status/${id}`;
+};
+
 /** Hash routes (`#/path`, `#!/path`) address a page in a single-page app. Other fragments don't. */
 const isRouteFragment = (hash: string): boolean => hash.startsWith("#/") || hash.startsWith("#!");
 
@@ -59,7 +85,9 @@ const isRouteFragment = (hash: string): boolean => hash.startsWith("#/") || hash
  * - no tracking parameters (`utm_*`, `fbclid`, …), remaining parameters sorted by name;
  * - no trailing slash on a non-root path, no fragment unless it is a hash route;
  * - YouTube videos (`youtu.be/<id>`, `/shorts/<id>`, `/embed/<id>`, `m.youtube.com`) as
- *   `https://youtube.com/watch?v=<id>`.
+ *   `https://youtube.com/watch?v=<id>`;
+ * - posts on X (`twitter.com`, `mobile.twitter.com`, `fxtwitter.com`, `vxtwitter.com`, any query,
+ *   `/photo/1`) as `https://x.com/<handle>/status/<id>`, the handle in lowercase.
  */
 export const canonicalize = (input: Link.Url): Link.Url => {
   const url = new URL(input);
@@ -72,6 +100,9 @@ export const canonicalize = (input: Link.Url): Link.Url => {
   if (videoId !== undefined) {
     return Link.Url.make(`https://youtube.com/watch?v=${encodeURIComponent(videoId)}`);
   }
+
+  const post = xPostUrl(url);
+  if (post !== undefined) return Link.Url.make(post);
 
   const params = [...url.searchParams].filter(([name]) => !isTrackingParam(name));
   params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));

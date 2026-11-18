@@ -35,6 +35,54 @@ describe("link details", () => {
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );
 
+  it.effect("answers the post enrichment stored, and no post for JSON it cannot read", () =>
+    Effect.gen(function* () {
+      const saved = yield* save;
+      expect(saved).not.toHaveProperty("post");
+      const post = {
+        state: "available",
+        id: "1700000000000000001",
+        url: "https://x.com/example_writer/status/1700000000000000001",
+        author: {
+          name: "Example Writer",
+          handle: "example_writer",
+          avatarUrl: null,
+          verified: false,
+        },
+        text: "An example post",
+        entities: [],
+        createdAt: "2026-01-02T03:04:05.000Z",
+        media: [],
+        replyTo: null,
+        counts: null,
+        long: false,
+        quoted: null,
+      };
+      const store = (json: string) =>
+        D1Database.Database.use((db) =>
+          db.run(D1Database.sql`UPDATE links SET post = ${json} WHERE id = ${saved.id}`),
+        );
+      yield* store(JSON.stringify(post));
+      expect((yield* GetLink.getLink(saved.id)).post).toMatchObject({
+        state: "available",
+        text: "An example post",
+        author: { handle: "example_writer" },
+      });
+      const page = yield* ListLinks.listLinks({});
+      expect(page.items.map((link) => link.post?.state)).toEqual(["available"]);
+
+      yield* store(JSON.stringify({ state: "unavailable", id: post.id, url: post.url }));
+      expect((yield* GetLink.getLink(saved.id)).post).toEqual({
+        state: "unavailable",
+        id: post.id,
+        url: post.url,
+      });
+
+      yield* store('{"state": "from another version"}');
+      expect(yield* GetLink.getLink(saved.id)).not.toHaveProperty("post");
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
   it.effect("answers the preview image enrichment stored, in details and in the list", () =>
     Effect.gen(function* () {
       const saved = yield* save;

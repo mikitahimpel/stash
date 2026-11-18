@@ -1,3 +1,4 @@
+import type * as Link from "@stash/contracts-domain/link";
 import * as Option from "effect/Option";
 
 /** Readable text for a link, the input to classification and embedding. */
@@ -13,7 +14,9 @@ export interface ContentText {
   /** The body text, or `""` when only metadata (title, author, image) is known. */
   readonly text: string;
   /** Where `text` came from. `metadata` means there is no text. */
-  readonly source: "page" | "transcript" | "description" | "metadata";
+  readonly source: "page" | "transcript" | "description" | "post" | "metadata";
+  /** For a link to a post on X: the post, or the fact that it is unavailable. */
+  readonly post?: Link.LinkPost;
 }
 
 /** Cuts `text` to at most `maxLength` characters, at a word boundary when one is close. */
