@@ -19,6 +19,18 @@ export const fetchContent = (
   });
 
 /**
+ * Only what a backfill needs, the preview image and the author: one oEmbed request for a YouTube
+ * video or playlist (never the watch page), the page itself otherwise.
+ */
+export const fetchMetadata = (
+  url: string,
+): Effect.Effect<ContentText.ContentText, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
+  Option.match(FetchYoutubeContent.target(url), {
+    onNone: () => FetchPageText.fetchPageText(url),
+    onSome: FetchYoutubeContent.fetchYoutubeMetadata,
+  });
+
+/**
  * What is known of a link with no request at all: a YouTube video's thumbnail, and otherwise
  * nothing. For a link whose fetches keep failing.
  */

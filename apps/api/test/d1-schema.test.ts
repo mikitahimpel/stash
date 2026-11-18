@@ -222,6 +222,14 @@ describe("D1 migrations", () => {
     expect(author()).toBe("Synthetic Channel");
   });
 
+  it("starts every link at metadata version 0, so the backfill reads the old ones (#155)", () => {
+    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
+      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    expect(db.prepare("SELECT metadata_version AS v FROM links WHERE id = 'l1'").get()).toEqual({
+      v: 0,
+    });
+  });
+
   it("removes a link's tags when the link is deleted", () => {
     db.exec(`
       INSERT INTO links (id, url) VALUES ('l1', 'https://example.com/a');

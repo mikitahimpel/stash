@@ -100,6 +100,21 @@ describe("handleScheduled", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  it.effect("queues a metadata backfill for an enriched link without image or author", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(DateTime.toEpochMillis(runAt));
+      yield* D1Database.Database.use((db) =>
+        db.run(D1Database.sql`INSERT INTO links (id, url, canonical_url, type, created_at,
+            enriched_at)
+          VALUES ('link-old', 'https://example.com/old', 'https://example.com/old', 'article',
+            '2026-03-01T00:00:00.000Z', '2026-03-01T00:01:00.000Z')`),
+      );
+      yield* ScheduledHandler.handleScheduled(ScheduledHandler.requeuePendingCron);
+      const messages = yield* Testing.TestEnrichmentQueue.use((queue) => queue.drain);
+      expect(messages).toEqual([{ linkId: "link-1" }, { linkId: "link-old", task: "metadata" }]);
+    }).pipe(Effect.provide(layer)),
+  );
+
   it.effect("does nothing for an unknown cron", () =>
     Effect.gen(function* () {
       yield* ScheduledHandler.handleScheduled("*/5 * * * *");

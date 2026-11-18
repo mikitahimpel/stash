@@ -11,8 +11,8 @@ import * as EnrichmentRepo from "../src/enrichment-repo.ts";
 import * as FakeHttp from "./fake-http.ts";
 import * as FakeLanguageModel from "./fake-language-model.ts";
 
-// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002, 0006 and 0007, the
-// source of truth). Packages never reach into another package's files, so tests keep their own copy.
+// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002, 0006, 0007 and 0008,
+// the source of truth). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
   id TEXT PRIMARY KEY,
@@ -37,7 +37,8 @@ CREATE TABLE links (
   enriched_at TEXT,
   image_url TEXT,
   author TEXT,
-  enrichment_attempts INTEGER NOT NULL DEFAULT 0
+  enrichment_attempts INTEGER NOT NULL DEFAULT 0,
+  metadata_version INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);

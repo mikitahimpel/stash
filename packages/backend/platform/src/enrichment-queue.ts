@@ -5,8 +5,14 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-/** Asks the consumer to enrich one saved link. */
-export const EnrichmentMessage = Schema.Struct({ linkId: Link.LinkId });
+/**
+ * Asks the consumer to enrich one saved link. With `task: "metadata"` it asks for less: fill the
+ * preview image and the author of a link that is already enriched, and leave the rest alone.
+ */
+export const EnrichmentMessage = Schema.Struct({
+  linkId: Link.LinkId,
+  task: Schema.optionalKey(Schema.Literal("metadata")),
+});
 export type EnrichmentMessage = typeof EnrichmentMessage.Type;
 
 export class EnrichmentQueueError extends Data.TaggedError("EnrichmentQueueError")<{

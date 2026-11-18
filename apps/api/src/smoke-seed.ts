@@ -222,8 +222,8 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
       db
         .prepare(
           `INSERT INTO links (id, url, canonical_url, title, status, type, summary, language,
-            source_device_id, created_at, enriched_at, image_url, author)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?, ?)`,
+            source_device_id, created_at, enriched_at, image_url, author, metadata_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, 1)`,
         )
         .bind(
           id,

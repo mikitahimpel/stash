@@ -52,6 +52,34 @@ const transcript = (id: string) =>
   );
 
 /**
+ * Title, channel and thumbnail of a video or a playlist: one oEmbed request, and never the watch
+ * page. A video's thumbnail comes from its id, so it is there even when oEmbed has no answer.
+ * Fails only when oEmbed fails transiently.
+ */
+export const fetchYoutubeMetadata = (
+  target: Target,
+): Effect.Effect<ContentText.ContentText, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
+  Effect.gen(function* () {
+    const page = pageUrl(target);
+    const oembed = yield* FetchYoutubeOembed.fetchYoutubeOembed(page);
+    return {
+      title: Option.flatMap(oembed, (o) => o.title),
+      description: Option.none(),
+      author: Option.flatMap(oembed, (o) => o.authorName),
+      imageUrl:
+        target._tag === "Video"
+          ? Option.some(thumbnailUrl(target.id))
+          : oembed.pipe(
+              Option.flatMap((o) => o.thumbnailUrl),
+              Option.flatMap((thumbnail) => ContentText.resolveImageUrl(thumbnail, page)),
+            ),
+      language: Option.none(),
+      text: "",
+      source: "metadata" as const,
+    };
+  });
+
+/**
  * Title, channel, thumbnail and, when YouTube allows, the transcript or description of a video;
  * title, channel and thumbnail of a playlist. Fails only when oEmbed fails transiently.
  */
@@ -59,31 +87,14 @@ export const fetchYoutubeContent = (
   target: Target,
 ): Effect.Effect<ContentText.ContentText, ContentHttp.ContentFetchError, HttpClient.HttpClient> =>
   Effect.gen(function* () {
-    const page = pageUrl(target);
-    const oembed = yield* FetchYoutubeOembed.fetchYoutubeOembed(page);
-    const oembedTitle = Option.flatMap(oembed, (o) => o.title);
-    const author = Option.flatMap(oembed, (o) => o.authorName);
-    if (target._tag === "Playlist") {
-      return {
-        title: oembedTitle,
-        description: Option.none(),
-        author,
-        imageUrl: oembed.pipe(
-          Option.flatMap((o) => o.thumbnailUrl),
-          Option.flatMap((thumbnail) => ContentText.resolveImageUrl(thumbnail, page)),
-        ),
-        language: Option.none(),
-        text: "",
-        source: "metadata" as const,
-      };
-    }
+    const metadata = yield* fetchYoutubeMetadata(target);
+    if (target._tag === "Playlist") return metadata;
     const watched = yield* transcript(target.id);
     const body = Option.filter(watched, (w) => w.text !== "");
     return {
-      title: Option.orElse(oembedTitle, () => Option.flatMap(watched, (w) => w.title)),
+      ...metadata,
+      title: Option.orElse(metadata.title, () => Option.flatMap(watched, (w) => w.title)),
       description: Option.flatMap(watched, (w) => w.description),
-      author,
-      imageUrl: Option.some(thumbnailUrl(target.id)),
       language: Option.flatMap(body, (w) => w.language),
       text: Option.match(body, { onNone: () => "", onSome: (w) => w.text }),
       source: Option.match(body, { onNone: () => "metadata" as const, onSome: (w) => w.source }),
