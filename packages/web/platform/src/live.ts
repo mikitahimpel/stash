@@ -8,6 +8,7 @@ import * as Layer from "effect/Layer";
 import type * as KeyValueStore from "effect/persistence/KeyValueStore";
 import * as Keyboard from "./keyboard.ts";
 import * as Network from "./network.ts";
+import * as RecentSearches from "./recent-searches.ts";
 import * as Share from "./share.ts";
 import * as Theme from "./theme.ts";
 import * as Visibility from "./visibility.ts";
@@ -18,8 +19,8 @@ import * as Visibility from "./visibility.ts";
  * - `KeyValueStore` (`effect/persistence/KeyValueStore`): backed by `localStorage`.
  * - `IndexedDb`, `Clipboard`, `Permissions` (`@effect/platform-browser/*`).
  * - `HttpClient` (`effect/http/HttpClient`): backed by `fetch`.
- * - `Share`, `Network`, `Visibility`, `Theme`, `Keyboard` (this package). `Theme` keeps its preference in
- *   `localStorage`.
+ * - `Share`, `Network`, `Visibility`, `Theme`, `Keyboard`, `RecentSearches` (this package).
+ *   `Theme` keeps its preference in `localStorage`, and `RecentSearches` its list.
  *
  * Use the individual layers below to swap one piece, for example
  * `layerSessionKeyValueStore` or `layerIndexedDbKeyValueStore`.
@@ -34,7 +35,8 @@ export type Services =
   | Network.Network
   | Visibility.Visibility
   | Theme.Theme
-  | Keyboard.Keyboard;
+  | Keyboard.Keyboard
+  | RecentSearches.RecentSearches;
 
 export const layerKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore> =
   BrowserKeyValueStore.layerLocalStorage;
@@ -60,6 +62,9 @@ export const layerTheme: Layer.Layer<Theme.Theme> = Theme.layer.pipe(
   Layer.provide(layerKeyValueStore),
 );
 
+export const layerRecentSearches: Layer.Layer<RecentSearches.RecentSearches> =
+  RecentSearches.layer.pipe(Layer.provide(layerKeyValueStore));
+
 export const layerNetwork: Layer.Layer<Network.Network> = Network.layer;
 
 export const layerKeyboard: Layer.Layer<Keyboard.Keyboard> = Keyboard.layer;
@@ -75,4 +80,5 @@ export const layer: Layer.Layer<Services> = Layer.mergeAll(
   Visibility.layer,
   layerTheme,
   Keyboard.layer,
+  layerRecentSearches,
 );

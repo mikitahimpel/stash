@@ -1,11 +1,14 @@
-// Synthetic previews for the mockups: small SVG pictures as data URIs, drawn here so the pages
-// need no network and no real thumbnail ever enters the repo. They stand in for a video frame, an
-// article's og:image and a repo card.
+// Synthetic preview images for the screenshots and the layout audit: small SVG pictures drawn
+// here, so no real thumbnail ever enters the repo and the scripts need no network. They stand in
+// for a video frame, an article's og:image and a photo. The seeded links name them as
+// `https://example.com/previews/<name>.svg` (`origin`), and the scripts answer those requests in
+// the browser with `forUrl`.
+
+/** Where the seeded links' preview images live. Nothing is ever fetched from there. */
+export const origin = "https://example.com/previews/";
 
 const uri = (body: string): string =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">${body}</svg>`,
-  )}`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">${body}</svg>`;
 
 const text = (x: number, y: number, size: number, fill: string, value: string, weight = 700) =>
   `<text x="${x}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}">${value}</text>`;
@@ -75,3 +78,22 @@ export const photo = (sky: string, sun: string, near: string, far: string) =>
       `<path d="M0 132l56-44 48 30 62-52 70 58 84-40v96H0z" fill="${far}"/>` +
       `<path d="M0 156l70-34 60 22 76-40 114 46v30H0z" fill="${near}"/>`,
   );
+
+const pictures: ReadonlyArray<string> = [
+  chart("#12324a", "#ffb347"),
+  card("#f4e9d8", "#2b2118", "example.com", "Field guide"),
+  talk("#1b1b3a", "#8b7bff", ["KEYBOARD", "FIRST"]),
+  card("#f97316", "#ffffff", "example.net", "In practice"),
+  photo("#f3d9c4", "#ef6f4f", "#4a3b5c", "#8a6f8f"),
+  talk("#10261c", "#3ddc84", ["ЦЕНЫ", "И ГОРОДА"]),
+  code("#16213e", "#6cb6ff"),
+  card("#1f3d2b", "#e8f5e9", "example.com", "Who pays?"),
+  talk("#2a1a12", "#ff9d5c", ["CENTRAL", "BANKS"]),
+];
+
+/** The SVG for a preview URL: always the same picture for the same URL. */
+export const forUrl = (url: string): string => {
+  let sum = 0;
+  for (const char of new URL(url).pathname) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
+  return pictures[sum % pictures.length]!;
+};

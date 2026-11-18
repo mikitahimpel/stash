@@ -19,7 +19,7 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
 
 /**
  * Dev-only pages. `import.meta.env.DEV` is `false` in the production build, which drops them and
- * their chunks; there `/_ui` and `/_mockups/*` fall through to the catch-all redirect.
+ * its chunk; there `/_ui` falls through to the catch-all redirect.
  */
 export const devRoutes: ReadonlyArray<RouteRecordRaw> = import.meta.env.DEV
   ? [
@@ -28,26 +28,6 @@ export const devRoutes: ReadonlyArray<RouteRecordRaw> = import.meta.env.DEV
         name: "ui-gallery",
         component: () => import("./ui-gallery-page.vue"),
         // Opens without a session, outside the app layout.
-        meta: { public: true },
-      },
-      // The mockups of #148, for the owner's approval: static pages on made-up data.
-      {
-        path: "/_mockups/inbox",
-        name: "mockup-inbox",
-        component: () => import("./mockups/inbox-mockup-page.vue"),
-        meta: { public: true },
-      },
-      {
-        path: "/_mockups/search",
-        name: "mockup-search",
-        component: () => import("./mockups/search-mockup-page.vue"),
-        meta: { public: true },
-      },
-      {
-        path: "/_mockups/search-empty",
-        name: "mockup-search-empty",
-        component: () => import("./mockups/search-mockup-page.vue"),
-        props: { empty: true },
         meta: { public: true },
       },
     ]

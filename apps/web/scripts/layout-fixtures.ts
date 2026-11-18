@@ -1,7 +1,10 @@
 // Synthetic api answers for the layout audit (`scripts/layout-audit.ts`): the same picture as the
 // screenshot seed (`/_smoke/seed`: three devices, a month of links with tags and statuses, open
 // tabs of every age, tokens), served from the browser so the audit needs no api. Everything is
-// invented: example.com URLs, made-up titles and device names. Ages are relative to `now`.
+// invented: example.com URLs, made-up titles, authors and device names. Ages are relative to `now`.
+// Videos and some articles name a preview image under `PreviewImages.origin`, which the scripts
+// answer in the browser; the rest show the placeholder tile.
+import * as PreviewImages from "./preview-images.ts";
 
 const day = 24 * 60 * 60 * 1000;
 
@@ -102,12 +105,23 @@ const links = (now: number) =>
     title,
     status,
     type,
-    summary: `A short synthetic summary of "${title.toLowerCase()}", long enough to wrap on a phone.`,
+    // Every fourth link has no summary: a page that gave enrichment no text.
+    summary:
+      i % 4 === 3
+        ? null
+        : `A short synthetic summary of "${title.toLowerCase()}", long enough to wrap on a phone.`,
     language: "en",
-    tags,
+    // The first link has more tags than a row shows.
+    tags: i === 0 ? [...tags, "housing", "explainer", "data", "long"] : tags,
     sourceDeviceId: devices[device]!.id,
     createdAt: iso(now - age * day),
-    imageUrl: null,
+    imageUrl: type === "video" || i % 3 !== 2 ? `${PreviewImages.origin}${path}.svg` : null,
+    author:
+      type === "video"
+        ? ["Plain Economics", "A channel with a rather long name, for truncation"][i % 2]!
+        : i % 2 === 0
+          ? "Mara Lindqvist"
+          : null,
     enrichedAt: iso(now - age * day + 60_000),
   }));
 
@@ -190,6 +204,7 @@ const saved = (now: number) => ({
   sourceDeviceId: null,
   createdAt: iso(now),
   imageUrl: null,
+  author: null,
   enrichedAt: null,
   created: true,
 });
@@ -207,7 +222,13 @@ const listLinks = (all: ReturnType<typeof links>, url: URL) => {
 
 const search = (all: ReturnType<typeof links>, url: URL) => {
   const terms = (url.searchParams.get("q") ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  const q = url.searchParams;
+  const since = q.get("since");
   const hits = all
+    .filter((link) => (q.has("type") ? link.type === q.get("type") : true))
+    .filter((link) => (q.has("tag") ? link.tags.includes(q.get("tag")!) : true))
+    .filter((link) => (q.has("deviceId") ? link.sourceDeviceId === q.get("deviceId") : true))
+    .filter((link) => (since === null ? true : link.createdAt >= since))
     .map((link) => ({
       link,
       score: terms.filter((term) =>
@@ -256,6 +277,19 @@ export const empty: Fixtures = {
     return undefined;
   },
 };
+
+/**
+ * The recent searches of a returning user, as the app keeps them in `localStorage`
+ * (`@stash/web-platform/recent-searches`): the key and its value.
+ */
+export const recentSearches = (now: number): readonly [key: string, value: string] => [
+  "stash:recent-searches",
+  JSON.stringify([
+    { query: "economics", at: now - 2 * 60 * 60_000 },
+    { query: "sqlite full-text search", at: now - 1.2 * day },
+    { query: "that talk about keyboard shortcuts", at: now - 6 * day },
+  ]),
+];
 
 interface Created {
   readonly id: string;

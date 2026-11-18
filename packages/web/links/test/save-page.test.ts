@@ -42,6 +42,30 @@ describe("/save page", () => {
     expect(wrapper.text()).toContain("example.com");
   });
 
+  it("shows the saved link as a media row: preview, title, host and author", async () => {
+    const { wrapper } = await mountAt("/save?url=https://example.com/video", {
+      ...routes,
+      "POST /links": () =>
+        ApiTesting.json(
+          {
+            ...Fixtures.link("v", {
+              type: "video",
+              imageUrl: "https://example.com/previews/v.jpg",
+              author: "Synthetic Channel",
+            }),
+            created: false,
+          },
+          201,
+        ),
+    });
+    await vi.waitFor(() => expect(wrapper.find("[data-slot=saved-link]").exists()).toBe(true));
+    const row = wrapper.find("[data-slot=saved-link]");
+    expect(row.find("img").attributes("src")).toBe("https://example.com/previews/v.jpg");
+    expect(row.find("[data-slot=media-row-title]").attributes("href")).toBe("/links/v");
+    expect(row.find("[data-slot=media-row-meta]").text()).toContain("Synthetic Channel");
+    expect(row.find("[data-slot=media-row-meta]").text()).toContain("example.com");
+  });
+
   it("undoes the save in one tap", async () => {
     const { wrapper } = await mountAt("/save?url=https://example.com/unwanted", routes);
     await vi.waitFor(() => expect(wrapper.find("[data-action=undo]").exists()).toBe(true));
@@ -92,7 +116,10 @@ describe("/save page", () => {
       "/save?title=A%20synthetic%20page&url=https%3A%2F%2Fexample.com%2Fb",
       routes,
     );
-    await vi.waitFor(() => expect(wrapper.text()).toContain("Saved ✓ A synthetic page"));
+    await vi.waitFor(() => expect(wrapper.find("h1").text()).toBe("Saved ✓"));
+    expect(wrapper.find("[data-slot=saved-link] [data-slot=media-row-title]").text()).toBe(
+      "A synthetic page",
+    );
   });
 
   it("goes to the Inbox on Back when the page has no history", async () => {

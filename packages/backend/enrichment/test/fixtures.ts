@@ -128,6 +128,8 @@ export const oembedPlaylist = JSON.stringify({
 
 export const ogImagePage = `<html lang="en"><head><title>A Page With a Preview</title>
 <meta property="og:image" content="/images/preview.png?v=2">
+<meta property="article:author" content="https://example.com/people/ada">
+<meta name="author" content="  Ada  Example ">
 <meta name="twitter:image" content="https://cdn.example.com/twitter.png">
 <meta property="og:description" content="A synthetic page that has a preview image.">
 </head><body><main><p>This page is written in English, and it has a preview image.</p></main>
@@ -135,10 +137,12 @@ export const ogImagePage = `<html lang="en"><head><title>A Page With a Preview</
 
 export const twitterImagePage = `<html><head><title>Twitter Card Only</title>
 <meta name="twitter:image" content="https://cdn.example.com/twitter.png">
+<meta property="article:author" content="Grace Example">
 </head><body><p>Body text of the page with a twitter card.</p></body></html>`;
 
 export const dataImagePage = `<html><head><title>Inline Image</title>
 <meta property="og:image" content="data:image/png;base64,AAAA">
+<meta property="article:author" content="https://example.com/people/ada">
 </head><body><p>Body text of the page with an inline image.</p></body></html>`;
 
 /** A page with a title and a description and no readable text: a script-rendered app. */

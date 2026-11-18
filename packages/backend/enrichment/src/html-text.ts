@@ -12,6 +12,8 @@ export interface HtmlText {
   readonly lang: Option.Option<string>;
   /** The preview image (`og:image`, else `twitter:image`) as written: maybe relative. */
   readonly image: Option.Option<string>;
+  /** Who wrote the page: `<meta name="author">`, else `article:author` when it is a name. */
+  readonly author: Option.Option<string>;
   readonly text: string;
 }
 
@@ -58,6 +60,20 @@ const nonEmpty = (text: string | undefined): Option.Option<string> => {
   const value = text === undefined ? "" : squash(decodeEntities(text));
   return value === "" ? Option.none() : Option.some(value);
 };
+
+/** The longest author line kept. Longer ones are lists of people or not names at all. */
+export const maxAuthorLength = 100;
+
+/**
+ * An author as a page names it, when that is a name: `article:author` is often a profile URL, and
+ * some sites put an address or a whole sentence there.
+ */
+export const authorName = (value: string | undefined): Option.Option<string> =>
+  nonEmpty(value).pipe(
+    Option.filter(
+      (name) => name.length <= maxAuthorLength && !/^https?:|^www\.|:\/\/|@/i.test(name),
+    ),
+  );
 
 /** The attributes of one start tag's source, keys lowercased. */
 export const parseAttributes = (tag: string): Readonly<Record<string, string>> => {
@@ -137,7 +153,10 @@ export const toText = (html: string): string => {
     .join("\n");
 };
 
-/** Title, description, declared language, preview image and readable text of an HTML document. */
+/**
+ * Title, description, declared language, preview image, author and readable text of an HTML
+ * document.
+ */
 export const parse = (html: string): HtmlText => {
   const withoutComments = html.replace(/<!--[\s\S]*?-->/g, " ");
   const meta = metaContent(withoutComments);
@@ -160,6 +179,10 @@ export const parse = (html: string): HtmlText => {
       Option.orElse(() => nonEmpty(meta.get("og:image:url"))),
       Option.orElse(() => nonEmpty(meta.get("twitter:image"))),
       Option.orElse(() => nonEmpty(meta.get("twitter:image:src"))),
+    ),
+    author: authorName(meta.get("author")).pipe(
+      Option.orElse(() => authorName(meta.get("article:author"))),
+      Option.orElse(() => authorName(meta.get("og:article:author"))),
     ),
     lang: nonEmpty(htmlTag === undefined ? undefined : parseAttributes(htmlTag)["lang"]),
     text: toText(region),

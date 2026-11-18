@@ -77,6 +77,9 @@ const formatDate = (date: DateTime.Utc) =>
               <ExternalLink :size="12" aria-hidden="true" />
             </a>
           </TextLink>
+          <span v-if="view.link.author !== null" data-slot="link-author">{{
+            view.link.author
+          }}</span>
           <span>{{ view.link.status }}</span>
           <span v-if="view.link.type !== null">{{ view.link.type }}</span>
           <RouterLink

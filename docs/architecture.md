@@ -11,7 +11,7 @@ Stash collects links and open tabs from every device into one searchable, AI-org
 |---|---|
 | Zen / Firefox extension | Hotkey saves the current tab. "Save all & close" saves a whole window or workspace. Reports open-tab snapshots and executes remote commands (e.g. close a tab). |
 | iPhone | An Apple Shortcut in the Safari share sheet POSTs the link to the API. Open iPhone tabs are read on a Mac from Safari's iCloud Tabs database by `mac-agent`. |
-| Web app | Search (semantic + keyword), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
+| Web app | Search (semantic + keyword, filtered by type, device and date), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
 | Claude (MCP) | Remote MCP server added as a custom connector. It works in claude.ai, desktop, the iOS app and Claude Code. |
 | Cron | Auto-archives Zen tabs older than N days (and closes them through the extension). Builds a weekly digest. Hourly, re-queues links still waiting for enrichment. |
 
@@ -29,7 +29,7 @@ Claude ──OAuth──► apps/mcp (Worker) ─┘    └─ Queue ─► enri
 
 - `apps/api` is the only owner of data. `apps/mcp` is a separate Worker. It calls `apps/api` through a Cloudflare **Service Binding** with the typed `HttpApiClient` built from `packages/contracts/api`, so it is just another client.
 - `apps/web` is a static Vue SPA served via Workers Static Assets.
-- Saving answers immediately and enqueues enrichment. The consumer runs Enricher → Classifier → Embedder and writes to D1, Vectorize and R2. Retries and timeouts use Effect `Schedule`. YouTube links get their title and channel from oEmbed and their thumbnail from the video id; the watch page (transcript) is best effort, because YouTube often answers Workers with a consent page. A link with no text gets no summary rather than one about the missing text.
+- Saving answers immediately and enqueues enrichment. The consumer runs Enricher → Classifier → Embedder and writes to D1, Vectorize and R2. Retries and timeouts use Effect `Schedule`. YouTube links get their title and channel (stored as the link's author) from oEmbed and their thumbnail from the video id; the watch page (transcript) is best effort, because YouTube often answers Workers with a consent page. A link with no text gets no summary rather than one about the missing text.
 
 ## Stack
 
@@ -118,7 +118,7 @@ Example:
 
 Only a context's `platform` package may touch runtime globals. Features depend on Effect services, and apps provide the live layers.
 
-- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`, `theme`). It exports `./testing` with in-memory layers.
+- `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`: the searches made on this device, kept in `localStorage` only). It exports `./testing` with in-memory layers.
 - `packages/extension/platform` wraps `browser.*` (`tabs`, `storage`, `alarms`, `commands`). Any browser differences, such as the future Safari port, live here.
 - `packages/backend/platform` exposes Cloudflare bindings (D1, Queue, Vectorize, R2, KV, AI) as Effect services built from `env`.
 - `packages/mcp/platform` exposes the Service Binding to the api as a typed client.
@@ -133,7 +133,7 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 ## Data model (initial)
 
-- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), source_device_id, created_at, enriched_at, enrichment_error, enrichment_attempts (requeues by the hourly cron, capped)
+- `links`: id, url, canonical_url, title, status (`new` / `seen` / `done` / `archived`), type (`article` / `video` / `tool` / `repo` / `other`), summary, language, image_url (a remote preview image: `og:image` or a YouTube thumbnail, never proxied or stored), author (a YouTube channel or a page's author, when the source names one), source_device_id, created_at, enriched_at, enrichment_error, enrichment_attempts (requeues by the hourly cron, capped)
 - `tags`, `link_tags`
 - `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)

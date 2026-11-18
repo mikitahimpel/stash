@@ -52,6 +52,7 @@ export const archived = (deviceId: string, url: string, title: string | null) =>
     sourceDeviceId: deviceId,
     createdAt: takenAt,
     imageUrl: null,
+    author: null,
     enrichedAt: null,
   },
   command: command(deviceId, url),

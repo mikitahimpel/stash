@@ -35,7 +35,7 @@ describe("FetchPageText.fetchPageText", () => {
     Effect.gen(function* () {
       const content = yield* FetchPageText.fetchPageText("https://example.com/blog/preview");
       expect(content.imageUrl).toEqual(Option.some("https://example.com/images/preview.png?v=2"));
-      expect(content.author).toEqual(Option.none());
+      expect(content.author).toEqual(Option.some("Ada Example"));
     }).pipe(Effect.provide(FakeHttp.layer(routes))),
   );
 
@@ -43,6 +43,7 @@ describe("FetchPageText.fetchPageText", () => {
     Effect.gen(function* () {
       const content = yield* FetchPageText.fetchPageText("https://example.com/twitter");
       expect(content.imageUrl).toEqual(Option.some("https://cdn.example.com/twitter.png"));
+      expect(content.author).toEqual(Option.some("Grace Example"));
     }).pipe(Effect.provide(FakeHttp.layer(routes))),
   );
 
@@ -50,6 +51,8 @@ describe("FetchPageText.fetchPageText", () => {
     Effect.gen(function* () {
       const inline = yield* FetchPageText.fetchPageText("https://example.com/inline");
       expect(inline.imageUrl).toEqual(Option.none());
+      // An `article:author` that is a profile URL is not a name.
+      expect(inline.author).toEqual(Option.none());
       const article = yield* FetchPageText.fetchPageText("https://example.com/article");
       expect(article.imageUrl).toEqual(Option.none());
       const text = yield* FetchPageText.fetchPageText("https://example.com/notes.txt");

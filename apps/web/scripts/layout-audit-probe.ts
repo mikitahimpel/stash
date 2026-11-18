@@ -46,12 +46,12 @@ export const probe = (body: HTMLElement): Snapshot => {
   const clips = (el: Element) => ["auto", "scroll", "hidden", "clip"].includes(css(el).overflowX);
   // The right end of these is meant to sit on the content edge.
   const endAligned =
-    "[data-slot=list-row-trailing], [data-slot=section-header-actions], [data-slot=page-header-actions], [data-slot=app-bar-inner] > :last-child";
+    "[data-slot=list-row-trailing], [data-slot=section-header-actions], [data-slot=group-header-actions], [data-slot=page-header-actions], [data-slot=app-bar-inner] > :last-child";
   const controlSlots = new Set(["input", "search-field", "segmented-control", "toggle-chip"]);
   // Ink that counts by its box, not its text: controls, fields, keys, graphics, row ranks.
   const inkBox = (el: Element): boolean =>
     el.matches(
-      "button, [role=radio], [role=tab], svg, img, kbd, output, [data-slot=list-row-leading], [data-slot=device-code]",
+      "button, [data-slot=button], [role=radio], [role=tab], svg, img, kbd, output, [data-slot=list-row-leading], [data-slot=device-code]",
     ) ||
     controlSlots.has(el.getAttribute("data-slot") ?? "") ||
     surface(el) ||
@@ -107,7 +107,7 @@ export const probe = (body: HTMLElement): Snapshot => {
     "section-header",
     "card",
     "empty-state",
-    "saved-read-chart",
+    "group-header",
     "tab-age-chart",
   ]);
   const stacks = (el: Element): boolean => {
@@ -168,13 +168,37 @@ export const probe = (body: HTMLElement): Snapshot => {
   // Features may rename a row's data-slot (`link-row`); `data-list-row` always marks a ListRow.
   const isRow = (el: Element) => el.hasAttribute("data-list-row");
 
+  // A MediaRow (`data-media-row`). Its box sits on the content edges and its content is inset, so
+  // it is measured by its box. Where the box reaches past an edge for its background only (a
+  // selected row on a phone), its ink is what must sit on the edge.
+  const isMediaRow = (el: Element) => el.hasAttribute("data-media-row");
+  const mediaRowEdges = (row: Element) => {
+    const b = box(row);
+    const inked = ink(row);
+    const within = b.left >= content.left - 0.5 && b.right <= content.right + 0.5;
+    return within
+      ? { left: b.left, right: b.right, rightIsBox: true }
+      : { left: inked.left, right: inked.right, rightIsBox: false };
+  };
+  // The lines of a media row's text column: title, meta, summary, tags, the action bar.
+  const mediaRowLines = (row: Element) => {
+    const body = row.querySelector("[data-slot=media-row-body]");
+    return [...(body?.children ?? [])]
+      .filter(visible)
+      .map((line) => ({ label: label(line), left: ink(line).left ?? box(line).left }));
+  };
+
   const addBlock = (el: Element, isCentered: boolean) => {
     const id = blocks.length;
     blockOf.set(el, id);
     const slot = el.getAttribute("data-slot");
     const row = isRow(el);
     const own = (surface(el) || clips(el) || el.matches("svg, img, canvas")) && !row;
-    const measured = own ? { ...box(el), rightIsBox: true } : ink(el);
+    const measured = isMediaRow(el)
+      ? mediaRowEdges(el)
+      : own
+        ? { ...box(el), rightIsBox: true }
+        : ink(el);
     blocks.push({
       label: label(el),
       left: row ? rowLeft(el) : measured.left,
@@ -183,6 +207,7 @@ export const probe = (body: HTMLElement): Snapshot => {
       centered: isCentered,
     });
     if (row) groups.push({ kind: "row", label: label(el), edges: rowLines(el) });
+    if (isMediaRow(el)) groups.push({ kind: "row", label: label(el), edges: mediaRowLines(el) });
     if (slot === "card") {
       const parts = [...el.querySelectorAll("[data-slot=card-title], [data-list-row]")];
       groups.push({
@@ -235,9 +260,13 @@ export const probe = (body: HTMLElement): Snapshot => {
 
   const controls: Array<Control> = [];
   for (const el of body.querySelectorAll(
-    "button, input, [role=tab], [role=menuitem], [role=radio], a[data-row]",
+    "button, input, [role=tab], [role=menuitem], [role=radio], a[data-row], a[data-slot=media-row-title][data-stretch]",
   )) {
     if (el.matches("input[type=hidden]")) continue;
+    // A tag on a row is a 24px chip above the row's own target, not a control.
+    if (el.matches("[data-slot=tag-chip]")) continue;
+    // A media row's title: its target is the whole row, so only its hit area counts.
+    const mediaTitle = el.matches("a[data-slot=media-row-title]");
     const target = el.matches("input")
       ? (el.closest("[data-slot=input], [data-slot=search-field]") ?? el)
       : el;
@@ -254,7 +283,8 @@ export const probe = (body: HTMLElement): Snapshot => {
       top: b.top,
       height: b.height,
       hit,
-      row: el.matches("a[data-row]"),
+      row: el.hasAttribute("data-row") || mediaTitle,
+      ...(mediaTitle ? { unsized: true } : {}),
     });
   }
 

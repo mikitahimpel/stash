@@ -80,7 +80,9 @@ Feature behavior is tested in `packages/web/*`.
   and phone) against the control tokens, content edges and spacing scale; see "Layout audit" in
   [docs/design.md](../../docs/design.md#layout-audit). Its rules are `scripts/layout-audit-rules.ts`
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
-  `scripts/layout-fixtures.ts`. Both it and the Connect walk serve the build with
+  `scripts/layout-fixtures.ts`. `scripts/preview-images.ts` draws the fixtures' preview images
+  (SVG); the audit and the screenshots answer `https://example.com/previews/*` with them in the
+  browser, so no real thumbnail is in the repo and nothing is fetched. Both it and the Connect walk serve the build with
   `scripts/preview-server.ts`.
 - `scripts/build-memo.ts`: the inputs of the build as the `memo.include` globs of the `Web`
   resource, the one module this app exports (`@stash/web/build-memo`, for `alchemy.run.ts`). A
@@ -100,13 +102,10 @@ Feature behavior is tested in `packages/web/*`.
 - `src/ui-gallery-page.vue`: the dev-only `/_ui` page (`devRoutes` in `app-router.ts`, public,
   dropped from the production build) showing every `@stash/web-ui` primitive in every size, side
   by side in a grid, with a theme switch
-- `src/mockups/*`: the dev-only mockups of #148 (`/_mockups/inbox`, `/_mockups/search`,
-  `/_mockups/search-empty`, in `devRoutes`): static pages on made-up data, built from the kit,
-  captured by `scripts/mockup-screenshots.ts` (`pnpm --filter @stash/web screenshots:mockups`) into
-  `docs/screenshots/mockups/`. They go once the real pages have the approved design.
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
-- `src/app-registry.ts` (the atom registry with the live layers)
+- `src/app-registry.ts` (the atom registry with the live layers, among them the recent searches
+  of `@stash/web-search/search-atoms`)
 - `src/web-worker.ts` (the `Web` Worker entry, see Rules)
 - `vite.config.ts` (it also publishes `docs/ios-shortcut.md` and `docs/mcp-connector.md` at
   `/docs/*`, for the onboarding card), `public/manifest.webmanifest`, `public/icons/*`

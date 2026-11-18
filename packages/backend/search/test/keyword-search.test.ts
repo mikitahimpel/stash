@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as Device from "@stash/contracts-domain/device";
 import * as Tag from "@stash/contracts-domain/tag";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as KeywordSearch from "../src/keyword-search.ts";
 import * as SearchTestLayer from "./search-test-layer.ts";
@@ -45,6 +47,26 @@ describe("keywordSearch", () => {
         "link-econ-article",
         "link-unenriched",
       ]);
+    }).pipe(Effect.provide(SearchTestLayer.layerRepo)),
+  );
+
+  it.effect("keeps the links saved from a device, and the ones saved since a moment", () =>
+    Effect.gen(function* () {
+      const laptop = Device.DeviceId.make("device-laptop");
+      expect(
+        ids(yield* KeywordSearch.keywordSearch("typescript", { deviceId: laptop }, 10)),
+      ).toEqual(["link-repo"]);
+      expect(
+        ids(yield* KeywordSearch.keywordSearch("economics", { deviceId: laptop }, 10)),
+      ).toEqual([]);
+      // The fixtures are saved one a day from 2026-01-01; the cooking link on the 3rd.
+      const since = (iso: string) => ({ since: DateTime.makeUnsafe(iso) });
+      expect(
+        ids(yield* KeywordSearch.keywordSearch("economics", since("2026-01-03T00:00:00.000Z"), 10)),
+      ).toEqual(["link-cooking"]);
+      expect(
+        ids(yield* KeywordSearch.keywordSearch("economics", since("2026-01-03T00:00:00.001Z"), 10)),
+      ).toEqual([]);
     }).pipe(Effect.provide(SearchTestLayer.layerRepo)),
   );
 

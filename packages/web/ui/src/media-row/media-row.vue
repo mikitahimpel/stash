@@ -26,15 +26,18 @@ defineSlots<{
   actions?: () => unknown;
 }>();
 
-// A list row with a preview (proposed in #148): thumb · title (2 lines) · one meta line · extra
-// lines. From `sm` up the row's box sits exactly on the content edges and its content is inset by
-// 12px, so the hover, focus and selected background never reaches past the page's edge. On phones
-// there is no hover and the content uses the full width.
+// A list row with a preview: thumb · title (2 lines) · one meta line · extra lines. From `sm` up
+// the row's box sits exactly on the content edges and its content is inset by 12px, so the hover,
+// focus and selected background never reaches past the page's edge. On phones there is no hover and
+// the content uses the full width; a selected row's surface reaches 8px past the edges there.
+// In the meta line an item marked `data-shrink` (a channel, an author) gives way first; the first
+// item (the host) truncates too.
 </script>
 
 <template>
   <Primitive
     data-slot="media-row"
+    data-media-row=""
     :data-state="selected ? 'selected' : undefined"
     :as="as"
     :as-child="asChild"
@@ -49,7 +52,7 @@ defineSlots<{
     <div v-if="$slots.thumb" data-slot="media-row-thumb" class="shrink-0">
       <slot name="thumb" />
     </div>
-    <div class="flex min-w-0 flex-1 flex-col gap-1">
+    <div data-slot="media-row-body" class="flex min-w-0 flex-1 flex-col gap-1">
       <div v-if="$slots.title" class="flex min-w-0 items-start gap-2">
         <span
           v-if="unread"
@@ -63,7 +66,7 @@ defineSlots<{
       <div
         v-if="$slots.meta"
         data-slot="media-row-meta"
-        class="flex min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
+        class="flex min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
       >
         <slot name="meta" />
       </div>

@@ -40,6 +40,12 @@ import SectionHeader from "@stash/web-ui/section-header";
 import SegmentedControl from "@stash/web-ui/segmented-control";
 import type { SegmentedControlOption } from "@stash/web-ui/segmented-control-option";
 import FilterMenu from "@stash/web-ui/filter-menu";
+import GroupHeader from "@stash/web-ui/group-header";
+import MatchMark from "@stash/web-ui/match-mark";
+import MediaRow from "@stash/web-ui/media-row";
+import MediaRowTitle from "@stash/web-ui/media-row-title";
+import MediaThumb from "@stash/web-ui/media-thumb";
+import TagChip from "@stash/web-ui/tag-chip";
 import Skeleton from "@stash/web-ui/skeleton";
 import Tabs from "@stash/web-ui/tabs";
 import TabsList from "@stash/web-ui/tabs-list";
@@ -107,6 +113,54 @@ const rows = [
   },
 ] as const;
 const selected = ref(1);
+
+// A drawn preview, so the gallery loads nothing from the network.
+const preview = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#12324a"/><polyline points="28,120 108,112 188,84 292,28" fill="none" stroke="#ffb347" stroke-width="6"/></svg>',
+)}`;
+const mediaRows = [
+  {
+    title: "How interest rates move housing prices, explained with one chart",
+    host: "example.com",
+    by: "Synthetic Channel",
+    age: "2h",
+    device: "iPhone",
+    image: preview,
+    video: true,
+    unread: true,
+    match: false,
+    summary:
+      "Walks through why mortgage costs react to the policy rate within weeks while prices take years.",
+    tags: ["economics", "housing", "explainer"],
+  },
+  {
+    title: "The economics of open source",
+    host: "example.org",
+    by: "",
+    age: "3w",
+    device: "Work laptop",
+    image: undefined,
+    video: false,
+    unread: false,
+    match: true,
+    summary: "Who pays for maintenance, and why sponsorship follows usage so loosely.",
+    tags: ["open-source"],
+  },
+  {
+    title: "example.net/notes/reading-list",
+    host: "example.net",
+    by: "",
+    age: "9h",
+    device: "Home desktop",
+    image: undefined,
+    video: false,
+    unread: true,
+    match: false,
+    summary: "",
+    tags: [],
+  },
+] as const;
+const selectedMedia = ref(1);
 const sort = ref("recent");
 
 const toasts = ref<ReadonlyArray<ToastMessage>>([]);
@@ -286,6 +340,56 @@ const swatches = [
               <template #title><ListRowTitle muted>No tokens yet</ListRowTitle></template>
             </ListRow>
           </ul>
+        </section>
+
+        <section class="flex flex-col gap-2">
+          <GroupHeader title="Media rows" :count="mediaRows.length">
+            <template #actions>
+              <Button variant="ghost" size="sm">Review</Button>
+            </template>
+          </GroupHeader>
+          <ul class="flex flex-col">
+            <MediaRow
+              v-for="(row, index) in mediaRows"
+              :key="row.title"
+              as="li"
+              :selected="index === selectedMedia"
+              :unread="row.unread"
+              v-bind="{ onClick: () => (selectedMedia = index) }"
+            >
+              <template #thumb>
+                <MediaThumb :src="row.image" :initial="row.host" :video="row.video" />
+              </template>
+              <template #title>
+                <MediaRowTitle as-child :stretch="false">
+                  <a href="https://row.com/">
+                    <template v-if="row.match"
+                      >The <MatchMark tone="signal">economics</MatchMark> of open source</template
+                    >
+                    <template v-else>{{ row.title }}</template>
+                  </a>
+                </MediaRowTitle>
+              </template>
+              <template #meta>
+                <span>{{ row.host }}</span>
+                <span v-if="row.by" data-shrink="">{{ row.by }}</span>
+                <span>{{ row.age }}</span>
+                <span class="max-sm:hidden">{{ row.device }}</span>
+              </template>
+              <p v-if="row.summary" class="line-clamp-2 text-body text-muted-foreground">
+                {{ row.summary }}
+              </p>
+              <div v-if="row.tags.length > 0" class="flex flex-wrap items-center gap-1">
+                <TagChip v-for="tag in row.tags" :key="tag">#{{ tag }}</TagChip>
+                <TagChip>+2</TagChip>
+              </div>
+              <template #actions>
+                <Button variant="ghost" size="sm"><ExternalLink />Open</Button>
+                <Button variant="ghost" size="sm"><Archive />Archive</Button>
+              </template>
+            </MediaRow>
+          </ul>
+          <Skeleton shape="media" />
         </section>
 
         <section class="flex flex-col gap-3">

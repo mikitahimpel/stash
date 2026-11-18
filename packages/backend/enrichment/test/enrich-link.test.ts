@@ -69,7 +69,7 @@ const saveAndConsume = (input: {
 const row = (id: Link.LinkId) =>
   D1Database.Database.use((db) =>
     db.first(D1Database.sql`SELECT title, summary, type, language, text, image_url AS imageUrl,
-      enriched_at AS enrichedAt,
+      author, enriched_at AS enrichedAt,
       enrichment_error AS enrichmentError FROM links WHERE id = ${id}`),
   ).pipe(Effect.map(Option.getOrThrow));
 
@@ -245,6 +245,7 @@ describe("enrichLink", () => {
         type: "video",
         text: null,
         imageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        author: "Synthetic Channel",
         enrichmentError: null,
       });
       expect(yield* tagsOf(id)).toEqual(["youtube"]);
@@ -319,6 +320,7 @@ describe("enrichLink", () => {
       const preview = yield* saveAndConsume({ url: "https://example.com/blog/preview" });
       expect(yield* row(preview.id)).toMatchObject({
         imageUrl: "https://example.com/images/preview.png?v=2",
+        author: "Ada Example",
         summary: classification.summary,
       });
       const board = yield* saveAndConsume({ url: "https://example.com/board" });
@@ -327,6 +329,7 @@ describe("enrichLink", () => {
         title: "Synthetic Board",
         summary: "A kanban board for small teams.",
         imageUrl: "https://example.com/board.png",
+        author: null,
         text: null,
       });
     }).pipe(

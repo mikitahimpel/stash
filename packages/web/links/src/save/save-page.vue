@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import * as AtomVue from "@effect/atom-vue";
-import { Check, TriangleAlert } from "@lucide/vue";
+import { TriangleAlert } from "@lucide/vue";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
+import MediaRow from "@stash/web-ui/media-row";
+import MediaRowTitle from "@stash/web-ui/media-row-title";
+import MediaThumb from "@stash/web-ui/media-thumb";
+import PageHeader from "@stash/web-ui/page-header";
 import type * as Link from "@stash/contracts-domain/link";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
@@ -12,7 +16,8 @@ import * as LinksAtoms from "../links-atoms.ts";
 import * as SaveRequest from "./save-request.ts";
 
 // `/save?…&url=<url>`: saves the link once, as soon as the page opens (signed in: the auth guard
-// sends a signed-out visitor to the login page and back here), and says how it went.
+// sends a signed-out visitor to the login page and back here), and says how it went: the saved
+// link as the media row it is in the Inbox, with Back and Undo under it.
 
 const route = useRoute();
 const router = useRouter();
@@ -24,7 +29,7 @@ type View =
       readonly state: "saved";
       readonly title: string;
       readonly host: string;
-      readonly id: Link.LinkId;
+      readonly link: Link.Link;
       /** Saved by this request, not before: only then can Undo delete it. */
       readonly fresh: boolean;
     }
@@ -54,7 +59,7 @@ onMounted(async () => {
         state: "saved",
         title: exit.value.title ?? request.title ?? host(request.url),
         host: host(exit.value.url),
-        id: exit.value.id,
+        link: exit.value,
         // The api says whether this save stored the link. A repeat save answers the stored one.
         fresh: exit.value.created,
       }
@@ -75,7 +80,7 @@ const undo = async () => {
   if (current.state !== "saved" || undoing.value) return;
   undoing.value = true;
   undoError.value = undefined;
-  const exit = await remove(current.id);
+  const exit = await remove(current.link.id);
   undoing.value = false;
   if (Exit.isSuccess(exit)) view.value = { state: "undone", host: current.host };
   else undoError.value = "Couldn't remove the link. Try again.";
@@ -90,27 +95,46 @@ const back = () =>
 <template>
   <section class="flex flex-col gap-6" aria-live="polite">
     <div v-if="view.state === 'saving'" aria-busy="true"><EmptyState title="Saving…" /></div>
-    <EmptyState
-      v-else-if="view.state === 'saved'"
-      :title="`${view.fresh ? 'Saved' : 'Already saved'} ✓ ${view.title}`"
-      :description="view.host"
-    >
-      <template #icon><Check aria-hidden="true" /></template>
+    <template v-else-if="view.state === 'saved'">
+      <PageHeader :title="`${view.fresh ? 'Saved' : 'Already saved'} ✓`" />
+      <ul class="flex flex-col">
+        <MediaRow as="li" data-slot="saved-link">
+          <template #thumb>
+            <MediaThumb
+              :src="view.link.imageUrl"
+              :initial="view.host"
+              :video="view.link.type === 'video'"
+            />
+          </template>
+          <template #title>
+            <MediaRowTitle as-child>
+              <RouterLink :to="{ name: 'link-details', params: { id: view.link.id } }">
+                {{ view.title }}
+              </RouterLink>
+            </MediaRowTitle>
+          </template>
+          <template #meta>
+            <span>{{ view.host }}</span>
+            <span v-if="view.link.author !== null" data-shrink="">{{ view.link.author }}</span>
+          </template>
+          <p v-if="view.link.summary" class="line-clamp-2 text-body text-muted-foreground">
+            {{ view.link.summary }}
+          </p>
+        </MediaRow>
+      </ul>
       <p v-if="undoError" role="alert" class="text-meta text-destructive">{{ undoError }}</p>
-      <template #action>
-        <div class="flex flex-wrap justify-center gap-2">
-          <Button as-child variant="primary">
-            <button type="button" data-action="back" @click="back">Back</button>
-          </Button>
-          <Button v-if="view.fresh" as-child>
-            <button type="button" data-action="undo" :disabled="undoing" @click="undo">
-              {{ undoing ? "Removing…" : "Undo" }}
-            </button>
-          </Button>
-          <Button as-child><RouterLink :to="{ name: 'links' }">Open Inbox</RouterLink></Button>
-        </div>
-      </template>
-    </EmptyState>
+      <div class="flex flex-wrap gap-2">
+        <Button as-child variant="primary">
+          <button type="button" data-action="back" @click="back">Back</button>
+        </Button>
+        <Button v-if="view.fresh" as-child>
+          <button type="button" data-action="undo" :disabled="undoing" @click="undo">
+            {{ undoing ? "Removing…" : "Undo" }}
+          </button>
+        </Button>
+        <Button as-child><RouterLink :to="{ name: 'links' }">Open Inbox</RouterLink></Button>
+      </div>
+    </template>
     <EmptyState v-else-if="view.state === 'undone'" title="Removed" :description="view.host">
       <template #action>
         <Button as-child variant="primary">
