@@ -5,10 +5,10 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as LinkDays from "./link-days.ts";
 
-/** The chart covers this many days, today included. */
+/** The counts cover this many days, today included. */
 export const days = 30;
 
-/** One bar: the links saved that day. `read` are `seen` or `done`, `unread` still `new`. */
+/** One day: the links saved that day. `read` are `seen` or `done`, `unread` still `new`. */
 export interface Day {
   readonly key: string;
   readonly saved: number;
@@ -33,13 +33,6 @@ export const summary = (history: History): string =>
 /** The history in short, for the page subtitle. */
 export const headline = (history: History): string =>
   `${history.unread} unread · ${history.saved} saved in ${days} days`;
-
-/** Below this many days with a bar the chart shows no trend, so it stays off the page. */
-export const minDays = 3;
-
-/** Whether there is enough to plot. */
-export const plottable = (history: History): boolean =>
-  history.days.filter((day) => day.saved > 0).length >= minDays;
 
 /** Counts the links saved in the last `days` days, per day and in total. Archived links count as saved only. */
 export const history = (

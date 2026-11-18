@@ -18,6 +18,7 @@ describe("get_link", () => {
           "ID: seed-video",
           "Status: new",
           "Type: video",
+          "By: Example Channel",
           "Tags: economics",
           "Saved: 2026-01-02T03:04:05.000Z",
           "Image: https://example.com/videos/economics.jpg",

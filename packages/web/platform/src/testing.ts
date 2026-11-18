@@ -16,6 +16,7 @@ import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import type * as Live from "./live.ts";
 import { Keyboard, type KeyPress } from "./keyboard.ts";
 import { Network } from "./network.ts";
+import * as RecentSearches from "./recent-searches.ts";
 import { Share, ShareError, type ShareData } from "./share.ts";
 import * as Theme from "./theme.ts";
 import { Visibility, type VisibilityState } from "./visibility.ts";
@@ -247,11 +248,15 @@ export const layerKeyboard: Layer.Layer<Keyboard | TestKeyboard> = Layer.effectC
   }),
 );
 
+/** The real recent-searches logic on a store of its own, in memory. */
+export const layerRecentSearches: Layer.Layer<RecentSearches.RecentSearches> =
+  RecentSearches.layer.pipe(Layer.provide(layerKeyValueStore));
+
 /** Every service from `./live`, in memory, plus the test controls. */
 export const layer: Layer.Layer<
   Live.Services | TestShare | TestNetwork | TestVisibility | TestTheme | TestKeyboard
 > = Layer.mergeAll(
-  layerTheme().pipe(Layer.provideMerge(layerKeyValueStore)),
+  Layer.mergeAll(layerTheme(), RecentSearches.layer).pipe(Layer.provideMerge(layerKeyValueStore)),
   layerIndexedDb,
   layerClipboard,
   layerPermissions(),

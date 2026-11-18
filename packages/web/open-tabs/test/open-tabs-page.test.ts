@@ -68,7 +68,7 @@ const titles = (wrapper: Page) =>
 const sectionTitles = (wrapper: Page, id: string) =>
   wrapper.findAll(`[data-section=${id}] [data-slot=open-tab-title]`).map((link) => link.text());
 const selectedTitle = (wrapper: Page) =>
-  wrapper.find("[data-slot=list-row][data-state=selected] [data-slot=open-tab-title]").text();
+  wrapper.find("[data-state=selected] [data-slot=open-tab-title]").text();
 const chartTicks = (wrapper: Page) => wrapper.findAll("[data-slot=tick]").length;
 
 describe("open-tabs-page", () => {
@@ -137,7 +137,9 @@ describe("open-tabs-page", () => {
     expect(selectedTitle(wrapper)).toBe("Example b");
     expect(wrapper.element.ownerDocument.activeElement?.textContent).toBe("Example b");
     expect(wrapper.find("[data-slot=tick][data-selected=true]").exists()).toBe(true);
-    expect(wrapper.find("[data-slot=list-row-actions]").text()).toContain("Close on Device laptop");
+    expect(wrapper.find("[data-slot=media-row-actions]").text()).toContain(
+      "Close on Device laptop",
+    );
 
     // Typing in a field is not a shortcut.
     expect(await press("e", true)).toBe(false);

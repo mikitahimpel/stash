@@ -25,7 +25,8 @@ CREATE TABLE links (
   source_device_id TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   enriched_at TEXT,
-  image_url TEXT
+  image_url TEXT,
+  author TEXT
 );
 
 CREATE TABLE tags (
@@ -74,6 +75,8 @@ export interface Fixture {
   readonly type?: "article" | "video" | "tool" | "repo" | "other";
   readonly status?: "new" | "seen" | "done" | "archived";
   readonly tags?: ReadonlyArray<string>;
+  /** The device the link was saved from. */
+  readonly deviceId?: string;
   /**
    * What the link's vector embeds (with `fakeEmbedding`). Defaults to title, summary and text. Set
    * it to model content that only Vectorize knows, such as a transcript kept in R2.
@@ -116,6 +119,7 @@ export const fixtures: ReadonlyArray<Fixture> = [
     summary: "Typed effects for TypeScript.",
     type: "repo",
     tags: ["typescript"],
+    deviceId: "device-laptop",
   },
   {
     id: "link-unenriched",
@@ -132,9 +136,10 @@ const seed = Effect.gen(function* () {
     ...tagNames.map((name) => D1Database.sql`INSERT INTO tags (name) VALUES (${name})`),
     ...fixtures.map(
       (f, index) =>
-        D1Database.sql`INSERT INTO links (id, url, title, summary, text, type, status, created_at)
+        D1Database.sql`INSERT INTO links (id, url, title, summary, text, type, status,
+            source_device_id, created_at)
           VALUES (${f.id}, ${`https://example.com/${f.id}`}, ${f.title}, ${f.summary ?? null},
-            ${f.text ?? null}, ${f.type ?? null}, ${f.status ?? "new"},
+            ${f.text ?? null}, ${f.type ?? null}, ${f.status ?? "new"}, ${f.deviceId ?? null},
             ${`2026-01-0${index + 1}T00:00:00.000Z`})`,
     ),
     ...fixtures.flatMap((f) =>

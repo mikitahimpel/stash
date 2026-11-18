@@ -213,6 +213,15 @@ describe("D1 migrations", () => {
     });
   });
 
+  it("stores who published a link, and nothing by default", () => {
+    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
+      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    const author = () => db.prepare("SELECT author FROM links WHERE id = 'l1'").get()?.["author"];
+    expect(author()).toBeNull();
+    db.exec("UPDATE links SET author = 'Synthetic Channel' WHERE id = 'l1'");
+    expect(author()).toBe("Synthetic Channel");
+  });
+
   it("removes a link's tags when the link is deleted", () => {
     db.exec(`
       INSERT INTO links (id, url) VALUES ('l1', 'https://example.com/a');

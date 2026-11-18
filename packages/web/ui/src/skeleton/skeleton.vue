@@ -4,12 +4,12 @@ import { cn } from "../cn";
 
 /**
  * The placeholders a page needs, sized by the kit: `line` (a line of text), `title`, `row` (a
- * 52px list row), `control` (a 36px field or button), `chip` (a 32px chip) and `chart`. Callers
+ * 52px list row), `media` (a media row), `control` (a 36px field or button), `chip` (a 32px chip) and `chart`. Callers
  * set only the width.
  */
 const props = withDefaults(
   defineProps<{
-    shape?: "line" | "title" | "row" | "control" | "chip" | "chart";
+    shape?: "line" | "title" | "row" | "media" | "control" | "chip" | "chart";
     class?: HTMLAttributes["class"];
   }>(),
   { shape: "line" },
@@ -19,6 +19,7 @@ const shapes = {
   line: "h-4 rounded-sm",
   title: "h-6 rounded-sm",
   row: "h-13 rounded-control",
+  media: "h-[74px] rounded-surface sm:h-[92px]",
   control: "h-control-md rounded-control",
   chip: "h-control-sm w-20 rounded-control",
   chart: "h-28 rounded-control",

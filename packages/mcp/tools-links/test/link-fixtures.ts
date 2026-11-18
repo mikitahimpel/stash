@@ -15,6 +15,7 @@ export const video = Testing.makeLink({
   summary: "How markets set prices.",
   tags: [Tag.TagName.make("economics")],
   imageUrl: url("https://example.com/videos/economics.jpg"),
+  author: "Example Channel",
   enrichedAt: Testing.now,
 });
 

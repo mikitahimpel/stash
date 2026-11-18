@@ -180,6 +180,21 @@ const tabs: Readonly<Record<(typeof devices)[number]["id"], ReadonlyArray<SeedTa
   ],
 };
 
+const channels = ["Plain Economics", "Interface Club", "Synthetic Channel"] as const;
+const authors = ["Mara Lindqvist", "Jonas Reiter"] as const;
+
+// Videos have a thumbnail and a channel, two of three other links an og:image, and some an
+// author. The image URLs are made up: the screenshot script answers them in the browser
+// (`apps/web/scripts/preview-images.ts`), and nothing is ever fetched from example.com.
+const previewOf = (type: string, path: string, index: number): string | null =>
+  type === "video" || index % 3 !== 2 ? `https://example.com/previews/${path}.svg` : null;
+const authorOf = (type: string, index: number): string | null =>
+  type === "video"
+    ? (channels[index % channels.length] ?? null)
+    : index % 2 === 0
+      ? (authors[(index / 2) % authors.length] ?? null)
+      : null;
+
 const iso = (now: number, ageDays: number) => new Date(now - ageDays * day).toISOString();
 
 /** Replaces the seeded rows with a fresh set, dated relative to now. */
@@ -207,8 +222,8 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
       db
         .prepare(
           `INSERT INTO links (id, url, canonical_url, title, status, type, summary, language,
-            source_device_id, created_at, enriched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?)`,
+            source_device_id, created_at, enriched_at, image_url, author)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?, ?)`,
         )
         .bind(
           id,
@@ -217,10 +232,15 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
           title,
           status,
           type,
-          `A synthetic ${type} about ${linkTags.join(" and ")}, seeded for screenshots.`,
+          // Every fourth link has no summary: a page that gave enrichment no text.
+          index % 4 === 3
+            ? null
+            : `A synthetic ${type} about ${linkTags.join(" and ")}, seeded for screenshots.`,
           devices[device]?.id ?? null,
           iso(now, ageDays),
           iso(now, ageDays - 0.01),
+          previewOf(type, path, index),
+          authorOf(type, index),
         ),
     );
     for (const tag of linkTags) {

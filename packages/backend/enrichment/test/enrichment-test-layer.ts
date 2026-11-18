@@ -11,7 +11,7 @@ import * as EnrichmentRepo from "../src/enrichment-repo.ts";
 import * as FakeHttp from "./fake-http.ts";
 import * as FakeLanguageModel from "./fake-language-model.ts";
 
-// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002 and 0006, the
+// The tables this package reads and writes, copied from `apps/api/migrations/` (0001, 0002, 0006 and 0007, the
 // source of truth). Packages never reach into another package's files, so tests keep their own copy.
 const schema = `
 CREATE TABLE devices (
@@ -36,6 +36,7 @@ CREATE TABLE links (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   enriched_at TEXT,
   image_url TEXT,
+  author TEXT,
   enrichment_attempts INTEGER NOT NULL DEFAULT 0
 );
 

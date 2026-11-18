@@ -22,7 +22,7 @@ One control language for every interactive element, so a page can't read as two 
 | Mono | only keys (`⌘K`, `Kbd`), the device code, chart axis labels and values to copy (read-only `<Input mono>`, such as the Connect guides' commands) | `font-mono` in `Kbd` / `DeviceCode` / `Input mono`, `chart-text` |
 | Guides | numbered steps (`StepList`, `Step`: a sunken number, a label title, its content under it) and a quiet `Disclosure` for advanced options | `@stash/web-ui/step-list`, `/step`, `/disclosure` |
 | Spacing | only 4 · 8 · 12 · 16 · 24 · 32 · 48 | `1 · 2 · 3 · 4 · 6 · 8 · 12` |
-| Content edge | everything on a page (header, section headers, rows, cards, empty states) starts at the same left x and ends at the same right x; rows inside a card share the card's content edge | `ListRow` reaches 12px past the edges for its background only |
+| Content edge | everything on a page (header, section headers, rows, cards, empty states) starts at the same left x and ends at the same right x; rows inside a card share the card's content edge | `ListRow` reaches 12px past the edges for its background only; a `MediaRow`'s box sits on the edges and its content is 12px inside |
 
 - **Titles are not underlined.** A row's title is its target (`ListRowTitle`, `data-row`), and the
   row's background shows hover and focus. `TextLink` is for links inside prose.
@@ -78,12 +78,11 @@ Radii and heights: see "Tokens" (keys stay 4px). Focus: 2px visible ring in fore
 
 **Components** (names indicative): Button (`raised` default, `primary`, `ghost`), SegmentedControl (sunken tray, active segment raised), ToggleChip (sunken; on = raised with `aria-pressed`), Input/SearchField (sunken, optional trailing `Kbd`), Kbd (keycap), ListRow (hairline divider; selected = `row-selected`, can reveal a row action bar), SectionHeader (14px/500 label + muted count + right-aligned actions), Link.
 
-**Layout:** max-width 1040px, 24px side padding (16px on phones), top nav = wordmark `stash` + SegmentedControl (Inbox · Open now · Search · Settings) + right side (mono sync status, Search ⌘K, theme toggle). Lists are rows, not cards: title · host · device/source · age as muted 13px sans metadata. Footer shortcut hints use Kbd. Everything must work at 390px width (columns collapse; metadata wraps under the title).
+**Layout:** max-width 1040px, 24px side padding (16px on phones), top nav = wordmark `stash` + SegmentedControl (Inbox · Open now · Search · Settings) + right side (mono sync status, Search ⌘K, theme toggle). Lists are rows, not cards: links and tabs are media rows (preview, title, one muted 13px meta line: host · author · age · device), see "Media rows". Footer shortcut hints use Kbd. Everything must work at 390px width (columns collapse; metadata wraps under the title).
 
 **Data graphics** (inline SVG Vue components, driven by real data, `role="img"` + an `aria-label` summarising the data; mono 12px labels; neutral marks, accent only for the highlighted category):
 - Open now: one lane per device; each tab is a 2×16 tick at x = age (0–14 days, older clamped to the end); region past 7 days hatched (45° pattern, hairline color) with a dashed 7d line; stale ticks in accent; the selected tab gets a taller tick and a `title · age` label.
-- Inbox: 30 bars, saved per day; the read part of each bar (now `seen`/`done`) drawn lighter from the baseline; today's unread part in accent at ~45% opacity; header line in mono: `N saved · N read · N unread · last 30 days`; legend read/unread.
-- Search: a timeline of up to 12 months (labels in mono; its axis fits the data, see "Data graphics" under Layout rules), every saved link a small neutral dot, matches as accent dots numbered by rank.
+- Inbox and Search have no graphic (#148): links are media rows, see "Media rows" and "Search" under Layout rules.
 
 ## Light mode (derived)
 
@@ -150,7 +149,8 @@ Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as
 first-run page has the title alone. The page's **primary action** sits on the right, in the
 `#actions` slot: Inbox has the Save a link field (sunken input and primary Save; Enter submits, and
 the new row shows at once), Open now has Add device (except on its onboarding card, which offers
-it per device), Search and Settings have none. On phones it takes its own full-width line under
+it per device), Settings has none. **Search has no `PageHeader`**: its 44px search field is the
+page's header (the `h1` is there for screen readers only). On phones it takes its own full-width line under
 the title. Sections inside a page keep `<SectionHeader>`
 (14px/500). `PageHeader` carries its own 24px bottom margin, which adds to the page's `gap-6`.
 
@@ -170,9 +170,35 @@ Weight follows importance, so filters never look like navigation:
 
 A filter bar is one row of `sm` controls, all 32px on one centre line.
 
+### Media rows (#148)
+
+Links and tabs (Inbox, Search, Open now, the `/save` result) are `MediaRow`s, so a list reads as
+content, not as a table of text:
+
+- **Preview** on the left, 16:9: 120×68 from `sm` up, 88×50 on phones, radius 8. It is the link's
+  `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with `referrerpolicy="no-referrer"`.
+  With no image, or when it fails to load, the tile is neutral and shows the site's initial. A
+  video carries a small play mark. An open tab has no image, so its tile is always the initial.
+- **Title** 15/600 (`text-row-title`), two lines at most, with an accent dot before it while the
+  link is not yet seen. It is the row's target: its hit area covers the whole row, and other links
+  in the row (the host, a tag) sit above it. On Open now a click selects the row instead, and only
+  the title opens the tab.
+- **One meta line**, muted 13: host · channel or author · age · device (the device is left out on
+  phones). The author gives way first when the line is too long.
+- **Summary**, at most two lines, only when the link has one. **Tags** as 24px chips, at most
+  three, then `+n`.
+- The row's box sits **exactly on the content edges** and its content is inset by 12px, so the
+  hover, focus and selected background ends on the edge and the preview sits 12px inside it. On
+  phones there is no hover and the content uses the full width.
+
+**Levels:** page title 28/600 > `GroupHeader` (a day in the Inbox, `Results`, `Older than 7 days`:
+13/600 uppercase, a muted count, a hairline rule to the edge, optional `ghost` `sm` actions) > row
+title 15/600 > meta 13. Groups sit **32px** apart, a group header **8px** above its rows, and the
+lines of a row **4px** apart.
+
 ### Rows
 
-Every list (Inbox, Search results, Open now, Settings devices and tokens, Start saving) is built
+Every other list (Settings devices and tokens, Start saving, recent searches) is built
 from `ListRow`: `leading` · `title` · `meta` · `trailing` on a 36px title line, then extra lines
 (summary, tags) and, while selected, the action bar. A single-line row is 52px. On phones the meta
 wraps under the title. Row text, section headers and the page title all start on the content edge,
@@ -181,15 +207,28 @@ and selected background has room.
 
 ### Data graphics
 
-A data graphic renders only with data: **below 3 data points it shows nothing**, not an empty axis.
-For the Inbox chart a data point is a day with saved links. For the Search timeline it is a distinct
-link on the axis, and it needs at least one match, so there is none without a query. The Open now
-chart goes when no tab is left to draw. Legends sit directly under or beside their chart, never at
-the far edge. Each chart's counts are in the page subtitle, not in a second line above the chart.
-The Search timeline fits its axis to the data instead of a fixed 12 months: from
-the oldest link shown (at least 30 days, at most 12 months back) to now, with weekly ticks
-(`Oct 5`) up to about three months and month ticks beyond. On phones every other tick label is
-dropped once there are more than six, and rank numbers that would collide move to another lane.
+Open now is the only page with a chart (#148 dropped the Inbox's 30-day bars and the Search
+timeline, which read as decoration; the Inbox keeps its counts in the subtitle). A data graphic
+renders only with data: the Open now chart goes when no tab is left to draw. Legends sit directly
+under or beside their chart, never at the far edge. A chart's counts are in the page subtitle, not
+in a second line above the chart.
+
+### Search
+
+The page is a search page, not a dashboard: a 44px field at the top (focused on arrival; `⌘K`
+opens the page from anywhere), then one row of `sm` filter menus (`Type`, `Device`, `Date`) with
+the mode switch (`Hybrid` · `Meaning` · `Keywords`) at the end of the row once there is a query.
+There are no tag chips in the filter row; a tag clicked on a result filters by it and shows as one
+chip that clears it. Results update as you type (debounced), as media rows under a `Results`
+group header, with the query's terms marked in the accent (`MatchMark` `tone="signal"`) in titles
+and summaries (not in `Meaning` mode, which matches no words). `↑`/`↓` move, `↵` opens, `S` marks
+seen, `esc` clears.
+
+Before anything is typed the page shows **Recent searches** (the last 8, each can be run again or
+removed) and **Recently saved** (the five latest links, narrowed by the filters). Recent searches
+stay in the browser (`localStorage` through `@stash/web-platform/recent-searches`) and are never
+sent to the api. A search is remembered when the user acts on it: `↵` in the field, or opening a
+result. A first-run user sees just the field and its filters.
 
 ### Empty and error states
 
@@ -201,7 +240,7 @@ device action goes to `/settings?add=device&kind=<kind>`, which opens the dialog
 token, on that kind. The card appears only when nothing is saved at all, of any status or age: an
 empty feed alone says nothing about that. The doc links open
 `/docs/ios-shortcut.md` and `/docs/mcp-connector.md`, which `apps/web` publishes from `docs/` at
-build time. Search with no query is just the focused field with a muted example query.
+build time. Search with no query: see "Search".
 
 A section of a page that is empty stays one compact row (`No devices yet` in Settings), with the
 action in its section header. No section repeats that action.
@@ -238,8 +277,9 @@ hairline below.
 
 `pnpm --filter @stash/web screenshots` boots the api under `alchemy dev` (stage `screenshots`, no
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
-`/_smoke/session` routes, runs Vite against it and captures every page (Inbox, Open now, Search
-with results, Settings, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
+`/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Open now, Search
+with results, Search before a query with recent searches, the `/save` result, Settings, Login,
+`/_ui`) in dark and light at 1440×900 and 390×844 into
 [`docs/screenshots/`](screenshots/). Inbox, Open now, Search and Settings are also captured as a
 first-run user with no data (`inbox-empty-light-desktop.png` and so on), with the browser answering
 the data requests with empty results. Before each capture the viewport grows to the page's height,
@@ -252,15 +292,20 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
 
 `pnpm --filter @stash/web audit:layout` (CI job `layout-audit`) builds the app, serves it with
 `vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now, Search
-with results, Settings, each seeded and as a first-run user, plus Login, in the light theme at
-1440 and 390 wide. The api is answered in the browser from synthetic fixtures
-(`apps/web/scripts/layout-fixtures.ts`). On each page it checks:
+with results, Settings, each seeded and as a first-run user, Inbox and Open now with a selected
+row, Search before a query, plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
+(`apps/web/scripts/layout-fixtures.ts`), and the fixtures' preview images are drawn in
+`scripts/preview-images.ts`, so nothing is fetched from the network. On each page it checks:
 
 - every visible `button`, `input` (by its field box), `[role=tab]`, `[role=menuitem]`,
   `[role=radio]` and `a[data-row]` is 32, 36 or 44 tall, and on phones has a hit area of at least 44;
+  a media row's title is checked for the hit area only (its target is the whole row), and a tag
+  chip on a row is not a control;
 - controls on one row share their height and vertical centre;
 - every page-level block starts on the content edge (± 0.5px), trailing controls end on it, rows
-  inside a card share one edge, and every line of a row starts where its title does;
+  inside a card share one edge, and every line of a row starts where its title does; a media row
+  is measured by its box, which must sit on both content edges (or, where its background reaches
+  past them, as for a selected row on a phone, by its content);
 - every vertical gap between page-level blocks is on the spacing scale;
 - text renders in mono only inside keys, the device code and charts.
 
@@ -307,6 +352,9 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
+| MediaRow | `media-row` (slots `thumb`, `title`, `meta`, extra lines, `#actions` while `selected`; `unread`), `media-row-title` (15/600, two lines, the whole row's target unless `:stretch="false"`), `media-thumb` (16:9, 120×68, 88×50 on phones; the site's initial without an image or when it fails to load; `video`), `tag-chip` (24px); text role `text-row-title` |
+| GroupHeader | `group-header` (`title`, `count`, `#actions`): 13/600 uppercase with a rule, above a group of rows |
+| MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |
 | Card | `card`, `card-header`, `card-title`, … |
 | Avatar | `avatar-button` |
 | App shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |

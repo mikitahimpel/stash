@@ -17,7 +17,7 @@ const devices = [
 
 /**
  * A stub `GET /links` that records each feed query and answers with `pages[cursor ?? "first"]`.
- * The chart's requests (with `limit`) get the first page too, but aren't recorded.
+ * The subtitle's requests (with `limit`) get the first page too, but aren't recorded.
  */
 const listing = (pages: Record<string, ReturnType<typeof Fixtures.page>>) => {
   const queries: Array<Record<string, string>> = [];
@@ -56,13 +56,62 @@ describe("inbox page", () => {
     ]);
     const days = wrapper.findAll("[data-slot=link-day]");
     expect(days).toHaveLength(2);
-    expect(days[0]?.find("[data-slot=section-header-count]").text()).toBe("2");
+    expect(days[0]?.find("[data-slot=group-header-count]").text()).toBe("2");
     const row = wrapper.find("[data-slot=link-row]");
     expect(row.text()).toContain("example.com");
     expect(row.text()).toContain("A summary of article a.");
     expect(row.text()).toContain("#economics");
     expect(row.find("[data-slot=link-device]").text()).toBe("Laptop");
     expect(api.queries).toEqual([{ sort: "recent" }]);
+  });
+
+  it("shows a link as a media row: preview, unread dot, host, author, age and device", async () => {
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.link("a", {
+          type: "video",
+          imageUrl: "https://example.com/previews/a.jpg",
+          author: "Synthetic Channel",
+          sourceDeviceId: "device-1",
+          tags: ["one", "two", "three", "four", "five"],
+        }),
+        Fixtures.link("b", { status: "seen", summary: null }),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+    const [video, plain] = wrapper.findAll("[data-slot=link-row]");
+
+    const image = video!.find("[data-slot=media-thumb] img");
+    expect(image.attributes("src")).toBe("https://example.com/previews/a.jpg");
+    expect(image.attributes("referrerpolicy")).toBe("no-referrer");
+    expect(image.attributes("loading")).toBe("lazy");
+    expect(video!.find("[data-slot=media-thumb-video]").exists()).toBe(true);
+    expect(video!.find("[data-slot=media-row-unread]").exists()).toBe(true);
+    expect(
+      video!
+        .find("[data-slot=media-row-meta]")
+        .findAll(":scope > *")
+        .map((item) => item.text()),
+    ).toEqual(["example.com", "Synthetic Channel", expect.stringMatching(/^\d+(mo|y)$/), "Laptop"]);
+    // At most three tags, then how many more.
+    expect(video!.findAll("[data-filter=tag]").map((tag) => tag.text())).toEqual([
+      "#one",
+      "#two",
+      "#three",
+    ]);
+    expect(video!.find("[data-slot=more-tags]").text()).toBe("+2");
+
+    // No image: the site's initial. Seen: no dot. No summary, no author: no line for them.
+    expect(plain!.find("[data-slot=media-thumb]").attributes("data-empty")).toBe("");
+    expect(plain!.find("[data-slot=media-thumb]").text()).toBe("e");
+    expect(plain!.find("[data-slot=media-row-unread]").exists()).toBe(false);
+    expect(plain!.find("[data-slot=link-author]").exists()).toBe(false);
+    expect(plain!.find("[data-slot=link-summary]").exists()).toBe(false);
+
+    // A preview that fails to load gives way to the initial.
+    await image.trigger("error");
+    expect(video!.find("[data-slot=media-thumb] img").exists()).toBe(false);
+    expect(video!.find("[data-slot=media-thumb]").text()).toBe("e");
   });
 
   it("says summarizing… until enrichment ran", async () => {
@@ -75,7 +124,7 @@ describe("inbox page", () => {
 
   const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
 
-  it("charts the links saved in the last 30 days once there are enough days to plot", async () => {
+  it("counts the links saved in the last 30 days in the subtitle, with no chart", async () => {
     const api = listing({
       first: Fixtures.page([
         Fixtures.link("a", { createdAt: daysAgo(0) }),
@@ -86,31 +135,14 @@ describe("inbox page", () => {
     });
     const { wrapper } = await mountAt("/links", api.routes);
 
+    expect(wrapper.find("h1").text()).toBe("Inbox");
     expect(wrapper.find("[data-slot=page-header-subtitle]").text()).toBe(
       "1 unread · 3 saved in 30 days",
     );
-    expect(wrapper.find("svg[role=img]").attributes("aria-label")).toContain("3 saved");
-    expect(wrapper.find("[data-slot=saved-read-today-unread]").exists()).toBe(true);
-    // The legend sits right under the chart.
-    const chart = wrapper.find("[data-slot=saved-read-chart]").element;
-    expect(chart.firstElementChild?.tagName.toLowerCase()).toBe("svg");
-    expect(chart.lastElementChild?.tagName.toLowerCase()).toBe("figcaption");
-  });
-
-  it("keeps the chart off the page below three days with links", async () => {
-    const api = listing({
-      first: Fixtures.page([
-        Fixtures.link("a", { createdAt: daysAgo(0) }),
-        Fixtures.link("b", { createdAt: daysAgo(0) }),
-        Fixtures.link("c", { createdAt: daysAgo(1) }),
-      ]),
-    });
-    const { wrapper } = await mountAt("/links", api.routes);
-
-    expect(wrapper.find("[data-slot=saved-read-chart]").exists()).toBe(false);
-    expect(wrapper.find("[data-slot=page-header-subtitle]").text()).toBe(
-      "3 unread · 3 saved in 30 days",
+    expect(wrapper.find("[data-slot=page-header] input[aria-label='Save a link']").exists()).toBe(
+      true,
     );
+    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
   });
 
   it("shows the onboarding card and no chart when nothing is saved", async () => {
@@ -131,7 +163,6 @@ describe("inbox page", () => {
     expect(rows[1]?.find("a").attributes("href")).toBe("/connect?guide=iphone");
     expect(rows[2]?.find("a").attributes("href")).toBe("/connect?guide=claude");
 
-    expect(wrapper.find("[data-slot=saved-read-chart]").exists()).toBe(false);
     expect(wrapper.find("svg[role=img]").exists()).toBe(false);
     expect(wrapper.find("[role=radiogroup]").exists()).toBe(false);
     expect(wrapper.find("[data-slot=page-header-subtitle]").exists()).toBe(false);
@@ -250,15 +281,6 @@ describe("inbox page", () => {
     await wrapper.find("[data-clear=tag]").trigger("click");
     await settle();
     expect(router.currentRoute.value.query).toEqual({ feed: "unseen" });
-  });
-
-  it("filters by the type of a row", async () => {
-    const api = listing({ first: Fixtures.page([Fixtures.link("a", { type: "repo" })]) });
-    const { wrapper, router } = await mountAt("/links", api.routes);
-
-    await wrapper.find("[data-filter=type]").trigger("click");
-    await settle();
-    expect(router.currentRoute.value.query).toEqual({ type: "repo" });
   });
 
   it("loads the next page with the cursor until the last one", async () => {
@@ -447,7 +469,7 @@ describe("link actions", () => {
   it("selects a row with ↑/↓ and reveals its action bar", async () => {
     const api = withMutations();
     const { wrapper, press } = await mountAt("/links", api.routes);
-    expect(wrapper.find("[data-slot=list-row-actions]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=media-row-actions]").exists()).toBe(false);
 
     expect(await press("ArrowDown")).toBe(true);
     expect(selected(wrapper)).toBe(0);
@@ -457,7 +479,7 @@ describe("link actions", () => {
     expect(selected(wrapper)).toBe(1);
     await press("ArrowUp");
     expect(selected(wrapper)).toBe(0);
-    expect(wrapper.findAll("[data-slot=list-row-actions]")).toHaveLength(1);
+    expect(wrapper.findAll("[data-slot=media-row-actions]")).toHaveLength(1);
   });
 
   it.each([
@@ -515,7 +537,7 @@ describe("link actions", () => {
 
     await wrapper.find("[data-slot=link-row]").trigger("click");
     const actions = wrapper
-      .findAll("[data-slot=list-row-actions] [data-action]")
+      .findAll("[data-slot=media-row-actions] [data-action]")
       .map((el) => el.attributes("data-action"));
     expect(actions).toEqual(["archived", "delete"]);
   });

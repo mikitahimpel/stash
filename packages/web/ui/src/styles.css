@@ -212,6 +212,9 @@
   --text-label: 14px;
   --text-label--line-height: 20px;
   --text-label--font-weight: 500;
+  --text-row-title: 15px;
+  --text-row-title--line-height: 20px;
+  --text-row-title--font-weight: 600;
   --text-body: 14px;
   --text-body--line-height: 20px;
   --text-meta: 13px;

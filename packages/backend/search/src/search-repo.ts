@@ -1,7 +1,9 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import type * as Device from "@stash/contracts-domain/device";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -11,6 +13,10 @@ export interface SearchFilters {
   readonly type?: Link.LinkType;
   readonly status?: Link.LinkStatus;
   readonly tag?: Tag.TagName;
+  /** The device the link was saved from. */
+  readonly deviceId?: Device.DeviceId;
+  /** Saved at or after this moment. */
+  readonly since?: DateTime.Utc;
 }
 
 /** A link id with its score in one ranking. Higher ranks first. */
@@ -65,6 +71,15 @@ const filterSql = (filters: SearchFilters): { sql: string; params: Array<D1Datab
     );
     params.push(filters.tag);
   }
+  if (filters.deviceId !== undefined) {
+    conditions.push("l.source_device_id = ?");
+    params.push(filters.deviceId);
+  }
+  if (filters.since !== undefined) {
+    // `created_at` is UTC ISO 8601 with milliseconds, so text order is time order.
+    conditions.push("l.created_at >= ?");
+    params.push(DateTime.formatIso(filters.since));
+  }
   return { sql: conditions.map((condition) => ` AND ${condition}`).join(""), params };
 };
 
@@ -80,7 +95,7 @@ const LinkRow = Schema.Struct({
 });
 
 const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.status, l.type,
-  l.summary, l.language, l.image_url AS imageUrl, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
+  l.summary, l.language, l.image_url AS imageUrl, l.author, l.source_device_id AS sourceDeviceId, l.created_at AS createdAt,
   l.enriched_at AS enrichedAt,
   (SELECT json_group_array(name) FROM (SELECT t.name FROM link_tags AS lt
     JOIN tags AS t ON t.id = lt.tag_id WHERE lt.link_id = l.id ORDER BY t.name)) AS tags`;

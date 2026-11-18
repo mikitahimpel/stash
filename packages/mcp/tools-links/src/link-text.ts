@@ -36,6 +36,7 @@ export const details = (link: EncodedLink) =>
     `ID: ${link.id}`,
     `Status: ${link.status}`,
     link.type === null ? null : `Type: ${link.type}`,
+    link.author === null ? null : `By: ${link.author}`,
     link.tags.length === 0 ? null : `Tags: ${link.tags.join(", ")}`,
     link.language === null ? null : `Language: ${link.language}`,
     `Saved: ${link.createdAt}`,

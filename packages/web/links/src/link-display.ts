@@ -20,7 +20,18 @@ const minute = 60_000;
 const hour = 60 * minute;
 const day = 24 * hour;
 
-/** How long ago `date` was, short: `now`, `12m`, `5h`, `3d`. */
+/** How many tags a row shows before `+n`. */
+export const maxRowTags = 3;
+
+/** The tags a row shows, and how many it leaves out. */
+export const shownTags = <T>(
+  tags: ReadonlyArray<T>,
+): { readonly shown: ReadonlyArray<T>; readonly more: number } => ({
+  shown: tags.slice(0, maxRowTags),
+  more: Math.max(0, tags.length - maxRowTags),
+});
+
+/** How long ago `date` was, short: `now`, `12m`, `5h`, `3d`, `2w`, `4mo`, `1y`. */
 export const age = (date: DateTime.Utc, now: DateTime.Utc): string => {
   const ms = Math.max(0, DateTime.toEpochMillis(now) - DateTime.toEpochMillis(date));
   return ms < minute
@@ -29,5 +40,11 @@ export const age = (date: DateTime.Utc, now: DateTime.Utc): string => {
       ? `${Math.floor(ms / minute)}m`
       : ms < day
         ? `${Math.floor(ms / hour)}h`
-        : `${Math.floor(ms / day)}d`;
+        : ms < 14 * day
+          ? `${Math.floor(ms / day)}d`
+          : ms < 60 * day
+            ? `${Math.floor(ms / (7 * day))}w`
+            : ms < 365 * day
+              ? `${Math.floor(ms / (30 * day))}mo`
+              : `${Math.floor(ms / (365 * day))}y`;
 };

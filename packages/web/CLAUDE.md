@@ -10,8 +10,8 @@ app can be installed to the iPhone home screen.
 
 | Package | Name | Contents |
 |---|---|---|
-| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), 30-day saved/read chart, tag and type filters, status actions and keys |
-| `search/` | `@stash/web-search` | Search page (semantic and keyword) |
+| `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the `/save` result |
+| `search/` | `@stash/web-search` | Search page (semantic and keyword): the field, type / device / date filters, results as media rows with marked matches, recent searches and the latest links before a query |
 | `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
 | `settings/` | `@stash/web-settings` | Appearance (theme atoms, also used by the app header), devices and API tokens, first-run onboarding card (used by Inbox and Open now) |
 | `connect/` | `@stash/web-connect` | Connect page (`/connect`): one card per source (iPhone, Zen, Mac, Claude) with its status and a guide that creates the device and token, prefills every value and waits for the first save; extension pairing (`/connect/extension`) |
@@ -44,7 +44,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`) and `page-origin`, and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`) and `page-origin`, and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 
@@ -61,7 +61,11 @@ layers.
   cached as `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
-- A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
+- Links and tabs are `<MediaRow>`s (preview, title, one meta line, summary, tags) under
+  `<GroupHeader>`s; other lists are `<ListRow>`s. See "Media rows" in
+  [docs/design.md](../../docs/design.md).
+- A page starts with `<PageHeader>` (title, one muted line, its primary action on the right; on
+  Search the search field takes its place) and
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
   rules"). At most one `primary` key per screen.
 - Shared visual components go in `@stash/web-ui`. Feature-specific components stay in the feature.
@@ -72,7 +76,7 @@ layers.
   `text-muted-foreground`, `text-signal`, …) and SVG `fill-*` / `stroke-*` in charts. No `h-*`,
   padding, margins (except `*-auto`), `rounded-*`, `border-*`, `bg-*`, `font-*`, `text-xs|sm|[..]`
   or `tactile-*`. Every control and row comes from `@stash/web-ui` at a kit size (`sm` 32, `md` 36,
-  `lg` 44); row actions are `ghost` `sm`, lists are `ListRow` with its slots. Need a look the kit
+  `lg` 44); row actions are `ghost` `sm`, lists are `MediaRow` or `ListRow` with their slots. Need a look the kit
   lacks? Add it to the kit. `apps/web/test/feature-classes.test.ts` enforces this, and the layout
   audit (`pnpm --filter @stash/web audit:layout`, see [docs/design.md](../../docs/design.md#layout-audit))
   checks the rendered pages.

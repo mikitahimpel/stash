@@ -8,6 +8,7 @@ import { chromium, type Page } from "playwright";
 import { probe } from "./layout-audit-probe.ts";
 import { audit, type Violation } from "./layout-audit-rules.ts";
 import * as Fixtures from "./layout-fixtures.ts";
+import * as PreviewImages from "./preview-images.ts";
 import * as PreviewServer from "./preview-server.ts";
 
 const port = Number(process.env["STASH_AUDIT_PORT"] ?? 4179);
@@ -23,6 +24,8 @@ interface View {
   readonly path: string;
   readonly data: "seeded" | "empty" | "none";
   readonly prepare: (page: Page) => Promise<unknown>;
+  /** A returning user: the browser already holds recent searches. */
+  readonly recentSearches?: boolean;
 }
 
 const views: ReadonlyArray<View> = [
@@ -45,6 +48,37 @@ const views: ReadonlyArray<View> = [
     prepare: async (page) => {
       await page.getByRole("searchbox", { name: "Search links" }).fill("economics");
       await page.locator("[data-hit]").first().waitFor();
+    },
+  },
+  {
+    // Before anything is typed: recent searches and the latest links.
+    name: "search-start",
+    path: "/search",
+    data: "seeded",
+    recentSearches: true,
+    prepare: (page) => page.locator("[data-slot=recent-searches]").waitFor(),
+  },
+  {
+    // A selected row, with its action bar.
+    name: "inbox-selected",
+    path: "/links",
+    data: "seeded",
+    prepare: async (page) => {
+      await page.locator("[data-slot=link-day]").first().waitFor();
+      await page.keyboard.press("ArrowDown");
+      await page.locator("[data-slot=media-row-actions]").waitFor();
+    },
+  },
+  {
+    name: "open-now-selected",
+    path: "/open-now",
+    data: "seeded",
+    prepare: async (page) => {
+      await page
+        .locator("[data-tab]")
+        .first()
+        .click({ position: { x: 4, y: 4 } });
+      await page.locator("[data-slot=media-row-actions]").waitFor();
     },
   },
   {
@@ -115,8 +149,15 @@ const views: ReadonlyArray<View> = [
   },
 ];
 
-const answer = (page: Page, data: View["data"]) => {
+const answer = async (page: Page, data: View["data"]) => {
   const fixtures = data === "seeded" ? Fixtures.seeded(Date.now()) : Fixtures.empty;
+  // The seeded links' preview images are drawn here; nothing is fetched from the network.
+  await page.route(`${PreviewImages.origin}**`, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: PreviewImages.forUrl(route.request().url()),
+    }),
+  );
   return page.route("**/api/**", (route) => {
     const request = route.request();
     const body =
@@ -161,6 +202,14 @@ const main = async () => {
           if (message.type() === "error") errors.push(message.text());
         });
         await answer(page, view.data);
+        // Recent searches live in the browser: a returning user has some, everyone else none.
+        const [key, value] = Fixtures.recentSearches(Date.now());
+        // As a string, so the script itself never names the DOM globals.
+        await page.addInitScript(
+          view.recentSearches
+            ? `localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(value)})`
+            : `localStorage.removeItem(${JSON.stringify(key)})`,
+        );
         await page.goto(`${baseUrl}${view.path}`);
         const name = `${view.name} · ${viewport.name}`;
         const ready = await view.prepare(page).then(
