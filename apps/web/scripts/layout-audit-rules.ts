@@ -33,6 +33,11 @@ export interface Control {
   readonly hit: number;
   /** A row's title link (`a[data-row]`), which is not compared with the controls beside it. */
   readonly row: boolean;
+  /**
+   * A media row's title: its target covers the whole row, so it has no control height. It still
+   * needs the phone hit area.
+   */
+  readonly unsized?: boolean;
 }
 
 export interface Block {
@@ -75,6 +80,7 @@ const px = (value: number) => `${Math.round(value * 10) / 10}px`;
 
 const heights = (snapshot: Snapshot): Array<Violation> =>
   snapshot.controls
+    .filter((control) => control.unsized !== true)
     .filter((control) => !controlHeights.some((height) => near(control.height, height)))
     .map((control) => ({
       rule: "height",

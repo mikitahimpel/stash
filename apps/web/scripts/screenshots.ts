@@ -11,6 +11,8 @@ import * as Http from "node:http";
 import * as Os from "node:os";
 import * as Path from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
+import * as Fixtures from "./layout-fixtures.ts";
+import * as PreviewImages from "./preview-images.ts";
 
 const appDir = Path.resolve(import.meta.dirname, "..");
 const repoRoot = Path.resolve(appDir, "../..");
@@ -37,6 +39,8 @@ interface View {
   readonly maxHeight?: number;
   /** Shows the page as a first-run user sees it: the api answers with no data. */
   readonly empty?: boolean;
+  /** A returning user: the browser already holds recent searches. */
+  readonly recentSearches?: boolean;
 }
 
 const views: ReadonlyArray<View> = [
@@ -44,7 +48,13 @@ const views: ReadonlyArray<View> = [
     name: "inbox",
     path: "/links",
     signedIn: true,
-    prepare: (page) => page.locator("[data-slot=link-day]").first().waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-slot=link-day]").first().waitFor();
+      // The keyboard's row, with its action bar.
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowDown");
+      await page.locator("[data-slot=media-row-actions]").waitFor();
+    },
   },
   {
     name: "open-now",
@@ -60,6 +70,20 @@ const views: ReadonlyArray<View> = [
       await page.getByRole("searchbox", { name: "Search links" }).fill("economics");
       await page.locator("[data-hit]").first().waitFor();
     },
+  },
+  {
+    // Before anything is typed: recent searches and the latest links.
+    name: "search-start",
+    path: "/search",
+    signedIn: true,
+    recentSearches: true,
+    prepare: (page) => page.locator("[data-slot=recent-links]").waitFor(),
+  },
+  {
+    name: "save",
+    path: "/save?url=https://example.com/economics/rates",
+    signedIn: true,
+    prepare: (page) => page.locator("[data-slot=saved-link]").waitFor(),
   },
   {
     name: "settings",
@@ -261,7 +285,22 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
           ]);
         }
         const page = await context.newPage();
+        // The seeded links' preview images are drawn here; nothing is fetched from example.com.
+        await page.route(`${PreviewImages.origin}**`, (route) =>
+          route.fulfill({
+            contentType: "image/svg+xml",
+            body: PreviewImages.forUrl(route.request().url()),
+          }),
+        );
         if (view.empty) await answerEmpty(page);
+        // Recent searches live in the browser: a returning user has some, everyone else none.
+        const [key, value] = Fixtures.recentSearches(Date.now());
+        // As a string, so the script itself never names the DOM globals.
+        await page.addInitScript(
+          view.recentSearches
+            ? `localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(value)})`
+            : `localStorage.removeItem(${JSON.stringify(key)})`,
+        );
         await page.goto(`${webUrl}${view.path}`);
         await view.prepare(page).catch(async (error: unknown) => {
           // Keep the page as it was, to see why it never got ready.

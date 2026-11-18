@@ -39,6 +39,7 @@ describe("saveLink", () => {
         sourceDeviceId: LinksTestLayer.deviceId,
         createdAt: yield* DateTime.now,
         imageUrl: null,
+        author: null,
         enrichedAt: null,
         created: true,
       });

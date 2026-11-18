@@ -26,10 +26,16 @@ export const LinkTitle = Schema.String.pipe(
   Schema.check(Schema.isNonEmpty(), Schema.isMaxLength(1000)),
 );
 
+/** Who published a link: a channel or an author, as one short line. */
+export const LinkAuthor = Schema.String.pipe(
+  Schema.check(Schema.isNonEmpty(), Schema.isMaxLength(200)),
+);
+
 /**
- * A saved link. Enrichment fills `type`, `summary`, `language`, `tags` and `imageUrl` later.
+ * A saved link. Enrichment fills `type`, `summary`, `language`, `tags`, `imageUrl` and `author` later.
  * `imageUrl` is a preview image on the page's own host (an `og:image`, a video thumbnail), shown
- * as is: nothing proxies or stores it. `summary` stays `null` when the page gave no text to
+ * as is: nothing proxies or stores it. `author` is who published it, when the source names them: a
+ * YouTube channel, an article's author. `summary` stays `null` when the page gave no text to
  * summarize.
  */
 export const Link = Schema.Struct({
@@ -42,6 +48,7 @@ export const Link = Schema.Struct({
   summary: Schema.NullOr(Schema.String),
   language: Schema.NullOr(Schema.String),
   imageUrl: Schema.NullOr(Url),
+  author: Schema.NullOr(LinkAuthor),
   tags: Schema.Array(Tag.TagName),
   sourceDeviceId: Schema.NullOr(Device.DeviceId),
   createdAt: Schema.DateTimeUtcFromString,

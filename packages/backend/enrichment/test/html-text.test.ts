@@ -42,12 +42,23 @@ describe("HtmlText.parse", () => {
     expect(page.text).toBe("Body text without a main region.");
   });
 
+  it("reads the author when it is a name, not a profile URL, an address or a paragraph", () => {
+    expect(HtmlText.parse(Fixtures.ogImagePage).author).toEqual(Option.some("Ada Example"));
+    expect(HtmlText.parse(Fixtures.twitterImagePage).author).toEqual(Option.some("Grace Example"));
+    expect(HtmlText.parse(Fixtures.dataImagePage).author).toEqual(Option.none());
+    expect(HtmlText.authorName("ada@example.com")).toEqual(Option.none());
+    expect(HtmlText.authorName("www.example.com/ada")).toEqual(Option.none());
+    expect(HtmlText.authorName("a".repeat(HtmlText.maxAuthorLength + 1))).toEqual(Option.none());
+    expect(HtmlText.authorName("   ")).toEqual(Option.none());
+  });
+
   it("handles an empty document", () => {
     expect(HtmlText.parse("")).toEqual({
       title: Option.none(),
       description: Option.none(),
       lang: Option.none(),
       image: Option.none(),
+      author: Option.none(),
       text: "",
     });
   });

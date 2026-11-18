@@ -71,6 +71,7 @@ export type Requirements =
   | Blobs.Blobs;
 
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
+const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);
 
 const usableTitle = Option.filter((title: string) => !JunkFilter.isSiteNameTitle(title));
 
@@ -154,6 +155,11 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       imageUrl: content.pipe(
         Option.flatMap((c) => c.imageUrl),
         Option.flatMap(decodeUrl),
+        Option.getOrNull,
+      ),
+      author: content.pipe(
+        Option.flatMap((c) => c.author),
+        Option.flatMap(decodeAuthor),
         Option.getOrNull,
       ),
       tags: classification.tags,

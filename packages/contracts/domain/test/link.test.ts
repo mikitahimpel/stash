@@ -15,6 +15,7 @@ const link = {
   sourceDeviceId: "device-1",
   createdAt: "2026-01-02T03:04:05.000Z",
   imageUrl: null,
+  author: null,
   enrichedAt: null,
 };
 
@@ -76,6 +77,7 @@ describe("Link", () => {
         summary: null,
         language: null,
         imageUrl: null,
+        author: null,
         sourceDeviceId: null,
         tags: [],
       });
@@ -87,6 +89,8 @@ describe("Link", () => {
     ["an invalid url", { url: "not a url" }],
     ["an image that is not http(s)", { imageUrl: "data:image/png;base64,AAAA" }],
     ["a missing image field", { imageUrl: undefined }],
+    ["an empty author", { author: "" }],
+    ["a missing author field", { author: undefined }],
     ["an unknown status", { status: "deleted" }],
     ["an empty id", { id: "" }],
     ["a bad timestamp", { createdAt: "yesterday" }],

@@ -1,8 +1,12 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
+import * as RecentSearches from "@stash/web-platform/recent-searches";
+import * as PlatformTesting from "@stash/web-platform/testing";
 import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as UrlParams from "effect/http/UrlParams";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,21 +17,42 @@ import * as Fixtures from "./fixtures.ts";
 enableAutoUnmount(afterEach);
 
 let registry: AtomRegistry.AtomRegistry | undefined;
+// The recent searches of the page under test, in memory. Tests read and seed them directly.
+let recent: RecentSearches.RecentSearches["Service"];
 
-// The timeline's background: one page of recent links.
-const savedLinks = {
+const devices = [
+  { id: "device-1", name: "Laptop", kind: "zen", createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "device-2", name: "Phone", kind: "ios", createdAt: "2026-01-01T00:00:00.000Z" },
+];
+
+// What every page loads besides the search: the latest links and the devices.
+const background = {
   "GET /links": () =>
     ApiTesting.json({
       items: [
-        Fixtures.link("s1", { tags: ["rust", "go"] }),
+        Fixtures.link("s1", { tags: ["rust", "go"], type: "video", sourceDeviceId: "device-1" }),
         Fixtures.link("s2", { tags: ["rust"] }),
       ],
       nextCursor: null,
     }),
+  "GET /devices": () => ApiTesting.json(devices),
 };
 
-const mountPage = (routes: ApiTesting.Routes, props: { query?: string } = {}) => {
-  registry = ApiTesting.makeRegistry({ ...savedLinks, ...routes });
+const mountPage = (
+  routes: ApiTesting.Routes,
+  searched: ReadonlyArray<string> = [],
+  props: { query?: string } = {},
+) => {
+  const context = Layer.build(PlatformTesting.layerRecentSearches).pipe(
+    Effect.scoped,
+    Effect.runSync,
+  );
+  recent = Context.get(context, RecentSearches.RecentSearches);
+  for (const query of searched) Effect.runSync(recent.add(query));
+  registry = ApiTesting.makeRegistry(
+    { ...background, ...routes },
+    { initialValues: [[SearchAtoms.recentLayer, Layer.succeedContext(context)]] },
+  );
   return mount(SearchPage, {
     props,
     attachTo: "body",
@@ -35,9 +60,28 @@ const mountPage = (routes: ApiTesting.Routes, props: { query?: string } = {}) =>
   });
 };
 
+const remembered = () => Effect.runSync(recent.list).map((entry) => entry.query);
+
 const type = async (wrapper: ReturnType<typeof mountPage>, text: string) => {
   await wrapper.find("input[type=search]").setValue(text);
   await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+  await flushPromises();
+};
+
+const settle = async () => {
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(0);
+  await flushPromises();
+};
+
+const pick = async (wrapper: ReturnType<typeof mountPage>, menu: string, option: string) => {
+  const trigger = wrapper
+    .findAll("[data-slot=filter-menu]")
+    .find((item) => item.text().startsWith(`${menu}:`));
+  await trigger?.trigger("keydown", { key: "Enter" });
+  await flushPromises();
+  const items = new DOMWrapper(wrapper.element.ownerDocument.body).findAll("[role=menuitemradio]");
+  await items.find((item) => item.text() === option)?.trigger("click");
   await flushPromises();
 };
 
@@ -51,52 +95,128 @@ afterEach(() => {
 });
 
 describe("SearchPage", () => {
-  it("is just the focused field, with an example query, before anything is typed", async () => {
-    const wrapper = mountPage({
-      "GET /links": () =>
-        ApiTesting.json({
-          items: [Fixtures.link("s1"), Fixtures.link("s2"), Fixtures.link("s3")],
-          nextCursor: null,
-        }),
-    });
-    await flushPromises();
-    await flushPromises();
+  it("opens on the focused field, with the latest links and no chart", async () => {
+    const wrapper = mountPage({});
+    await settle();
 
     const field = wrapper.find<HTMLInputElement>("input[type=search]");
     expect(wrapper.element.ownerDocument.activeElement).toBe(field.element);
-    expect(field.attributes("placeholder")).toContain("economics");
+    expect(wrapper.find("h1").text()).toBe("Search");
     expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+    // The mode only matters once there is a query.
     expect(wrapper.find("[role=radiogroup]").exists()).toBe(false);
-    expect(wrapper.find("[data-slot=filter-menu]").exists()).toBe(false);
-    expect(wrapper.find("[data-slot=empty-state]").exists()).toBe(false);
-    expect(wrapper.find("ul").exists()).toBe(false);
+    expect(wrapper.findAll("[data-slot=filter-menu]").map((menu) => menu.text())).toEqual([
+      "Type: Any",
+      "Device: Any",
+      "Date: Any",
+    ]);
+    expect(wrapper.find("[data-slot=recent-searches]").exists()).toBe(false);
+    const links = wrapper.find("[data-slot=recent-links]");
+    expect(links.find("[data-slot=group-header]").text()).toBe("Recently saved");
+    expect(links.findAll("a[data-result-link]").map((link) => link.text())).toEqual([
+      "Example article s1",
+      "Example article s2",
+    ]);
+    expect(wrapper.find("ul[aria-label=Results]").exists()).toBe(false);
   });
 
-  it("leaves the timeline out when a search has fewer than three links to plot", async () => {
+  it("is just the field and its filters for a first-run user", async () => {
     const wrapper = mountPage({
       "GET /links": () => ApiTesting.json({ items: [], nextCursor: null }),
-      "GET /search": () => ApiTesting.json(Fixtures.results("a", "b")),
+      "GET /devices": () => ApiTesting.json([]),
     });
-    await type(wrapper, "rust");
-    expect(wrapper.findAll("[data-result-link]")).toHaveLength(2);
-    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+    await settle();
+    expect(wrapper.find("[data-slot=group-header]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=empty-state]").exists()).toBe(false);
+    // No devices: no Device filter.
+    expect(wrapper.findAll("[data-slot=filter-menu]").map((menu) => menu.text())).toEqual([
+      "Type: Any",
+      "Date: Any",
+    ]);
   });
 
   it("runs the query a link to the page carries (/search?q=…)", async () => {
-    const wrapper = mountPage(
-      { "GET /search": () => ApiTesting.json({ hits: [] }) },
-      { query: "rust" },
-    );
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) }, [], {
+      query: "rust",
+    });
     await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
     await flushPromises();
     expect(wrapper.find<HTMLInputElement>("input[type=search]").element.value).toBe("rust");
     await vi.waitFor(() => expect(wrapper.text()).toContain("No matches"));
   });
 
-  it("leaves the timeline out when nothing matches", async () => {
-    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) });
-    await type(wrapper, "nothing like this");
-    expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+  it("narrows the latest links by the filters before anything is typed", async () => {
+    const wrapper = mountPage({});
+    await settle();
+    await pick(wrapper, "Type", "Video");
+    expect(
+      wrapper.findAll("[data-slot=recent-links] a[data-result-link]").map((link) => link.text()),
+    ).toEqual(["Example article s1"]);
+  });
+
+  it("lists the recent searches, runs one again and removes one", async () => {
+    const searches: Array<string | null> = [];
+    const wrapper = mountPage(
+      {
+        "GET /search": (request) => {
+          searches.push(Option.getOrNull(UrlParams.getFirst(request.urlParams, "q")));
+          return ApiTesting.json(Fixtures.results("a"));
+        },
+      },
+      ["economics video", "sqlite"],
+    );
+    await settle();
+
+    const rows = () => wrapper.findAll("[data-slot=recent-searches] li");
+    expect(rows().map((row) => row.find("[data-action=search-again]").text())).toEqual([
+      "sqlite",
+      "economics video",
+    ]);
+
+    await rows()[0]?.find("[data-action=forget]").trigger("click");
+    await settle();
+    expect(rows().map((row) => row.find("[data-action=search-again]").text())).toEqual([
+      "economics video",
+    ]);
+    expect(remembered()).toEqual(["economics video"]);
+
+    await rows()[0]?.find("[data-action=search-again]").trigger("click");
+    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+    await flushPromises();
+    expect(wrapper.find<HTMLInputElement>("input[type=search]").element.value).toBe(
+      "economics video",
+    );
+    expect(searches).toEqual(["economics video"]);
+    expect(wrapper.findAll("ul[aria-label=Results] li")).toHaveLength(1);
+  });
+
+  it("remembers a search on Enter and on opening a result, not while typing", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json(Fixtures.results("a")) });
+    await type(wrapper, "rust");
+    expect(remembered()).toEqual([]);
+
+    wrapper
+      .find("a[data-result-link]")
+      .element.addEventListener("click", (event) => event.preventDefault());
+    await wrapper.find("a[data-result-link]").trigger("click");
+    await settle();
+    expect(remembered()).toEqual(["rust"]);
+
+    await type(wrapper, "rust lifetimes");
+    await wrapper.find("input[type=search]").trigger("keydown", { key: "Enter" });
+    await settle();
+    expect(remembered()).toEqual(["rust lifetimes", "rust"]);
+  });
+
+  it("clears the query with Escape and goes back to the field", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json(Fixtures.results("a")) });
+    await type(wrapper, "rust");
+    const field = wrapper.find<HTMLInputElement>("input[type=search]");
+    await wrapper.find("a[data-result-link]").trigger("keydown", { key: "Escape" });
+    await settle();
+    expect(field.element.value).toBe("");
+    expect(wrapper.element.ownerDocument.activeElement).toBe(field.element);
+    expect(wrapper.find("ul[aria-label=Results]").exists()).toBe(false);
   });
 
   it("shows a loading state once the search has run for 200 ms", async () => {
@@ -121,31 +241,63 @@ describe("SearchPage", () => {
     expect(requests).toBe(2);
   });
 
-  it("lists the hits", async () => {
+  it("lists the hits as media rows: preview, host, author, age, device, summary and tags", async () => {
     const wrapper = mountPage({
       "GET /search": () =>
         ApiTesting.json({
           hits: [
             {
-              link: Fixtures.link("a", { type: "repo", tags: ["rust"], summary: "A summary" }),
+              link: Fixtures.link("a", {
+                type: "video",
+                tags: ["rust", "async", "talk", "long"],
+                summary: "A summary",
+                imageUrl: "https://example.com/previews/a.jpg",
+                author: "Synthetic Channel",
+                sourceDeviceId: "device-1",
+              }),
               score: 0.9,
             },
-            { link: Fixtures.link("b"), score: 0.5 },
+            { link: Fixtures.link("b", { status: "seen" }), score: 0.5 },
           ],
         }),
     });
     await type(wrapper, "rust");
 
+    expect(wrapper.find("[data-slot=search-results] [data-slot=group-header]").text()).toBe(
+      "Results 2",
+    );
     const items = wrapper.findAll("ul[aria-label=Results] li");
-    expect(items.map((item) => item.find("a").text())).toEqual([
+    expect(items.map((item) => item.find("a[data-result-link]").text())).toEqual([
       "Example article a",
       "Example article b",
     ]);
-    expect(items.map((item) => item.find("span").text())).toEqual(["1", "2"]);
-    expect(items[0]?.find("a").attributes("href")).toBe("https://example.com/articles/a");
-    expect(items[0]?.text()).toContain("A summary");
-    expect(items[0]?.text()).toContain("repo · 2026-01-01");
-    expect(wrapper.text()).toContain("2 results");
+    const [first, second] = items;
+    expect(first?.find("a[data-result-link]").attributes("href")).toBe(
+      "https://example.com/articles/a",
+    );
+    const image = first!.find("[data-slot=media-thumb] img");
+    expect(image.attributes("src")).toBe("https://example.com/previews/a.jpg");
+    expect(image.attributes("referrerpolicy")).toBe("no-referrer");
+    expect(first?.find("[data-slot=media-thumb-video]").exists()).toBe(true);
+    expect(
+      first
+        ?.find("[data-slot=media-row-meta]")
+        .findAll(":scope > *")
+        .map((item) => item.text()),
+    ).toEqual(["example.com", "Synthetic Channel", expect.stringMatching(/^\d+(mo|y)$/), "Laptop"]);
+    expect(first?.find("[data-slot=result-summary]").text()).toBe("A summary");
+    expect(first?.findAll("[data-filter=tag]").map((tag) => tag.text())).toEqual([
+      "#rust",
+      "#async",
+      "#talk",
+    ]);
+    expect(first?.find("[data-slot=more-tags]").text()).toBe("+1");
+    expect(first?.find("[data-slot=media-row-unread]").exists()).toBe(true);
+
+    // No image: the site's initial. Seen: no dot. No rank numbers anywhere.
+    expect(second?.find("[data-slot=media-thumb]").text()).toBe("e");
+    expect(second?.find("[data-slot=media-row-unread]").exists()).toBe(false);
+    expect(wrapper.find("[data-slot=list-row-leading]").exists()).toBe(false);
   });
 
   it("highlights the query's terms in keyword and hybrid mode, not in meaning mode", async () => {
@@ -153,37 +305,24 @@ describe("SearchPage", () => {
       "GET /search": () =>
         ApiTesting.json({
           hits: [
-            { link: Fixtures.link("a", { summary: "Быстрый Rust и rust-analyzer" }), score: 1 },
+            {
+              link: Fixtures.link("a", {
+                title: "Rust for the curious",
+                summary: "Быстрый Rust и rust-analyzer",
+              }),
+              score: 1,
+            },
           ],
         }),
     });
     await type(wrapper, "RUST");
-    expect(wrapper.findAll("mark").map((mark) => mark.text())).toEqual(["Rust", "rust"]);
+    // In the title and in the summary.
+    expect(wrapper.findAll("mark").map((mark) => mark.text())).toEqual(["Rust", "Rust", "rust"]);
 
     await wrapper.find("[role=radio]:nth-child(2)").trigger("click");
     await flushPromises();
     expect(wrapper.find("[role=radio][aria-checked=true]").text()).toBe("Meaning");
     expect(wrapper.findAll("mark")).toEqual([]);
-  });
-
-  it("numbers the matches on the timeline by rank", async () => {
-    const wrapper = mountPage({
-      "GET /search": () =>
-        ApiTesting.json({
-          hits: [
-            { link: Fixtures.link("a", { createdAt: new Date().toISOString() }), score: 0.9 },
-            { link: Fixtures.link("b", { createdAt: new Date().toISOString() }), score: 0.5 },
-          ],
-        }),
-    });
-    await type(wrapper, "rust");
-    const timeline = wrapper.find("svg[role=img]");
-    expect(
-      timeline
-        .findAll("[data-testid=timeline-match]")
-        .map((match) => match.attributes("data-rank")),
-    ).toEqual(["1", "2"]);
-    expect(timeline.attributes("aria-label")).toMatch(/^2 matches/);
   });
 
   it("moves through the results with the arrow keys and marks one seen with S", async () => {
@@ -235,41 +374,56 @@ describe("SearchPage", () => {
     expect(wrapper.text()).toContain("No matches");
   });
 
-  it("searches again with the type filter", async () => {
-    const types: Array<string | null> = [];
+  it("searches again with the type, device and date filters", async () => {
+    const queries: Array<Record<string, unknown>> = [];
     const wrapper = mountPage({
       "GET /search": (request) => {
-        types.push(Option.getOrNull(UrlParams.getFirst(request.urlParams, "type")));
+        queries.push(UrlParams.toRecord(request.urlParams));
         return ApiTesting.json(Fixtures.results("a"));
       },
     });
     await type(wrapper, "rust");
-    const menu = wrapper.find("[data-slot=filter-menu]");
-    expect(menu.text()).toBe("Type: Any");
-    await menu.trigger("keydown", { key: "Enter" });
-    await flushPromises();
-    const items = new DOMWrapper(wrapper.element.ownerDocument.body).findAll(
-      "[role=menuitemradio]",
-    );
-    await items.find((item) => item.text() === "Video")?.trigger("click");
-    await flushPromises();
-    expect(types).toEqual([null, "video"]);
-    expect(menu.text()).toBe("Type: Video");
+    await pick(wrapper, "Type", "Video");
+    await pick(wrapper, "Device", "Phone");
+    await pick(wrapper, "Date", "Past week");
+    expect(queries.map(({ type, deviceId }) => ({ type, deviceId }))).toEqual([
+      {},
+      { type: "video" },
+      { type: "video", deviceId: "device-2" },
+      { type: "video", deviceId: "device-2" },
+    ]);
+    expect(queries.at(-1)?.["since"]).toMatch(/^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/);
+    expect(queries[2]?.["since"]).toBeUndefined();
+    expect(wrapper.findAll("[data-slot=filter-menu]").map((menu) => menu.text())).toEqual([
+      "Type: Video",
+      "Device: Phone",
+      "Date: Past week",
+    ]);
   });
 
-  it("offers the frequent tags as chips and filters by one", async () => {
+  it("has no tag chips in the filters; a tag on a row filters by it, and its chip clears it", async () => {
     const tags: Array<string | null> = [];
     const wrapper = mountPage({
       "GET /search": (request) => {
         tags.push(Option.getOrNull(UrlParams.getFirst(request.urlParams, "tag")));
-        return ApiTesting.json(Fixtures.results("a"));
+        return ApiTesting.json({
+          hits: [{ link: Fixtures.link("a", { tags: ["go", "rust"] }), score: 1 }],
+        });
       },
     });
     await type(wrapper, "rust");
-    const chips = wrapper.findAll("[role=group][aria-label=Tag] button");
-    expect(chips.map((chip) => chip.text())).toEqual(["#rust", "#go"]);
-    await chips[1]?.trigger("click");
-    await flushPromises();
+    expect(wrapper.find("[role=group][aria-label=Filters] [data-slot=toggle-chip]").exists()).toBe(
+      false,
+    );
+
+    await wrapper.find("[data-filter=tag]").trigger("click");
+    await settle();
     expect(tags).toEqual([null, "go"]);
+    const chip = wrapper.find("[data-clear=tag]");
+    expect(chip.text()).toContain("#go");
+
+    await chip.trigger("click");
+    await settle();
+    expect(wrapper.find("[data-clear=tag]").exists()).toBe(false);
   });
 });

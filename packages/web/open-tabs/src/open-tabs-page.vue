@@ -8,7 +8,7 @@ import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
 import PageHeader from "@stash/web-ui/page-header";
 import SearchField from "@stash/web-ui/search-field";
-import SectionHeader from "@stash/web-ui/section-header";
+import GroupHeader from "@stash/web-ui/group-header";
 import Skeleton from "@stash/web-ui/skeleton";
 import Toaster from "@stash/web-ui/toaster";
 import ToggleChip from "@stash/web-ui/toggle-chip";
@@ -157,8 +157,8 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
           <Skeleton v-for="i in 3" :key="i" shape="chip" />
         </div>
         <Skeleton shape="chart" />
-        <div class="flex flex-col gap-1">
-          <Skeleton v-for="i in 4" :key="i" shape="row" />
+        <div class="flex flex-col gap-3">
+          <Skeleton v-for="i in 4" :key="i" shape="media" />
         </div>
       </div>
     </template>
@@ -219,39 +219,42 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
           </Button>
         </template>
       </EmptyState>
-      <section
-        v-for="section in sections"
-        :key="section.id"
-        :data-section="section.id"
-        class="flex flex-col gap-1"
-      >
-        <SectionHeader :title="section.title" :count="section.tabs.length">
-          <template v-if="section.id === 'old'" #actions>
-            <Button as-child variant="ghost" size="sm">
-              <button type="button" data-action="review" @click="select(section.tabs[0]?.key)">
-                Review
-              </button>
-            </Button>
-            <Button as-child variant="ghost" size="sm">
-              <button type="button" data-action="archive-all" @click="confirming = true">
-                Archive all {{ section.tabs.length }}
-              </button>
-            </Button>
-          </template>
-        </SectionHeader>
-        <ul class="flex flex-col">
-          <OpenTabRow
-            v-for="tab in section.tabs"
-            :key="tab.key"
-            :ref="(row) => setRowRef(tab.key, row)"
-            :tab="tab"
-            :selected="tab.key === selected"
-            @select="selected = tab.key"
-            @archive="act(tab, archive)"
-            @close="act(tab, closeOnDevice)"
-          />
-        </ul>
-      </section>
+      <!-- Groups of rows sit 32px apart, wider than the page's 24px rhythm. -->
+      <div v-if="sections.length > 0" class="flex flex-col gap-8">
+        <section
+          v-for="section in sections"
+          :key="section.id"
+          :data-section="section.id"
+          class="flex flex-col gap-2"
+        >
+          <GroupHeader :title="section.title" :count="section.tabs.length">
+            <template v-if="section.id === 'old'" #actions>
+              <Button as-child variant="ghost" size="sm">
+                <button type="button" data-action="review" @click="select(section.tabs[0]?.key)">
+                  Review
+                </button>
+              </Button>
+              <Button as-child variant="ghost" size="sm">
+                <button type="button" data-action="archive-all" @click="confirming = true">
+                  Archive all {{ section.tabs.length }}
+                </button>
+              </Button>
+            </template>
+          </GroupHeader>
+          <ul class="flex flex-col">
+            <OpenTabRow
+              v-for="tab in section.tabs"
+              :key="tab.key"
+              :ref="(row) => setRowRef(tab.key, row)"
+              :tab="tab"
+              :selected="tab.key === selected"
+              @select="selected = tab.key"
+              @archive="act(tab, archive)"
+              @close="act(tab, closeOnDevice)"
+            />
+          </ul>
+        </section>
+      </div>
 
       <footer
         class="hidden flex-wrap gap-x-4 gap-y-2 text-meta text-muted-foreground sm:flex"

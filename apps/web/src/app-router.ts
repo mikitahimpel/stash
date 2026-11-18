@@ -19,7 +19,7 @@ export const featureRoutes: ReadonlyArray<RouteRecordRaw> = [
 
 /**
  * Dev-only pages. `import.meta.env.DEV` is `false` in the production build, which drops them and
- * their chunks; there `/_ui` falls through to the catch-all redirect.
+ * its chunk; there `/_ui` falls through to the catch-all redirect.
  */
 export const devRoutes: ReadonlyArray<RouteRecordRaw> = import.meta.env.DEV
   ? [

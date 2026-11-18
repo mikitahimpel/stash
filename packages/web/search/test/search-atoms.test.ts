@@ -1,4 +1,5 @@
 import * as ApiTesting from "@stash/web-api-client/testing";
+import * as PlatformTesting from "@stash/web-platform/testing";
 import * as UrlParams from "effect/http/UrlParams";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -60,6 +61,22 @@ describe("search atoms", () => {
     expect(requests).toEqual([{ q: "schema", mode: "keyword", type: "repo", tag: "effect" }]);
   });
 
+  it("sends the device and the date range", async () => {
+    const reg = start();
+    reg.set(SearchAtoms.device, "device-1");
+    reg.set(SearchAtoms.range, "week");
+    reg.set(SearchAtoms.q, "schema");
+    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+    expect(requests).toEqual([
+      {
+        q: "schema",
+        mode: "hybrid",
+        deviceId: "device-1",
+        since: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:00:00\.000Z$/),
+      },
+    ]);
+  });
+
   it("applies a mode change at once, without waiting", async () => {
     const reg = start();
     reg.set(SearchAtoms.q, "rust");
@@ -93,5 +110,36 @@ describe("search atoms", () => {
     expect(result?._tag === "Success" && result.value.hits.map((hit) => hit.link.id)).toEqual([
       "a",
     ]);
+  });
+});
+
+describe("recent searches", () => {
+  const startRecent = () => {
+    registry = ApiTesting.makeRegistry(
+      {},
+      { initialValues: [[SearchAtoms.recentLayer, PlatformTesting.layerRecentSearches]] },
+    );
+    registry.mount(SearchAtoms.recent);
+    return registry;
+  };
+  const queries = (reg: AtomRegistry.AtomRegistry) => {
+    const result = reg.get(SearchAtoms.recent);
+    return result._tag === "Success" ? result.value.map((entry) => entry.query) : undefined;
+  };
+
+  it("remembers searches newest first, and forgets one", async () => {
+    const reg = startRecent();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queries(reg)).toEqual([]);
+
+    reg.set(SearchAtoms.remember, "rust");
+    await vi.advanceTimersByTimeAsync(0);
+    reg.set(SearchAtoms.remember, " economics video ");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queries(reg)).toEqual(["economics video", "rust"]);
+
+    reg.set(SearchAtoms.forget, "rust");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queries(reg)).toEqual(["economics video"]);
   });
 });

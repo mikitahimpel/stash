@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import type * as Link from "@stash/contracts-domain/link";
-import ListRow from "@stash/web-ui/list-row";
-import ListRowTitle from "@stash/web-ui/list-row-title";
+import MediaRow from "@stash/web-ui/media-row";
+import MediaRowTitle from "@stash/web-ui/media-row-title";
+import MediaThumb from "@stash/web-ui/media-thumb";
+import TagChip from "@stash/web-ui/tag-chip";
 import type * as DateTime from "effect/DateTime";
+import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import LinkActions from "../link-actions.vue";
 import * as LinkDisplay from "../link-display.ts";
 import * as LinksAtoms from "../links-atoms.ts";
 
+// One link as a media row: preview · title · host · channel or author · age · device, then the
+// summary when there is one and at most three tags. The whole row opens the link's page.
 const props = defineProps<{
   link: Link.Link;
   selected: boolean;
   /** The name of the device the link was saved from, if known. */
   device: string | undefined;
   now: DateTime.Utc;
-  /** The feed's filters: a tag or type on the row narrows them. */
+  /** The feed's filters: a tag on the row narrows them. */
   filters: LinksAtoms.Filters;
 }>();
 const emit = defineEmits<{ select: [] }>();
@@ -23,61 +28,71 @@ const narrow = (patch: Partial<LinksAtoms.Filters>) => ({
   name: "links",
   query: LinksAtoms.toQuery({ ...props.filters, ...patch }),
 });
+
+const tags = computed(() => LinkDisplay.shownTags(props.link.tags));
 </script>
 
 <template>
-  <ListRow
+  <MediaRow
     as="li"
     :selected="selected"
+    :unread="link.status === 'new'"
     data-slot="link-row"
-    v-bind="{ 'aria-current': selected ? true : undefined, onClick: () => emit('select') }"
+    v-bind="{
+      'aria-current': selected ? true : undefined,
+      onClick: () => emit('select'),
+    }"
   >
+    <template #thumb>
+      <MediaThumb
+        :src="link.imageUrl"
+        :initial="LinkDisplay.domain(link)"
+        :video="link.type === 'video'"
+      />
+    </template>
     <template #title>
-      <ListRowTitle as-child>
+      <MediaRowTitle as-child>
         <RouterLink :to="{ name: 'link-details', params: { id: link.id } }">
           {{ LinkDisplay.title(link) }}
         </RouterLink>
-      </ListRowTitle>
+      </MediaRowTitle>
     </template>
     <template #meta>
-      <a :href="link.url" target="_blank" rel="noopener noreferrer" class="hover:text-foreground">{{
-        LinkDisplay.domain(link)
-      }}</a>
-      <span v-if="device !== undefined" data-slot="link-device">{{ device }}</span>
+      <a
+        :href="link.url"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-slot="link-host"
+        class="relative hover:text-foreground"
+        @click.stop
+        >{{ LinkDisplay.domain(link) }}</a
+      >
+      <span v-if="link.author !== null" data-slot="link-author" data-shrink="">{{
+        link.author
+      }}</span>
       <span>{{ LinkDisplay.age(link.createdAt, now) }}</span>
+      <span v-if="device !== undefined" data-slot="link-device" class="max-sm:hidden">{{
+        device
+      }}</span>
     </template>
     <p v-if="link.enrichedAt === null" class="text-meta text-muted-foreground">summarizing…</p>
-    <p v-else-if="link.summary" class="truncate text-body text-muted-foreground">
+    <p
+      v-else-if="link.summary"
+      data-slot="link-summary"
+      class="line-clamp-2 text-body text-muted-foreground"
+    >
       {{ link.summary }}
     </p>
-    <div
-      v-if="link.type !== null || link.tags.length > 0"
-      class="flex flex-wrap gap-x-3 text-meta text-muted-foreground"
-    >
-      <RouterLink
-        v-if="link.type !== null"
-        :to="narrow({ type: link.type })"
-        replace
-        data-filter="type"
-        class="hover:text-foreground"
-        @click.stop
-      >
-        {{ link.type }}
-      </RouterLink>
-      <RouterLink
-        v-for="tag in link.tags"
-        :key="tag"
-        :to="narrow({ tag })"
-        replace
-        data-filter="tag"
-        class="hover:text-foreground"
-        @click.stop
-      >
-        #{{ tag }}
-      </RouterLink>
+    <div v-if="tags.shown.length > 0" class="flex flex-wrap items-center gap-1">
+      <TagChip v-for="tag in tags.shown" :key="tag" as-child>
+        <RouterLink :to="narrow({ tag })" replace data-filter="tag" @click.stop>
+          #{{ tag }}
+        </RouterLink>
+      </TagChip>
+      <TagChip v-if="tags.more > 0" data-slot="more-tags">+{{ tags.more }}</TagChip>
     </div>
     <template #actions>
       <LinkActions :link="link" shortcuts />
     </template>
-  </ListRow>
+  </MediaRow>
 </template>

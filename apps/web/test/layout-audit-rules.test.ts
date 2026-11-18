@@ -60,6 +60,20 @@ describe("layout audit rules", () => {
     expect(rules(titled)).toEqual([]);
   });
 
+  it("asks a media row's title for a phone hit area, not for a control height", () => {
+    // The title's target is the whole row: 92px tall on a desktop, never 32 / 36 / 44.
+    const title = control({
+      label: "a[media-row-title]",
+      height: 20,
+      hit: 92,
+      row: true,
+      unsized: true,
+    });
+    expect(rules(page({ controls: [title, control({ height: 32 })] }), true)).toEqual([]);
+    expect(rules(page({ controls: [{ ...title, hit: 20 }] }), true)).toEqual(["hit area"]);
+    expect(rules(page({ controls: [control({ height: 20, hit: 92 })] }))).toEqual(["height"]);
+  });
+
   it("flags a block that starts off the content edge, like an x+12 row", () => {
     const inset = page({
       blocks: [{ label: "row", left: 276, right: 1000, rightIsBox: false, centered: false }],

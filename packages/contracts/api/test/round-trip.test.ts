@@ -50,6 +50,7 @@ const makeLink = (
   sourceDeviceId,
   createdAt: now,
   imageUrl: null,
+  author: null,
   enrichedAt: null,
 });
 

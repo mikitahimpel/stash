@@ -4,7 +4,7 @@ import * as Option from "effect/Option";
 export interface ContentText {
   readonly title: Option.Option<string>;
   readonly description: Option.Option<string>;
-  /** Who published it, when the source names them: a YouTube channel. */
+  /** Who published it, when the source names them: a YouTube channel, a page's author. */
   readonly author: Option.Option<string>;
   /** An absolute `http(s)` URL of a preview image on the page's own host. */
   readonly imageUrl: Option.Option<string>;

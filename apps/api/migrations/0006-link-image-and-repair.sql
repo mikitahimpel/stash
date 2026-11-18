@@ -10,10 +10,13 @@ ALTER TABLE links ADD COLUMN enrichment_attempts INTEGER NOT NULL DEFAULT 0;
 
 -- A YouTube video's thumbnail needs no fetch: the canonical URL holds the 11-character video id
 -- (`https://youtube.com/watch?v=<id>`, see `canonicalize-url.ts`), so every stored video gets its
--- image here.
+-- image here. D1 rejects a LIKE or GLOB pattern longer than 50 bytes ("pattern too complex"), so
+-- the id is checked with a short negated class instead of eleven classes in a row (#152).
 UPDATE links
   SET image_url = 'https://i.ytimg.com/vi/' || substr(canonical_url, 29, 11) || '/hqdefault.jpg'
-  WHERE canonical_url GLOB 'https://youtube.com/watch[?]v=[A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]';
+  WHERE substr(canonical_url, 1, 28) = 'https://youtube.com/watch?v='
+    AND length(canonical_url) = 39
+    AND substr(canonical_url, 29, 11) NOT GLOB '*[^A-Za-z0-9_-]*';
 
 -- Repair. From Cloudflare's addresses YouTube answered the watch page with a consent page, so
 -- links were stored with the title "- YouTube", a summary about the content being unavailable, and
@@ -21,7 +24,8 @@ UPDATE links
 -- the "not enriched yet" state. The hourly `requeuePending` cron step (see
 -- `apps/api/src/scheduled-handler.ts`) then sends them through the fixed pipeline. All of it is
 -- idempotent: a second run matches nothing. The summary patterns are narrow on purpose; a link
--- they match by mistake only costs one more classifier call.
+-- they match by mistake only costs one more classifier call. The Russian phrases use `instr`: as
+-- LIKE patterns they sit at D1's 50-byte limit, and LIKE is case-sensitive outside ASCII anyway.
 
 UPDATE links
   SET summary = NULL, enriched_at = NULL, enrichment_error = NULL
@@ -40,8 +44,8 @@ UPDATE links
       OR lower(summary) LIKE '%content is not available%'
       OR lower(summary) LIKE '%content could not be fetched%'
       OR lower(summary) LIKE '%text could not be fetched%'
-      OR summary LIKE '%евозможно определить тему%'
-      OR summary LIKE '%е удалось определить тему%'
+      OR instr(summary, 'евозможно определить тему') > 0
+      OR instr(summary, 'е удалось определить тему') > 0
       OR EXISTS (
         SELECT 1 FROM link_tags lt JOIN tags t ON t.id = lt.tag_id
         WHERE lt.link_id = links.id AND t.name IN (

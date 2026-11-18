@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-// The enrichment columns of `links` (summary, type, language, text, image_url, enriched_at,
+// The enrichment columns of `links` (summary, type, language, text, image_url, author, enriched_at,
 // enrichment_error, enrichment_attempts) and the link's tags. The links feature owns the rest of the table.
 
 /** What enrichment reads about a link. */
@@ -38,6 +38,8 @@ export interface Enrichment {
   readonly language: string | null;
   /** The preview image. `null` keeps the one already stored. */
   readonly imageUrl: Link.Url | null;
+  /** The channel or author. `null` keeps the one already stored. */
+  readonly author: string | null;
   /** The keyword-search excerpt of the text. */
   readonly text: string | null;
   /** Added to the link's tags; tags given on save stay. */
@@ -95,7 +97,8 @@ export const make = Effect.gen(function* () {
             title = CASE WHEN title IS NULL OR title = ${e.staleTitle} THEN ${e.title}
               ELSE title END,
             summary = ${e.summary}, type = COALESCE(type, ${e.type}), language = ${e.language},
-            text = ${e.text}, image_url = COALESCE(${e.imageUrl}, image_url), enriched_at = ${e.enrichedAt}, enrichment_error = NULL, enrichment_attempts = 0
+            text = ${e.text}, image_url = COALESCE(${e.imageUrl}, image_url),
+            author = COALESCE(${e.author}, author), enriched_at = ${e.enrichedAt}, enrichment_error = NULL, enrichment_attempts = 0
             WHERE id = ${id}`,
           D1Database.sql`INSERT OR IGNORE INTO tags (name)
             SELECT DISTINCT value FROM json_each(${tags})

@@ -28,7 +28,7 @@ export const fetchPageText = (
       return {
         title: page.title,
         description: page.description,
-        author: Option.none(),
+        author: page.author,
         imageUrl: Option.flatMap(page.image, (image) => ContentText.resolveImageUrl(image, url)),
         language: DetectLanguage.detect(text, Option.getOrUndefined(page.lang)),
         text,

@@ -51,7 +51,8 @@ CREATE TABLE links (
   source_device_id TEXT REFERENCES devices (id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   enriched_at TEXT,
-  image_url TEXT
+  image_url TEXT,
+  author TEXT
 );
 
 CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);

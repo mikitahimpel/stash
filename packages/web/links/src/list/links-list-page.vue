@@ -7,10 +7,11 @@ import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import Kbd from "@stash/web-ui/kbd";
-import ListRow from "@stash/web-ui/list-row";
-import ListRowTitle from "@stash/web-ui/list-row-title";
+import GroupHeader from "@stash/web-ui/group-header";
+import MediaRow from "@stash/web-ui/media-row";
+import MediaRowTitle from "@stash/web-ui/media-row-title";
+import MediaThumb from "@stash/web-ui/media-thumb";
 import PageHeader from "@stash/web-ui/page-header";
-import SectionHeader from "@stash/web-ui/section-header";
 import Skeleton from "@stash/web-ui/skeleton";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as DateTime from "effect/DateTime";
@@ -25,7 +26,6 @@ import LinkRow from "./link-row.vue";
 import LinksFilters from "./links-filters.vue";
 import LoadMore from "./load-more.vue";
 import SaveLinkField from "./save-link-field.vue";
-import SavedReadChart from "./saved-read-chart.vue";
 import * as SavedRead from "./saved-read.ts";
 
 const registry = AtomVue.injectRegistry();
@@ -69,17 +69,13 @@ const groups = computed(() =>
 );
 
 const recent = AtomVue.useAtomValue(() => SavedRead.recent);
-const chartLoading = useDelayedLoading(() => AsyncResult.isInitial(recent.value));
 const history = computed(() =>
   AsyncResult.isSuccess(recent.value)
     ? SavedRead.history(recent.value.value.links, recent.value.value.now, zone)
     : undefined,
 );
 
-// The chart needs a few days to plot, and the counts something to count.
-const chart = computed(() =>
-  history.value !== undefined && SavedRead.plottable(history.value) ? history.value : undefined,
-);
+// The counts of the last 30 days, once there is something to count.
 const subtitle = computed(() =>
   history.value === undefined || history.value.saved === 0
     ? {}
@@ -121,6 +117,15 @@ const deviceNames = computed(
 const deviceName = (link: Link.Link) =>
   link.sourceDeviceId === null ? undefined : deviceNames.value.get(link.sourceDeviceId);
 
+/** The site of a link that is still being saved, for its placeholder preview. */
+const host = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
 const empty = computed(() =>
   filtered.value
     ? { title: "No matches", description: "No links match these filters." }
@@ -151,9 +156,7 @@ const select = (index: number) => {
   // The last row loads the next page, as scrolling to it would.
   if (index === links.value.length - 1 && view.value.state === "links" && !view.value.done) pull();
   void nextTick(() =>
-    list.value
-      ?.querySelector("[data-slot=list-row][data-state=selected]")
-      ?.scrollIntoView?.({ block: "nearest" }),
+    list.value?.querySelector("[data-state=selected]")?.scrollIntoView?.({ block: "nearest" }),
   );
 };
 
@@ -195,23 +198,22 @@ onMounted(() => listen({ run }));
     <PageHeader title="Inbox" v-bind="subtitle">
       <template #actions><SaveLinkField /></template>
     </PageHeader>
-    <SavedReadChart v-if="chart !== undefined" :history="chart" />
-    <Skeleton v-else-if="chartLoading" shape="chart" />
 
     <LinksFilters v-if="!firstRun" :filters="filters" @change="setFilters" />
 
     <ul v-if="pending.length > 0" class="flex flex-col">
-      <ListRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
+      <MediaRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
+        <template #thumb><MediaThumb :initial="host(link.url)" /></template>
         <template #title>
-          <ListRowTitle>{{ link.url }}</ListRowTitle>
+          <MediaRowTitle :stretch="false">{{ link.url }}</MediaRowTitle>
         </template>
         <template #meta><span>saving…</span></template>
-      </ListRow>
+      </MediaRow>
     </ul>
 
     <div v-if="view.state === 'loading'" class="flex flex-col gap-3" aria-busy="true">
       <template v-if="loading">
-        <Skeleton v-for="n in 3" :key="n" shape="row" />
+        <Skeleton v-for="n in 3" :key="n" shape="media" />
       </template>
     </div>
     <StartSavingCard v-else-if="firstRun" scenario="links" />
@@ -238,9 +240,14 @@ onMounted(() => listen({ run }));
       <p v-if="failed" role="alert" class="text-meta text-destructive">
         That didn't work. Try again.
       </p>
-      <div ref="list" class="flex flex-col gap-6">
-        <section v-for="group in groups" :key="group.key" data-slot="link-day">
-          <SectionHeader :title="group.label" :count="group.links.length" />
+      <div ref="list" class="flex flex-col gap-8">
+        <section
+          v-for="group in groups"
+          :key="group.key"
+          data-slot="link-day"
+          class="flex flex-col gap-2"
+        >
+          <GroupHeader :title="group.label" :count="group.links.length" />
           <ul class="flex flex-col">
             <LinkRow
               v-for="link in group.links"
