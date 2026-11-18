@@ -5,6 +5,7 @@ import * as Base64Url from "effect/encoding/Base64Url";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as LinksRepo from "../links-repo.ts";
+import * as CanonicalizeUrl from "../save/canonicalize-url.ts";
 
 /** Page size when the query sets no `limit`. */
 export const defaultPageSize = 50;
@@ -43,6 +44,8 @@ export const listLinks = Effect.fn("listLinks")(function* (query: LinksGroup.Lis
     ...(query.type === undefined ? {} : { type: query.type }),
     ...(query.tag === undefined ? {} : { tag: query.tag }),
     ...(query.seen === undefined ? {} : { seen: query.seen }),
+    // The same key a save dedupes on, so a lookup finds what a save of this URL would answer.
+    ...(query.url === undefined ? {} : { canonicalUrl: CanonicalizeUrl.canonicalize(query.url) }),
     ...(after === undefined ? {} : { after }),
     limit: limit + 1,
   });

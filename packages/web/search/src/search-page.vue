@@ -21,8 +21,12 @@ import * as SearchRequest from "./search-request.ts";
 import * as MatchTimelineLayout from "./timeline/match-timeline-layout.ts";
 import MatchTimeline from "./timeline/match-timeline.vue";
 
+// The query of a link to this page (`/search?q=…`, see `routes.ts`): it replaces what was typed.
+const props = defineProps<{ query?: string }>();
+
 const registry = injectRegistry();
 const [q, setQ] = useAtom(() => SearchAtoms.q);
+if (props.query !== undefined) setQ(props.query);
 const [mode, setMode] = useAtom(() => SearchAtoms.mode);
 const [type, setType] = useAtom(() => SearchAtoms.type);
 const [tag, setTag] = useAtom(() => SearchAtoms.tag);

@@ -38,6 +38,10 @@ One control language for every interactive element, so a page can't read as two 
   scans every template and fails on heights, padding, margins, radii, borders, backgrounds,
   fonts or text sizes. What a page needs beyond that becomes a kit component.
 
+The extension's pages use the same values: `apps/extension/assets/tokens.css` is a hand-kept copy
+of the color and surface tokens (contexts share no code), with the dark theme under
+`prefers-color-scheme` instead of the `dark` class. Change a value here, change it there.
+
 ## Design spec: "Stash tactile" (shared by the UI polish issues)
 
 Keyboard-first, quiet chrome, data over decoration. Hierarchy comes from spacing and hairline dividers, not cards or badges. No glow, glass, gradient washes, emoji or explainer copy: UI text is labels and data only.

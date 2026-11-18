@@ -10,6 +10,7 @@ import * as Storage from "../src/browser-storage.ts";
 import * as Tabs from "../src/browser-tabs.ts";
 import * as Windows from "../src/browser-windows.ts";
 import * as Workspaces from "../src/browser-workspaces.ts";
+import * as ExtensionPages from "../src/extension-pages.ts";
 import * as Testing from "../src/testing.ts";
 
 // Lets a forked stream subscribe before the test changes state.
@@ -52,6 +53,24 @@ describe("testing layers", () => {
         active: true,
       });
     }).pipe(Effect.provide(Testing.layerTabs({ tabs }))),
+  );
+
+  it.effect("Tabs.focus activates a tab and its window; ExtensionPages counts its calls", () =>
+    Effect.gen(function* () {
+      const service = yield* Tabs.Tabs;
+      yield* service.focus(3);
+      expect(Option.map(yield* service.current, (tab) => tab.id)).toEqual(Option.some(3));
+      yield* service.focus(2);
+      expect(Option.map(yield* service.current, (tab) => tab.id)).toEqual(Option.some(2));
+      expect((yield* Effect.flip(service.focus(99))).api).toBe("tabs.update");
+
+      const pages = yield* ExtensionPages.ExtensionPages;
+      yield* pages.openOptions;
+      yield* pages.closeCurrent;
+      yield* pages.closeCurrent;
+      const control = yield* Testing.TestExtensionPages;
+      expect([yield* control.optionsOpened, yield* control.closed]).toEqual([1, 2]);
+    }).pipe(Effect.provide(Testing.make({ tabs }))),
   );
 
   it.effect("Tabs.changed emits when the tabs are set or closed", () =>

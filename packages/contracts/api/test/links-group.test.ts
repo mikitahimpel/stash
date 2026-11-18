@@ -47,3 +47,12 @@ describe("SavedLink", () => {
     }),
   );
 });
+
+describe("ListLinksQuery", () => {
+  it("takes a `url` to look a link up by, and only an http(s) one", () => {
+    const decode = Schema.decodeUnknownOption(LinksGroup.ListLinksQuery);
+    expect(decode({ url: "https://example.com/articles/one?utm_source=x" })._tag).toBe("Some");
+    expect(decode({})._tag).toBe("Some");
+    expect(decode({ url: "about:blank" })._tag).toBe("None");
+  });
+});

@@ -12,14 +12,17 @@
     "format:check": "oxfmt --check .",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "test": "vitest run",
-    "package:xpi": "node scripts/package-xpi.ts"
+    "package:xpi": "node scripts/package-xpi.ts",
+    "screenshots": "playwright install chromium && node scripts/popup-screenshots.ts"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "catalog:",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "@stash/ext-capture": "workspace:*",
     "@stash/ext-device-commands": "workspace:*",
     "@stash/ext-platform": "workspace:*",
+    "@stash/ext-popup": "workspace:*",
     "@stash/ext-tab-sync": "workspace:*",
     "effect": "catalog:",
     "vue": "catalog:"
@@ -30,9 +33,11 @@
     "@stash/config-vitest": "workspace:*",
     "@types/firefox-webext-browser": "catalog:",
     "@types/node": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
     "@wxt-dev/module-vue": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "playwright": "catalog:",
     "typescript": "catalog:vue",
     "vite": "catalog:",
     "vitest": "catalog:",

@@ -28,11 +28,16 @@ export default defineConfig({
     // `tabs`, `storage` and `alarms` for the `@stash/ext-platform` services. The API origin is
     // entered on the options page, so any http(s) origin may be the API.
     permissions: ["tabs", "storage", "alarms", "https://*/*", "http://*/*"],
-    // The toolbar button saves the current tab and shows the result as a badge. No popup, so a
-    // click reaches the background page.
-    browser_action: { default_title: "Save to Stash" },
+    // The toolbar button opens the popup (`entrypoints/popup/`, WXT adds `default_popup`). The
+    // background page still shows the result of a hotkey save as a badge on it.
+    browser_action: { default_title: "Stash" },
     // The names match the `commandName` of each feature in `@stash/ext-capture`.
     commands: {
+      // The browser's own command for the toolbar button: it opens the popup.
+      _execute_browser_action: {
+        suggested_key: { default: "Alt+Shift+A" },
+        description: "Open the Stash popup",
+      },
       "save-current-tab": {
         suggested_key: { default: "Alt+Shift+S" },
         description: "Save the current tab to Stash",

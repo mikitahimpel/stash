@@ -7,5 +7,5 @@
   "vueCompilerOptions": {
     "strictTemplates": true
   },
-  "include": ["entrypoints", "test", "wxt.config.ts", "vitest.config.ts"]
+  "include": ["entrypoints", "preview", "test", "wxt.config.ts", "vitest.config.ts"]
 }

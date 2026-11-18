@@ -10,6 +10,7 @@ import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as ExtensionConfig from "./extension-config.ts";
+import { ExtensionPages } from "./extension-pages.ts";
 import * as StashApiClient from "./stash-api-client.ts";
 import { ToolbarAction, type Badge } from "./browser-action.ts";
 import { Alarms, type Alarm } from "./browser-alarms.ts";
@@ -29,6 +30,7 @@ export const tab = (fields: Partial<Tab> & { readonly id: number }): Tab => ({
   windowId: 1,
   url: `https://example.com/tabs/${fields.id}`,
   title: `Tab ${fields.id}`,
+  favIconUrl: null,
   active: false,
   pinned: false,
   hidden: false,
@@ -63,8 +65,9 @@ const matches = (filter: TabsFilter, currentWindowId: number) => (tab: Tab) =>
  * `Tabs` and `Windows` over one list of tabs. The windows are the distinct `windowId`s of the
  * tabs plus the focused one. `currentWindowId` defaults to the first tab's window (or `1`), and
  * `Windows.current` is the focused window too. A blank tab gets the next free id and the URL
- * `about:newtab`, and `Tabs.open` appends a tab with its URL. `Windows.openPopup` only records the
- * path.
+ * `about:newtab`, and `Tabs.open` appends a tab with its URL, active in the focused window (the
+ * tab that was active there no longer is). `Tabs.focus` does the same for an open tab.
+ * `Windows.openPopup` only records the path.
  */
 export const layerTabs = (
   options: { readonly tabs?: ReadonlyArray<Tab>; readonly currentWindowId?: number } = {},
@@ -101,10 +104,25 @@ export const layerTabs = (
         open: (url) =>
           Effect.flatMap(Effect.all([Ref.get(tabs), Ref.get(current)]), ([all, windowId]) =>
             setTabs([
-              ...all,
+              ...all.map((it) => (it.windowId === windowId ? { ...it, active: false } : it)),
               tab({ id: Math.max(0, ...all.map((it) => it.id)) + 1, windowId, url, active: true }),
             ]),
           ),
+        focus: (id) =>
+          Effect.flatMap(Ref.get(tabs), (all) => {
+            const target = all.find((it) => it.id === id);
+            return target === undefined
+              ? Effect.fail(new BrowserError({ api: "tabs.update", cause: "No such tab" }))
+              : Ref.set(current, target.windowId).pipe(
+                  Effect.andThen(
+                    setTabs(
+                      all.map((it) =>
+                        it.windowId === target.windowId ? { ...it, active: it.id === id } : it,
+                      ),
+                    ),
+                  ),
+                );
+          }),
         createBlank: (windowId) =>
           Effect.flatMap(Ref.get(tabs), (all) => {
             const blank = tab({
@@ -325,6 +343,35 @@ export const layerToolbarAction: Layer.Layer<ToolbarAction | TestToolbarAction> 
     }),
   );
 
+/** Test controls for the in-memory `ExtensionPages`. */
+export class TestExtensionPages extends Context.Service<
+  TestExtensionPages,
+  {
+    /** How many times the options page was opened. */
+    readonly optionsOpened: Effect.Effect<number>;
+    /** How many times the calling page closed itself. */
+    readonly closed: Effect.Effect<number>;
+  }
+>()("@stash/ext-platform/TestExtensionPages") {}
+
+/** Opens and closes nothing: it only counts the calls. */
+export const layerExtensionPages: Layer.Layer<ExtensionPages | TestExtensionPages> =
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const optionsOpened = yield* Ref.make(0);
+      const closed = yield* Ref.make(0);
+      return Context.make(ExtensionPages, {
+        openOptions: Ref.update(optionsOpened, (count) => count + 1),
+        closeCurrent: Ref.update(closed, (count) => count + 1),
+      }).pipe(
+        Context.add(TestExtensionPages, {
+          optionsOpened: Ref.get(optionsOpened),
+          closed: Ref.get(closed),
+        }),
+      );
+    }),
+  );
+
 /** Answers every request with `handler`. By default every request gets a 404. */
 export const layerHttpClient = (
   handler: (request: HttpClientRequest.HttpClientRequest) => Effect.Effect<Response> = () =>
@@ -357,7 +404,13 @@ export interface Options {
 }
 
 /** The test controls `make` provides next to the services. */
-export type Controls = TestTabs | TestAlarms | TestCommands | TestWorkspaces | TestToolbarAction;
+export type Controls =
+  | TestTabs
+  | TestAlarms
+  | TestCommands
+  | TestWorkspaces
+  | TestToolbarAction
+  | TestExtensionPages;
 
 /** Every service from `./live`, in memory, plus the test controls. */
 export const make = (options: Options = {}): Layer.Layer<Live.Services | Controls> => {
@@ -383,6 +436,7 @@ export const make = (options: Options = {}): Layer.Layer<Live.Services | Control
         layerCommands(options.commands),
         layerWorkspaces(workspaceOptions),
         layerToolbarAction,
+        layerExtensionPages,
         layerHttpClient(options.handler),
       ),
     ),

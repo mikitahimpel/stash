@@ -36,6 +36,8 @@ export interface ListFilter {
   readonly type?: Link.LinkType;
   readonly tag?: Tag.TagName;
   readonly seen?: boolean;
+  /** Only the link stored under this canonical URL. */
+  readonly canonicalUrl?: Link.Url;
   readonly after?: ListPosition;
   readonly limit: number;
 }
@@ -221,6 +223,10 @@ export const make = Effect.gen(function* () {
       }
       if (filter.seen !== undefined) {
         conditions.push(filter.seen ? "l.status <> 'new'" : "l.status = 'new'");
+      }
+      if (filter.canonicalUrl !== undefined) {
+        conditions.push("l.canonical_url = ?");
+        params.push(filter.canonicalUrl);
       }
       if (filter.tag !== undefined) {
         conditions.push(`EXISTS (SELECT 1 FROM link_tags lt JOIN tags t ON t.id = lt.tag_id

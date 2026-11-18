@@ -108,6 +108,19 @@ describe("listLinks", () => {
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );
 
+  it.effect("looks a link up by URL, by the canonical form a save dedupes on", () =>
+    Effect.gen(function* () {
+      const [, b] = yield* seed(3);
+      const ids = (value: string) =>
+        ListLinks.listLinks({ url: url(value) }).pipe(
+          Effect.map((page) => page.items.map((link) => link.id)),
+        );
+      expect(yield* ids("https://example.com/1")).toEqual([b!.id]);
+      expect(yield* ids("https://www.example.com/1/?utm_source=feed#top")).toEqual([b!.id]);
+      expect(yield* ids("https://example.com/not-saved")).toEqual([]);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
   it.effect("paginates within a filter", () =>
     Effect.gen(function* () {
       const links = yield* seed(5);

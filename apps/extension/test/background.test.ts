@@ -75,13 +75,18 @@ describe("background", () => {
     }),
   );
 
-  it("declares the capture command and a toolbar button without a popup", () => {
+  it("declares the capture commands, the popup hotkey and a toolbar button", () => {
     const manifest = config.manifest;
     if (typeof manifest !== "object" || manifest instanceof Promise)
       throw new Error("Expected a static manifest");
     expect(Object.keys(manifest.commands ?? {})).toContain(SaveCurrentTab.commandName);
     expect(Object.keys(manifest.commands ?? {})).toContain(SaveAllAndClose.commandName);
-    expect(manifest.browser_action).toEqual({ default_title: "Save to Stash" });
+    // The browser's own command opens the toolbar popup, which WXT builds from this entrypoint.
+    expect(manifest.commands?.["_execute_browser_action"]?.suggested_key).toEqual({
+      default: "Alt+Shift+A",
+    });
+    expect(manifest.browser_action).toEqual({ default_title: "Stash" });
+    expect(existsSync(new URL("../entrypoints/popup/index.html", import.meta.url))).toBe(true);
   });
 
   it.effect("the capture hotkey saves the current tab through the API", () => {

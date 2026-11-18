@@ -26,9 +26,10 @@ const savedLinks = {
     }),
 };
 
-const mountPage = (routes: ApiTesting.Routes) => {
+const mountPage = (routes: ApiTesting.Routes, props: { query?: string } = {}) => {
   registry = ApiTesting.makeRegistry({ ...savedLinks, ...routes });
   return mount(SearchPage, {
+    props,
     attachTo: "body",
     global: { provide: { [AtomVue.registryKey]: registry } },
   });
@@ -79,6 +80,17 @@ describe("SearchPage", () => {
     await type(wrapper, "rust");
     expect(wrapper.findAll("[data-result-link]")).toHaveLength(2);
     expect(wrapper.find("svg[role=img]").exists()).toBe(false);
+  });
+
+  it("runs the query a link to the page carries (/search?q=…)", async () => {
+    const wrapper = mountPage(
+      { "GET /search": () => ApiTesting.json({ hits: [] }) },
+      { query: "rust" },
+    );
+    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+    await flushPromises();
+    expect(wrapper.find<HTMLInputElement>("input[type=search]").element.value).toBe("rust");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("No matches"));
   });
 
   it("leaves the timeline out when nothing matches", async () => {
