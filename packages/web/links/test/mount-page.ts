@@ -1,6 +1,7 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
+import * as SearchAtoms from "@stash/web-search/search-atoms";
 import { flushPromises, mount } from "@vue/test-utils";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -15,14 +16,17 @@ import { routes } from "../src/routes.ts";
  * `press` simulates a key press on it.
  */
 export const mountAt = async (path: string, api: ApiTesting.Routes) => {
-  // Settings stands in for the route the onboarding card links to.
-  const connect = { path: "/connect", name: "connect", component: { render: () => null } };
-  const router = createRouter({ history: createMemoryHistory(), routes: [...routes, connect] });
+  // A stand-in for the page the onboarding card links to.
+  const settings = { path: "/settings", name: "settings", component: { render: () => null } };
+  const router = createRouter({ history: createMemoryHistory(), routes: [...routes, settings] });
   await router.push(path);
   // Built once, so the test presses keys on the same instance the page listens on.
   const keyboard = Layer.build(PlatformTesting.layerKeyboard).pipe(Effect.scoped, Effect.runSync);
   const registry = ApiTesting.makeRegistry(api, {
-    initialValues: [[InboxShortcuts.keyboard, Layer.succeedContext(keyboard)]],
+    initialValues: [
+      [InboxShortcuts.keyboard, Layer.succeedContext(keyboard)],
+      [SearchAtoms.recentLayer, PlatformTesting.layerRecentSearches],
+    ],
   });
   const wrapper = mount(defineComponent({ render: () => h(RouterView) }), {
     attachTo: "body",

@@ -2,6 +2,12 @@
 import * as AtomVue from "@effect/atom-vue";
 import { Inbox } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
+import type * as Tag from "@stash/contracts-domain/tag";
+import SearchBar from "@stash/web-search/search-bar";
+import * as SearchAtoms from "@stash/web-search/search-atoms";
+import type * as SearchRequest from "@stash/web-search/search-request";
+import * as SearchRoute from "@stash/web-search/search-route";
+import { useSearchResults } from "@stash/web-search/use-search-results";
 import StartSavingCard from "@stash/web-settings/start-saving-card";
 import Button from "@stash/web-ui/button";
 import EmptyState from "@stash/web-ui/empty-state";
@@ -36,11 +42,45 @@ const filters = computed(() => LinksAtoms.fromQuery(route.query));
 const setFilters = (next: LinksAtoms.Filters) =>
   router.replace({ query: LinksAtoms.toQuery(next) });
 
+// A query typed in the header's search field arrives in the URL (`?q=…`), and the list becomes
+// its results: the same rows, ranked instead of grouped by day, under a line that says how many
+// match and holds the search's menus. Clearing the field brings the feed back.
+const search = computed(() => SearchRoute.fromQuery(route.query));
+const form = computed<SearchRequest.Form>(() => ({
+  ...search.value,
+  type: filters.value.type ?? "",
+  tag: filters.value.tag ?? "",
+}));
+const found = useSearchResults(() => form.value);
+const searching = found.searching;
+const setSearch = (next: SearchRequest.Form) =>
+  router.replace({
+    query: SearchRoute.withState(
+      LinksAtoms.toQuery({
+        ...filters.value,
+        type: next.type === "" ? undefined : next.type,
+        // The line can only clear the tag.
+        tag: next.tag === "" ? undefined : filters.value.tag,
+      }),
+      next,
+    ),
+  });
+/** The list narrowed to `tag`, whether it shows a feed or a search. */
+const tagTo = (tag: Tag.TagName) => ({
+  name: "links",
+  query: SearchRoute.withState(LinksAtoms.toQuery({ ...filters.value, tag }), search.value),
+});
+const remember = AtomVue.useAtomSet(() => SearchAtoms.remember);
+/** Opening a result is acting on the search: it goes to the recent searches. */
+const opened = () => {
+  if (searching.value) remember(search.value.q);
+};
+
 const zone = DateTime.zoneMakeLocal();
 
 const [result, pull] = AtomVue.useAtom(() => LinksAtoms.feed(filters.value));
 
-const view = computed(() =>
+const feedView = computed(() =>
   AsyncResult.match(result.value, {
     onInitial: () => ({ state: "loading" as const }),
     onFailure: (failure) =>
@@ -59,9 +99,25 @@ const view = computed(() =>
   }),
 );
 
+const view = computed(() => {
+  if (!searching.value) return feedView.value;
+  if (found.failed.value) return { state: "error" as const };
+  const hits = found.hits.value;
+  if (hits === null) return { state: "loading" as const };
+  if (hits.length === 0) return { state: "empty" as const };
+  return {
+    state: "links" as const,
+    links: hits.map((hit) => hit.link),
+    done: true,
+    waiting: found.waiting.value,
+    now: DateTime.nowUnsafe(),
+  };
+});
+
 // Skeletons only on a first load that takes a while: the feed stays cached between visits.
 const loading = useDelayedLoading(() => view.value.state === "loading");
-const retry = () => registry.refresh(LinksAtoms.feed(filters.value));
+const retry = () =>
+  searching.value ? found.retry() : registry.refresh(LinksAtoms.feed(filters.value));
 
 const links = computed(() => (view.value.state === "links" ? view.value.links : []));
 const groups = computed(() =>
@@ -88,7 +144,7 @@ const filtered = computed(
 
 // A new link has no type or tags yet, so a filtered feed won't show it.
 const allPending = AtomVue.useAtomValue(() => LinksAtoms.pending);
-const pending = computed(() => (filtered.value ? [] : allPending.value));
+const pending = computed(() => (filtered.value || searching.value ? [] : allPending.value));
 watch([result, allPending], ([now]) => {
   if (!now.waiting && !AsyncResult.isInitial(now)) LinksAtoms.settlePending(registry);
 });
@@ -99,6 +155,7 @@ const anySaved = AtomVue.useAtomValue(() => LinksAtoms.anySaved);
 const firstRun = computed(
   () =>
     view.value.state === "empty" &&
+    !searching.value &&
     !filtered.value &&
     AsyncResult.isSuccess(anySaved.value) &&
     !anySaved.value.value &&
@@ -126,12 +183,18 @@ const host = (url: string) => {
   }
 };
 
+const deviceOptions = computed(() =>
+  [...deviceNames.value].map(([value, label]) => ({ value, label })),
+);
+
 const empty = computed(() =>
-  filtered.value
-    ? { title: "No matches", description: "No links match these filters." }
-    : filters.value.feed === "unseen"
-      ? { title: "All caught up", description: "You've seen everything you saved." }
-      : { title: "Nothing here", description: "Links you save show up here." },
+  searching.value
+    ? { title: "No matches", description: "Try other words, or another mode or filter." }
+    : filtered.value
+      ? { title: "No matches", description: "No links match these filters." }
+      : filters.value.feed === "unseen"
+        ? { title: "All caught up", description: "You've seen everything you saved." }
+        : { title: "Nothing here", description: "Links you save show up here." },
 );
 
 // The row the keyboard is on, by id, so it stays put while the feed reloads around it.
@@ -178,6 +241,7 @@ const run = (command: InboxShortcuts.Command) => {
     case "previous":
       return select(index === -1 ? 0 : Math.max(0, index - 1));
     case "open":
+      if (link) opened();
       return link && router.push({ name: "link-details", params: { id: link.id } });
     case "seen":
       return link && changeStatus(link, "seen");
@@ -199,7 +263,15 @@ onMounted(() => listen({ run }));
       <template #actions><SaveLinkField /></template>
     </PageHeader>
 
-    <LinksFilters v-if="!firstRun" :filters="filters" @change="setFilters" />
+    <SearchBar
+      v-if="searching"
+      :form="form"
+      :count="found.waiting.value ? undefined : found.hits.value?.length"
+      :waiting="found.waiting.value"
+      :devices="deviceOptions"
+      @change="setSearch"
+    />
+    <LinksFilters v-else-if="!firstRun" :filters="filters" @change="setFilters" />
 
     <ul v-if="pending.length > 0" class="flex flex-col">
       <MediaRow v-for="link in pending" :key="link.key" as="li" data-slot="pending-link">
@@ -223,7 +295,7 @@ onMounted(() => listen({ run }));
       :description="empty.description"
     >
       <template #icon><Inbox /></template>
-      <template v-if="filtered" #action>
+      <template v-if="filtered && !searching" #action>
         <Button as-child>
           <button
             type="button"
@@ -235,12 +307,36 @@ onMounted(() => listen({ run }));
         </Button>
       </template>
     </EmptyState>
-    <ErrorState v-else-if="view.state === 'error'" title="Couldn't load links" @retry="retry" />
+    <ErrorState
+      v-else-if="view.state === 'error'"
+      :title="searching ? 'Search failed' : 'Couldn\'t load links'"
+      @retry="retry"
+    />
     <template v-else-if="view.state === 'links'">
       <p v-if="failed" role="alert" class="text-meta text-destructive">
         That didn't work. Try again.
       </p>
-      <div ref="list" class="flex flex-col gap-8">
+      <ul
+        v-if="searching"
+        ref="list"
+        class="flex flex-col"
+        aria-label="Results"
+        data-slot="search-results"
+      >
+        <LinkRow
+          v-for="link in view.links"
+          :key="link.id"
+          :link="link"
+          :selected="link.id === selectedId"
+          :device="deviceName(link)"
+          :now="view.now"
+          :tag-to="tagTo"
+          :highlight="found.highlight.value"
+          @select="selectedId = link.id"
+          @open="opened"
+        />
+      </ul>
+      <div v-else ref="list" class="flex flex-col gap-8">
         <section
           v-for="group in groups"
           :key="group.key"
@@ -256,7 +352,7 @@ onMounted(() => listen({ run }));
               :selected="link.id === selectedId"
               :device="deviceName(link)"
               :now="view.now"
-              :filters="filters"
+              :tag-to="tagTo"
               @select="selectedId = link.id"
             />
           </ul>

@@ -63,21 +63,26 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-section]").first().waitFor(),
   },
   {
-    name: "search",
-    path: "/search",
+    // Searching: the header's field filters the Inbox in place.
+    name: "inbox-search",
+    path: "/links",
     signedIn: true,
     prepare: async (page) => {
       await page.getByRole("searchbox", { name: "Search links" }).fill("economics");
-      await page.locator("[data-hit]").first().waitFor();
+      await page.locator("[data-slot=search-results] [data-slot=link-row]").first().waitFor();
     },
   },
   {
-    // Before anything is typed: recent searches and the latest links.
-    name: "search-start",
-    path: "/search",
+    // The focused, empty field of a returning user: recent searches hang under it.
+    name: "inbox-search-recent",
+    path: "/links",
     signedIn: true,
     recentSearches: true,
-    prepare: (page) => page.locator("[data-slot=recent-links]").waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-slot=link-day]").first().waitFor();
+      await page.getByRole("searchbox", { name: "Search links" }).focus();
+      await page.locator("[data-recent]").first().waitFor();
+    },
   },
   {
     name: "save",
@@ -89,17 +94,14 @@ const views: ReadonlyArray<View> = [
     name: "settings",
     path: "/settings",
     signedIn: true,
-    prepare: (page) => page.locator("[data-test=device]").first().waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-source]").first().waitFor();
+      await page.locator("[data-test=device]").first().waitFor();
+    },
   },
   {
-    name: "connect",
-    path: "/connect",
-    signedIn: true,
-    prepare: (page) => page.locator("[data-source]").first().waitFor(),
-  },
-  {
-    name: "connect-iphone",
-    path: "/connect?guide=iphone",
+    name: "settings-iphone",
+    path: "/settings?guide=iphone",
     signedIn: true,
     prepare: async (page) => {
       // The guide as it looks once the device exists: the Shortcut URL prefilled, waiting.
@@ -108,14 +110,14 @@ const views: ReadonlyArray<View> = [
     },
   },
   {
-    name: "connect-extension",
-    path: "/connect?guide=extension",
+    name: "settings-extension",
+    path: "/settings?guide=extension",
     signedIn: true,
     prepare: (page) => page.locator("[data-guide=extension]").waitFor(),
   },
   {
-    name: "connect-mac",
-    path: "/connect?guide=mac",
+    name: "settings-mac",
+    path: "/settings?guide=mac",
     signedIn: true,
     prepare: async (page) => {
       await page.locator("[data-guide=mac] [data-action=create]").click();
@@ -123,8 +125,8 @@ const views: ReadonlyArray<View> = [
     },
   },
   {
-    name: "connect-claude",
-    path: "/connect?guide=claude",
+    name: "settings-claude",
+    path: "/settings?guide=claude",
     signedIn: true,
     prepare: (page) => page.locator("[data-guide=claude] [data-test=waiting]").waitFor(),
   },
@@ -133,13 +135,6 @@ const views: ReadonlyArray<View> = [
     path: `/connect/extension?code=${"c".repeat(43)}`,
     signedIn: true,
     prepare: (page) => page.locator("[data-action=approve]").waitFor(),
-  },
-  {
-    name: "connect-empty",
-    path: "/connect",
-    signedIn: true,
-    empty: true,
-    prepare: (page) => page.locator("[data-source]").first().waitFor(),
   },
   {
     name: "inbox-empty",
@@ -156,18 +151,14 @@ const views: ReadonlyArray<View> = [
     prepare: (page) => page.locator("[data-slot=start-saving]").waitFor(),
   },
   {
-    name: "search-empty",
-    path: "/search",
-    signedIn: true,
-    empty: true,
-    prepare: (page) => page.getByRole("searchbox", { name: "Search links" }).waitFor(),
-  },
-  {
     name: "settings-empty",
     path: "/settings",
     signedIn: true,
     empty: true,
-    prepare: (page) => page.locator("[data-test=no-devices]").waitFor(),
+    prepare: async (page) => {
+      await page.locator("[data-source]").first().waitFor();
+      await page.locator("[data-test=no-devices]").waitFor();
+    },
   },
   {
     name: "login",

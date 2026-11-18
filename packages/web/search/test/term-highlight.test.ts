@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import * as TermHighlight from "../src/results/term-highlight.ts";
+import * as TermHighlight from "../src/term-highlight.ts";
 
 const marked = (text: string, query: string) =>
   TermHighlight.split(text, query)

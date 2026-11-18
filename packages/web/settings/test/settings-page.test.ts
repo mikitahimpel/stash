@@ -43,8 +43,12 @@ const settle = async () => {
 const theme = () =>
   PlatformTesting.layerTheme().pipe(Layer.provide(PlatformTesting.layerKeyValueStore));
 
+// What the Connect section asks besides the devices and tokens.
+const connectInfo = { mcpUrl: "https://mcp.example.com/mcp" };
+
 const mountPage = async (
   initialTokens: Array<ReturnType<typeof Fixtures.token>> = [Fixtures.token("t1", "d1")],
+  guide?: "iphone" | "extension" | "mac" | "claude",
 ) => {
   const calls: Array<string> = [];
   const copied: Array<string> = [];
@@ -61,6 +65,8 @@ const mountPage = async (
         return ApiTesting.json(device, 201);
       },
       "GET /tokens": () => ApiTesting.json(tokens),
+      "GET /devices/activity": () => ApiTesting.json([]),
+      "GET /connect/info": () => ApiTesting.json(connectInfo),
       "GET /tabs": () => ApiTesting.json(Fixtures.reports([["d1", "2026-01-05T00:00:00.000Z"]])),
       "POST /tokens": (request) => {
         const { deviceId } = Fixtures.body(request) as { deviceId: string };
@@ -93,6 +99,7 @@ const mountPage = async (
   );
   const wrapper = mount(SettingsPage, {
     attachTo: "body",
+    props: guide === undefined ? {} : { guide },
     global: { provide: { [AtomVue.registryKey]: registry }, stubs: { RouterLink: RouterLinkStub } },
   });
   page = new DOMWrapper(wrapper.element.ownerDocument.body);
@@ -111,10 +118,38 @@ const click = async (selector: string) => {
 const plaintextField = () => body().find<HTMLInputElement>("[data-test=token-plaintext]");
 
 describe("settings page", () => {
-  it("sends Add device to the Connect page", async () => {
+  it("has three sections: Devices & connections, API tokens, Appearance", async () => {
     const { wrapper } = await mountPage();
-    expect(wrapper.findComponent(RouterLinkStub).props("to")).toEqual({ name: "connect" });
+    expect(wrapper.findAll("section").map((section) => section.attributes("aria-label"))).toEqual([
+      "Devices & connections",
+      "API tokens",
+      "Appearance",
+    ]);
+    expect(wrapper.findAll("h1").map((heading) => heading.text())).toEqual(["Settings"]);
     expect(body().find("[role=dialog]").exists()).toBe(false);
+  });
+
+  it("holds the Connect sources and the devices in its first section", async () => {
+    const { wrapper } = await mountPage();
+    const section = wrapper.find("section#connections");
+    expect(section.findAll("[data-source]").map((row) => row.attributes("data-source"))).toEqual([
+      "iphone",
+      "extension",
+      "mac",
+      "claude",
+    ]);
+    expect(section.findAll("[data-test=device]")).toHaveLength(1);
+    // Setting up a source opens its guide on this page.
+    expect(section.findComponent(RouterLinkStub).props("to")).toEqual({
+      name: "settings",
+      query: { guide: "iphone" },
+    });
+  });
+
+  it("opens the guide the URL names, in place", async () => {
+    const { wrapper } = await mountPage(undefined, "claude");
+    expect(wrapper.find("[data-source=claude] [data-guide=claude]").exists()).toBe(true);
+    expect(wrapper.findAll("[data-guide]")).toHaveLength(1);
   });
 
   it("lists devices and tokens", async () => {
@@ -232,6 +267,8 @@ describe("settings page", () => {
       {
         "GET /devices": () => ApiTesting.json([]),
         "GET /tokens": () => ApiTesting.json([]),
+        "GET /devices/activity": () => ApiTesting.json([]),
+        "GET /connect/info": () => ApiTesting.json(connectInfo),
         "GET /tabs": () => ApiTesting.json({ devices: [] }),
       },
       { initialValues: [[ThemeAtoms.layer, theme()]] },

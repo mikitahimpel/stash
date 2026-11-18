@@ -31,7 +31,7 @@ const model = defineModel<string>({ default: "" });
       v-bind="$attrs"
       :class="fieldInput"
     />
-    <span v-if="shortcut" aria-hidden="true" class="flex"
+    <span v-if="shortcut" aria-hidden="true" class="flex max-sm:hidden"
       ><Kbd>{{ shortcut }}</Kbd></span
     >
   </label>

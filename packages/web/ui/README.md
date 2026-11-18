@@ -46,7 +46,8 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 | search-field | `search-field` (`v-model`, `size`, optional `shortcut` keycap) |
 | segmented-control | `segmented-control` (radio group, `v-model`, `size` `sm` / `md`, arrow keys move the selection), `segmented-control-option` (type) |
 | toggle-chip | `toggle-chip` (`v-model:pressed`, `size`, sets `aria-pressed`; sunken off, raised on) |
-| filter-menu | `filter-menu` (`Type: Any ▾`, a raised menu trigger, `size`) |
+| filter-menu | `filter-menu` (`Type: Any ▾`, a raised menu trigger, `size`; `plain` for a choice that is always made: `Hybrid ▾`, no `Any`) |
+| field-popup | `field-popup` (a panel under a field, `open`, `label`, `#panel`), `field-popup-item` (`active`, `@pick`, slots `icon`, `note`, `trailing`) |
 | tabs | `tabs`, `tabs-list`, `tabs-trigger`, `tabs-content` (the segmented look) |
 | avatar | `avatar-button` (32px round, `initial`, `alert`) |
 | kbd | `kbd` (keycap) |
@@ -60,7 +61,7 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 | toast | `toaster`, `toast-message` (type) |
 | skeleton | `skeleton` (`shape`: `line`, `title`, `row`, `control`, `chip`, `chart`) |
 | empty-state / error-state | `empty-state` (`title`, `description`, `#icon`, `#action`), `error-state` |
-| app shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |
+| app shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark`, `centered-screen` |
 | other | `device-code`, `status-dot`, `match-mark`, `text-link` (prose links only), `color-swatch` |
 
 `cn` merges class lists so that a `class` passed by the caller overrides the defaults.

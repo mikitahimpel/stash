@@ -52,3 +52,21 @@ describe("FilterMenu", () => {
     expect(picked).toEqual([""]);
   });
 });
+
+describe("FilterMenu, plain", () => {
+  it("shows the choice alone, names it for assistive tech and offers no Any", async () => {
+    const wrapper = mount(FilterMenu, {
+      attachTo: "body",
+      props: { label: "Search mode", options, modelValue: "video", plain: true },
+    });
+    const trigger = wrapper.find("[data-slot=filter-menu]");
+    expect(trigger.text()).toBe("Video");
+    expect(trigger.attributes("aria-label")).toBe("Search mode: Video");
+    await trigger.trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    const items = new DOMWrapper(wrapper.element.ownerDocument.body).findAll(
+      "[role=menuitemradio]",
+    );
+    expect(items.map((item) => item.text())).toEqual(["Video", "Repo"]);
+  });
+});

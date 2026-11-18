@@ -153,9 +153,8 @@ Each page starts with `<PageHeader>` (`@stash/web-ui/page-header`): the title as
 first-run page has the title alone. The page's **primary action** sits on the right, in the
 `#actions` slot: Inbox has the Save a link field (sunken input and primary Save; Enter submits, and
 the new row shows at once), Open now has Add device (except on its onboarding card, which offers
-it per device), Settings has none. **Search has no `PageHeader`**: its 44px search field is the
-page's header (the `h1` is there for screen readers only). On phones it takes its own full-width line under
-the title. Sections inside a page keep `<SectionHeader>`
+it per device), Settings has none. Search has no page: its field is in the app header (see
+"Search"), and its results show under the Inbox's header. Sections inside a page keep `<SectionHeader>`
 (14px/500). `PageHeader` carries its own 24px bottom margin, which adds to the page's `gap-6`.
 
 ### Control hierarchy
@@ -225,51 +224,56 @@ in a second line above the chart.
 
 ### Search
 
-The page is a search page, not a dashboard: a 44px field at the top (focused on arrival; `⌘K`
-opens the page from anywhere), then one row of `sm` filter menus (`Type`, `Device`, `Date`) with
-the mode switch (`Hybrid` · `Meaning` · `Keywords`) at the end of the row once there is a query.
-On a phone that row is a `ScrollRow`: one line that scrolls sideways and never wraps, so the
-results start right under it (#155).
-There are no tag chips in the filter row; a tag clicked on a result filters by it and shows as one
-chip that clears it. Results update as you type (debounced), as media rows under a `Results`
-group header, with the query's terms marked in the accent (`MatchMark` `tone="signal"`) in titles
-and summaries (not in `Meaning` mode, which matches no words). `↑`/`↓` move, `↵` opens, `S` marks
-seen, `esc` clears.
+Search is an input, not a page (#156): one field in the app header, on every page. `⌘K` / `Ctrl+K`
+and `/` focus it; `esc` clears it and leaves it.
 
-Before anything is typed the page shows **Recent searches** (the last 8, each can be run again or
-removed) and **Recently saved** (the five latest links, narrowed by the filters). Recent searches
-stay in the browser (`localStorage` through `@stash/web-platform/recent-searches`) and are never
-sent to the api. A search is remembered when the user acts on it: `↵` in the field, or opening a
-result. A first-run user sees just the field and its filters.
+- **Typing filters in place.** The query goes to the URL of the Inbox (`/links?q=…`) once typing
+  pauses (300 ms), and the Inbox's list becomes the results: the same media rows with the same
+  actions and keys, ranked instead of grouped by day, with the query's terms marked in the accent
+  (`MatchMark` `tone="signal"`) in titles and summaries (not in `Meaning` mode, which matches no
+  words). From any other page the first query opens the Inbox. Clearing the field brings the feed
+  back.
+- **One line over the results**, where the Inbox has its feed switch: `12 results for “query” ·
+  Hybrid ▾` (the mode as a `plain` `FilterMenu`: `Hybrid` · `Meaning` · `Keywords`) and the
+  `Type`, `Device` and `Date` menus inline. A tag clicked on a row narrows the search and shows as
+  one chip that clears it. On a phone the menus are a `ScrollRow` under the summary: one line
+  that scrolls sideways and never wraps.
+- **The URL holds the search**: `q`, `mode`, `device` and `range` next to the Inbox's own `type`
+  and `tag`, so back, forward and a shared link work. A search is one history entry (starting it
+  adds the entry, refining or clearing replaces it). `/search?q=…` (the extension popup, old
+  links) redirects to `/links?q=…`.
+- **No jump between queries.** The page header and the line stay; the last results stay on screen
+  (the line is `aria-busy`) until the next answer arrives. A skeleton shows only for a first
+  answer that takes over 200 ms.
+- **Recent searches** (the last 6 of the 8 kept) hang under the focused, empty field
+  (`FieldPopup`); each can be run again (click, or `↑`/`↓` and `↵`) or removed. They stay in the
+  browser (`localStorage` through `@stash/web-platform/recent-searches`) and are never sent to the
+  api. A search is remembered when the user acts on it: `↵` in the field, or opening a result.
+- `↵` or `↓` in the field hands the keys to the results: `↑`/`↓` select, `↵` opens, `S` / `D` /
+  `E` as in the Inbox.
 
-### Empty and error states
+### Settings
 
-An empty page says how to start. `<StartSavingCard>` (`@stash/web-settings/start-saving-card`) is
-the first-run state: a surface card with a title and one row per way to start, each with a single
-action. The Inbox shows "Start saving" (Zen extension, iPhone, Claude) when nothing is saved, without
-the filters. Open now shows "Connect a device" (Zen extension, iPhone through a Mac) when no device exists. A
-device action goes to `/settings?add=device&kind=<kind>`, which opens the dialog that creates the
-token, on that kind. The card appears only when nothing is saved at all, of any status or age: an
-empty feed alone says nothing about that. The doc links open
-`/docs/ios-shortcut.md` and `/docs/mcp-connector.md`, which `apps/web` publishes from `docs/` at
-build time. Search with no query: see "Search".
+One page with three sections, in this order (#156 merged the Connect page into it):
 
-A section of a page that is empty stays one compact row (`No devices yet` in Settings), with the
-action in its section header. No section repeats that action.
-
-`<EmptyState>` and `<ErrorState>` cover the rest (nothing matches a filter, a failed load). They are
-centred in the content area with `py-12`: a 14px/500 title, one muted line that says why the area is
-empty or what failed, and, where there is one, an action (Retry, Clear filter). No
-illustration beyond an optional 20px icon.
+1. **Devices & connections** (`#connections`): one row per source (iPhone / iPad, Zen, Mac,
+   Claude) with its status and a guide that opens in place (`/settings?guide=iphone`), then the
+   devices they registered, each with New token. `/connect` and `/connect?guide=…` redirect here
+   with the guide open; `/connect/extension?code=…` is still the page the extension opens to be
+   approved.
+2. **API tokens**: every token, with Revoke.
+3. **Appearance**: the theme.
 
 ### App header
 
 One quiet row, with the same max width (960px) and side padding as `<main>`, 56px tall, sticky,
 hairline below.
 
-- Left: wordmark, then the nav as plain text tabs (Inbox, Open now, Search, Settings) with a 2px
-  underline on the active one, no tray and no borders. The Search tab carries the `⌘K` hint as a
-  muted `kbd`, and it is the only Search entry point.
+- Left: wordmark, then the nav as plain text tabs (Inbox, Open now, Settings) with a 2px
+  underline on the active one, no tray and no borders.
+- Middle: **the search field** (`<AppBarSearch>`, a `sm` `SearchField` with a `⌘K` keycap), as
+  wide as the row allows between the nav and the account button. It is the only Search entry
+  point; see "Search".
 - Right: **one account menu button** (the login's initial on a round avatar) holding the theme
   switch (System / Light / Dark as radio items), the sync status and Sign out. An 8px accent dot on
   the button appears only when offline; otherwise the status stays in the menu.
@@ -279,9 +283,9 @@ hairline below.
 
 - No horizontal scroll at 390px on any page.
 - The nav moves to a **bottom bar**: the same text tabs, full width, fixed above the home indicator
-  (`env(safe-area-inset-bottom)`). `<main>` pads its bottom so content clears it. The `⌘K` hint is
-  hidden.
-- The header keeps the wordmark and the account button.
+  (`env(safe-area-inset-bottom)`). `<main>` pads its bottom so content clears it.
+- The header keeps the wordmark and the account button, and the search field takes a full-width
+  line under them (without the `⌘K` keycap).
 - Keyboard shortcut footers are hidden.
 - A row of chips stays on one line and scrolls on its own, out to the edge of the screen.
 
@@ -289,10 +293,11 @@ hairline below.
 
 `pnpm --filter @stash/web screenshots` boots the api under `alchemy dev` (stage `screenshots`, no
 credentials), seeds synthetic data and a session through the dev-only `/_smoke/seed` and
-`/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Open now, Search
-with results, Search before a query with recent searches, the `/save` result, Settings, Login,
-`/_ui`) in dark and light at 1440×900 and 390×844 into
-[`docs/screenshots/`](screenshots/). Inbox, Open now, Search and Settings are also captured as a
+`/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Inbox while searching
+(`inbox-search-*`), the focused empty search field with recent searches (`inbox-search-recent-*`),
+Open now, the `/save` result, Settings, Settings with each guide open (`settings-iphone-*` and so
+on), the extension's approve page, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
+[`docs/screenshots/`](screenshots/). Inbox, Open now and Settings are also captured as a
 first-run user with no data (`inbox-empty-light-desktop.png` and so on), with the browser answering
 the data requests with empty results. Before each capture the viewport grows to the page's height,
 so the phone's bottom nav sits at the bottom of the picture as on a screen. Pages are cut at
@@ -303,9 +308,10 @@ scrolls sideways or a button has no accessible name. Chromium needs its system l
 ### Layout audit
 
 `pnpm --filter @stash/web audit:layout` (CI job `layout-audit`) builds the app, serves it with
-`vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now, Search
-with results, Settings, each seeded and as a first-run user, Inbox and Open now with a selected
-row, Search before a query, plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
+`vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now and
+Settings, each seeded and as a first-run user, Inbox and Open now with a selected row, the Inbox
+while searching, the search field's recent searches, Settings with each guide open, the
+extension's approve page, `/save`, plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
 (`apps/web/scripts/layout-fixtures.ts`), and the fixtures' preview images are drawn in
 `scripts/preview-images.ts`, so nothing is fetched from the network. On each page it checks:
 
@@ -371,7 +377,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |
 | Card | `card`, `card-header`, `card-title`, … |
 | Avatar | `avatar-button` |
-| App shell | `app-frame`, `app-bar`, `app-main`, `nav-bar`, `nav-tab`, `nav-shortcut`, `wordmark`, `centered-screen` |
+| App shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark`, `centered-screen` |
 | PageHeader | `page-header` (`title`, `subtitle`, `#actions`): the page's `h1` |
 | SectionHeader | `section-header` (`title`, `count`, `#actions`) |
 | Link | `text-link` |

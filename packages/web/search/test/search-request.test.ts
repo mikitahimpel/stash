@@ -1,6 +1,4 @@
 import * as DateTime from "effect/DateTime";
-import * as Schema from "effect/Schema";
-import * as Link from "@stash/contracts-domain/link";
 import { describe, expect, it } from "vitest";
 import * as SearchRequest from "../src/search-request.ts";
 
@@ -71,59 +69,6 @@ describe("filters", () => {
   it("keeps a range stable within the hour, so a repeated search is the same request", () => {
     const later = DateTime.makeUnsafe("2026-03-10T14:59:59.000Z");
     expect(SearchRequest.since("week", later)).toEqual(SearchRequest.since("week", now));
-  });
-
-  const link = (overrides: Record<string, unknown>) =>
-    Schema.decodeUnknownSync(Link.Link)({
-      id: "a",
-      url: "https://www.example.com/a",
-      canonicalUrl: null,
-      title: null,
-      status: "new",
-      type: "video",
-      summary: null,
-      language: null,
-      imageUrl: null,
-      author: null,
-      tags: ["rust"],
-      sourceDeviceId: "device-1",
-      createdAt: "2026-03-09T00:00:00.000Z",
-      enrichedAt: null,
-      ...overrides,
-    });
-
-  it("tells whether a link passes the same filters", () => {
-    const passes = (overrides: Partial<SearchRequest.Form>, data = {}) =>
-      SearchRequest.passes(form(overrides), now, link(data));
-    expect(passes({})).toBe(true);
-    expect(passes({ type: "video", device: "device-1", range: "week", tag: "rust" })).toBe(true);
-    expect(passes({ type: "repo" })).toBe(false);
-    expect(passes({ device: "device-2" })).toBe(false);
-    expect(passes({ tag: "go" })).toBe(false);
-    expect(passes({ range: "week" }, { createdAt: "2026-02-01T00:00:00.000Z" })).toBe(false);
-    expect(passes({ range: "year" }, { createdAt: "2026-02-01T00:00:00.000Z" })).toBe(true);
-  });
-
-  it("names a link's host without www., preferring the canonical URL", () => {
-    expect(SearchRequest.host(link({}))).toBe("example.com");
-    expect(SearchRequest.host(link({ canonicalUrl: "https://example.org/x" }))).toBe("example.org");
-  });
-});
-
-describe("age", () => {
-  it("is short at every scale", () => {
-    const minute = 60_000;
-    const day = 24 * 60 * minute;
-    const ago = (ms: number) => SearchRequest.age(1_000_000_000_000 - ms, 1_000_000_000_000);
-    expect(ago(0)).toBe("now");
-    expect(ago(12 * minute)).toBe("12m");
-    expect(ago(5 * 60 * minute)).toBe("5h");
-    expect(ago(3 * day)).toBe("3d");
-    expect(ago(21 * day)).toBe("3w");
-    expect(ago(70 * day)).toBe("2mo");
-    expect(ago(800 * day)).toBe("2y");
-    // A clock a little behind the api's never shows a negative age.
-    expect(SearchRequest.age(2_000, 1_000)).toBe("now");
   });
 });
 

@@ -41,13 +41,23 @@ export const routes: ReadonlyArray<RouteRecordRaw> = [
   { path: "/:pathMatch(.*)*", redirect: "/links" },
 ];
 
+/** The sticky header's height on a phone (two lines), plus some air: px above an anchor. */
+const headerClearance = 120;
+
 /**
  * The app router, with the auth guard installed: every route but the login page needs a session,
  * checked against the api of `registry`. `main.ts` passes the browser history (`createWebHistory`),
  * and tests pass `createMemoryHistory`.
  */
 export const make = (history: RouterHistory, registry: AtomRegistry.AtomRegistry): Router => {
-  const router = createRouter({ history, routes: [...routes] });
+  const router = createRouter({
+    history,
+    routes: [...routes],
+    // An anchor (`/settings#connections`, where `/connect` leads) scrolls to its section, clear
+    // of the sticky header; back and forward return to where the page was.
+    scrollBehavior: (to, _from, saved) =>
+      saved ?? (to.hash === "" ? undefined : { el: to.hash, top: headerClearance }),
+  });
   AuthGuard.install(router, registry);
   return router;
 };

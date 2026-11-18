@@ -1,5 +1,5 @@
 // `pnpm --filter @stash/web walk:connect` (after `vite build`; CI runs it after the layout audit):
-// walks every Connect guide in headless Chromium against the synthetic api of the layout audit
+// walks every Connect guide (now the first section of Settings) in headless Chromium against the synthetic api of the layout audit
 // (`layout-fixtures.ts`, `connectable`), one page at a time in one browser. Each guide creates its
 // device or token, shows the prefilled values, and turns to "Connected ✓" once the fixture reports
 // the first save, check-in or use. Also the extension's approve page and `/save`. Exits 1 on the
@@ -58,7 +58,9 @@ const walks: ReadonlyArray<{
   {
     name: "iPhone guide",
     run: async (page, api) => {
+      // The old address, which docs and the extension still link to, lands on the section.
       await page.goto(`${baseUrl}/connect?guide=iphone`);
+      await page.waitForURL(`${baseUrl}/settings?guide=iphone#connections`);
       await page.locator("[data-guide=iphone] [data-action=create]").click();
       await page.locator("[data-test=waiting]").waitFor();
       const device = lastDevice(api);
@@ -73,7 +75,7 @@ const walks: ReadonlyArray<{
     name: "Zen guide, unsigned build",
     signed: false,
     run: async (page) => {
-      await page.goto(`${baseUrl}/connect?guide=extension`);
+      await page.goto(`${baseUrl}/settings?guide=extension`);
       await page.locator("[data-guide=extension][data-signed=false]").waitFor();
       const href = await page.locator("[data-action=download]").getAttribute("href");
       check(href === `${baseUrl}/downloads/stash-extension.xpi`, `download is ${href}`);
@@ -85,7 +87,7 @@ const walks: ReadonlyArray<{
     name: "Zen guide, signed build",
     signed: true,
     run: async (page) => {
-      await page.goto(`${baseUrl}/connect?guide=extension`);
+      await page.goto(`${baseUrl}/settings?guide=extension`);
       await page.locator("[data-guide=extension][data-signed=true]").waitFor();
       const install = (await page.locator("[data-test=install]").textContent()) ?? "";
       check(install.includes("choose Add"), "no install steps for a signed file");
@@ -109,7 +111,7 @@ const walks: ReadonlyArray<{
   {
     name: "Mac guide",
     run: async (page, api) => {
-      await page.goto(`${baseUrl}/connect?guide=mac`);
+      await page.goto(`${baseUrl}/settings?guide=mac`);
       await page.locator("[data-guide=mac] [data-action=create]").click();
       await page.locator("[data-test=waiting]").waitFor();
       const device = lastDevice(api);
@@ -124,12 +126,22 @@ const walks: ReadonlyArray<{
   {
     name: "Claude guide",
     run: async (page, api) => {
-      await page.goto(`${baseUrl}/connect?guide=claude`);
+      await page.goto(`${baseUrl}/settings?guide=claude`);
       await page.locator("[data-guide=claude] [data-test=waiting]").waitFor();
       const url = await value(page, "Connector URL");
       check(url === "https://mcp.example.com/mcp", `connector URL is ${url}`);
       api.useClaude();
       await arrived(page, "Connected ✓ — Claude used Stash");
+    },
+  },
+  {
+    name: "/search?q= opens the Inbox with its results",
+    run: async (page) => {
+      await page.goto(`${baseUrl}/search?q=economics`);
+      await page.waitForURL(`${baseUrl}/links?q=economics`);
+      await page.locator("[data-slot=search-results] [data-slot=link-row]").first().waitFor();
+      const field = await value(page, "Search links");
+      check(field === "economics", `the search field holds "${field}"`);
     },
   },
   {
