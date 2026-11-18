@@ -5,7 +5,10 @@ import * as Routes from "../src/routes.ts";
 const router = () =>
   createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: "/links", name: "links", component: { render: () => null } }, ...Routes.routes],
+    routes: [
+      { path: "/links", name: "links", component: { render: () => null } },
+      ...Routes.routes,
+    ],
   });
 
 describe("search routes", () => {

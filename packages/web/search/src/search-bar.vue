@@ -54,7 +54,7 @@ const summary = computed(() => {
         @update:model-value="(mode) => update({ mode: mode === '' ? 'hybrid' : mode })"
       />
     </div>
-    <ScrollRow class="sm:ml-auto" role="group" aria-label="Filters">
+    <ScrollRow class="sm:ml-auto" v-bind="{ role: 'group', 'aria-label': 'Filters' }">
       <FilterMenu
         label="Type"
         :options="types"
