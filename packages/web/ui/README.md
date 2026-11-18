@@ -64,7 +64,8 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 | toast | `toaster`, `toast-message` (type) |
 | skeleton | `skeleton` (`shape`: `line`, `title`, `row`, `media`, `hero`, `control`, `chip`, `chart`) |
 | empty-state / error-state | `empty-state` (`title`, `description`, `#icon`, `#action`), `error-state` |
-| app shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark`, `centered-screen` |
+| app shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark` (the logo: mark and word), `logo-mark`, `centered-screen` |
+| logo | `stash-mark.svg` (full), `stash-mark-sm.svg` (for 32 and 16 px): see "Logo" in [docs/design.md](../../../docs/design.md#logo) |
 | other | `device-code`, `status-dot`, `match-mark`, `text-link` (prose links only), `color-swatch` |
 
 `cn` merges class lists so that a `class` passed by the caller overrides the defaults.

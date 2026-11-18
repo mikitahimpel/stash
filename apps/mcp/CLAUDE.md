@@ -52,7 +52,8 @@ behavior is tested in `packages/mcp/*`.
 - `src/worker.ts` (entry: reads `env`, builds the live layers), `src/worker-env.ts` (bindings,
   kept in sync with `alchemy.run.ts`)
 - `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent, device code
-  page, poll endpoint, allowlist), `src/authorize-pages.ts` (the server-rendered HTML),
+  page, poll endpoint, allowlist), `src/authorize-pages.ts` (the server-rendered HTML), `src/stash-mark.ts` (the logo inline for
+  those pages, a copy of the web kit's small mark),
   `src/device-flow-store.ts` (pending device flows in KV), `src/github-identity.ts` (GitHub Device
   Flow over `HttpClient`), `src/login-not-configured.ts` (503 on `/authorize*` while
   `GITHUB_CLIENT_ID` is unset)

@@ -82,7 +82,7 @@ const ended = computed(() => {
 
 <template>
   <CenteredScreen>
-    <Wordmark as="h1" />
+    <Wordmark as="h1" size="xl" />
 
     <!-- GitHub Device Flow: no redirect or popup, so it works in the home-screen app, and the code
          can be entered on any device. -->

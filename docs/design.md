@@ -307,7 +307,7 @@ One page with three sections, in this order (#156 merged the Connect page into i
 One quiet row, with the same max width (960px) and side padding as `<main>`, 56px tall, sticky,
 hairline below.
 
-- Left: wordmark, then the nav as plain text tabs (Inbox, Open now, Settings) with a 2px
+- Left: the logo (`<Wordmark>`: the 28px Well mark and `stash`, see "Logo"), then the nav as plain text tabs (Inbox, Open now, Settings) with a 2px
   underline on the active one, no tray and no borders.
 - Middle: **the search field** (`<AppBarSearch>`, a `sm` `SearchField` with a `⌘K` keycap), as
   wide as the row allows between the nav and the account button. It is the only Search entry
@@ -344,7 +344,30 @@ so the phone's bottom nav sits at the bottom of the picture as on a screen. Page
 scrolls sideways or a button has no accessible name. Chromium needs its system libraries
 (`pnpm --filter @stash/web exec playwright install-deps chromium` once per machine).
 
-### Layout audit
+### Logo
+
+The logo is the **Well**: a dark tactile squircle with three steps sinking toward a glowing orange
+core, next to the wordmark `stash` in Geist 600 with letter-spacing -0.05em. The mark is dark in
+both themes.
+
+- **Sources:** two SVGs in the kit, `packages/web/ui/src/logo/stash-mark.svg` (full, three steps)
+  and `stash-mark-sm.svg` (one step and the core, drawn for 32 and 16 px). Each stands alone (no
+  external references), and their ids carry different prefixes (`stash-well-…`,
+  `stash-well-sm-…`), so both can be inlined in one page.
+- **In the web app:** `<LogoMark>` (an `<img>`; `sm` 28 and `md` 44 use the small mark, `lg` 96 the
+  full one) and `<Wordmark>` (mark + word: `md` in the app bar, `xl` on the login screen).
+- **Rasters are drawn, never exported by hand.** `pnpm --filter @stash/web icons`
+  (`apps/web/scripts/brand-icons.ts`) writes `favicon.svg`, the 32/16 favicons, the 180 px
+  `apple-touch-icon` and the 192/512 manifest icons (the full mark on an opaque square of its body
+  colour, plus a maskable 512 with the mark inside the safe zone), and
+  `docs/screenshots/brand-icons.png` to check the small sizes by eye.
+  `pnpm --filter @stash/extension icons` writes the extension's 16/32 (small mark) and 48/96/128
+  (full mark).
+- **Copies:** contexts share no code, so the extension keeps copies of both SVGs
+  (`apps/extension/assets/`) and the MCP sign-in pages an inline copy of the small one
+  (`apps/mcp/src/stash-mark.ts`). After changing a mark, update the copies and run both scripts.
+
+## Layout audit
 
 `pnpm --filter @stash/web audit:layout` (CI job `layout-audit`) builds the app, serves it with
 `vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now and
@@ -425,7 +448,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |
 | Card | `card`, `card-header`, `card-title`, … |
 | Avatar | `avatar-button` |
-| App shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark`, `centered-screen` |
+| App shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark` (the logo: mark and word; `size` `md`, `xl`), `logo-mark` (`size` `sm` 28, `md` 44, `lg` 96), `centered-screen` |
 | PageHeader | `page-header` (`title`, `subtitle`, `#actions`): the page's `h1` |
 | SectionHeader | `section-header` (`title`, `count`, `#actions`) |
 | Link | `text-link` |

@@ -13,6 +13,7 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "test": "vitest run",
     "package:xpi": "node scripts/package-xpi.ts",
+    "icons": "playwright install chromium && node scripts/icons.ts",
     "screenshots": "playwright install chromium && node scripts/popup-screenshots.ts"
   },
   "dependencies": {

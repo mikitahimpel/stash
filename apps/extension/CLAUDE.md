@@ -43,6 +43,11 @@ platform services. WXT-generated code is the only exception.
 - Pages look like the web app. `assets/tokens.css` is a copy of the web design tokens
   (`packages/web/ui/src/styles.css`); keep the values in step by hand, never import `@stash/web-*`.
   Light and dark follow `prefers-color-scheme`.
+- The logo is the Well mark ("Logo" in [docs/design.md](../../docs/design.md#logo)).
+  `assets/stash-mark.svg` and `assets/stash-mark-sm.svg` are copies of the web kit's, kept in step
+  by hand. `scripts/icons.ts` draws `public/icon/<size>.png` from them (16 and 32 from the small
+  mark), and `wxt.config.ts` lists those as `icons` and the toolbar's `default_icon`. Never export
+  an icon by hand.
 
 ## Testing
 
@@ -69,7 +74,7 @@ page decides: the focus and the confirmation before a delete.
 ## Commands
 
 `build` (Firefox zip in `.output/`), `package:xpi <out.xpi>` (the `.xpi` the web app serves,
-signed when the AMO key is in env, `scripts/package-xpi.ts`), `screenshots` (the popup in both
+signed when the AMO key is in env, `scripts/package-xpi.ts`), `icons` (the toolbar and add-on icons into `public/icon/`, `scripts/icons.ts`), `screenshots` (the popup in both
 themes into `docs/screenshots/extension-popup-*.png`, `scripts/popup-screenshots.ts`) and `dev`
 (WXT dev server on `0.0.0.0`). See [README.md](README.md).
 

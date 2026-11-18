@@ -10,6 +10,7 @@ import DropdownMenuLabel from "@stash/web-ui/dropdown-menu-label";
 import DropdownMenuRadioGroup from "@stash/web-ui/dropdown-menu-radio-group";
 import DropdownMenuRadioItem from "@stash/web-ui/dropdown-menu-radio-item";
 import DropdownMenuSeparator from "@stash/web-ui/dropdown-menu-separator";
+import LogoMark from "@stash/web-ui/logo-mark";
 import NavBar from "@stash/web-ui/nav-bar";
 import NavTab from "@stash/web-ui/nav-tab";
 import StatusDot from "@stash/web-ui/status-dot";
@@ -74,7 +75,7 @@ const pickTheme = (value: unknown) => {
 <template>
   <AppBar>
     <Wordmark as-child>
-      <RouterLink :to="{ name: 'links' }">stash</RouterLink>
+      <RouterLink :to="{ name: 'links' }"><LogoMark /><span>stash</span></RouterLink>
     </Wordmark>
 
     <NavBar label="Main">

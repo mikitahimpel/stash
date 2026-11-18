@@ -85,7 +85,15 @@ describe("background", () => {
     expect(manifest.commands?.["_execute_browser_action"]?.suggested_key).toEqual({
       default: "Alt+Shift+A",
     });
-    expect(manifest.browser_action).toEqual({ default_title: "Stash" });
+    expect(manifest.browser_action).toEqual({
+      default_title: "Stash",
+      default_icon: { 16: "icon/16.png", 32: "icon/32.png" },
+    });
+    // Every icon the manifest names is a file `scripts/icons.ts` drew into `public/`.
+    expect(Object.keys(manifest.icons ?? {})).toEqual(["16", "32", "48", "96", "128"]);
+    for (const file of Object.values(manifest.icons ?? {})) {
+      expect(existsSync(new URL(`../public/${file}`, import.meta.url)), file).toBe(true);
+    }
     expect(existsSync(new URL("../entrypoints/popup/index.html", import.meta.url))).toBe(true);
   });
 

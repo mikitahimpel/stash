@@ -1,4 +1,5 @@
 import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
+import * as StashMark from "./stash-mark.ts";
 
 // The server-rendered sign-in pages: consent, then the GitHub device code. Minimal "Stash tactile"
 // (docs/design.md): dark or light from `prefers-color-scheme`, labels and data only.
@@ -11,7 +12,9 @@ const styles = `:root{color-scheme:dark light;--bg:#f7f7f8;--fg:#111113;--muted:
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 Geist,ui-sans-serif,system-ui,sans-serif}
 main{max-width:420px;margin:12vh auto;padding:0 16px}
-.mark{font:500 12px "Geist Mono",ui-monospace,monospace;color:var(--muted);margin:0 0 24px}
+.mark{display:flex;align-items:center;gap:10px;font-size:21px;line-height:1;font-weight:600;letter-spacing:-.05em;margin:0 0 24px}
+.mark svg{display:block;flex:none}
+.glow{mix-blend-mode:screen}
 h1{font-size:14px;font-weight:500;margin:0 0 8px}
 p{margin:0 0 16px}
 .muted{color:var(--muted)}
@@ -39,7 +42,7 @@ const page = (title: string, body: string, nonce?: string) => {
 <title>${escape(title)}</title>
 <style${attr}>${styles}</style>
 <main>
-<p class="mark">stash</p>
+<p class="mark">${StashMark.svg}<span>stash</span></p>
 ${body}
 </main>
 </html>`;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import markUrl from "../../assets/stash-mark-sm.svg";
 import * as PairExtension from "./pair-extension.ts";
 import type * as SaveConfig from "./save-config.ts";
 
@@ -53,7 +54,10 @@ const submit = async () => {
 
 <template>
   <main>
-    <h1>Stash</h1>
+    <h1 class="brand">
+      <img :src="markUrl" alt="" width="28" height="28" />
+      <span>stash</span>
+    </h1>
     <form @submit.prevent="connect">
       <label>
         Your Stash address
@@ -117,6 +121,17 @@ main {
   font-family: system-ui, sans-serif;
   display: grid;
   gap: 1rem;
+}
+/* The logo: the small Well mark and the wordmark (600, -0.05em). */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.05em;
 }
 form {
   display: grid;

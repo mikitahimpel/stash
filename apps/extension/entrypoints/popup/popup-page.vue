@@ -2,6 +2,7 @@
 import * as PopupLink from "@stash/ext-popup/popup-link";
 import type * as PopupView from "@stash/ext-popup/popup-view";
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import markUrl from "../../assets/stash-mark-sm.svg";
 import type * as PopupActions from "./popup-actions.ts";
 
 // The toolbar popup: this page with Save (or Saved and Undo), a search field and Open Stash, the
@@ -158,7 +159,10 @@ const openStash = () => {
 <template>
   <main class="popup">
     <header class="bar">
-      <span class="brand">Stash</span>
+      <span class="brand">
+        <img :src="markUrl" alt="" width="20" height="20" />
+        <span>stash</span>
+      </span>
       <span v-if="status" class="status" role="status">
         <span :class="['dot', status.tone]" aria-hidden="true" />
         <span class="status-text">{{ status.text }}</span>
@@ -331,10 +335,18 @@ const openStash = () => {
   min-height: 24px;
   padding-inline: 4px;
 }
+/* The logo: the small Well mark and the wordmark (Geist 600, -0.05em). */
 .brand {
-  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+.brand img {
+  display: block;
 }
 .status {
   display: flex;

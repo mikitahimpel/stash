@@ -30,7 +30,19 @@ export default defineConfig({
     permissions: ["tabs", "storage", "alarms", "https://*/*", "http://*/*"],
     // The toolbar button opens the popup (`entrypoints/popup/`, WXT adds `default_popup`). The
     // background page still shows the result of a hotkey save as a badge on it.
-    browser_action: { default_title: "Stash" },
+    browser_action: {
+      default_title: "Stash",
+      default_icon: { 16: "icon/16.png", 32: "icon/32.png" },
+    },
+    // The Well mark, drawn by `scripts/icons.ts` into `public/icon/`: the small version at 16 and
+    // 32 px, the full one above.
+    icons: {
+      16: "icon/16.png",
+      32: "icon/32.png",
+      48: "icon/48.png",
+      96: "icon/96.png",
+      128: "icon/128.png",
+    },
     // The names match the `commandName` of each feature in `@stash/ext-capture`.
     commands: {
       // The browser's own command for the toolbar button: it opens the popup.
