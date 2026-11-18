@@ -2,6 +2,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as ExtensionConfig from "./extension-config.ts";
+import * as ExtensionPages from "./extension-pages.ts";
 import * as StashApiClient from "./stash-api-client.ts";
 import * as ToolbarAction from "./browser-action.ts";
 import * as Alarms from "./browser-alarms.ts";
@@ -16,8 +17,8 @@ import * as Workspaces from "./browser-workspaces.ts";
  * layer in each entrypoint. The manifest needs the `tabs`, `storage` and `alarms` permissions,
  * host permission for the API origin and a toolbar button (`browser_action`).
  *
- * - `Tabs`, `Windows`, `Storage`, `Alarms`, `Commands`, `Workspaces`, `ToolbarAction`:
- *   `browser.*`.
+ * - `Tabs`, `Windows`, `Storage`, `Alarms`, `Commands`, `Workspaces`, `ToolbarAction`,
+ *   `ExtensionPages`: `browser.*`.
  * - `HttpClient` (`effect/http/HttpClient`): backed by `fetch`.
  * - `ExtensionConfig`, `StashApiClient`: built on `Storage` and `HttpClient`.
  */
@@ -29,6 +30,7 @@ export type Services =
   | Commands.Commands
   | Workspaces.Workspaces
   | ToolbarAction.ToolbarAction
+  | ExtensionPages.ExtensionPages
   | HttpClient.HttpClient
   | ExtensionConfig.ExtensionConfig
   | StashApiClient.StashApiClient;
@@ -43,6 +45,7 @@ const browserLayer = Layer.mergeAll(
   Commands.layer,
   Workspaces.layer,
   ToolbarAction.layer,
+  ExtensionPages.layer,
   layerHttpClient,
 );
 

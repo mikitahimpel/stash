@@ -11,6 +11,7 @@ import * as Tabs from "../src/browser-tabs.ts";
 import * as Windows from "../src/browser-windows.ts";
 import * as Workspaces from "../src/browser-workspaces.ts";
 import * as ExtensionConfig from "../src/extension-config.ts";
+import * as ExtensionPages from "../src/extension-pages.ts";
 import * as Live from "../src/live.ts";
 import * as StashApiClient from "../src/stash-api-client.ts";
 
@@ -57,6 +58,10 @@ const fakeBrowser = () => {
       TAB_ID_NONE: -1,
       query: async (info: unknown) => (record("tabs.query", info), tabs),
       remove: async (ids: unknown) => void record("tabs.remove", ids),
+      update: async (id: number, info: unknown) => (
+        record("tabs.update", id, info),
+        { id, windowId: 4, active: true, pinned: false }
+      ),
       create: async (info: { windowId: number }) => (
         record("tabs.create", info),
         { id: 9, windowId: info.windowId, url: "about:newtab", active: false, pinned: false }
@@ -65,6 +70,7 @@ const fakeBrowser = () => {
     },
     runtime: {
       getURL: (path: string) => `moz-extension://synthetic${path}`,
+      openOptionsPage: async () => void record("runtime.openOptionsPage"),
     },
     windows: {
       WINDOW_ID_NONE: -1,
@@ -78,6 +84,7 @@ const fakeBrowser = () => {
       getLastFocused: async () => ({ id: 1, focused: true, incognito: false }),
       getCurrent: async () => ({ id: 3, focused: true, incognito: false }),
       create: async (info: unknown) => void record("windows.create", info),
+      update: async (id: number, info: unknown) => void record("windows.update", id, info),
       remove: async (id: number) => {
         if (id !== 1) throw new Error("No window with id");
       },
@@ -140,6 +147,7 @@ describe("live layer", () => {
           windowId: 1,
           url: "https://example.com/a",
           title: "A",
+          favIconUrl: null,
           active: true,
           pinned: false,
           hidden: false,
@@ -150,6 +158,7 @@ describe("live layer", () => {
           windowId: 1,
           url: null,
           title: null,
+          favIconUrl: null,
           active: false,
           pinned: true,
           hidden: true,
@@ -194,6 +203,25 @@ describe("live layer", () => {
       expect(error).toMatchObject({ _tag: "BrowserError", api: "windows.remove" });
 
       expect(yield* (yield* Workspaces.Workspaces).current).toEqual(Option.none());
+    }).pipe(Effect.provide(Live.layer));
+  });
+
+  it.effect("focuses a tab with its window, opens the options page and closes the popup", () => {
+    const fake = fakeBrowser();
+    vi.stubGlobal("browser", fake.api);
+    const close = vi.fn();
+    vi.stubGlobal("window", { close });
+    return Effect.gen(function* () {
+      yield* (yield* Tabs.Tabs).focus(7);
+      const pages = yield* ExtensionPages.ExtensionPages;
+      yield* pages.openOptions;
+      yield* pages.closeCurrent;
+      expect(fake.calls).toEqual([
+        { api: "tabs.update", args: [7, { active: true }] },
+        { api: "windows.update", args: [4, { focused: true }] },
+        { api: "runtime.openOptionsPage", args: [] },
+      ]);
+      expect(close).toHaveBeenCalledOnce();
     }).pipe(Effect.provide(Live.layer));
   });
 

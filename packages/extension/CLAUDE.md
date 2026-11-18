@@ -10,6 +10,7 @@ Features of the Zen / Firefox extension. Keep a later Safari Web Extension port 
 | Package | Name | Contents |
 |---|---|---|
 | `capture/` | `@stash/ext-capture` | Hotkey saves the current tab, "Save all & close" for a window or Zen workspace |
+| `popup/` | `@stash/ext-popup` | The toolbar popup's logic: the current page and whether it is saved, save and undo, following enrichment, recent links, the connection, opening Stash and its search |
 | `tab-sync/` | `@stash/ext-tab-sync` | Periodic open-tab snapshots to the API |
 | `device-commands/` | `@stash/ext-device-commands` | Poll and execute remote commands (for example close a tab) |
 | `platform/` | `@stash/ext-platform` | `browser.*` services and the api client |
@@ -37,8 +38,8 @@ Never import `@stash/backend-*`, `@stash/mcp-*` or `@stash/web-*`. oxlint enforc
 
 `@stash/ext-platform` is the only package that touches `browser`, `chrome`, `fetch` or other
 runtime globals. It wraps `browser.tabs`, `browser.storage`, `browser.alarms`,
-`browser.commands` and the toolbar button (`browser.browserAction` / `browser.action`) as Effect
-services, provides the authenticated api client (per-device API
+`browser.commands`, the toolbar button (`browser.browserAction` / `browser.action`) and the
+extension's own pages (the options page, closing the popup) as Effect services, provides the authenticated api client (per-device API
 token), and exports in-memory layers as `./testing`. Differences between browsers, including the
 future Safari port, live only here.
 
@@ -59,4 +60,5 @@ tabs, storage, alarms and api) with synthetic tabs and URLs, and assert on the c
 - `capture/src/save-current-tab.ts`, `capture/src/save-all-and-close.ts`
 - `tab-sync/src/tabs-snapshot.ts`, `device-commands/src/commands-poller.ts`
 - `platform/src/browser-tabs.ts`, `platform/src/testing.ts`
+- `popup/src/popup-view.ts`, `popup/src/save-page.ts`, `popup/src/open-stash.ts`
 - `capture/test/save-current-tab.test.ts`

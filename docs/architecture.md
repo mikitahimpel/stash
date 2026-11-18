@@ -9,7 +9,7 @@ Stash collects links and open tabs from every device into one searchable, AI-org
 
 | Client | What it does |
 |---|---|
-| Zen / Firefox extension | Hotkey saves the current tab. "Save all & close" saves a whole window or workspace. Reports open-tab snapshots and executes remote commands (e.g. close a tab). |
+| Zen / Firefox extension | A toolbar popup saves the current page (or shows it is saved, with Undo), opens Stash and its search, and lists the latest saves. A hotkey saves the current tab without it. "Save all & close" saves a whole window or workspace. Reports open-tab snapshots and executes remote commands (e.g. close a tab). |
 | iPhone | An Apple Shortcut in the Safari share sheet POSTs the link to the API. Open iPhone tabs are read on a Mac from Safari's iCloud Tabs database by `mac-agent`. |
 | Web app | Search (semantic + keyword, filtered by type, device and date), tag and type filters, "recent" and "not yet seen" feeds, and an "Open now" view of tabs on all devices with actions (open, archive, close on device). Installable to the iPhone home screen. |
 | Claude (MCP) | Remote MCP server added as a custom connector. It works in claude.ai, desktop, the iOS app and Claude Code. |
@@ -58,7 +58,7 @@ packages/
   backend/            links/ enrichment/ search/ tabs/ auth/ digest/ platform/
   mcp/                tools-links/ tools-tabs/ tools-digest/ platform/
   web/                links/ search/ open-tabs/ settings/ auth/ ui/ api-client/ platform/
-  extension/          capture/ tab-sync/ device-commands/ platform/
+  extension/          capture/ popup/ tab-sync/ device-commands/ platform/
   config/             tsconfig/ (per-context bases) oxlint/ (shared config + boundary rules) vitest/ (shared base)
 ```
 
@@ -119,7 +119,7 @@ Example:
 Only a context's `platform` package may touch runtime globals. Features depend on Effect services, and apps provide the live layers.
 
 - `packages/web/platform` wraps Web APIs. It reuses `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`, `BrowserHttpClient`) and adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`: the searches made on this device, kept in `localStorage` only). It exports `./testing` with in-memory layers.
-- `packages/extension/platform` wraps `browser.*` (`tabs`, `storage`, `alarms`, `commands`). Any browser differences, such as the future Safari port, live here.
+- `packages/extension/platform` wraps `browser.*` (`tabs`, `storage`, `alarms`, `commands`, the toolbar button, the extension's own pages). Any browser differences, such as the future Safari port, live here.
 - `packages/backend/platform` exposes Cloudflare bindings (D1, Queue, Vectorize, R2, KV, AI) as Effect services built from `env`.
 - `packages/mcp/platform` exposes the Service Binding to the api as a typed client.
 - An oxlint `no-restricted-globals` rule bans `window`, `document`, `localStorage`, `sessionStorage`, `indexedDB`, `navigator`, `fetch` and `chrome`/`browser` outside `platform` packages. `.vue` templates are exempt.

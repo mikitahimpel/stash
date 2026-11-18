@@ -38,7 +38,11 @@ const background = {
   "GET /devices": () => ApiTesting.json(devices),
 };
 
-const mountPage = (routes: ApiTesting.Routes, searched: ReadonlyArray<string> = []) => {
+const mountPage = (
+  routes: ApiTesting.Routes,
+  searched: ReadonlyArray<string> = [],
+  props: { query?: string } = {},
+) => {
   const context = Layer.build(PlatformTesting.layerRecentSearches).pipe(
     Effect.scoped,
     Effect.runSync,
@@ -50,6 +54,7 @@ const mountPage = (routes: ApiTesting.Routes, searched: ReadonlyArray<string> = 
     { initialValues: [[SearchAtoms.recentLayer, Layer.succeedContext(context)]] },
   );
   return mount(SearchPage, {
+    props,
     attachTo: "body",
     global: { provide: { [AtomVue.registryKey]: registry } },
   });
@@ -128,6 +133,16 @@ describe("SearchPage", () => {
       "Type: Any",
       "Date: Any",
     ]);
+  });
+
+  it("runs the query a link to the page carries (/search?q=…)", async () => {
+    const wrapper = mountPage({ "GET /search": () => ApiTesting.json({ hits: [] }) }, [], {
+      query: "rust",
+    });
+    await vi.advanceTimersByTimeAsync(SearchAtoms.debounceMillis);
+    await flushPromises();
+    expect(wrapper.find<HTMLInputElement>("input[type=search]").element.value).toBe("rust");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("No matches"));
   });
 
   it("narrows the latest links by the filters before anything is typed", async () => {

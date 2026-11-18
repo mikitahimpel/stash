@@ -17,6 +17,8 @@ export interface Tab {
   readonly windowId: number;
   readonly url: string | null;
   readonly title: string | null;
+  /** The page's icon, when the browser has one. It may be a `data:` URL. */
+  readonly favIconUrl: string | null;
   readonly active: boolean;
   readonly pinned: boolean;
   readonly hidden: boolean;
@@ -48,6 +50,8 @@ export class Tabs extends Context.Service<
     readonly remove: (ids: ReadonlyArray<number>) => Effect.Effect<void, BrowserError>;
     /** Opens `url` in a new, active tab of the current window. */
     readonly open: (url: string) => Effect.Effect<void, BrowserError>;
+    /** Switches to the tab and brings its window to the front. */
+    readonly focus: (id: number) => Effect.Effect<void, BrowserError>;
     /** Opens a blank tab (the browser's new tab page) at the end of the window. */
     readonly createBlank: (windowId: number) => Effect.Effect<Tab, BrowserError>;
     /**
@@ -67,6 +71,7 @@ const fromBrowser = (tab: browser.tabs.Tab): Option.Option<Tab> =>
         windowId: tab.windowId,
         url: tab.url ?? null,
         title: tab.title ?? null,
+        favIconUrl: tab.favIconUrl ?? null,
         active: tab.active,
         pinned: tab.pinned,
         hidden: tab.hidden ?? false,
@@ -133,6 +138,17 @@ export const layer: Layer.Layer<Tabs> = Layer.succeed(Tabs)({
     ids.length === 0 ? Effect.void : tryCall("tabs.remove", () => browser.tabs.remove([...ids])),
   open: (url) =>
     tryCall("tabs.create", () => browser.tabs.create({ url, active: true })).pipe(Effect.asVoid),
+  focus: (id) =>
+    tryCall("tabs.update", () => browser.tabs.update(id, { active: true })).pipe(
+      Effect.flatMap((tab) =>
+        tab.windowId === undefined
+          ? Effect.void
+          : tryCall("windows.update", () =>
+              browser.windows.update(tab.windowId!, { focused: true }),
+            ),
+      ),
+      Effect.asVoid,
+    ),
   createBlank: (windowId) =>
     tryCall("tabs.create", () => browser.tabs.create({ windowId, active: false })).pipe(
       Effect.flatMap((tab) =>

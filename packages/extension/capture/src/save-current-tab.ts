@@ -65,8 +65,9 @@ export const saveCurrentTab = (
   );
 
 /**
- * The capture feature for the background page: the `save-current-tab` command and a click on the
- * toolbar button save the current tab and show the result as a badge. Queued links are sent when
+ * The capture feature for the background page: the `save-current-tab` command saves the current
+ * tab and shows the result as a badge. So does a click on the toolbar button, in a build where the
+ * button has no popup (with the popup, the browser sends no click, and the popup saves itself). Queued links are sent when
  * the retry alarm fires, when the page starts, after a successful save and when the config
  * changes on the options page.
  */

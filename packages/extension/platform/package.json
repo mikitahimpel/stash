@@ -14,6 +14,7 @@
     "./browser-windows": "./src/browser-windows.ts",
     "./browser-workspaces": "./src/browser-workspaces.ts",
     "./extension-config": "./src/extension-config.ts",
+    "./extension-pages": "./src/extension-pages.ts",
     "./live": "./src/live.ts",
     "./stash-api-client": "./src/stash-api-client.ts",
     "./testing": "./src/testing.ts"

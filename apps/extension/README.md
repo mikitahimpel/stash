@@ -62,11 +62,37 @@ Once a device token is saved, the background page polls `GET /devices/:id/comman
 every minute (and on start), runs each command (`close-tab` closes every tab with that URL) and
 acks it `done` or `failed`. The device id comes from `GET /auth/me`.
 
+The popup's **Connect this browser** button opens the same page.
+
 ## Use
 
-Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> (change it at `about:addons` → ⚙ → "Manage
-Extension Shortcuts") or click the Stash toolbar button to save the current tab. The badge shows
-the result for a few seconds: `✓` saved, `wait` rate limited, `off` API unreachable, `!` not
+Click the Stash toolbar button, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>, to open the
+popup:
+
+| Not connected | Connected | Saved |
+|---|---|---|
+| <img src="../../docs/screenshots/extension-popup-not-paired-light.png" width="380"> | <img src="../../docs/screenshots/extension-popup-paired-light.png" width="380"> | <img src="../../docs/screenshots/extension-popup-saved-light.png" width="380"> |
+| <img src="../../docs/screenshots/extension-popup-not-paired-dark.png" width="380"> | <img src="../../docs/screenshots/extension-popup-paired-dark.png" width="380"> | <img src="../../docs/screenshots/extension-popup-saved-dark.png" width="380"> |
+
+- **This page** with **Save**. The button has the focus, so <kbd>Enter</kbd> saves. Once the page
+  is saved the focus is in the search field, so no key press deletes anything by accident. Right
+  after a save the popup shows **Saved** and **Undo**, which deletes the link it just created. A
+  page that was in Stash already (`GET /links?url=…`) shows **Saved** and **Remove**, which asks
+  first (**Keep** / **Remove**). After
+  a save the popup asks for the link every 2 seconds, for up to 40, and shows its tags and preview
+  when enrichment is done.
+- **Search Stash**: type and press <kbd>Enter</kbd> to open `<stash>/search?q=…`. **Open Stash**
+  switches to a Stash tab if one is open, and opens one otherwise.
+- **Recent**: the last 5 saved links. A click opens the link.
+- The corner shows the device this browser is connected as, or **Connect this browser** until it
+  is paired.
+
+The popup follows the browser's light or dark theme. `pnpm --filter @stash/extension screenshots`
+retakes the pictures from made-up data (`preview/popup/`).
+
+Press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> to save the current tab without opening the
+popup (change the shortcuts at `about:addons` → ⚙ → "Manage Extension Shortcuts"). The badge on the
+toolbar button shows the result for a few seconds: `✓` saved, `wait` rate limited, `off` API unreachable, `!` not
 saved (hover for the reason). Rate-limited and offline saves, and saves made before the device
 token is set, are queued in extension storage and sent again later.
 

@@ -399,6 +399,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@fontsource-variable/geist':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@stash/contracts-api':
         specifier: workspace:*
         version: link:../../packages/contracts/api
@@ -414,6 +417,9 @@ importers:
       '@stash/ext-platform':
         specifier: workspace:*
         version: link:../../packages/extension/platform
+      '@stash/ext-popup':
+        specifier: workspace:*
+        version: link:../../packages/extension/popup
       '@stash/ext-tab-sync':
         specifier: workspace:*
         version: link:../../packages/extension/tab-sync
@@ -439,15 +445,27 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      '@vitejs/plugin-vue':
+        specifier: 'catalog:'
+        version: 6.0.10(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))
+      '@vue/test-utils':
+        specifier: 'catalog:'
+        version: 2.5.1(@vue/compiler-dom@3.5.44)(@vue/server-renderer@3.5.44)(vue@3.5.44(typescript@6.0.3))
       '@wxt-dev/module-vue':
         specifier: 'catalog:'
         version: 1.0.3(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(vue@3.5.44(typescript@6.0.3))(wxt@0.21.4(eslint@9.39.4(jiti@2.7.0)(supports-color@7.2.0))(rolldown@1.2.13)(typescript@6.0.3)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))(web-ext@10.8.0(jiti@2.7.0)(supports-color@7.2.0)))
+      happy-dom:
+        specifier: 'catalog:'
+        version: 21.0.4
       oxfmt:
         specifier: 'catalog:'
         version: 0.74.0
       oxlint:
         specifier: 'catalog:'
         version: 1.89.0
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
       typescript:
         specifier: catalog:vue
         version: 6.0.3
@@ -1217,6 +1235,49 @@ importers:
       '@stash/contracts-domain':
         specifier: workspace:*
         version: link:../../contracts/domain
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.6
+    devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.6(effect@4.0.6)(vitest@5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@stash/config-tsconfig':
+        specifier: workspace:*
+        version: link:../../config/tsconfig
+      '@stash/config-vitest':
+        specifier: workspace:*
+        version: link:../../config/vitest
+      '@types/firefox-webext-browser':
+        specifier: 'catalog:'
+        version: 143.0.1
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.74.0
+      oxlint:
+        specifier: 'catalog:'
+        version: 1.89.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/extension/popup:
+    dependencies:
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../contracts/api
+      '@stash/contracts-domain':
+        specifier: workspace:*
+        version: link:../../contracts/domain
+      '@stash/ext-capture':
+        specifier: workspace:*
+        version: link:../capture
+      '@stash/ext-platform':
+        specifier: workspace:*
+        version: link:../platform
       effect:
         specifier: 'catalog:'
         version: 4.0.6

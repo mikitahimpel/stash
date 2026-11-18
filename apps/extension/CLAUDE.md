@@ -4,8 +4,8 @@ Read the root [CLAUDE.md](../../CLAUDE.md) and [packages/extension/CLAUDE.md](..
 
 ## Purpose
 
-The WXT shell of the Zen / Firefox extension: the manifest, the background entrypoint, the options
-page (API URL and device token) and command bindings. It wires the features from
+The WXT shell of the Zen / Firefox extension: the manifest, the background entrypoint, the toolbar
+popup, the options page (API URL and device token) and command bindings. It wires the features from
 `packages/extension/*` to the live `@stash/ext-platform` layers. It holds no feature logic.
 
 ## May depend on
@@ -34,11 +34,21 @@ platform services. WXT-generated code is the only exception.
 - The options page gets the device token by pairing with the web app (`pair-extension.ts`: a
   one-time code, `/connect/extension?code=…`, then `pairings.claim`), or by hand under Advanced.
   It is stored with the platform `storage` service.
+- The toolbar popup (`entrypoints/popup/`) only shows state and calls its `actions`
+  (`popup-actions.ts`, which run `@stash/ext-popup` effects). It pairs nothing itself: "Connect
+  this browser" opens the options page, because a popup closes as soon as another tab opens.
+- Removing a link is a hard delete. The popup never puts the focus on Undo or Remove, offers the
+  one-click Undo only for a link its own Save just created (`created: true`), and asks before
+  removing any other.
+- Pages look like the web app. `assets/tokens.css` is a copy of the web design tokens
+  (`packages/web/ui/src/styles.css`); keep the values in step by hand, never import `@stash/web-*`.
+  Light and dark follow `prefers-color-scheme`.
 
 ## Testing
 
 Minimal wiring tests: entrypoints build their layers with `@stash/ext-platform/testing`. Feature
-behavior is tested in `packages/extension/*`.
+behavior is tested in `packages/extension/*`. The popup page has one page test for what only the
+page decides: the focus and the confirmation before a delete.
 
 ## File naming
 
@@ -49,13 +59,19 @@ behavior is tested in `packages/extension/*`.
   `entrypoints/options/pair-extension.ts`. The "Save all & close"
   confirmation popup is `entrypoints/save-all-and-close/` (`index.html`, `main.ts`,
   `save-all-and-close-page.vue`).
-- `test/background.test.ts`, `test/save-config.test.ts`
+- The toolbar popup is `entrypoints/popup/` (`index.html`, `main.ts`, `popup-page.vue`,
+  `popup-actions.ts`). `preview/popup/` mounts the same page over made-up states for the
+  screenshots; it is not an entrypoint and is not in the build.
+- `test/background.test.ts`, `test/save-config.test.ts`, `test/popup-actions.test.ts`,
+  `test/popup-page.test.ts` (mounts the page in happy-dom over fake `actions`: where the focus goes,
+  and that removing a link takes a deliberate click)
 
 ## Commands
 
 `build` (Firefox zip in `.output/`), `package:xpi <out.xpi>` (the `.xpi` the web app serves,
-signed when the AMO key is in env, `scripts/package-xpi.ts`) and `dev` (WXT dev server on
-`0.0.0.0`). See [README.md](README.md).
+signed when the AMO key is in env, `scripts/package-xpi.ts`), `screenshots` (the popup in both
+themes into `docs/screenshots/extension-popup-*.png`, `scripts/popup-screenshots.ts`) and `dev`
+(WXT dev server on `0.0.0.0`). See [README.md](README.md).
 
 ## WXT notes
 

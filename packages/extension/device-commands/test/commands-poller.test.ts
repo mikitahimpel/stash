@@ -149,6 +149,7 @@ describe("pollOnce", () => {
       current: Effect.succeedNone,
       remove: () => Effect.fail(new BrowserError({ api: "tabs.remove" })),
       open: () => Effect.fail(new BrowserError({ api: "tabs.create" })),
+      focus: () => Effect.fail(new BrowserError({ api: "tabs.update" })),
       createBlank: () => Effect.fail(new BrowserError({ api: "tabs.create" })),
       changed: Stream.empty,
     });

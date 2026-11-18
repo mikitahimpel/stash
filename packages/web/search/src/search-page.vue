@@ -27,8 +27,12 @@ import * as SearchRequest from "./search-request.ts";
 // date) with the mode switch at the end; results are media rows with the query's terms marked.
 // Before anything is typed the page offers the searches made on this device and the latest links.
 
+// The query of a link to this page (`/search?q=…`, see `routes.ts`): it replaces what was typed.
+const props = defineProps<{ query?: string }>();
+
 const registry = injectRegistry();
 const [q, setQ] = useAtom(() => SearchAtoms.q);
+if (props.query !== undefined) setQ(props.query);
 const [mode, setMode] = useAtom(() => SearchAtoms.mode);
 const [type, setType] = useAtom(() => SearchAtoms.type);
 const [device, setDevice] = useAtom(() => SearchAtoms.device);

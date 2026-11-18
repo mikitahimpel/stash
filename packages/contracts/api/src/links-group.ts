@@ -43,13 +43,17 @@ export const PageSize = Schema.Int.pipe(
 
 /**
  * Filters for `GET /links`. All are optional and combine with AND. `seen: false` means links still
- * in status `new`. `cursor` is the opaque `nextCursor` of the previous page.
+ * in status `new`. `url` looks a link up by its URL: the page holds the one link stored for that
+ * page (the same canonical URL, so tracking parameters and the like don't matter), or nothing. A
+ * client asks this to learn whether a page is already saved, without saving it. `cursor` is the
+ * opaque `nextCursor` of the previous page.
  */
 export const ListLinksQuery = Schema.Struct({
   status: Schema.optionalKey(Link.LinkStatus),
   type: Schema.optionalKey(Link.LinkType),
   tag: Schema.optionalKey(Tag.TagName),
   seen: Schema.optionalKey(Schema.Boolean),
+  url: Schema.optionalKey(Link.Url),
   cursor: Schema.optionalKey(Schema.String.pipe(Schema.check(Schema.isNonEmpty()))),
   limit: Schema.optionalKey(PageSize),
   sort: Schema.optionalKey(LinksSort),
