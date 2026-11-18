@@ -23,12 +23,17 @@ const tabs: Readonly<
 export const tabNames: ReadonlyArray<string> = Object.keys(tabs);
 
 /**
- * Loads the code of every header tab once the app is idle, so the first switch to a tab doesn't
- * wait for a download before it shows anything. Returns the function that cancels it.
+ * Loads every header tab once the app is idle, so the first switch to a tab shows it at once: its
+ * code, and with a `registry` (someone is signed in) its first data too, one read per tab. A
+ * phone gives no hover to load it on. Without a `registry` only the code loads: the api would
+ * answer 401. Returns the function that cancels it.
  */
-export const preloadWhenIdle = (): (() => void) =>
+export const preloadWhenIdle = (registry?: AtomRegistry.AtomRegistry): (() => void) =>
   Idle.whenIdle(() => {
-    for (const tab of Object.values(tabs)) tab.preload();
+    for (const tab of Object.values(tabs)) {
+      if (registry === undefined) tab.preload();
+      else tab.prefetch(registry);
+    }
   });
 
 /**

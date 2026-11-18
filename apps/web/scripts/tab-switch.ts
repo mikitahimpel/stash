@@ -8,8 +8,9 @@
 // - shows a skeleton or an empty page area, then or while the tab refreshes behind,
 // - doesn't ask the api again (the cached rows must be revalidated),
 // - or loses the tab's scroll position.
-// And when the first visit of a tab doesn't show its layout (the page title) within the budget,
-// which needs the tab's code to be there before the click, or when a tab the pointer rested on
+// And when the first visit of a tab doesn't show its layout (the page title) and its rows within
+// the budget, which needs the tab's code and first data to be there before the click (the app
+// loads both while it is idle), or when a tab the pointer rested on
 // doesn't open with its rows, which needs the hover to have loaded its data.
 //
 // `STASH_SWITCH_CPU` (a slowdown factor, default 1), `STASH_SWITCH_API_DELAY` (ms, default 300)
@@ -112,9 +113,14 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
       });
     }
 
+    // The tabs' code and first data are fetched once the app is idle.
+    const idleLoad = page.waitForRequest(
+      (request) => new URL(request.url()).pathname === "/api/tabs",
+    );
     await page.goto(`${baseUrl}/links`);
     await page.locator(tabs.inbox.rows).first().waitFor();
-    // The tabs' code is fetched once the app is idle.
+    await idleLoad;
+    await sleep(apiDelay + 250);
     await page.waitForLoadState("networkidle");
     if (cpu !== 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
 
@@ -144,7 +150,10 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
       return body.evaluate(read);
     };
 
-    /** The first time a tab opens: its layout shows at once, its rows when the api answers. */
+    /**
+     * The first time a tab opens: its layout and its rows show at once, because the app loaded
+     * the tab's code and first data while it was idle.
+     */
     const first = async (tab: Tab) => {
       const step = `first visit: ${tab.label}`;
       const shown = await go(step, tab);
@@ -156,9 +165,12 @@ const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
       });
       rows.push({
         step,
-        what: `rows (api answers in ${apiDelay} ms)`,
+        what: "rows",
         millis: shown.painted,
-        problems: [],
+        problems: [
+          ...(shown.painted! > budgetMillis ? [`rows after ${budgetMillis} ms`] : []),
+          ...(shown.skeleton ? ["showed a skeleton"] : []),
+        ],
       });
       await page.waitForLoadState("networkidle");
     };

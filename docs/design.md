@@ -318,8 +318,9 @@ hairline below.
   with a `⌘K` keycap), compact: 300px wide. While it has the focus it is 480px (or what the row
   has left), growing to the left into the free space of its own place, so the nav and the account
   button never move. It is the only Search entry point; see "Search".
-- **The tabs answer at once** (#167). The code of every tab loads when the app is idle, and the
-  pointer, a finger or the focus on a tab loads its first data (`preload` / `prefetch` of the
+- **The tabs answer at once** (#167). The code and the first data of every tab load when the app
+  is idle (one read per tab; a phone has no hover), and the pointer, a finger or the focus on a tab
+  loads its first data again (`preload` / `prefetch` of the
   feature's `./routes`, through `src/app-prefetch.ts`). A tab that was open paints from its cached
   data in the first frame and refreshes behind it, without a skeleton; the tab is marked from the
   click on, also while a page still loads its code; and each tab opens where it was left (its

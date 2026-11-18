@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer";
 import { nextTick } from "vue";
 import { createMemoryHistory } from "vue-router";
 import AppLayout from "../src/app-layout.vue";
+import * as AppPrefetch from "../src/app-prefetch.ts";
 import * as AppRegistry from "../src/app-registry.ts";
 import * as AppRouter from "../src/app-router.ts";
 import * as AppShortcuts from "../src/app-shortcuts.ts";
@@ -339,7 +340,7 @@ describe("header tabs", () => {
       global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
     });
     await flushPromises();
-    return { wrapper, router, requests };
+    return { wrapper, router, requests, registry };
   };
   const tab = (wrapper: ReturnType<typeof mount>, label: string) =>
     wrapper.findAll("nav a").find((link) => accessibleName(link) === label)!;
@@ -363,6 +364,28 @@ describe("header tabs", () => {
       expect(requests.tabs).toBe(1);
     },
   );
+
+  it("loads every tab's first data once the app is idle, and only the code when signed out", async () => {
+    const { wrapper, requests, registry } = await mountWithTabs("/links");
+    await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Inbox"), {
+      timeout: 10_000,
+    });
+    expect(requests.tabs).toBe(0);
+    AppPrefetch.preloadWhenIdle();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(requests.tabs).toBe(0);
+
+    AppPrefetch.preloadWhenIdle(registry);
+    // Open now and Settings both read the tabs.
+    await vi.waitFor(() => expect(requests.tabs).toBe(2), { timeout: 10_000 });
+    // The tab that opens after shows what was loaded, without asking again.
+    await tab(wrapper, "Open now").trigger("click");
+    await vi.waitFor(() => expect(wrapper.find("main h1").text()).toBe("Open now"), {
+      timeout: 10_000,
+    });
+    await flushPromises();
+    expect(requests.tabs).toBe(2);
+  });
 
   it("opens a tab where it was left, and another page at its top", async () => {
     const scrolled: Array<number> = [];

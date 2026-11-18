@@ -102,7 +102,7 @@ Feature behavior is tested in `packages/web/*`.
   CI job): clicks through the header tabs on the built app with an api that answers after 300 ms,
   and fails when a switch to a visited tab takes over 100 ms from the click to the painted rows,
   shows a skeleton, doesn't refresh behind, or loses the tab's scroll position; also when a first
-  visit doesn't show its layout at once or a hovered tab doesn't open with its rows. A walk with a
+  visit or a hovered tab doesn't open with its layout and rows at once. A walk with a
   problem is repeated twice (a busy machine makes single frames late). `STASH_SWITCH_CPU`,
   `STASH_SWITCH_NETWORK=slow`, `STASH_SWITCH_API_DELAY` and `STASH_SWITCH_PROFILE=<dir>` turn it
   into a measurement. Its in-page timing is `scripts/tab-switch-probe.ts`.
@@ -128,8 +128,8 @@ Feature behavior is tested in `packages/web/*`.
 - `src/app-network.ts` (the sync status over `@stash/web-platform/network`) and
   `src/app-shortcuts.ts` (⌘K and `/` over `@stash/web-platform/keyboard`)
 - `src/app-prefetch.ts`: the header tabs' `preload` and `prefetch` (from each feature's
-  `./routes`) by route name. `main.ts` loads the tabs' code once the app is idle
-  (`@stash/web-platform/idle`), and the header loads a tab's first data when the pointer, a finger
+  `./routes`) by route name. `main.ts` loads the tabs' code and, for a signed-in user, their first data once
+  the app is idle (`@stash/web-platform/idle`), and the header loads a tab's first data when the pointer, a finger
   or the focus is on it. `app-router.ts` keeps each tab's scroll position
   (`@stash/web-platform/page-scroll`).
 - `src/app-registry.ts` (the atom registry with the live layers, among them the recent searches

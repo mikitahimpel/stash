@@ -9,7 +9,8 @@ export const defaultMinMillis = 300;
 /**
  * Whether to show a loading skeleton. It turns `true` only once `loading` has stayed true for
  * `delayMillis`: a load that finishes sooner never shows one. Once shown it stays for at least
- * `minMillis`, also when the load ends sooner, so a skeleton never flashes by. A page shows the
+ * `minMillis`, also when the load ends sooner, so a skeleton never flashes by. The minimum applies
+ * only to a skeleton that is on screen: a load that never showed one holds nothing back. A page shows the
  * skeleton while this is true, and what it loaded after.
  */
 export const useDelayedLoading = (

@@ -24,6 +24,20 @@ describe("useDelayedLoading", () => {
     scope.stop();
   });
 
+  it("holds nothing back when the skeleton was never shown", async () => {
+    const { scope, loading, shown } = setup(true);
+    // The answer comes just before the skeleton would show: the minimum doesn't apply.
+    vi.advanceTimersByTime(140);
+    loading.value = false;
+    await nextTick();
+    expect(shown.value).toBe(false);
+    vi.advanceTimersByTime(10);
+    expect(shown.value).toBe(false);
+    vi.advanceTimersByTime(300);
+    expect(shown.value).toBe(false);
+    scope.stop();
+  });
+
   it("turns on after 150 ms of loading and stays for at least 300 ms", async () => {
     const { scope, loading, shown } = setup(true);
     vi.advanceTimersByTime(150);
