@@ -1,6 +1,7 @@
 import type * as Ai from "@stash/backend-platform/ai";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as Vectors from "@stash/backend-platform/vectors";
+import type * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
 import * as KeywordSearch from "./keyword-search.ts";
 import type * as SearchRepo from "./search-repo.ts";
@@ -40,7 +41,7 @@ export const hybridSearch = (
 ): Effect.Effect<
   ReadonlyArray<SearchRepo.RankedLink>,
   D1Database.DatabaseError,
-  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors
+  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors | Security.CurrentUser
 > =>
   Effect.all(
     [

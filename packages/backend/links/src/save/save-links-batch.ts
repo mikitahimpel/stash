@@ -57,6 +57,6 @@ export const saveLinksBatch = Effect.fn("saveLinksBatch")(function* (
   inputs: ReadonlyArray<Link.SaveLinkInput>,
 ) {
   const limiter = yield* SaveRateLimiter.SaveRateLimiter;
-  yield* limiter.consume(principal);
+  yield* limiter.consume;
   return yield* saveLinks(principal, inputs);
 });

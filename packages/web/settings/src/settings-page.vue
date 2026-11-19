@@ -19,14 +19,17 @@ import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import { computed, ref } from "vue";
+import MembersSection from "./members/members-section.vue";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
 import * as SettingsRows from "./settings-rows.ts";
 import * as ThemeAtoms from "./theme-atoms.ts";
 
-// One page, three sections in this order: Devices & connections (the sources with their guides,
-// from `@stash/web-connect`, then the devices they registered), API tokens, Appearance.
+// One page, its sections in this order: Devices & connections (the sources with their guides,
+// from `@stash/web-connect`, then the devices they registered), API tokens, Appearance, and
+// then what only some users have (`members-section`: the AI summaries line, and for the owner
+// the Members).
 defineProps<{
   /** The guide open in place (`/settings?guide=iphone`), if any. */
   guide?: ConnectStatus.Source | undefined;
@@ -237,6 +240,8 @@ const confirmRevoke = async () => {
         </ListRow>
       </ul>
     </section>
+
+    <MembersSection v-if="settled" />
 
     <NewTokenDialog
       :token="created"

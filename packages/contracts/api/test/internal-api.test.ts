@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import { OpenApi } from "effect/http-api";
+import * as Schema from "effect/Schema";
 import * as InternalApi from "../src/internal-api.ts";
 import * as Api from "../src/stash-api.ts";
 import * as Security from "../src/security.ts";
@@ -39,6 +40,14 @@ describe("InternalApi", () => {
         .filter((s) => s !== "400")
         .sort(),
     ).toEqual(["201", "403"]);
+  });
+
+  it("asks for the GitHub account's stable id, not only its login", () => {
+    const account = { login: "synthetic-login", githubId: "1001" };
+    expect(Schema.decodeUnknownSync(InternalApi.CreateMcpToken)(account)).toEqual(account);
+    expect(() =>
+      Schema.decodeUnknownSync(InternalApi.CreateMcpToken)({ login: "synthetic-login" }),
+    ).toThrow();
   });
 
   it("is not part of the public StashApi", () => {

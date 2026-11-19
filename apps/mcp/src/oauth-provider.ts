@@ -9,12 +9,12 @@ import type { WorkerEnv } from "./worker-env.ts";
 export type ProviderEnv = WorkerEnv & { readonly OAUTH_PROVIDER: OAuthHelpers };
 
 export interface Options {
-  readonly env: Pick<WorkerEnv, "MCP_ORIGIN" | "MCP_LEGACY_ORIGIN" | "ALLOWED_GITHUB_LOGIN">;
+  readonly env: Pick<WorkerEnv, "MCP_ORIGIN" | "MCP_LEGACY_ORIGIN">;
   /** Serves an authenticated MCP request, calling the api with the grant's `apiToken`. */
   readonly mcp: (request: Request, apiToken: string) => Promise<Response>;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
   /** Mints the api token for a new grant (see `OAuthHandler.Options`). */
-  readonly mintApiToken: (login: string) => Promise<string>;
+  readonly mintApiToken: OAuthHandler.Options["mintApiToken"];
   /** Whether the api still accepts a grant's token: `false` once it is revoked in Settings. */
   readonly isApiTokenActive: (apiToken: string) => Promise<boolean>;
   /** Epoch milliseconds, for the device flow's poll interval. Tests pass their own clock. */
@@ -50,13 +50,9 @@ export const make = (options: Options) => {
  * The provider of one origin: OAuth 2.1 metadata, dynamic client registration and tokens from
  * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub Device Flow sign-in pages.
  */
-const makeFor = (
-  origin: string,
-  { env, mcp, github, mintApiToken, isApiTokenActive, now }: Options,
-) => {
+const makeFor = (origin: string, { mcp, github, mintApiToken, isApiTokenActive, now }: Options) => {
   const handleOAuth = OAuthHandler.make({
     origin,
-    allowedLogin: env.ALLOWED_GITHUB_LOGIN,
     github,
     mintApiToken,
     ...(now === undefined ? {} : { now }),

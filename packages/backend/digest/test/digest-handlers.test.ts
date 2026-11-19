@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Api from "@stash/contracts-api/api";
+import * as Testing from "@stash/backend-platform/testing";
 import * as Security from "@stash/contracts-api/security";
 import * as Errors from "@stash/contracts-domain/errors";
 import * as DateTime from "effect/DateTime";
@@ -20,11 +21,21 @@ import * as DigestTestLayer from "./digest-test-layer.ts";
 
 const unauthorized = new Errors.Unauthorized({ message: "Invalid token" });
 
+const users: Record<string, Security.CurrentUser["Service"]> = {
+  "token-user": Testing.owner,
+  "token-member": Testing.member,
+};
+
 const layerAuthorizationStub = Layer.succeed(Security.Authorization)({
-  bearer: (handler, { credential }) =>
-    Redacted.value(credential) === "token-user"
-      ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "user" })
-      : Effect.fail(unauthorized),
+  bearer: (handler, { credential }) => {
+    const user = users[Redacted.value(credential)];
+    return user === undefined
+      ? Effect.fail(unauthorized)
+      : handler.pipe(
+          Effect.provideService(Security.CurrentPrincipal, { kind: "user" }),
+          Effect.provideService(Security.CurrentUser, user),
+        );
+  },
   session: () => Effect.fail(unauthorized),
 });
 

@@ -14,7 +14,7 @@ export const saveLink = Effect.fn("saveLink")(function* (
   input: Link.SaveLinkInput,
 ) {
   const limiter = yield* SaveRateLimiter.SaveRateLimiter;
-  yield* limiter.consume(principal);
+  yield* limiter.consume;
   const [stored] = yield* SaveLinksBatch.storeLinks(principal, [input]);
   if (stored === undefined) return yield* Effect.die(new Error("saveLinks returned no link"));
   return { ...stored.link, created: stored.created };

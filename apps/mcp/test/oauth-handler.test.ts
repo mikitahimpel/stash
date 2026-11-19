@@ -140,7 +140,7 @@ let clock = 0;
 
 const makeProvider = (mintApiToken: OAuthProvider.Options["mintApiToken"]) =>
   OAuthProvider.make({
-    env: { MCP_ORIGIN: origin, ALLOWED_GITHUB_LOGIN: allowedLogin },
+    env: { MCP_ORIGIN: origin },
     mcp: (request, apiToken) =>
       mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
     github: githubLayer,
@@ -150,8 +150,14 @@ const makeProvider = (mintApiToken: OAuthProvider.Options["mintApiToken"]) =>
     now: () => clock,
   });
 
-const mintFromFakeApi = (login: string) =>
-  Effect.runPromise(ApiClient.createMcpToken(apiEnv, login).pipe(Effect.map(Redacted.value)));
+// As `worker.ts` wires it: the api decides who the account is, and `null` means nobody.
+const mintFromFakeApi: OAuthProvider.Options["mintApiToken"] = (account) =>
+  Effect.runPromise(
+    ApiClient.createMcpToken(apiEnv, account).pipe(
+      Effect.map(Redacted.value),
+      Effect.catchTag("LoginNotAllowed", () => Effect.succeed(null)),
+    ),
+  );
 
 let provider = makeProvider(mintFromFakeApi);
 
@@ -414,7 +420,7 @@ describe("GitHub Device Flow sign-in", () => {
     expect(redirectOf(final).searchParams.get("code")).toBeTruthy();
   });
 
-  it("denies any other GitHub login without a grant", async () => {
+  it("denies a GitHub account the api knows no user for, without a grant", async () => {
     github.login = "someone-else";
     const { final } = await authorize(await registerClient());
     expect(final).toMatchObject({
@@ -634,7 +640,6 @@ describe("a server that moved to another host", () => {
       env: {
         MCP_ORIGIN: origin,
         MCP_LEGACY_ORIGIN: legacyOrigin,
-        ALLOWED_GITHUB_LOGIN: allowedLogin,
       },
       mcp: (request, apiToken) =>
         mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),

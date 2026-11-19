@@ -15,6 +15,7 @@ packages implement it.
 | `search/` | `@stash/backend-search` | FTS5 keyword search and Vectorize semantic search behind one `SearchService` (hybrid) |
 | `tabs/` | `@stash/backend-tabs` | Open-tab snapshots, devices, remote commands |
 | `auth/` | `@stash/backend-auth` | GitHub Device Flow login and sessions, API tokens (per device, or a user token such as the MCP connector's `Claude (MCP)`; only hashes stored), the internal mint endpoint, auth middleware |
+| `users/` | `@stash/backend-users` | The users of a Stash (#177): `UsersRepo` (owner, members, sign-in identities), invites (create, accept once, revoke; only hashes stored), the members and invites handlers (owner only: `require-owner`), removing a member with everything they stored (`remove-member`), the daily AI quota (`ai-quota`), and `for-each-user` for cron jobs |
 | `digest/` | `@stash/backend-digest` | Cron jobs: auto-archive old Zen tabs, weekly digest |
 | `platform/` | `@stash/backend-platform` | Cloudflare bindings as Effect services |
 
@@ -43,6 +44,20 @@ services and never on `env` or `fetch` directly. Outbound HTTP goes through the 
 
 ## Rules
 
+- **Everything runs as a user.** A repo method that touches user data requires
+  `Security.CurrentUser` in its Effect environment and has `user_id = ?` in every statement
+  (reads, writes, joins, the FTS query), so calling it without a user does not typecheck. A
+  handler gets the user from `Authorization`; the queue consumer from the message's link
+  (`EnrichmentRepo.ownerOf`, the one unscoped read); a cron job from `ForEachUser.forEachUser`.
+  Vector queries filter on `Vectors.userIdKey`, and every upsert writes it. A link, device,
+  command or token of another user is `NotFound`, like one that does not exist.
+- **A layer never captures a user.** A layer that keeps its context for later calls (handlers,
+  the queue consumer, the cron jobs) takes it with `ServiceContext.capture` from
+  `@stash/backend-platform/service-context`, never `Effect.context`: a captured `CurrentUser`
+  would override the caller's.
+- **AI work is counted.** Anything that spends AI on a user's link reserves it first
+  (`AiQuota.reserve`), gives it back when the run fails, and leaves the link pending when the
+  day's quota is used up (`Deferred`): the link is saved either way.
 - Each feature exposes Effect services and handler layers. `apps/api` composes them.
 - External services (GitHub, Anthropic, Workers AI, YouTube) are always behind a service, and tests
   mock them. No test calls a real external API.
@@ -62,6 +77,13 @@ Vitest with `@effect/vitest`. Test logic through Layers: provide the feature's l
 `@stash/backend-platform/testing` layers (or a local fake) and assert on effects. Fixtures are
 synthetic (`https://example.com/...`). Test handlers end to end against the contracts `HttpApi`
 where it adds value.
+
+The database of a test is `Testing.layerDatabase`: the whole schema (`./testing-schema`, a copy
+of what the migrations create, checked by `apps/api/test/d1-schema.test.ts`) with three users
+(`Testing.owner`, `Testing.member`, `Testing.otherMember`). Add `Testing.layerCurrentUser()` to
+run as the owner, and `Testing.as(Testing.member)` on an effect to run it as someone else. A
+feature that stores user data has a test with two users that shows one cannot see the other's
+(`links-isolation.test.ts`, `search-isolation.test.ts`, …).
 
 `@stash/backend-platform/testing` runs D1 on `node:sqlite`, so it needs Node types. Typecheck tests
 with a separate `test/tsconfig.json` that extends `@stash/config-tsconfig/node.json` and sets

@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as Api from "@stash/contracts-api/api";
 import * as AuthGroup from "@stash/contracts-api/auth";
@@ -7,6 +8,8 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
+import type * as InvitesRepo from "@stash/backend-users/invites-repo";
+import type * as UsersRepo from "@stash/backend-users/users-repo";
 import * as EndSession from "../sessions/end-session.ts";
 import * as SessionsRepo from "../sessions/sessions-repo.ts";
 import * as StartSession from "../sessions/start-session.ts";
@@ -35,16 +38,19 @@ const encodeStatus = (status: AuthGroup.DeviceFlowStatus) =>
 export const clientIpHeader = "cf-connecting-ip";
 
 /**
- * The `auth` group of the `StashApi`: the GitHub Device Flow login for the one allowlisted login,
- * and the session it starts. Needs `GithubClient`, `DeviceFlowsStore`, `DeviceStartRateLimiter`,
- * `SessionsRepo`, `StashConfig` and the `Authorization` middleware.
+ * The `auth` group of the `StashApi`: the GitHub Device Flow login for the owner and the members
+ * (and, with an invite, for a new member), and the session it starts. Needs `GithubClient`,
+ * `DeviceFlowsStore`, `DeviceStartRateLimiter`, `SessionsRepo`, `UsersRepo`, `InvitesRepo`,
+ * `StashConfig` and the `Authorization` middleware.
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<
+    const context = yield* ServiceContext.capture<
       | GithubClient.GithubClient
       | DeviceFlowsStore.DeviceFlowsStore
       | SessionsRepo.SessionsRepo
+      | UsersRepo.UsersRepo
+      | InvitesRepo.InvitesRepo
       | StashConfig.StashConfig
     >();
     const limiter = yield* DeviceStartRateLimiter.DeviceStartRateLimiter;
@@ -61,7 +67,9 @@ export const layer = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
       )
       .handle("devicePoll", ({ payload }) =>
         Effect.gen(function* () {
-          const outcome = yield* PollDeviceFlow.pollDeviceFlow(payload.flowId).pipe(withContext);
+          const outcome = yield* PollDeviceFlow.pollDeviceFlow(payload.flowId, payload.invite).pipe(
+            withContext,
+          );
           if (outcome.status !== "complete") return outcome;
           const complete = yield* encodeStatus({ status: "complete", me: { kind: "user" } });
           return yield* HttpServerResponse.jsonUnsafe(complete).pipe(

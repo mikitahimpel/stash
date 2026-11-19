@@ -1,3 +1,5 @@
+import * as Security from "@stash/contracts-api/security";
+import * as User from "@stash/contracts-domain/user";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -17,6 +19,7 @@ import * as LinkEvents from "./link-events.ts";
 import type * as Live from "./live.ts";
 import * as SqliteD1 from "./sqlite-d1.ts";
 import * as StashConfig from "./stash-config.ts";
+import * as TestingSchema from "./testing-schema.ts";
 import * as Vectors from "./vectors.ts";
 
 // In-memory layers for every service in `./live`. Each build starts from empty state, so a test
@@ -30,6 +33,56 @@ export const layerD1Database: Layer.Layer<D1Database.Database> = Layer.effect(D1
     D1Database.make,
   ),
 );
+
+/** The owner: the user every migrated database has. */
+export const owner: Security.CurrentUser["Service"] = {
+  id: User.UserId.make("owner"),
+  role: "owner",
+};
+
+/** A synthetic member, with the default daily AI quota. */
+export const member: Security.CurrentUser["Service"] = {
+  id: User.UserId.make("user-member"),
+  role: "member",
+};
+
+/** A second synthetic member, for tests that need two people who are not the owner. */
+export const otherMember: Security.CurrentUser["Service"] = {
+  id: User.UserId.make("user-other"),
+  role: "member",
+};
+
+/**
+ * A fresh in-memory database with the whole schema (`./testing-schema`) and three users: the
+ * `owner`, `member` and `otherMember`.
+ */
+export const layerDatabase: Layer.Layer<D1Database.Database> = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const db = yield* D1Database.Database;
+    yield* db.exec(TestingSchema.schema);
+    yield* db.batch([
+      D1Database.sql`INSERT INTO users (id, display_name, role, daily_ai_quota)
+        VALUES (${owner.id}, ${"Owner"}, ${"owner"}, ${null})`,
+      D1Database.sql`INSERT INTO users (id, display_name, role, daily_ai_quota)
+        VALUES (${member.id}, ${"Member"}, ${"member"}, ${User.defaultMemberDailyAiQuota})`,
+      D1Database.sql`INSERT INTO users (id, display_name, role, daily_ai_quota)
+        VALUES (${otherMember.id}, ${"Other member"}, ${"member"}, ${User.defaultMemberDailyAiQuota})`,
+    ]);
+  }).pipe(Effect.orDie),
+).pipe(Layer.provideMerge(layerD1Database));
+
+/** Runs as `user` (the `owner` unless told otherwise): what `Authorization` provides to a handler. */
+export const layerCurrentUser = (
+  user: Security.CurrentUser["Service"] = owner,
+): Layer.Layer<Security.CurrentUser> => Layer.succeed(Security.CurrentUser)(user);
+
+/** Runs the effect as `user`. */
+export const as =
+  (user: Security.CurrentUser["Service"]) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, E, Exclude<R, Security.CurrentUser>> =>
+    Effect.provideService(effect, Security.CurrentUser, user);
 
 /** Test controls for the in-memory `EnrichmentQueue`: the consumer side. */
 export class TestEnrichmentQueue extends Context.Service<
@@ -115,6 +168,11 @@ export const layerVectors: Layer.Layer<Vectors.Vectors> = Layer.sync(Vectors.Vec
         .slice(0, topK);
       return { matches };
     },
+    getByIds: async (ids) =>
+      ids.flatMap((id) => {
+        const entry = store.get(id);
+        return entry === undefined ? [] : [{ id, values: entry.values, metadata: entry.metadata }];
+      }),
     deleteByIds: async (ids) => {
       for (const id of ids) store.delete(id);
     },
@@ -135,6 +193,10 @@ export const layerBlobs: Layer.Layer<Blobs.Blobs> = Layer.sync(Blobs.Blobs)(() =
       }),
     get: (key) => Effect.sync(() => Option.fromNullishOr(store.get(key))),
     delete: (key) => Effect.sync(() => void store.delete(key)),
+    deleteMany: (keys) =>
+      Effect.sync(() => {
+        for (const key of keys) store.delete(key);
+      }),
   });
 });
 
@@ -216,12 +278,16 @@ export const layerAnthropicConfig: Layer.Layer<AnthropicConfig.AnthropicConfig> 
   AnthropicConfig.AnthropicConfig,
 )({ apiKey: Redacted.make("synthetic-anthropic-key") });
 
-/** Test controls for the in-memory `LinkEvents`: what was published. */
+/** Test controls for the in-memory `LinkEvents`: what was published, and to whom. */
 export class TestLinkEvents extends Context.Service<
   TestLinkEvents,
   {
-    /** Every published event, oldest first. */
+    /** Every published event, oldest first, whoever it went to. */
     readonly published: Effect.Effect<ReadonlyArray<LinkEvents.Published>>;
+    /** The events published to one user, oldest first. */
+    readonly publishedTo: (userId: string) => Effect.Effect<ReadonlyArray<LinkEvents.Published>>;
+    /** The users whose streams were closed, oldest first. */
+    readonly closed: Effect.Effect<ReadonlyArray<string>>;
   }
 >()("@stash/backend-platform/TestLinkEvents") {}
 
@@ -229,11 +295,23 @@ export class TestLinkEvents extends Context.Service<
 export const layerLinkEvents: Layer.Layer<LinkEvents.LinkEvents | TestLinkEvents> =
   Layer.effectContext(
     Effect.sync(() => {
-      const events: Array<LinkEvents.Published> = [];
+      const events: Array<{ userId: string; event: LinkEvents.Published }> = [];
+      const closed: Array<string> = [];
       return Context.make(LinkEvents.LinkEvents, {
-        publish: (event) => Effect.sync(() => void events.push(event)),
-        publishAll: (all) => Effect.sync(() => void events.push(...all)),
-      }).pipe(Context.add(TestLinkEvents, { published: Effect.sync(() => [...events]) }));
+        publish: (userId, event) => Effect.sync(() => void events.push({ userId, event })),
+        publishAll: (userId, all) =>
+          Effect.sync(() => void events.push(...all.map((event) => ({ userId, event })))),
+        close: (userId) => Effect.sync(() => void closed.push(userId)),
+      }).pipe(
+        Context.add(TestLinkEvents, {
+          published: Effect.sync(() => events.map(({ event }) => event)),
+          publishedTo: (userId) =>
+            Effect.sync(() =>
+              events.filter((entry) => entry.userId === userId).map(({ event }) => event),
+            ),
+          closed: Effect.sync(() => [...closed]),
+        }),
+      );
     }),
   );
 

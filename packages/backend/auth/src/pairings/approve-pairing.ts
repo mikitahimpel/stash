@@ -11,8 +11,8 @@ import * as PairingsRepo from "./pairings-repo.ts";
 export const hashCode = (code: Pairing.PairingCode) => ApiTokenSecret.hash(Redacted.make(code));
 
 /**
- * The signed-in owner approves an extension's pairing code: registers the extension's Zen device
- * named `name` and lets the extension claim one token for it within `pairingTtlMinutes`.
+ * The signed-in user approves an extension's pairing code: registers the extension's Zen device
+ * named `name` as theirs and lets the extension claim one token for it within `pairingTtlMinutes`.
  * `Conflict`, with nothing registered, when the code was approved before, whether the extension
  * claimed it, it lapsed, or it still waits: an old approve page reopened adds no orphan device.
  */

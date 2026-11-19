@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Kv from "@stash/backend-platform/kv";
+import * as CreateInvite from "@stash/backend-users/create-invite";
+import * as InvitesRepo from "@stash/backend-users/invites-repo";
+import * as RemoveMember from "@stash/backend-users/remove-member";
+import * as UsersRepo from "@stash/backend-users/users-repo";
 import * as Testing from "@stash/backend-platform/testing";
 import * as AuthGroup from "@stash/contracts-api/auth";
 import * as Security from "@stash/contracts-api/security";
+import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
@@ -68,6 +73,16 @@ const json = (request: HttpClientRequest.HttpClientRequest, body: unknown, statu
     ),
   );
 
+/** The numeric id the fake GitHub gives an account. A test can move a login to another id. */
+const githubIds = new Map<string, number>();
+const githubId = (login: string): number => {
+  const known = githubIds.get(login.toLowerCase());
+  if (known !== undefined) return known;
+  const next = 5000 + githubIds.size;
+  githubIds.set(login.toLowerCase(), next);
+  return next;
+};
+
 /** A fake github.com and api.github.com. */
 const layerFakeGithub = Layer.succeed(HttpClient.HttpClient)(
   HttpClient.make((request, url) => {
@@ -85,7 +100,7 @@ const layerFakeGithub = Layer.succeed(HttpClient.HttpClient)(
       );
       return login === undefined
         ? json(request, { message: "Bad credentials" }, 401)
-        : json(request, { login });
+        : json(request, { login, id: githubId(login) });
     }
     return json(request, { message: "Not Found" }, 404);
   }),
@@ -117,6 +132,8 @@ const app = HttpApiBuilder.layer(AuthApi).pipe(
     Layer.mergeAll(
       ApiTokensRepo.layer,
       SessionsRepo.layer,
+      UsersRepo.layer,
+      InvitesRepo.layer,
       DeviceFlowsStore.layer,
       DeviceStartRateLimiter.layer({ limit: 3, windowSeconds: 60 }),
     ),
@@ -143,7 +160,16 @@ const withServer = <A, E, R>(test: (send: Send) => Effect.Effect<A, E, R>) =>
     return yield* test(send);
   }).pipe(
     Effect.scoped,
-    Effect.provide(Layer.mergeAll(AuthTestLayer.layerDatabase, HttpServer.layerServices)),
+    Effect.provide(
+      Layer.mergeAll(
+        AuthTestLayer.layerDatabase,
+        HttpServer.layerServices,
+        // What removing a member reaches besides the database.
+        Testing.layerVectors,
+        Testing.layerBlobs,
+        Testing.layerLinkEvents,
+      ),
+    ),
   );
 
 type Send = (request: HttpClientRequest.HttpClientRequest) => Effect.Effect<Response>;
@@ -165,9 +191,9 @@ const startFlow = (ip = "192.0.2.1") =>
     HttpClientRequest.setHeader(AuthHandlers.clientIpHeader, ip),
   );
 
-const pollFlow = (flowId: string) =>
+const pollFlow = (flowId: string, invite?: string) =>
   HttpClientRequest.post(`${base}/auth/device/poll`).pipe(
-    HttpClientRequest.bodyJsonUnsafe({ flowId }),
+    HttpClientRequest.bodyJsonUnsafe(invite === undefined ? { flowId } : { flowId, invite }),
   );
 
 /** `name=value` and the attributes of each `Set-Cookie`, by cookie name. */
@@ -193,14 +219,14 @@ const started = (send: Send) =>
 const tokenPolls = () => githubRequests.filter((r) => r.url === GithubClient.accessTokenEndpoint);
 
 /** Signs in the allowlisted login directly and returns the session cookie value. */
-const signIn = StartSession.startSession(allowedLogin).pipe(
+const signIn = StartSession.startSession(Testing.owner.id, allowedLogin).pipe(
   Effect.map((session) => Redacted.value(session.token)),
   Effect.provide(SessionsRepo.layer),
 );
 
 const sessionRows = Effect.gen(function* () {
   const db = yield* D1Database.Database;
-  return yield* db.all(D1Database.sql`SELECT id, github_login FROM sessions`);
+  return yield* db.all(D1Database.sql`SELECT id, github_login, user_id FROM sessions`);
 });
 
 /** Every value in every table of the test database, as one string. */
@@ -219,6 +245,7 @@ const kvDump = () => JSON.stringify([...kvStore.entries()]);
 const storedFlows = () => [...kvStore.keys()].filter((key) => key.startsWith("device-flow:"));
 
 beforeEach(() => {
+  githubIds.clear();
   githubRequests.length = 0;
   tokenAnswers.length = 0;
   kvStore.clear();
@@ -303,7 +330,7 @@ describe("device flow login", () => {
           (yield* send(get("/auth/me", { [Security.sessionCookieName]: session }))).status,
         ).toBe(200);
         expect(yield* sessionRows).toEqual([
-          { id: expect.any(String), github_login: "Example-User" },
+          { id: expect.any(String), github_login: "Example-User", user_id: Testing.owner.id },
         ]);
 
         // The flow is gone, and the GitHub access token was never stored.
@@ -330,7 +357,7 @@ describe("device flow login", () => {
         expect(response.status).toBe(403);
         expect(yield* body(response)).toEqual({
           _tag: "LoginNotAllowed",
-          message: "This GitHub login is not allowed",
+          message: "This GitHub account has no Stash account. Ask the owner for an invite.",
         });
         expect(response.headers.getSetCookie()).toEqual([]);
         expect(yield* sessionRows).toEqual([]);
@@ -459,6 +486,147 @@ describe("sessions", () => {
       Effect.gen(function* () {
         expect((yield* send(get("/auth/me"))).status).toBe(401);
         expect((yield* send(HttpClientRequest.post(`${base}/auth/logout`))).status).toBe(401);
+      }),
+    ),
+  );
+});
+
+// Signing up (#177): a GitHub account that is not the owner gets in only with an invite, once.
+describe("device flow login with an invite", () => {
+  /** Runs a whole flow for `login` and answers the final poll. */
+  const signInAs = (send: Send, login: string, invite?: string) =>
+    Effect.gen(function* () {
+      const flowId = yield* started(send);
+      tokenAnswers.push(authorized(login));
+      yield* TestClock.adjust(Duration.seconds(5));
+      return yield* send(pollFlow(flowId, invite));
+    });
+
+  const sessionOf = (response: Response) =>
+    setCookies(response)[Security.sessionCookieName]?.value ?? "";
+
+  const users = Effect.gen(function* () {
+    const db = yield* D1Database.Database;
+    return yield* db.all(
+      D1Database.sql`SELECT id, display_name, role, daily_ai_quota FROM users
+        WHERE id NOT IN (${Testing.owner.id}, ${Testing.member.id}, ${Testing.otherMember.id})`,
+    );
+  });
+
+  it.effect("a new account with an invite becomes a member with its own session", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const invite = yield* CreateInvite.createInvite;
+        const response = yield* signInAs(send, "new-member", invite.token);
+        expect(response.status).toBe(200);
+        expect(yield* body(response)).toEqual({ status: "complete", me: { kind: "user" } });
+
+        const [created] = yield* users;
+        expect(created).toMatchObject({
+          display_name: "new-member",
+          role: "member",
+          daily_ai_quota: 200,
+        });
+        const [session] = yield* sessionRows;
+        expect(session).toMatchObject({ github_login: "new-member", user_id: created?.["id"] });
+        expect(session?.["user_id"]).not.toBe(Testing.owner.id);
+        expect(
+          (yield* send(get("/auth/me", { [Security.sessionCookieName]: sessionOf(response) })))
+            .status,
+        ).toBe(200);
+
+        // The invite is used up, and the token is nowhere in the database.
+        const [stored] = yield* InvitesRepo.InvitesRepo.use((repo) => repo.list);
+        expect(stored?.acceptedAt).not.toBeNull();
+        expect(stored?.acceptedBy).toBe(created?.["id"]);
+        expect(yield* databaseDump).not.toContain(invite.token);
+      }),
+    ),
+  );
+
+  it.effect("an invite works once: a second account gets nothing with it", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const invite = yield* CreateInvite.createInvite;
+        expect((yield* signInAs(send, "first-guest", invite.token)).status).toBe(200);
+        const second = yield* signInAs(send, "second-guest", invite.token);
+        expect(second.status).toBe(403);
+        expect((yield* body(second))._tag).toBe("LoginNotAllowed");
+        expect(yield* users).toHaveLength(1);
+        expect(yield* sessionRows).toHaveLength(1);
+      }),
+    ),
+  );
+
+  it.effect("no invite, an unknown, a revoked or an expired one signs nobody up", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        expect((yield* signInAs(send, "guest-a")).status).toBe(403);
+        expect((yield* signInAs(send, "guest-a", "x".repeat(43))).status).toBe(403);
+
+        const revoked = yield* CreateInvite.createInvite;
+        yield* InvitesRepo.InvitesRepo.use((repo) =>
+          Effect.flatMap(DateTime.now, (now) => repo.revoke(revoked.id, now)),
+        );
+        expect((yield* signInAs(send, "guest-a", revoked.token)).status).toBe(403);
+
+        const expired = yield* CreateInvite.createInvite;
+        yield* TestClock.adjust(Duration.days(7));
+        expect((yield* signInAs(send, "guest-a", expired.token)).status).toBe(403);
+
+        expect(yield* users).toEqual([]);
+        expect(yield* sessionRows).toEqual([]);
+      }),
+    ),
+  );
+
+  it.effect("a member signs in again without an invite, even after renaming their login", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const invite = yield* CreateInvite.createInvite;
+        yield* signInAs(send, "old-name", invite.token);
+        const id = githubId("old-name");
+        // The same GitHub account under a new login is the same member.
+        githubIds.set("new-name", id);
+        expect((yield* signInAs(send, "new-name")).status).toBe(200);
+        expect(yield* users).toHaveLength(1);
+        // Someone else who takes the old login is a stranger.
+        githubIds.set("old-name", 99_999);
+        expect((yield* signInAs(send, "old-name")).status).toBe(403);
+        expect(yield* users).toHaveLength(1);
+      }),
+    ),
+  );
+
+  it.effect("the owner signs in as the owner and leaves an invite unused", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const invite = yield* CreateInvite.createInvite;
+        expect((yield* signInAs(send, allowedLogin, invite.token)).status).toBe(200);
+        expect(yield* users).toEqual([]);
+        expect((yield* sessionRows)[0]).toMatchObject({ user_id: Testing.owner.id });
+        const [stored] = yield* InvitesRepo.InvitesRepo.use((repo) => repo.list);
+        expect(stored?.acceptedAt).toBeNull();
+      }),
+    ),
+  );
+
+  it.effect("a removed member is signed out and cannot sign in again", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const invite = yield* CreateInvite.createInvite;
+        const joined = yield* signInAs(send, "leaving-member", invite.token);
+        const session = sessionOf(joined);
+        const [member] = yield* users;
+        yield* RemoveMember.purgeUser(member?.["id"] as never);
+
+        expect(
+          (yield* send(get("/auth/me", { [Security.sessionCookieName]: session }))).status,
+        ).toBe(401);
+        expect((yield* signInAs(send, "leaving-member")).status).toBe(403);
+        // The used invite does not sign them up again either.
+        expect((yield* signInAs(send, "leaving-member", invite.token)).status).toBe(403);
+        expect(yield* users).toEqual([]);
       }),
     ),
   );

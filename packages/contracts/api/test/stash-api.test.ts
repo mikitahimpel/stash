@@ -34,6 +34,13 @@ const routes = [
   ["pairings", "claim", "POST", "/pairings/claim"],
   ["connect", "info", "GET", "/connect/info"],
   ["events", "stream", "GET", "/events"],
+  ["members", "me", "GET", "/members/me"],
+  ["members", "list", "GET", "/members"],
+  ["members", "remove", "DELETE", "/members/:id"],
+  ["invites", "list", "GET", "/invites"],
+  ["invites", "create", "POST", "/invites"],
+  ["invites", "revoke", "DELETE", "/invites/:id"],
+  ["invites", "check", "POST", "/invites/check"],
 ] as const;
 
 // Loosely typed view of the definition, for reflection only.
@@ -79,7 +86,9 @@ describe("StashApi", () => {
         "devices",
         "digest",
         "events",
+        "invites",
         "links",
+        "members",
         "pairings",
         "search",
         "tabs",
@@ -100,11 +109,16 @@ describe("StashApi", () => {
     expect(all.sort()).toEqual(routes.map(([group, name]) => `${group}.${name}`).sort());
   });
 
-  it("guards every endpoint except the device login flow and the pairing claim", () => {
+  it("guards every endpoint except the device login flow, the pairing claim and the invite check", () => {
     const open = routes
       .filter(([group, name]) => !isGuarded(group, name))
       .map(([group, name]) => `${group}.${name}`);
-    expect(open).toEqual(["auth.deviceStart", "auth.devicePoll", "pairings.claim"]);
+    expect(open).toEqual([
+      "auth.deviceStart",
+      "auth.devicePoll",
+      "pairings.claim",
+      "invites.check",
+    ]);
   });
 
   it.each([
@@ -126,6 +140,13 @@ describe("StashApi", () => {
     ["pairings", "approve", ["201", "401", "409"]],
     ["pairings", "claim", ["201", "404"]],
     ["events", "stream", ["204", "401", "426"]],
+    ["members", "me", ["200", "401"]],
+    ["members", "list", ["200", "401", "403"]],
+    ["members", "remove", ["204", "401", "403", "404", "409"]],
+    ["invites", "list", ["200", "401", "403"]],
+    ["invites", "create", ["201", "401", "403"]],
+    ["invites", "revoke", ["204", "401", "403", "404", "409"]],
+    ["invites", "check", ["200", "404"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);
   });
@@ -177,7 +198,9 @@ describe("HttpApiClient", () => {
           "devices",
           "digest",
           "events",
+          "invites",
           "links",
+          "members",
           "pairings",
           "search",
           "tabs",

@@ -5,6 +5,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
 
+/** A verified session: the principal the endpoints see, and the user whose stash it opens. */
+export interface Verified {
+  readonly principal: Security.UserPrincipal;
+  readonly user: Security.CurrentUser["Service"];
+}
+
 /**
  * Checks the web session cookie. `Authorization` calls it when a request carries no valid bearer
  * token. The GitHub OAuth sessions provide the real implementation.
@@ -12,10 +18,10 @@ import type * as Redacted from "effect/Redacted";
 export class SessionVerifier extends Context.Service<
   SessionVerifier,
   {
-    /** The signed-in user for the session cookie's value, or `Unauthorized`. */
+    /** Who the session cookie's value signs in, or `Unauthorized`. */
     readonly verify: (
       session: Redacted.Redacted<string>,
-    ) => Effect.Effect<Security.UserPrincipal, Errors.Unauthorized>;
+    ) => Effect.Effect<Verified, Errors.Unauthorized>;
   }
 >()("@stash/backend-auth/SessionVerifier") {}
 

@@ -1,6 +1,8 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import type * as Ai from "@stash/backend-platform/ai";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as Vectors from "@stash/backend-platform/vectors";
+import type * as Security from "@stash/contracts-api/security";
 import type * as SearchGroup from "@stash/contracts-api/search";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -24,14 +26,14 @@ export interface SearchRequest {
 
 export type SearchError = D1Database.DatabaseError | Ai.AiError | Vectors.VectorsError;
 
-/** Keyword (FTS5), semantic (Vectorize) and hybrid search over links. */
+/** Keyword (FTS5), semantic (Vectorize) and hybrid search over the current user's links. */
 export class SearchService extends Context.Service<
   SearchService,
   {
     /** Hits best first. Scores compare only within one result. */
     readonly search: (
       request: SearchRequest,
-    ) => Effect.Effect<SearchGroup.SearchResults, SearchError>;
+    ) => Effect.Effect<SearchGroup.SearchResults, SearchError, Security.CurrentUser>;
   }
 >()("@stash/backend-search/SearchService") {}
 
@@ -41,7 +43,7 @@ const rank = (
 ): Effect.Effect<
   ReadonlyArray<SearchRepo.RankedLink>,
   SearchError,
-  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors
+  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors | Security.CurrentUser
 > => {
   switch (mode) {
     case "keyword":
@@ -56,7 +58,7 @@ const rank = (
 };
 
 export const make = Effect.gen(function* () {
-  const context = yield* Effect.context<SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors>();
+  const context = yield* ServiceContext.capture<SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors>();
   return SearchService.of({
     search: (request) =>
       Effect.gen(function* () {

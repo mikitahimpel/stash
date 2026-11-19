@@ -53,16 +53,25 @@ export type PollResult =
   | { readonly _tag: "Denied" }
   | { readonly _tag: "Authorized"; readonly accessToken: Redacted.Redacted<string> };
 
+/**
+ * A GitHub account. `id` is its numeric id as text: it never changes, while a login can be
+ * renamed and then taken by someone else.
+ */
+export interface GithubUser {
+  readonly id: string;
+  readonly login: string;
+}
+
 /** The GitHub side of the login: start a device flow, poll it, and look up the user. */
 export class GithubClient extends Context.Service<
   GithubClient,
   {
     readonly requestDeviceCode: Effect.Effect<DeviceCode>;
     readonly pollAccessToken: (deviceCode: Redacted.Redacted<string>) => Effect.Effect<PollResult>;
-    /** The login of the user the access token belongs to. */
-    readonly fetchLogin: (
+    /** The GitHub account the access token belongs to. */
+    readonly fetchUser: (
       accessToken: Redacted.Redacted<string>,
-    ) => Effect.Effect<string, Errors.Unauthorized>;
+    ) => Effect.Effect<GithubUser, Errors.Unauthorized>;
   }
 >()("@stash/backend-auth/GithubClient") {}
 
@@ -83,7 +92,7 @@ const AccessTokenResponse = Schema.Union([
   Schema.Struct({ error: Schema.String, interval: Schema.optional(Seconds) }),
 ]);
 
-const User = Schema.Struct({ login: NonEmpty });
+const User = Schema.Struct({ id: Schema.Int, login: NonEmpty });
 
 const unauthorized = (message: string) => new Errors.Unauthorized({ message });
 
@@ -162,7 +171,7 @@ export const make = Effect.gen(function* () {
           return yield* Effect.die(new Error(`GitHub rejected the device flow: ${body.error}`));
       }
     }),
-    fetchLogin: Effect.fn("GithubClient.fetchLogin")(function* (accessToken) {
+    fetchUser: Effect.fn("GithubClient.fetchUser")(function* (accessToken) {
       const response = yield* call(
         client.execute(
           HttpClientRequest.get(userEndpoint).pipe(
@@ -180,7 +189,7 @@ export const make = Effect.gen(function* () {
         );
       }
       const user = yield* call(HttpIncomingMessage.schemaBodyJson(User)(response));
-      return user.login;
+      return { id: String(user.id), login: user.login };
     }),
   });
 });

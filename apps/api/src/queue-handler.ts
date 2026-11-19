@@ -1,9 +1,13 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as BackfillMetadata from "@stash/backend-enrichment/backfill-metadata";
 import * as EnrichLink from "@stash/backend-enrichment/enrich-link";
+import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
+import * as Security from "@stash/contracts-api/security";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 /** Handles one enrichment message. */
@@ -26,21 +30,34 @@ export const layerNoop: Layer.Layer<EnrichmentConsumer> = Layer.succeed(Enrichme
 
 const run = (
   message: EnrichmentQueue.EnrichmentMessage,
-): Effect.Effect<{ readonly _tag: string }, unknown, EnrichLink.Requirements> =>
-  message.task === "metadata"
-    ? BackfillMetadata.backfillMetadata(message.linkId)
-    : EnrichLink.enrichLink(message.linkId);
+): Effect.Effect<{ readonly _tag: string }, unknown, Requirements> =>
+  Effect.gen(function* () {
+    // A message names only a link. Whose it is comes from the database, and the rest runs as
+    // that user: their quota, their vector metadata, their stream.
+    const repo = yield* EnrichmentRepo.EnrichmentRepo;
+    const owner = yield* repo.ownerOf(message.linkId);
+    if (Option.isNone(owner)) return { _tag: "Missing" };
+    const task: Effect.Effect<{ readonly _tag: string }, unknown, EnrichLink.Requirements> =
+      message.task === "metadata"
+        ? BackfillMetadata.backfillMetadata(message.linkId)
+        : EnrichLink.enrichLink(message.linkId);
+    return yield* Effect.provideService(task, Security.CurrentUser, owner.value);
+  });
+
+/** What the consumer needs: everything the pipeline does, except the user, which it finds. */
+export type Requirements = Exclude<EnrichLink.Requirements, Security.CurrentUser>;
 
 /**
  * Runs the enrichment pipeline for each message, or only the metadata backfill for a message with
- * `task: "metadata"`. Permanent failures are marked on the link and succeed, so only transient
+ * `task: "metadata"`, as the user the link belongs to. A link over its user's daily AI quota is
+ * `deferred`: acked and left pending for the hourly requeue. Permanent failures are marked on the link and succeed, so only transient
  * failures reach `handleBatch` and are retried.
  */
-export const layer: Layer.Layer<EnrichmentConsumer, never, EnrichLink.Requirements> = Layer.effect(
+export const layer: Layer.Layer<EnrichmentConsumer, never, Requirements> = Layer.effect(
   EnrichmentConsumer,
 )(
   Effect.gen(function* () {
-    const context = yield* Effect.context<EnrichLink.Requirements>();
+    const context = yield* ServiceContext.capture<Requirements>();
     return {
       consume: (message) =>
         received(message).pipe(

@@ -14,6 +14,8 @@ import * as LinkEventsService from "@stash/backend-platform/link-events";
 import * as LinkEventsObject from "@stash/backend-platform/link-events-object";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as Vectors from "@stash/backend-platform/vectors";
+import * as AiQuota from "@stash/backend-users/ai-quota";
+import * as UsersRepo from "@stash/backend-users/users-repo";
 import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
@@ -47,15 +49,24 @@ const platform = Layer.mergeAll(
     : GithubConfig.layerFromEnv(workerEnv),
   HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
-  // The live stream of link changes: every write publishes to the owner's `LinkEvents` object.
+  // The live stream of link changes: every write publishes to its user's own `LinkEvents` object.
   workerEnv.LINK_EVENTS === undefined
     ? LinkEventsService.layerNoop
-    : LinkEventsService.layer(workerEnv.LINK_EVENTS, workerEnv.ALLOWED_GITHUB_LOGIN),
+    : LinkEventsService.layer(workerEnv.LINK_EVENTS),
   Vectors.layer(
     workerEnv.VECTORS ?? {
       upsert: missingBinding("VECTORS"),
       query: missingBinding("VECTORS"),
+      getByIds: missingBinding("VECTORS"),
       deleteByIds: missingBinding("VECTORS"),
+    },
+  ),
+  // Page texts. Enrichment writes them; removing a member deletes theirs.
+  Blobs.layer(
+    workerEnv.BLOBS ?? {
+      put: missingBinding("BLOBS"),
+      get: missingBinding("BLOBS"),
+      delete: missingBinding("BLOBS"),
     },
   ),
 );
@@ -68,26 +79,21 @@ const enrichment = QueueHandler.layer.pipe(
       EnrichmentRepo.layer,
       // To read the enriched link for its event on the live stream.
       LinksRepo.layer,
+      // The user's daily cap on AI enrichment.
+      AiQuota.layer,
       workerEnv.ANTHROPIC_API_KEY === undefined
         ? ClassifyLink.layerMissingKey
         : ClassifyLink.layerAnthropic.pipe(
             Layer.provide(AnthropicConfig.layerFromEnv(workerEnv)),
             Layer.orDie,
           ),
-      Blobs.layer(
-        workerEnv.BLOBS ?? {
-          put: missingBinding("BLOBS"),
-          get: missingBinding("BLOBS"),
-          delete: missingBinding("BLOBS"),
-        },
-      ),
     ),
   ),
   Layer.provide(platform),
 );
 
-// The cron jobs: auto-archive of stale Zen tabs, the weekly digest, and the requeue of links still
-// waiting for enrichment.
+// The cron jobs, each run per user: auto-archive of stale Zen tabs, the weekly digest, and the
+// requeue of links still waiting for enrichment.
 const scheduledJobs = ScheduledHandler.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -97,6 +103,8 @@ const scheduledJobs = ScheduledHandler.layer.pipe(
       LinksRepo.layer,
       DigestsRepo.layer,
       EnrichmentRepo.layer,
+      UsersRepo.layer,
+      AiQuota.layer,
     ),
   ),
   Layer.provideMerge(platform),
@@ -152,13 +160,7 @@ export default {
     return (
       (await handleSmoke(request, env)) ??
       handleLoginNotConfigured(request, env) ??
-      (await handleEvents(
-        request,
-        app.handler,
-        env.LINK_EVENTS,
-        env.ALLOWED_GITHUB_LOGIN,
-        env.WEB_ORIGIN,
-      )) ??
+      (await handleEvents(request, app.handler, env.LINK_EVENTS, env.WEB_ORIGIN)) ??
       app.handler(request)
     );
   },

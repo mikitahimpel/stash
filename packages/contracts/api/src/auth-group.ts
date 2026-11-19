@@ -1,3 +1,4 @@
+import * as Invite from "@stash/contracts-domain/invite";
 import { Schema } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 import * as ErrorStatuses from "./error-statuses.ts";
@@ -27,6 +28,11 @@ export type DeviceFlowStarted = typeof DeviceFlowStarted.Type;
 
 export const PollDeviceFlow = Schema.Struct({
   flowId: DeviceFlowId,
+  /**
+   * The token of an invite link. A GitHub account that has no Stash account yet gets one with it,
+   * and the invite is used up. An account that exists signs in as usual and leaves it unused.
+   */
+  invite: Schema.optionalKey(Invite.InviteToken),
 });
 export type PollDeviceFlow = typeof PollDeviceFlow.Type;
 
@@ -53,7 +59,8 @@ export type DeviceFlowStatus = typeof DeviceFlowStatus.Type;
  * `devicePoll` run before a session exists, so only `me` and `logout` are guarded; `deviceStart` is
  * rate limited per client IP (`RateLimited`, 429). The client shows `userCode` and
  * `verificationUri`, then polls `devicePoll` every `interval` seconds until it answers `complete` (with the session cookie) or fails with `DeviceFlowExpired` (410),
- * `DeviceFlowDenied` (403) or `LoginNotAllowed` (403, the GitHub login is not allowlisted).
+ * `DeviceFlowDenied` (403) or `LoginNotAllowed` (403: the GitHub account has no Stash account and
+ * the poll carried no invite that can still be accepted).
  */
 export class AuthGroup extends HttpApiGroup.make("auth").add(
   HttpApiEndpoint.get("me", "/auth/me", {

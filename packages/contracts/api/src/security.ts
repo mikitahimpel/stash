@@ -1,4 +1,5 @@
 import * as Device from "@stash/contracts-domain/device";
+import type * as User from "@stash/contracts-domain/user";
 import { Context, Schema } from "effect";
 import { HttpApiMiddleware, HttpApiSecurity } from "effect/http-api";
 import * as ErrorStatuses from "./error-statuses.ts";
@@ -29,6 +30,16 @@ export class CurrentPrincipal extends Context.Service<CurrentPrincipal, Principa
   "@stash/contracts-api/security/CurrentPrincipal",
 ) {}
 
+/**
+ * The user the caller acts for: the signed-in person, or the owner of the device or token. Every
+ * principal has exactly one. Provided by `Authorization` to every endpoint it guards; the api's
+ * data access reads it, so nothing is read or written outside this user's stash.
+ */
+export class CurrentUser extends Context.Service<
+  CurrentUser,
+  { readonly id: User.UserId; readonly role: User.UserRole }
+>()("@stash/contracts-api/security/CurrentUser") {}
+
 /** Name of the cookie that carries the web session. */
 export const sessionCookieName = "stash_session";
 
@@ -40,7 +51,7 @@ export const sessionCookieName = "stash_session";
  */
 export class Authorization extends HttpApiMiddleware.Service<
   Authorization,
-  { provides: CurrentPrincipal }
+  { provides: CurrentPrincipal | CurrentUser }
 >()("@stash/contracts-api/security/Authorization", {
   requiredForClient: true,
   security: {

@@ -184,7 +184,10 @@ describe("Testing.layerFetcher internal api", () => {
     Effect.gen(function* () {
       const API = yield* Testing.FetcherService;
       const test = yield* Testing.TestApi;
-      const minted = yield* ApiClient.createMcpToken({ API }, Testing.allowedLogin);
+      const minted = yield* ApiClient.createMcpToken(
+        { API },
+        { login: Testing.allowedLogin, id: Testing.allowedGithubId },
+      );
       assert.deepStrictEqual(yield* test.mintedTokens, [
         { token: Redacted.value(minted), login: Testing.allowedLogin },
       ]);

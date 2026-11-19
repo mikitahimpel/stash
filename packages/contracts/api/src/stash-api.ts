@@ -4,7 +4,9 @@ import * as Connect from "./connect-group.ts";
 import * as Devices from "./devices-group.ts";
 import * as Digest from "./digest-group.ts";
 import * as Events from "./events-group.ts";
+import * as Invites from "./invites-group.ts";
 import * as Links from "./links-group.ts";
+import * as Members from "./members-group.ts";
 import * as Pairings from "./pairings-group.ts";
 import * as Search from "./search-group.ts";
 import * as Tabs from "./tabs-group.ts";
@@ -22,4 +24,6 @@ export class StashApi extends HttpApi.make("stash")
   .add(Pairings.PairingsGroup)
   .add(Connect.ConnectGroup)
   .add(Events.EventsGroup)
+  .add(Members.MembersGroup)
+  .add(Invites.InvitesGroup)
   .annotateMerge(OpenApi.annotations({ title: "Stash API" })) {}

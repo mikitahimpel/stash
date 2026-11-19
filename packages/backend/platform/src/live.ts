@@ -47,7 +47,7 @@ export const layer = (
     Blobs.layer(env.BLOBS),
     Kv.layer(env.KV),
     Ai.layer(env.AI),
-    LinkEvents.layer(env.LINK_EVENTS, env.ALLOWED_GITHUB_LOGIN),
+    LinkEvents.layer(env.LINK_EVENTS),
     StashConfig.layerFromEnv(env),
     GithubConfig.layerFromEnv(env),
   );

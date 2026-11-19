@@ -27,7 +27,7 @@ export interface QueryOptions {
 }
 
 export class VectorsError extends Data.TaggedError("VectorsError")<{
-  readonly operation: "upsert" | "query" | "delete";
+  readonly operation: "upsert" | "query" | "get" | "delete";
   readonly cause: unknown;
 }> {}
 
@@ -42,8 +42,24 @@ export interface VectorizeBinding {
   ): Promise<{
     matches: Array<{ id: string; score: number; metadata?: Record<string, unknown> }>;
   }>;
+  getByIds(
+    ids: Array<string>,
+  ): Promise<Array<{ id: string; values: ArrayLike<number>; metadata?: Record<string, unknown> }>>;
   deleteByIds(ids: Array<string>): Promise<unknown>;
 }
+
+/**
+ * The metadata key that says whose link a vector is. The index has a metadata index on it (the
+ * `VectorsUserIndex` resource in `alchemy.run.ts`), which Vectorize needs to filter on a key, and
+ * which must exist before a vector is written for the vector to be found by it.
+ */
+export const userIdKey = "userId";
+
+/** The most ids one `getByIds` call takes. */
+export const maxGetIds = 20;
+
+/** The most ids one `deleteByIds` call takes here. */
+export const maxDeleteIds = 100;
 
 /** The Vectorize index of link embeddings, keyed by link id. */
 export class Vectors extends Context.Service<
@@ -54,6 +70,10 @@ export class Vectors extends Context.Service<
       vector: ReadonlyArray<number>,
       options?: QueryOptions,
     ) => Effect.Effect<ReadonlyArray<Match>, VectorsError>;
+    /** The stored vectors with these ids (at most `maxGetIds`). Unknown ids are left out. */
+    readonly getByIds: (
+      ids: ReadonlyArray<string>,
+    ) => Effect.Effect<ReadonlyArray<Vector>, VectorsError>;
     readonly deleteByIds: (ids: ReadonlyArray<string>) => Effect.Effect<void, VectorsError>;
   }
 >()("@stash/backend-platform/Vectors") {}
@@ -95,6 +115,18 @@ export const make = (index: VectorizeBinding): Vectors["Service"] => {
           matches.map(({ id, score, metadata }) => ({ id, score, metadata: toMetadata(metadata) })),
         ),
       ),
+    getByIds: (ids) =>
+      ids.length === 0
+        ? Effect.succeed([])
+        : call("get", () => index.getByIds([...ids])).pipe(
+            Effect.map((vectors) =>
+              vectors.map(({ id, values, metadata }) => ({
+                id,
+                values: Array.from(values),
+                metadata: toMetadata(metadata),
+              })),
+            ),
+          ),
     deleteByIds: (ids) =>
       ids.length === 0
         ? Effect.void

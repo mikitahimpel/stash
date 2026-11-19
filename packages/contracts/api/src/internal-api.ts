@@ -10,8 +10,14 @@ import * as ErrorStatuses from "./error-statuses.ts";
 
 /** Mint an api token for the user the MCP server just signed in with GitHub. */
 export const CreateMcpToken = Schema.Struct({
-  /** The GitHub login the MCP OAuth flow verified. The api checks it against its allowlist. */
+  /** The GitHub login the MCP OAuth flow verified. */
   login: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
+  /**
+   * The numeric id of that GitHub account, as text. A login can be renamed and taken by someone
+   * else; the id cannot, so the api finds the Stash account by it. `LoginNotAllowed` if there is
+   * none (Claude never signs anyone up: that takes an invite, in the web app).
+   */
+  githubId: Schema.String.pipe(Schema.check(Schema.isNonEmpty())),
 });
 export type CreateMcpToken = typeof CreateMcpToken.Type;
 

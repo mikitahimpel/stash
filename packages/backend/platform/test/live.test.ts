@@ -67,7 +67,7 @@ describe("live layer", () => {
       expect(yield* (yield* Ai.Ai).embed(["x"])).toEqual([[1, 0]]);
       expect((yield* StashConfig.StashConfig).archiveAfterDays).toBe(30);
       expect((yield* GithubConfig.GithubConfig).clientId).toBe("synthetic-client-id");
-      yield* (yield* LinkEvents.LinkEvents).publish({
+      yield* (yield* LinkEvents.LinkEvents).publish("owner", {
         type: "link.deleted",
         at: yield* DateTime.now,
         id: Schema.decodeSync(Link.LinkId)("link-1"),

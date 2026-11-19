@@ -31,14 +31,14 @@ const insertEnriched = (
 ) =>
   D1Database.Database.use((db) =>
     db.batch([
-      D1Database.sql`INSERT INTO links (id, url, title, summary, type, language, text, image_url,
+      D1Database.sql`INSERT INTO links (user_id, id, url, title, summary, type, language, text, image_url,
           author, created_at, enriched_at)
-        VALUES (${id}, ${url}, 'A good title', 'A good summary.', 'video', 'en', 'Some text',
+        VALUES ('owner', ${id}, ${url}, 'A good title', 'A good summary.', 'video', 'en', 'Some text',
           ${extra.imageUrl ?? null}, ${extra.author ?? null}, '2026-03-10T00:00:00.000Z',
           ${enrichedAt})`,
       D1Database.sql`INSERT OR IGNORE INTO tags (name) VALUES ('economics')`,
-      D1Database.sql`INSERT INTO link_tags (link_id, tag_id)
-        SELECT ${id}, id FROM tags WHERE name = 'economics'`,
+      D1Database.sql`INSERT INTO link_tags (link_id, tag_id, user_id)
+        SELECT ${id}, id, 'owner' FROM tags WHERE name = 'economics'`,
     ]),
   ).pipe(Effect.as(Link.LinkId.make(id)));
 
@@ -194,8 +194,8 @@ describe("backfillMetadata", () => {
   it.effect("leaves a pending link to enrichment, and answers Missing for a deleted one", () =>
     Effect.gen(function* () {
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, created_at)
-          VALUES ('pending', 'https://example.com/pending', '2026-03-10T00:00:00.000Z')`),
+        db.run(D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+          VALUES ('owner', 'pending', 'https://example.com/pending', '2026-03-10T00:00:00.000Z')`),
       );
       expect(yield* BackfillMetadata.backfillMetadata(Link.LinkId.make("pending"))).toEqual({
         _tag: "Skipped",
@@ -243,10 +243,10 @@ describe("requeueBackfill", () => {
         db.batch([
           D1Database.sql`UPDATE links SET metadata_version = ${EnrichPolicy.metadataVersion}
             WHERE id = 'read-already'`,
-          D1Database.sql`INSERT INTO links (id, url, created_at)
-            VALUES ('pending', 'https://example.com/e', '2026-03-10T00:00:00.000Z')`,
-          D1Database.sql`INSERT INTO links (id, url, created_at, enrichment_error)
-            VALUES ('failed', 'https://example.com/f', '2026-03-10T00:00:00.000Z', 'classify')`,
+          D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+            VALUES ('owner', 'pending', 'https://example.com/e', '2026-03-10T00:00:00.000Z')`,
+          D1Database.sql`INSERT INTO links (user_id, id, url, created_at, enrichment_error)
+            VALUES ('owner', 'failed', 'https://example.com/f', '2026-03-10T00:00:00.000Z', 'classify')`,
         ]),
       );
       expect(yield* RequeueBackfill.requeueBackfill()).toBe(2);
@@ -340,8 +340,8 @@ describe("requeueBackfill", () => {
   it.effect("a link enriched now is stamped, so it is not read again for a missing author", () =>
     Effect.gen(function* () {
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, created_at)
-          VALUES ('fresh', 'https://example.com/board', '2026-03-10T00:00:00.000Z')`),
+        db.run(D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+          VALUES ('owner', 'fresh', 'https://example.com/board', '2026-03-10T00:00:00.000Z')`),
       );
       const id = Link.LinkId.make("fresh");
       expect(yield* EnrichLink.enrichLink(id)).toEqual({ _tag: "Enriched", source: "page" });

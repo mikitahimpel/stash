@@ -52,13 +52,22 @@ describe("Vectors (live)", () => {
           calls.push({ vector, options });
           return { matches: [{ id: "a", score: 0.5, metadata: { type: "video", tags: ["x"] } }] };
         },
+        getByIds: async (ids) => {
+          calls.push({ get: ids });
+          return [{ id: "a", values: new Float32Array([1, 2]), metadata: { userId: "user-a" } }];
+        },
         deleteByIds: async (ids) => void calls.push(ids),
       });
+      expect(yield* vectors.getByIds([])).toEqual([]);
+      expect(yield* vectors.getByIds(["a", "missing"])).toEqual([
+        { id: "a", values: [1, 2], metadata: { userId: "user-a" } },
+      ]);
       yield* vectors.upsert([{ id: "a", values: [1, 2] }]);
       const matches = yield* vectors.query([1, 2], { filter: { type: "video" } });
       yield* vectors.deleteByIds(["a"]);
       expect(matches).toEqual([{ id: "a", score: 0.5, metadata: { type: "video" } }]);
       expect(calls).toEqual([
+        { get: ["a", "missing"] },
         [{ id: "a", values: [1, 2] }],
         { vector: [1, 2], options: { topK: 10, returnMetadata: "all", filter: { type: "video" } } },
         ["a"],

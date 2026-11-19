@@ -6,6 +6,8 @@ import * as ConnectHandlers from "@stash/backend-auth/connect-handlers";
 import * as PairingsHandlers from "@stash/backend-auth/pairings-handlers";
 import * as TokensHandlers from "@stash/backend-auth/tokens-handlers";
 import * as SearchHandlers from "@stash/backend-search/search-handlers";
+import * as InvitesHandlers from "@stash/backend-users/invites-handlers";
+import * as MembersHandlers from "@stash/backend-users/members-handlers";
 import * as DevicesHandlers from "@stash/backend-tabs/devices-handlers";
 import * as TabsHandlers from "@stash/backend-tabs/tabs-handlers";
 import * as Layer from "effect/Layer";
@@ -22,4 +24,6 @@ export const layer = Layer.mergeAll(
   PairingsHandlers.layer,
   ConnectHandlers.layer,
   EventsHandlers.layer,
+  MembersHandlers.layer,
+  InvitesHandlers.layer,
 );

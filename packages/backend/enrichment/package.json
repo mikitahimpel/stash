@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./backfill-metadata": "./src/backfill-metadata.ts",
+    "./backfill-vectors": "./src/backfill-vectors.ts",
     "./classify-link": "./src/classify-link.ts",
     "./content-http": "./src/content-http.ts",
     "./content-text": "./src/content-text.ts",
@@ -39,6 +40,8 @@
     "@effect/ai-anthropic": "catalog:",
     "@stash/backend-links": "workspace:*",
     "@stash/backend-platform": "workspace:*",
+    "@stash/backend-users": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
   },

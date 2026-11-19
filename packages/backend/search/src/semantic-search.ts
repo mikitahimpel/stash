@@ -1,6 +1,7 @@
 import * as Ai from "@stash/backend-platform/ai";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import * as Vectors from "@stash/backend-platform/vectors";
+import * as Security from "@stash/contracts-api/security";
 import type * as Link from "@stash/contracts-domain/link";
 import * as Effect from "effect/Effect";
 import * as SearchRepo from "./search-repo.ts";
@@ -12,8 +13,10 @@ import * as SearchRepo from "./search-repo.ts";
 export const candidates = 20;
 
 /**
- * Links whose embedding is closest to the embedding of `q`, by cosine similarity. Vectors are keyed
- * by link id. Filters apply in D1 to the nearest `candidates`, because tags and status change after
+ * The current user's links whose embedding is closest to the embedding of `q`, by cosine
+ * similarity. Vectors are keyed by link id and carry their user (`Vectors.userIdKey`): the index
+ * is asked only for this user's vectors, and D1 checks the answer again (`filterIds`), so a vector
+ * can never surface another user's link. Filters apply in D1 to the nearest `candidates`, because tags and status change after
  * a link is embedded; ids with no link (stale vectors) are dropped. Vectorize always answers its
  * `topK` nearest, however far, so matches with no positive similarity are dropped too.
  */
@@ -24,13 +27,14 @@ export const semanticSearch = (
 ): Effect.Effect<
   ReadonlyArray<SearchRepo.RankedLink>,
   D1Database.DatabaseError | Ai.AiError | Vectors.VectorsError,
-  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors
+  SearchRepo.SearchRepo | Ai.Ai | Vectors.Vectors | Security.CurrentUser
 > =>
   Effect.gen(function* () {
+    const user = yield* Security.CurrentUser;
     const [embedding] = yield* Ai.Ai.use((ai) => ai.embed([q]));
     if (embedding === undefined) return [];
     const matches = yield* Vectors.Vectors.use((vectors) =>
-      vectors.query(embedding, { topK: candidates }),
+      vectors.query(embedding, { topK: candidates, filter: { [Vectors.userIdKey]: user.id } }),
     );
     const kept = yield* SearchRepo.SearchRepo.use((repo) =>
       repo.filterIds(

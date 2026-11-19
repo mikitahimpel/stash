@@ -4,6 +4,7 @@
 import * as Fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import * as Path from "node:path";
+import * as TestingSchema from "@stash/backend-platform/testing-schema";
 import { beforeEach, describe, expect, it } from "vitest";
 
 const migrationsDir = `${Path.resolve(import.meta.dirname, "../migrations")}/`;
@@ -78,6 +79,10 @@ describe("D1 migrations", () => {
         "open_tabs",
         "sessions",
         "tags",
+        "users",
+        "user_identities",
+        "invites",
+        "ai_usage",
       ]),
     );
   });
@@ -88,12 +93,22 @@ describe("D1 migrations", () => {
     db.exec("INSERT INTO links_fts (links_fts) VALUES ('integrity-check')");
   });
 
-  it("enforces one link per canonical URL", () => {
-    const insert = db.prepare("INSERT INTO links (id, url, canonical_url) VALUES (?, ?, ?)");
-    insert.run("l1", "https://example.com/a?utm=x", "https://example.com/a");
-    insert.run("l2", "https://example.com/b", null);
-    insert.run("l3", "https://example.com/c", null);
-    expect(() => insert.run("l4", "https://example.com/a", "https://example.com/a")).toThrow(
+  it("enforces one link per canonical URL, per user", () => {
+    db.exec(
+      "INSERT INTO users (id, display_name, role) VALUES ('u2', 'Synthetic member', 'member')",
+    );
+    const insert = db.prepare(
+      "INSERT INTO links (id, user_id, url, canonical_url) VALUES (?, ?, ?, ?)",
+    );
+    insert.run("l1", "owner", "https://example.com/a?utm=x", "https://example.com/a");
+    insert.run("l2", "owner", "https://example.com/b", null);
+    insert.run("l3", "owner", "https://example.com/c", null);
+    expect(() =>
+      insert.run("l4", "owner", "https://example.com/a", "https://example.com/a"),
+    ).toThrow(/UNIQUE/);
+    // Another user may save the same page.
+    insert.run("l5", "u2", "https://example.com/a", "https://example.com/a");
+    expect(() => insert.run("l6", "u2", "https://example.com/a", "https://example.com/a")).toThrow(
       /UNIQUE/,
     );
   });
@@ -101,23 +116,31 @@ describe("D1 migrations", () => {
   it("rejects unknown statuses and device kinds", () => {
     expect(() =>
       db
-        .prepare("INSERT INTO links (id, url, status) VALUES ('l1', 'https://example.com', 'x')")
+        .prepare(
+          "INSERT INTO links (id, user_id, url, status) VALUES ('l1', 'owner', 'https://example.com', 'x')",
+        )
         .run(),
     ).toThrow(/CHECK/);
     expect(() =>
-      db.prepare("INSERT INTO devices (id, name, kind) VALUES ('d1', 'Laptop', 'fax')").run(),
+      db
+        .prepare(
+          "INSERT INTO devices (id, user_id, name, kind) VALUES ('d1', 'owner', 'Laptop', 'fax')",
+        )
+        .run(),
     ).toThrow(/CHECK/);
   });
 
   it("cascades device deletes to tokens, tabs and commands and detaches links", () => {
     db.exec(`
-      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen');
-      INSERT INTO api_tokens (id, device_id, hash) VALUES ('t1', 'd1', 'hash-1');
-      INSERT INTO open_tabs (device_id, url, last_seen_at)
-        VALUES ('d1', 'https://example.com/tab', '2026-01-01T00:00:00.000Z');
-      INSERT INTO commands (id, device_id, kind, payload)
-        VALUES ('c1', 'd1', 'close-tab', '{"kind":"close-tab","url":"https://example.com/tab"}');
-      INSERT INTO links (id, url, source_device_id) VALUES ('l1', 'https://example.com/a', 'd1');
+      INSERT INTO devices (id, user_id, name, kind) VALUES ('d1', 'owner', 'Test laptop', 'zen');
+      INSERT INTO api_tokens (id, user_id, device_id, hash) VALUES ('t1', 'owner', 'd1', 'hash-1');
+      INSERT INTO open_tabs (user_id, device_id, url, last_seen_at)
+        VALUES ('owner', 'd1', 'https://example.com/tab', '2026-01-01T00:00:00.000Z');
+      INSERT INTO commands (id, user_id, device_id, kind, payload)
+        VALUES ('c1', 'owner', 'd1', 'close-tab',
+          '{"kind":"close-tab","url":"https://example.com/tab"}');
+      INSERT INTO links (id, user_id, url, source_device_id)
+        VALUES ('l1', 'owner', 'https://example.com/a', 'd1');
       DELETE FROM devices WHERE id = 'd1';
     `);
     for (const table of ["api_tokens", "open_tabs", "commands"]) {
@@ -146,9 +169,9 @@ describe("D1 migrations", () => {
     expect(before.prepare("SELECT * FROM api_tokens").all()).toEqual([
       {
         id: "t1",
+        user_id: "owner",
         device_id: "d1",
         name: null,
-        github_login: null,
         hash: "hash-1",
         created_at: "2026-01-01T00:00:00.000Z",
         revoked_at: null,
@@ -178,6 +201,7 @@ describe("D1 migrations", () => {
         device_id: "d1",
         expires_at: "2026-01-01T00:10:00.000Z",
         claimed_at: null,
+        user_id: "owner",
       },
     ]);
     expect(before.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
@@ -185,9 +209,9 @@ describe("D1 migrations", () => {
 
   it("keeps a pairing's code when its device is deleted", () => {
     db.exec(`
-      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen');
-      INSERT INTO device_pairings (code_hash, device_id, expires_at, claimed_at)
-        VALUES ('hash-1', 'd1', '2026-01-01T00:10:00.000Z', '2026-01-01T00:01:00.000Z');
+      INSERT INTO devices (id, user_id, name, kind) VALUES ('d1', 'owner', 'Test laptop', 'zen');
+      INSERT INTO device_pairings (code_hash, user_id, device_id, expires_at, claimed_at)
+        VALUES ('hash-1', 'owner', 'd1', '2026-01-01T00:10:00.000Z', '2026-01-01T00:01:00.000Z');
       DELETE FROM devices WHERE id = 'd1';
     `);
     expect(db.prepare("SELECT code_hash, device_id FROM device_pairings").all()).toEqual([
@@ -195,27 +219,35 @@ describe("D1 migrations", () => {
     ]);
   });
 
-  it("stores a user token without a device, and only with a name and login", () => {
-    db.exec(`INSERT INTO api_tokens (id, name, github_login, hash)
-      VALUES ('t1', 'Claude (MCP)', 'synthetic-user', 'hash-1')`);
-    expect(() => db.exec("INSERT INTO api_tokens (id, hash) VALUES ('t2', 'hash-2')")).toThrow(
-      /CHECK/,
-    );
+  it("stores a user token without a device, and only with a name and a user", () => {
+    db.exec(`INSERT INTO api_tokens (id, user_id, name, hash)
+      VALUES ('t1', 'owner', 'Claude (MCP)', 'hash-1')`);
+    // Neither a device nor a name.
+    expect(() =>
+      db.exec("INSERT INTO api_tokens (id, user_id, hash) VALUES ('t2', 'owner', 'hash-2')"),
+    ).toThrow(/CHECK/);
+    // Nobody's token.
     expect(() =>
       db.exec("INSERT INTO api_tokens (id, name, hash) VALUES ('t3', 'Claude (MCP)', 'hash-3')"),
-    ).toThrow(/CHECK/);
+    ).toThrow(/NOT NULL/);
+    expect(() =>
+      db.exec(`INSERT INTO api_tokens (id, user_id, name, hash)
+        VALUES ('t4', 'nobody', 'Claude (MCP)', 'hash-4')`),
+    ).toThrow(/FOREIGN KEY/);
   });
 
   it("records when a device's tabs snapshot was taken", () => {
-    db.exec("INSERT INTO devices (id, name, kind) VALUES ('d1', 'Test laptop', 'zen')");
+    db.exec(
+      "INSERT INTO devices (id, user_id, name, kind) VALUES ('d1', 'owner', 'Test laptop', 'zen')",
+    );
     expect(db.prepare("SELECT tabs_taken_at FROM devices WHERE id = 'd1'").get()).toEqual({
       tabs_taken_at: null,
     });
   });
 
   it("stores who published a link, and nothing by default", () => {
-    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
-      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    db.exec(`INSERT INTO links (id, user_id, url, canonical_url) VALUES
+      ('l1', 'owner', 'https://example.com/a', 'https://example.com/a')`);
     const author = () => db.prepare("SELECT author FROM links WHERE id = 'l1'").get()?.["author"];
     expect(author()).toBeNull();
     db.exec("UPDATE links SET author = 'Synthetic Channel' WHERE id = 'l1'");
@@ -223,8 +255,8 @@ describe("D1 migrations", () => {
   });
 
   it("starts every link at metadata version 0, so the backfill reads the old ones (#155)", () => {
-    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
-      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    db.exec(`INSERT INTO links (id, user_id, url, canonical_url) VALUES
+      ('l1', 'owner', 'https://example.com/a', 'https://example.com/a')`);
     expect(db.prepare("SELECT metadata_version AS v FROM links WHERE id = 'l1'").get()).toEqual({
       v: 0,
     });
@@ -235,14 +267,16 @@ describe("D1 migrations", () => {
       String(db.prepare("SELECT updated_at FROM links WHERE id = 'link-1'").get()?.["updated_at"]);
     const past = "2026-01-02T03:04:05.000Z";
     const rewind = () => db.exec(`UPDATE links SET updated_at = '${past}' WHERE id = 'link-1'`);
-    db.exec("INSERT INTO links (id, url) VALUES ('link-1', 'https://example.com/a')");
+    db.exec(
+      "INSERT INTO links (id, user_id, url) VALUES ('link-1', 'owner', 'https://example.com/a')",
+    );
     expect(stamp()).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
 
     for (const change of [
       "UPDATE links SET status = 'seen' WHERE id = 'link-1'",
       "UPDATE links SET summary = 'A summary.', enriched_at = '2026-01-02T03:05:00.000Z' WHERE id = 'link-1'",
       "UPDATE links SET image_url = 'https://example.com/a.png' WHERE id = 'link-1'",
-      "INSERT INTO tags (name) VALUES ('economics'); INSERT INTO link_tags (link_id, tag_id) SELECT 'link-1', id FROM tags",
+      "INSERT INTO tags (name) VALUES ('economics'); INSERT INTO link_tags (link_id, tag_id, user_id) SELECT 'link-1', id, 'owner' FROM tags",
       "DELETE FROM link_tags WHERE link_id = 'link-1'",
     ]) {
       rewind();
@@ -263,9 +297,10 @@ describe("D1 migrations", () => {
 
   it("removes a link's tags when the link is deleted", () => {
     db.exec(`
-      INSERT INTO links (id, url) VALUES ('l1', 'https://example.com/a');
+      INSERT INTO links (id, user_id, url) VALUES ('l1', 'owner', 'https://example.com/a');
       INSERT INTO tags (name) VALUES ('economics');
-      INSERT INTO link_tags (link_id, tag_id) SELECT 'l1', id FROM tags WHERE name = 'economics';
+      INSERT INTO link_tags (link_id, tag_id, user_id)
+        SELECT 'l1', id, 'owner' FROM tags WHERE name = 'economics';
       DELETE FROM links WHERE id = 'l1';
     `);
     expect(db.prepare("SELECT count(*) AS n FROM link_tags").get()).toEqual({ n: 0 });
@@ -275,7 +310,9 @@ describe("D1 migrations", () => {
 describe("links_fts", () => {
   const insertLink = (id: string, title: string, summary: string | null, text: string | null) =>
     db
-      .prepare("INSERT INTO links (id, url, title, summary, text) VALUES (?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO links (id, user_id, url, title, summary, text) VALUES (?, 'owner', ?, ?, ?, ?)",
+      )
       .run(id, `https://example.com/${id}`, title, summary, text);
 
   it("finds an inserted link via MATCH on title, summary and text", () => {
@@ -528,8 +565,8 @@ describe("migration 0009: posts on X (#170)", () => {
     );
 
   it("stores a post as JSON, and nothing by default", () => {
-    db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
-      ('l1', 'https://example.com/a', 'https://example.com/a')`);
+    db.exec(`INSERT INTO links (id, user_id, url, canonical_url) VALUES
+      ('l1', 'owner', 'https://example.com/a', 'https://example.com/a')`);
     const stored = () => db.prepare("SELECT post FROM links WHERE id = 'l1'").get()?.["post"];
     expect(stored()).toBeNull();
     db.exec(`UPDATE links SET post = '{"state":"unavailable"}' WHERE id = 'l1'`);
@@ -563,5 +600,306 @@ describe("migration 0009: posts on X (#170)", () => {
     expect(after["failed"]).toMatchObject({ enrichment_error: null, enrichment_attempts: 0 });
     for (const id of ["profile", "page"])
       expect(after[id]).toMatchObject({ enriched_at: enriched });
+  });
+});
+
+describe("migrations 0011 to 0022: users, and every row to the owner (#177)", () => {
+  const sqlOf = (file: string) => Fs.readFileSync(`${migrationsDir}${file}`, "utf8");
+  const multiUser = migrationFiles.filter((name) => prefix(name) >= 11);
+  const userTables = [
+    "devices",
+    "links",
+    "link_tags",
+    "open_tabs",
+    "commands",
+    "sessions",
+    "device_pairings",
+    "api_tokens",
+    "digests",
+  ];
+
+  // A database as prod has it before this change: every table with rows, no users.
+  const seeded = (): DatabaseSync => {
+    const before = new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
+    for (const file of migrationFiles.filter((name) => prefix(name) < 11)) before.exec(sqlOf(file));
+    before.exec(`
+      INSERT INTO devices (id, name, kind) VALUES ('d1', 'Synthetic Zen', 'zen');
+      INSERT INTO links (id, url, canonical_url, title, summary, text, source_device_id, enriched_at)
+        VALUES
+        ('l1', 'https://example.com/a', 'https://example.com/a', 'Economics video',
+          'About interest rates.', 'A long text about inflation.', 'd1', '2026-01-01T00:01:00.000Z'),
+        ('l2', 'https://example.com/b', 'https://example.com/b', 'Gardening', NULL, NULL, NULL, NULL),
+        ('l3', 'https://example.com/c', NULL, NULL, NULL, NULL, NULL, NULL);
+      INSERT INTO tags (name) VALUES ('economics'), ('video');
+      INSERT INTO link_tags (link_id, tag_id) SELECT 'l1', id FROM tags;
+      INSERT INTO open_tabs (device_id, url, last_seen_at)
+        VALUES ('d1', 'https://example.com/tab', '2026-01-01T00:00:00.000Z');
+      INSERT INTO commands (id, device_id, kind, payload) VALUES ('c1', 'd1', 'close-tab', '{}');
+      INSERT INTO api_tokens (id, device_id, hash, last_used_at)
+        VALUES ('t1', 'd1', 'hash-1', '2026-01-01T00:00:00.000Z');
+      INSERT INTO api_tokens (id, name, github_login, hash, revoked_at)
+        VALUES ('t2', 'Claude (MCP)', 'synthetic-owner', 'hash-2', '2026-01-02T00:00:00.000Z');
+      INSERT INTO sessions (id, github_login, expires_at, created_at) VALUES
+        ('s0', 'synthetic-old-name', '2027-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+        ('s1', 'synthetic-owner', '2027-01-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
+      INSERT INTO digests (period_start, period_end, content)
+        VALUES ('2026-01-05', '2026-01-12', '{"n":1}');
+      INSERT INTO device_pairings (code_hash, device_id, expires_at)
+        VALUES ('code-1', 'd1', '2026-01-01T00:10:00.000Z');
+    `);
+    return before;
+  };
+
+  // Alchemy applies a file and its bookkeeping row as one transaction.
+  const apply = (database: DatabaseSync, file: string) => {
+    database.exec("BEGIN");
+    try {
+      database.exec(sqlOf(file));
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+  };
+
+  const migrated = (): DatabaseSync => {
+    const database = seeded();
+    for (const file of multiUser) apply(database, file);
+    return database;
+  };
+
+  const all = (database: DatabaseSync, sql: string) => database.prepare(sql).all();
+  const count = (database: DatabaseSync, table: string, where = "1") =>
+    Number(database.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${where}`).get()?.["n"]);
+
+  it("keeps every row and gives it to the owner", () => {
+    const database = seeded();
+    const counts = Object.fromEntries(userTables.map((table) => [table, count(database, table)]));
+    const linksBefore = all(database, "SELECT * FROM links ORDER BY seq");
+    const tokensBefore = all(
+      database,
+      "SELECT id, hash, device_id, name, revoked_at FROM api_tokens",
+    );
+    for (const file of multiUser) apply(database, file);
+
+    expect(all(database, "SELECT id, display_name, role, daily_ai_quota FROM users")).toEqual([
+      // Named after the login of the latest session.
+      { id: "owner", display_name: "synthetic-owner", role: "owner", daily_ai_quota: null },
+    ]);
+    for (const table of userTables) {
+      expect(count(database, table), table).toBe(counts[table]);
+      expect(count(database, table, "user_id = 'owner'"), table).toBe(counts[table]);
+    }
+    // Every column a link had is as it was, `seq` and `updated_at` included.
+    const linksAfter = all(database, "SELECT * FROM links ORDER BY seq");
+    expect(linksAfter.map(({ user_id: _user, vector_version: _version, ...rest }) => rest)).toEqual(
+      linksBefore,
+    );
+    // Tokens keep their hashes, so every device and the MCP connector stay signed in.
+    expect(all(database, "SELECT id, hash, device_id, name, revoked_at FROM api_tokens")).toEqual(
+      tokensBefore,
+    );
+    expect(all(database, "SELECT * FROM digests")).toMatchObject([
+      {
+        user_id: "owner",
+        period_start: "2026-01-05",
+        period_end: "2026-01-12",
+        content: '{"n":1}',
+      },
+    ]);
+    expect(database.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
+    expect(all(database, "PRAGMA foreign_key_check")).toEqual([]);
+  });
+
+  it("names the owner 'Owner' when nobody has signed in on the web yet", () => {
+    const database = seeded();
+    database.exec("DELETE FROM sessions");
+    for (const file of multiUser) apply(database, file);
+    expect(all(database, "SELECT id, display_name FROM users")).toEqual([
+      { id: "owner", display_name: "Owner" },
+    ]);
+  });
+
+  it("rebuilds the keyword index with each link's user, and it stays consistent", () => {
+    const database = migrated();
+    const matches = (query: string, user: string) =>
+      all(
+        database,
+        `SELECT links.id AS id FROM links_fts JOIN links ON links.seq = links_fts.rowid
+         WHERE links_fts MATCH '${query}' AND links_fts.user_id = '${user}'`,
+      ).map((row) => row["id"]);
+    // Rows stored before the migration are found, as the owner's.
+    expect(matches("economics", "owner")).toEqual(["l1"]);
+    expect(matches("inflation", "owner")).toEqual(["l1"]);
+    expect(matches("gardening", "owner")).toEqual(["l2"]);
+
+    database.exec(`
+      INSERT INTO users (id, display_name, role, daily_ai_quota) VALUES ('u2', 'Member', 'member', 200);
+      INSERT INTO links (id, user_id, url, canonical_url, title)
+        VALUES ('m1', 'u2', 'https://example.com/a', 'https://example.com/a', 'Economics for members');
+    `);
+    expect(matches("economics", "owner")).toEqual(["l1"]);
+    expect(matches("economics", "u2")).toEqual(["m1"]);
+    database.exec("UPDATE links SET title = 'Renamed' WHERE id = 'm1'");
+    expect(matches("economics", "u2")).toEqual([]);
+    expect(matches("renamed", "u2")).toEqual(["m1"]);
+    database.exec("DELETE FROM links WHERE id = 'm1'");
+    expect(matches("renamed", "u2")).toEqual([]);
+    // FTS5 compares the index with the content table and fails when they differ.
+    database.exec("INSERT INTO links_fts (links_fts, rank) VALUES ('integrity-check', 1)");
+  });
+
+  it("refuses a row without a user from now on, in every table", () => {
+    const database = migrated();
+    const inserts: Record<string, string> = {
+      devices: "INSERT INTO devices (id, name, kind) VALUES ('d9', 'Zen', 'zen')",
+      links: "INSERT INTO links (id, url) VALUES ('l9', 'https://example.com/z')",
+      link_tags: "INSERT INTO link_tags (link_id, tag_id) SELECT 'l2', id FROM tags LIMIT 1",
+      open_tabs: `INSERT INTO open_tabs (device_id, url, last_seen_at)
+        VALUES ('d1', 'https://example.com/z', '2026-01-01T00:00:00.000Z')`,
+      commands:
+        "INSERT INTO commands (id, device_id, kind, payload) VALUES ('c9', 'd1', 'close-tab', '{}')",
+      sessions:
+        "INSERT INTO sessions (id, github_login, expires_at) VALUES ('s9', 'x', '2027-01-01')",
+      device_pairings:
+        "INSERT INTO device_pairings (code_hash, device_id, expires_at) VALUES ('p9', 'd1', 'x')",
+      api_tokens: "INSERT INTO api_tokens (id, device_id, hash) VALUES ('t9', 'd1', 'hash-9')",
+      digests: "INSERT INTO digests (period_start, period_end, content) VALUES ('a', 'b', '{}')",
+    };
+    expect(Object.keys(inserts).sort()).toEqual([...userTables].sort());
+    for (const [table, sql] of Object.entries(inserts)) {
+      expect(() => database.exec(sql), table).toThrow(/user_id/);
+    }
+    // And a row cannot lose its user later.
+    for (const table of ["devices", "links", "link_tags", "open_tabs", "commands", "sessions"]) {
+      expect(() => database.exec(`UPDATE ${table} SET user_id = NULL`), table).toThrow(/user_id/);
+    }
+    // A user that does not exist owns nothing.
+    expect(() =>
+      database.exec(
+        "INSERT INTO links (id, user_id, url) VALUES ('l9', 'nobody', 'https://example.com/z')",
+      ),
+    ).toThrow(/FOREIGN KEY/);
+  });
+
+  it("removes everything of a removed user and nothing of the owner", () => {
+    const database = migrated();
+    const ownerCounts = Object.fromEntries(
+      userTables.map((table) => [table, count(database, table)]),
+    );
+    database.exec(`
+      INSERT INTO users (id, display_name, role, daily_ai_quota) VALUES ('u2', 'Member', 'member', 200);
+      INSERT INTO user_identities (provider, subject, user_id, label) VALUES ('github', '7001', 'u2', 'm');
+      INSERT INTO ai_usage (user_id, day, links) VALUES ('u2', '2026-01-01', 3);
+      INSERT INTO invites (id, token_hash, created_by, expires_at, accepted_at, accepted_by)
+        VALUES ('i1', 'h', 'owner', '2027-01-01', '2026-01-01', 'u2');
+      INSERT INTO devices (id, user_id, name, kind) VALUES ('d2', 'u2', 'Member Zen', 'zen');
+      INSERT INTO links (id, user_id, url, canonical_url, source_device_id)
+        VALUES ('m1', 'u2', 'https://example.com/a', 'https://example.com/a', 'd2');
+      INSERT INTO link_tags (link_id, tag_id, user_id) SELECT 'm1', id, 'u2' FROM tags;
+      INSERT INTO open_tabs (user_id, device_id, url, last_seen_at) VALUES ('u2', 'd2', 'https://example.com/t', 'x');
+      INSERT INTO commands (id, user_id, device_id, kind, payload) VALUES ('c2', 'u2', 'd2', 'close-tab', '{}');
+      INSERT INTO sessions (id, user_id, github_login, expires_at) VALUES ('s2', 'u2', 'm', '2027-01-01');
+      INSERT INTO device_pairings (code_hash, user_id, device_id, expires_at) VALUES ('p2', 'u2', 'd2', 'x');
+      INSERT INTO api_tokens (id, user_id, device_id, hash) VALUES ('t3', 'u2', 'd2', 'hash-3');
+      -- The same week as the owner's digest: one each.
+      INSERT INTO digests (user_id, period_start, period_end, content)
+        VALUES ('u2', '2026-01-05', '2026-01-12', '{}');
+      DELETE FROM users WHERE id = 'u2';
+    `);
+    for (const table of [...userTables, "user_identities", "ai_usage"]) {
+      expect(count(database, table, "user_id = 'u2'"), table).toBe(0);
+    }
+    for (const table of userTables) expect(count(database, table), table).toBe(ownerCounts[table]);
+    // The invite they used stays in the owner's list, without them.
+    expect(all(database, "SELECT id, accepted_by FROM invites")).toEqual([
+      { id: "i1", accepted_by: null },
+    ]);
+    expect(all(database, "PRAGMA foreign_key_check")).toEqual([]);
+    database.exec("INSERT INTO links_fts (links_fts, rank) VALUES ('integrity-check', 1)");
+    // There is one owner, always.
+    expect(() =>
+      database.exec("INSERT INTO users (id, display_name, role) VALUES ('o2', 'Second', 'owner')"),
+    ).toThrow(/UNIQUE/);
+  });
+
+  it("a file that fails leaves nothing behind, and applying it again finishes the job", () => {
+    const database = seeded();
+    for (const file of multiUser) {
+      // The deploy dies on the file's last statement: everything it did is rolled back.
+      database.exec("BEGIN");
+      database.exec(sqlOf(file));
+      database.exec("ROLLBACK");
+      apply(database, file);
+    }
+    const reference = migrated();
+    const schemaOf = (d: DatabaseSync) =>
+      all(d, "SELECT name, sql FROM sqlite_schema ORDER BY name");
+    expect(schemaOf(database)).toEqual(schemaOf(reference));
+    for (const table of [...userTables, "users"]) {
+      expect(count(database, table), table).toBe(count(reference, table));
+    }
+  });
+
+  it("repeating a file by hand loses no row", () => {
+    // D1 never applies a file twice. If someone does, by hand: the statements that can repeat do
+    // nothing, and the rest fail before changing anything.
+    const database = migrated();
+    database.exec("INSERT INTO users (id, display_name, role) VALUES ('u2', 'Member', 'member')");
+    database.exec(
+      "INSERT INTO links (id, user_id, url, title) VALUES ('m1', 'u2', 'https://example.com/m', 'Member link')",
+    );
+    const snapshot = () =>
+      Object.fromEntries(
+        [...userTables, "users"].map((table) => [
+          table,
+          all(database, `SELECT * FROM ${table} ORDER BY 1, 2`),
+        ]),
+      );
+    const before = snapshot();
+    for (const file of multiUser) {
+      try {
+        apply(database, file);
+      } catch {
+        // `ALTER TABLE ... ADD COLUMN` of a column that exists: nothing was changed.
+      }
+    }
+    expect(snapshot()).toEqual(before);
+    // A member's rows are not handed to the owner by a repeat.
+    expect(all(database, "SELECT user_id FROM links WHERE id = 'm1'")).toEqual([{ user_id: "u2" }]);
+    expect(database.prepare("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
+    database.exec("INSERT INTO links_fts (links_fts, rank) VALUES ('integrity-check', 1)");
+  });
+
+  it("stays within D1's limits: no LIKE or GLOB, small statements, no transaction control", () => {
+    for (const file of multiUser) {
+      const sql = sqlOf(file).replaceAll(/--.*$/gm, "");
+      expect(sql, file).not.toMatch(/\b(?:LIKE|GLOB)\b/i);
+      // D1 runs a migration in its own transaction and rejects these.
+      expect(sql, file).not.toMatch(/\b(?:BEGIN TRANSACTION|COMMIT|ROLLBACK|PRAGMA)\b/i);
+      // No statement binds a value, and each is far below D1's 100 KB.
+      expect(sql, file).not.toContain("?");
+      expect(new TextEncoder().encode(sql).length, file).toBeLessThan(20_000);
+    }
+  });
+
+  it("starts every stored link at vector version 0, so the backfill reads them", () => {
+    const database = migrated();
+    expect(all(database, "SELECT DISTINCT vector_version AS v FROM links")).toEqual([{ v: 0 }]);
+  });
+});
+
+describe("the schema copy for tests", () => {
+  it("is what the migrations create", () => {
+    const rows = migrate()
+      .prepare(
+        `SELECT sql FROM sqlite_schema
+         WHERE sql IS NOT NULL AND NOT (type = 'table' AND name GLOB 'links_fts_*')
+         ORDER BY rowid`,
+      )
+      .all();
+    const text = `\n${rows.map((row) => `${String(row["sql"])};`).join("\n\n")}\n`;
+    // On a mismatch, paste the left side into `packages/backend/platform/src/testing-schema.ts`.
+    expect(text).toBe(TestingSchema.schema);
   });
 });

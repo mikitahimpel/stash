@@ -76,13 +76,19 @@ export const layer = (env: ApiEnv, options: Options = {}): Layer.Layer<StashApiC
   );
 
 /**
- * Mints the api token for a grant: a user token named `Claude (MCP)` for the GitHub login the
- * OAuth flow verified, listed and revocable in Settings. Fails with `LoginNotAllowed` if the api's
- * allowlist disagrees.
+ * Mints the api token for a grant: a user token named `Claude (MCP)` for the Stash user of the
+ * GitHub account the OAuth flow verified, listed and revocable in that user's Settings. The api
+ * decides who the account is; it fails with `LoginNotAllowed` if it is nobody (not the owner and
+ * not a member).
  */
-export const createMcpToken = (env: ApiEnv, login: string) =>
+export const createMcpToken = (
+  env: ApiEnv,
+  account: { readonly login: string; readonly id: string },
+) =>
   HttpApiClient.make(InternalApi.InternalApi, { baseUrl }).pipe(
-    Effect.flatMap((client) => client.internal.createMcpToken({ payload: { login } })),
+    Effect.flatMap((client) =>
+      client.internal.createMcpToken({ payload: { login: account.login, githubId: account.id } }),
+    ),
     Effect.map((created) => created.token),
     Effect.provide(layerHttpClient(env.API)),
   );

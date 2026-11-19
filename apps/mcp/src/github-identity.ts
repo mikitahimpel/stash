@@ -38,14 +38,15 @@ export type Poll =
   | { readonly _tag: "SlowDown" }
   | { readonly _tag: "Expired" }
   | { readonly _tag: "Denied" }
-  | { readonly _tag: "SignedIn"; readonly login: string };
+  /** `id` is the account's numeric id as text: unlike the login, it never changes hands. */
+  | { readonly _tag: "SignedIn"; readonly login: string; readonly id: string };
 
 export class GitHubIdentity extends Context.Service<
   GitHubIdentity,
   {
     /** Asks GitHub for a device and user code (scope `read:user`). */
     readonly start: Effect.Effect<DeviceFlow, GitHubIdentityError>;
-    /** Polls once for the token; on success reads the login and drops the token. */
+    /** Polls once for the token; on success reads the account and drops the token. */
     readonly poll: (deviceCode: string) => Effect.Effect<Poll, GitHubIdentityError>;
   }
 >()("@stash/mcp/GitHubIdentity") {}
@@ -63,7 +64,7 @@ const AccessTokenResponse = Schema.Struct({
   error: Schema.optional(Schema.String),
 });
 
-const UserResponse = Schema.Struct({ login: Schema.String });
+const UserResponse = Schema.Struct({ id: Schema.Int, login: Schema.String });
 
 const fail = (message: string) => () => new GitHubIdentityError({ message });
 
@@ -79,7 +80,7 @@ export const layer = (config: Config): Layer.Layer<GitHubIdentity, never, HttpCl
           HttpClientRequest.setHeader("user-agent", "stash-mcp"),
           client.execute,
           Effect.flatMap(HttpClientResponse.schemaBodyJson(UserResponse)),
-          Effect.map((user) => user.login),
+          Effect.map((user) => ({ login: user.login, id: String(user.id) })),
           Effect.mapError(fail("GitHub user lookup failed")),
         );
 
@@ -112,7 +113,7 @@ export const layer = (config: Config): Layer.Layer<GitHubIdentity, never, HttpCl
               Effect.mapError(fail("GitHub token poll failed")),
             );
             if (token.access_token !== undefined) {
-              return { _tag: "SignedIn", login: yield* readLogin(token.access_token) } as const;
+              return { _tag: "SignedIn", ...(yield* readLogin(token.access_token)) } as const;
             }
             switch (token.error) {
               case "authorization_pending":

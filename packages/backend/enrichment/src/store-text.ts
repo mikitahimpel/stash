@@ -4,7 +4,7 @@ import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 
 /** The R2 key of a link's text. */
-export const key = (id: Link.LinkId): string => `links/${id}.txt`;
+export const key = (id: Link.LinkId): string => Blobs.linkTextKey(id);
 
 /** Writes a link's text to R2, replacing any earlier version. */
 export const storeText = (

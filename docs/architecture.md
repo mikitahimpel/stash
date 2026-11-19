@@ -127,10 +127,23 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 
 ## Auth
 
-- **Web and MCP** sign in with the GitHub OAuth Device Flow (no client secret; the public client id comes from env), with one allowlisted GitHub login from env. The api keeps the pending flow in KV and never stores the GitHub access token. The MCP server implements OAuth 2.1 for Claude custom connectors via `@cloudflare/workers-oauth-provider` (state in KV).
+- **Web and MCP** sign in with the GitHub OAuth Device Flow (no client secret; the public client id comes from env). The allowlisted GitHub login from env is the **owner**; anyone else has an account only after accepting an invite (see [Users](#users)), and is then recognized by the numeric id of their GitHub account, never by the login. The api keeps the pending flow in KV and never stores the GitHub access token. The MCP server implements OAuth 2.1 for Claude custom connectors via `@cloudflare/workers-oauth-provider` (state in KV).
 - **Extension, iOS Shortcut and mac-agent** use per-device API tokens. Only hashes are stored in D1. Tokens are revocable individually.
-- **MCP** needs no manual token. When the owner authorizes Claude, `apps/mcp` mints a user token named `Claude (MCP)` through the api's binding-only `InternalApi` entrypoint (`POST /internal/mcp-tokens`) and keeps it in the encrypted OAuth grant props. The tools call the api with it. Revoking it in Settings makes Claude sign in again.
-- Every endpoint requires auth. Saving is rate limited.
+- **MCP** needs no manual token. When a user authorizes Claude, `apps/mcp` mints a user token named `Claude (MCP)` through the api's binding-only `InternalApi` entrypoint (`POST /internal/mcp-tokens`) and keeps it in the encrypted OAuth grant props. The tools call the api with it. Revoking it in Settings makes Claude sign in again.
+- Every endpoint requires auth, except the login flow, the pairing claim and `POST /invites/check` (is this invite link still good?). Saving is rate limited per user.
+
+## Users
+
+A Stash has one **owner** and any number of **members** the owner invited (#177). Every row of user data belongs to exactly one user, and no request, queue message, cron run, search or event of one user reads or changes another's.
+
+- **`users`**: id, display name, role (`owner` / `member`), daily AI quota, created at. The owner is the fixed id `owner`, created by the migration, and is whoever signs in with the allowlisted GitHub login. `user_identities` maps a provider account (GitHub's numeric id) to a member.
+- **Scoping.** `devices`, `links`, `link_tags`, `open_tabs`, `commands`, `sessions`, `device_pairings`, `api_tokens` and `digests` carry `user_id` (required, a foreign key that cascades). `tags` are shared names; which link has which tag is per user. One link per canonical URL *per user*. `links_fts` carries `user_id`, and every vector in Vectorize has `userId` metadata (with a metadata index) that every query filters on; D1 has the last word on what a hit may show.
+- **`CurrentUser`.** `Authorization` provides the caller's `CurrentUser { id, role }` next to the principal. Every repo method requires it in its Effect environment and puts `user_id = ?` into its SQL, so a query without a user does not typecheck. Layers never capture a user (`ServiceContext.capture`). The queue consumer takes the user from the link of each message; each cron job runs once per user, as that user. Another user's id answers exactly like an id that does not exist (404).
+- **Live stream.** One `LinkEvents` Durable Object per user, named by the user id (`user:<id>`), which the caller cannot choose: the Worker asks the api who the caller is before it hands the upgrade over.
+- **Invites.** The owner creates a link in Settings → Members: single use, valid 7 days, revocable, only its hash stored. Opening it (`/invite/<token>`) is the login page; the first sign-in with it creates the member. Members cannot invite.
+- **Removing a member** (owner only, after a confirmation) deletes their sessions and tokens first, then their vectors, page texts in R2 and rows, closes their stream object and clears its storage. It can be repeated if it fails halfway.
+- **AI quota.** A member may have `daily_ai_quota` links enriched a UTC day (200 by default; the owner has no cap). Over the cap a link is still saved and stays pending; the hourly requeue sends it the next day, within that day's quota. Settings says so in one quiet line.
+- **Test.** `apps/api/test/user-isolation.test.ts` reads the endpoints from `StashApi` and calls each one as one user against another's data; an endpoint without a case there fails the test.
 
 ## Data model (initial)
 
@@ -139,8 +152,9 @@ Only a context's `platform` package may touch runtime globals. Features depend o
 - `devices`: id, name, kind (`zen` / `ios` / `mac-agent`), tabs_taken_at (time of the current open-tabs snapshot)
 - `open_tabs`: device_id, url, title, opened_at, last_seen_at (replaced per snapshot)
 - `commands`: id, device_id, kind (`close-tab`, …), payload, status
-- `api_tokens`: id, device_id (null for a user token), name and github_login (user tokens only), hash, created_at, revoked_at
-- FTS5 virtual table over title / summary / text. Embeddings live in Vectorize, keyed by link id. Full text and transcripts live in R2.
+- `api_tokens`: id, user_id, device_id (null for a user token), name (user tokens only), hash, created_at, revoked_at
+- `users`, `user_identities`, `invites` (token hash, expires_at, revoked_at, accepted_at / accepted_by), `ai_usage` (links enriched per user and UTC day); every table above but `tags` has `user_id` (see [Users](#users))
+- FTS5 virtual table over title / summary / text, with the link's `user_id`. Embeddings live in Vectorize, keyed by link id, with `userId` metadata. Full text and transcripts live in R2.
 
 ## Public repository hygiene
 

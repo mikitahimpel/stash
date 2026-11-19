@@ -29,6 +29,7 @@
     "./sessions-repo": "./src/sessions/sessions-repo.ts",
     "./session-token": "./src/sessions/session-token.ts",
     "./start-session": "./src/sessions/start-session.ts",
+    "./sign-in": "./src/sessions/sign-in.ts",
     "./end-session": "./src/sessions/end-session.ts",
     "./session-verifier-live": "./src/sessions/session-verifier-live.ts"
   },
@@ -40,6 +41,7 @@
   },
   "dependencies": {
     "@stash/backend-platform": "workspace:*",
+    "@stash/backend-users": "workspace:*",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"

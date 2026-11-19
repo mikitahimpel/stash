@@ -16,8 +16,10 @@
     "./link-events": "./src/link-events.ts",
     "./link-events-object": "./src/link-events-object.ts",
     "./live": "./src/live.ts",
+    "./service-context": "./src/service-context.ts",
     "./stash-config": "./src/stash-config.ts",
     "./testing": "./src/testing.ts",
+    "./testing-schema": "./src/testing-schema.ts",
     "./vectors": "./src/vectors.ts"
   },
   "scripts": {
@@ -27,6 +29,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
   },

@@ -28,6 +28,20 @@ describe("Blobs (in memory)", () => {
 });
 
 describe("Blobs (live)", () => {
+  it.effect("deletes many blobs in one call", () =>
+    Effect.gen(function* () {
+      const blobs = yield* Blobs.Blobs;
+      yield* blobs.put(Blobs.linkTextKey("a"), "one");
+      yield* blobs.put(Blobs.linkTextKey("b"), "two");
+      yield* blobs.put(Blobs.linkTextKey("c"), "three");
+      yield* blobs.deleteMany([]);
+      yield* blobs.deleteMany([Blobs.linkTextKey("a"), Blobs.linkTextKey("b"), "missing"]);
+      expect(yield* blobs.getText(Blobs.linkTextKey("a"))).toEqual(Option.none());
+      expect(yield* blobs.getText(Blobs.linkTextKey("b"))).toEqual(Option.none());
+      expect(yield* blobs.getText(Blobs.linkTextKey("c"))).toEqual(Option.some("three"));
+    }).pipe(Effect.provide(Testing.layerBlobs)),
+  );
+
   it.effect("maps R2 objects and failures", () =>
     Effect.gen(function* () {
       const store = new Map<string, { body: string | Uint8Array; contentType?: string }>();
@@ -52,7 +66,9 @@ describe("Blobs (live)", () => {
               : { httpMetadata: { contentType: entry.contentType } }),
           };
         },
-        delete: async (key) => void store.delete(key),
+        delete: async (key) => {
+          for (const k of typeof key === "string" ? [key] : key) store.delete(k);
+        },
       });
       yield* blobs.put("k", "text", { contentType: "text/plain" });
       expect(yield* blobs.getText("k")).toEqual(Option.some("text"));

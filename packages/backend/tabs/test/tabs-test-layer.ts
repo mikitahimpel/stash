@@ -10,91 +10,13 @@ import * as CommandsRepo from "../src/commands/commands-repo.ts";
 import * as DevicesRepo from "../src/devices/devices-repo.ts";
 import * as OpenTabsRepo from "../src/snapshots/open-tabs-repo.ts";
 
-// The tables this package reads, copied from `apps/api/migrations/0001-initial-schema.sql` and
-// the later migrations up to `0004-connect-status-and-pairings.sql` (the source of truth). Packages
-// never reach into another package's files, so tests keep their own copy. `archive` saves through
-// `@stash/backend-links`, so the links tables are here too, and the device activity reads
-// `api_tokens.last_used_at`.
-const schema = `
-CREATE TABLE devices (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('zen', 'ios', 'mac-agent')),
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  tabs_taken_at TEXT,
-  last_save_at TEXT,
-  last_save_link_id TEXT
-);
-
-CREATE TABLE api_tokens (
-  id TEXT PRIMARY KEY,
-  device_id TEXT REFERENCES devices (id) ON DELETE CASCADE,
-  name TEXT,
-  github_login TEXT,
-  hash TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  revoked_at TEXT,
-  last_used_at TEXT
-);
-
-CREATE TABLE links (
-  seq INTEGER PRIMARY KEY,
-  id TEXT NOT NULL UNIQUE,
-  url TEXT NOT NULL,
-  canonical_url TEXT,
-  title TEXT,
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'seen', 'done', 'archived')),
-  type TEXT,
-  summary TEXT,
-  language TEXT,
-  text TEXT,
-  source_device_id TEXT REFERENCES devices (id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  enriched_at TEXT,
-  image_url TEXT,
-  author TEXT,
-  post TEXT,
-  updated_at TEXT
-);
-
-CREATE UNIQUE INDEX links_canonical_url_idx ON links (canonical_url);
-
-CREATE TABLE tags (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE link_tags (
-  link_id TEXT NOT NULL REFERENCES links (id) ON DELETE CASCADE,
-  tag_id INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
-  PRIMARY KEY (link_id, tag_id)
-) WITHOUT ROWID;
-
-CREATE TABLE open_tabs (
-  id INTEGER PRIMARY KEY,
-  device_id TEXT NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
-  url TEXT NOT NULL,
-  title TEXT,
-  opened_at TEXT,
-  last_seen_at TEXT NOT NULL
-);
-
-CREATE TABLE commands (
-  id TEXT PRIMARY KEY,
-  device_id TEXT NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
-  kind TEXT NOT NULL,
-  payload TEXT NOT NULL CHECK (json_valid(payload)),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'failed')),
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  completed_at TEXT
-);
-`;
-
 /** Synthetic devices that exist in every test database, oldest first. */
 export const zenA = Device.DeviceId.make("device-zen-a");
 export const zenB = Device.DeviceId.make("device-zen-b");
 export const macAgent = Device.DeviceId.make("device-mac-agent");
 export const iphone = Device.DeviceId.make("device-iphone");
+/** A Zen of the second user (`Testing.member`): no owner's request may see or change it. */
+export const memberZen = Device.DeviceId.make("device-member-zen");
 
 export const asDevice = (deviceId: Device.DeviceId): Security.Principal => ({
   kind: "device",
@@ -102,25 +24,33 @@ export const asDevice = (deviceId: Device.DeviceId): Security.Principal => ({
 });
 export const user: Security.Principal = { kind: "user" };
 
-/** A fresh in-memory D1 with the tables and the synthetic devices. */
+/**
+ * A fresh in-memory D1 with the schema, the testing users, the owner's synthetic devices and one
+ * device of the member.
+ */
 export const layerDatabase: Layer.Layer<D1Database.Database> = Layer.effectDiscard(
   Effect.gen(function* () {
     const db = yield* D1Database.Database;
-    yield* db.exec(schema);
     yield* db.batch([
-      D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
-        VALUES (${zenA}, 'Synthetic Zen A', 'zen', '2026-01-01T00:00:00.000Z')`,
-      D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
-        VALUES (${zenB}, 'Synthetic Zen B', 'zen', '2026-01-01T00:00:01.000Z')`,
-      D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
-        VALUES (${macAgent}, 'Synthetic Mac', 'mac-agent', '2026-01-01T00:00:02.000Z')`,
-      D1Database.sql`INSERT INTO devices (id, name, kind, created_at)
-        VALUES (${iphone}, 'Synthetic iPhone', 'ios', '2026-01-01T00:00:03.000Z')`,
+      D1Database.sql`INSERT INTO devices (user_id, id, name, kind, created_at)
+        VALUES ('owner', ${zenA}, 'Synthetic Zen A', 'zen', '2026-01-01T00:00:00.000Z')`,
+      D1Database.sql`INSERT INTO devices (user_id, id, name, kind, created_at)
+        VALUES ('owner', ${zenB}, 'Synthetic Zen B', 'zen', '2026-01-01T00:00:01.000Z')`,
+      D1Database.sql`INSERT INTO devices (user_id, id, name, kind, created_at)
+        VALUES ('owner', ${macAgent}, 'Synthetic Mac', 'mac-agent', '2026-01-01T00:00:02.000Z')`,
+      D1Database.sql`INSERT INTO devices (user_id, id, name, kind, created_at)
+        VALUES ('owner', ${iphone}, 'Synthetic iPhone', 'ios', '2026-01-01T00:00:03.000Z')`,
+      D1Database.sql`INSERT INTO devices (user_id, id, name, kind, created_at)
+        VALUES (${Testing.member.id}, ${memberZen}, 'Synthetic member Zen', 'zen',
+          '2026-01-01T00:00:04.000Z')`,
     ]);
   }).pipe(Effect.orDie),
-).pipe(Layer.provideMerge(Testing.layerD1Database));
+).pipe(Layer.provideMerge(Testing.layerDatabase));
 
-/** The repos of this package and of links, over in-memory platform services. */
+/**
+ * The repos of this package and of links, over in-memory platform services. Everything runs as the
+ * owner unless a test says otherwise (`Testing.as(Testing.member)`).
+ */
 export const layer = Layer.mergeAll(
   DevicesRepo.layer,
   OpenTabsRepo.layer,
@@ -134,6 +64,7 @@ export const layer = Layer.mergeAll(
       Testing.layerEnrichmentQueue,
       Testing.layerKv,
       Testing.layerLinkEvents,
+      Testing.layerCurrentUser(),
     ),
   ),
 );

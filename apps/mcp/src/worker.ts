@@ -27,8 +27,14 @@ const provider = OAuthProvider.make({
   mcp: (request, apiToken) =>
     mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
   github,
-  mintApiToken: (login) =>
-    Effect.runPromise(ApiClient.createMcpToken(workerEnv, login).pipe(Effect.map(Redacted.value))),
+  mintApiToken: (account) =>
+    Effect.runPromise(
+      ApiClient.createMcpToken(workerEnv, account).pipe(
+        Effect.map(Redacted.value),
+        // The api knows no Stash user for this GitHub account.
+        Effect.catchTag("LoginNotAllowed", () => Effect.succeed(null)),
+      ),
+    ),
   isApiTokenActive: (apiToken) =>
     Effect.runPromise(ApiClient.isTokenActive(workerEnv, Redacted.make(apiToken))),
 });

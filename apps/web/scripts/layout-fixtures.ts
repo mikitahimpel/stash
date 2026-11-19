@@ -609,6 +609,40 @@ const search = (all: ReadonlyArray<AnyLink>, url: URL) => {
   return { hits };
 };
 
+// The owner's account and what Settings → Members shows (#177): the owner, one member and one
+// invite link nobody has used yet.
+const account = (now: number) => ({
+  id: "owner",
+  displayName: "example-user",
+  role: "owner",
+  createdAt: iso(now - 90 * day),
+  dailyAiQuota: null,
+  ai: { dailyQuota: null, usedToday: 4, waiting: 0, resetsAt: iso(now + day) },
+});
+
+const members = (now: number, linkCount: number) => [
+  { ...account(now), ai: undefined, links: linkCount },
+  {
+    id: "seed-member-1",
+    displayName: "example-friend",
+    role: "member",
+    createdAt: iso(now - 12 * day),
+    dailyAiQuota: 200,
+    links: 37,
+  },
+];
+
+const invites = (now: number) => [
+  {
+    id: "seed-invite-1",
+    createdAt: iso(now - 2 * day),
+    expiresAt: iso(now + 5 * day),
+    revokedAt: null,
+    acceptedAt: null,
+    acceptedBy: null,
+  },
+];
+
 /** The api with the seeded data. `tabs` picks what Open now shows (see `TabsScene`). */
 export const seeded = (now: number, options: { readonly tabs?: TabsScene } = {}): Fixtures => {
   const all = [...links(now), ...shapeLinks(now), ...postLinks(now)];
@@ -630,6 +664,9 @@ export const seeded = (now: number, options: { readonly tabs?: TabsScene } = {})
       if (path === "/tabs") return tabs(now, options.tabs ?? "default");
       if (path === "/tokens") return tokens(now);
       if (path === "/search") return search(all, url);
+      if (path === "/members/me") return account(now);
+      if (path === "/members") return members(now, all.length);
+      if (path === "/invites") return invites(now);
       return undefined;
     },
   };
@@ -646,6 +683,10 @@ export const empty: Fixtures = {
     if (path === "/connect/info") return info;
     if (path === "/tabs") return { devices: [] };
     if (path === "/search") return { hits: [] };
+    // The owner alone: no members, no invites.
+    if (path === "/members/me") return account(Date.now());
+    if (path === "/members") return members(Date.now(), 0).slice(0, 1);
+    if (path === "/invites") return [];
     return undefined;
   },
 };

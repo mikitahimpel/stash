@@ -1,6 +1,8 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as AutoArchiveTabs from "@stash/backend-digest/auto-archive-tabs";
 import * as BuildWeeklyDigest from "@stash/backend-digest/build-weekly-digest";
 import type * as DigestsRepo from "@stash/backend-digest/digests-repo";
+import * as BackfillVectors from "@stash/backend-enrichment/backfill-vectors";
 import type * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as RequeueBackfill from "@stash/backend-enrichment/requeue-backfill";
 import * as RequeuePending from "@stash/backend-enrichment/requeue-pending";
@@ -8,13 +10,21 @@ import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as LinkEvents from "@stash/backend-platform/link-events";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
+import type * as Vectors from "@stash/backend-platform/vectors";
 import type * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import type * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import type * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
+import type * as AiQuota from "@stash/backend-users/ai-quota";
+import * as ForEachUser from "@stash/backend-users/for-each-user";
+import type * as UsersRepo from "@stash/backend-users/users-repo";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
+// Every job runs once per user, as that user (`ForEachUser`): each user's tabs are archived into
+// their own links, each gets their own digest, and each one's pending links are requeued within
+// their own daily AI quota. A user whose run fails does not stop the others.
+//
 // The Cron Triggers of the `Api` Worker. Keep them in sync with `crons` in the root
 // `alchemy.run.ts`. Cron expressions are in UTC.
 
@@ -26,7 +36,8 @@ export const weeklyDigestCron = "0 6 * * 1";
 /**
  * Every hour: send links that are still not enriched through the enrichment queue again. It picks
  * up lost messages, and links a migration reset for repair (#147). Then queue a few metadata
- * backfills: enriched links that still miss their preview image or author (#155).
+ * backfills: enriched links that still miss their preview image or author (#155). Then write the
+ * user's id onto vectors stored before there were users (#177), so semantic search finds them.
  */
 export const requeuePendingCron = "0 * * * *";
 
@@ -51,20 +62,35 @@ export type Requirements =
   | EnrichmentQueue.EnrichmentQueue
   | LinkEvents.LinkEvents
   | DigestsRepo.DigestsRepo
-  | EnrichmentRepo.EnrichmentRepo;
+  | EnrichmentRepo.EnrichmentRepo
+  | UsersRepo.UsersRepo
+  | AiQuota.AiQuota
+  | Vectors.Vectors;
+
+// The steps of the hourly job are independent: one that fails (Vectorize is down) is logged and
+// the next still runs.
+const step = <A, E, R>(name: string, effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(Effect.catchCause((cause) => Effect.logError(`scheduled: ${name} failed`, cause)));
 
 const jobs: Record<string, Effect.Effect<unknown, unknown, Requirements>> = {
-  [autoArchiveCron]: AutoArchiveTabs.autoArchiveTabs(),
-  [weeklyDigestCron]: BuildWeeklyDigest.buildWeeklyDigest(),
-  [requeuePendingCron]: RequeuePending.requeuePending().pipe(
-    Effect.andThen(RequeueBackfill.requeueBackfill()),
+  [autoArchiveCron]: ForEachUser.forEachUser("auto-archive", AutoArchiveTabs.autoArchiveTabs()),
+  [weeklyDigestCron]: ForEachUser.forEachUser(
+    "weekly digest",
+    BuildWeeklyDigest.buildWeeklyDigest(),
+  ),
+  [requeuePendingCron]: ForEachUser.forEachUser(
+    "requeue",
+    step("requeue pending", RequeuePending.requeuePending()).pipe(
+      Effect.andThen(step("requeue backfill", RequeueBackfill.requeueBackfill())),
+      Effect.andThen(step("vector backfill", BackfillVectors.backfillVectors())),
+    ),
   ),
 };
 
 /** Dispatches each trigger to its job by cron expression. An unknown expression only logs. */
 export const layer: Layer.Layer<ScheduledJobs, never, Requirements> = Layer.effect(ScheduledJobs)(
   Effect.gen(function* () {
-    const context = yield* Effect.context<Requirements>();
+    const context = yield* ServiceContext.capture<Requirements>();
     return {
       run: (cron) => {
         const job = jobs[cron];

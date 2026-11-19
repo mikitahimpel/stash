@@ -1,3 +1,4 @@
+import * as Security from "@stash/contracts-api/security";
 import * as Errors from "@stash/contracts-domain/errors";
 import type * as Pairing from "@stash/contracts-domain/pairing";
 import * as DateTime from "effect/DateTime";
@@ -15,9 +16,12 @@ import * as PairingsRepo from "./pairings-repo.ts";
  */
 export const claimPairing = Effect.fn("claimPairing")(function* (code: Pairing.PairingCode) {
   const pairings = yield* PairingsRepo.PairingsRepo;
-  const deviceId = yield* pairings.take(yield* ApprovePairing.hashCode(code), yield* DateTime.now);
-  if (Option.isNone(deviceId)) {
+  const taken = yield* pairings.take(yield* ApprovePairing.hashCode(code), yield* DateTime.now);
+  if (Option.isNone(taken)) {
     return yield* new Errors.NotFound({ resource: "pairing", id: "code" });
   }
-  return yield* CreateApiToken.createApiToken(deviceId.value);
+  // The token is the device's, so it acts for the user who approved the code.
+  return yield* CreateApiToken.createApiToken(taken.value.deviceId).pipe(
+    Effect.provideService(Security.CurrentUser, taken.value.user),
+  );
 });

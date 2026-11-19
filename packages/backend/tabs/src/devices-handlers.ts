@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as Api from "@stash/contracts-api/api";
 import * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
@@ -16,7 +17,9 @@ import * as RegisterDevice from "./devices/register-device.ts";
 /** The `devices` group of the `StashApi`. Needs `DevicesRepo`, `CommandsRepo` and `Authorization`. */
 export const layer = HttpApiBuilder.group(Api.StashApi, "devices", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<DevicesRepo.DevicesRepo | CommandsRepo.CommandsRepo>();
+    const context = yield* ServiceContext.capture<
+      DevicesRepo.DevicesRepo | CommandsRepo.CommandsRepo
+    >();
     const withServices = Effect.provideContext(context);
     return handlers
       .handle("list", () =>

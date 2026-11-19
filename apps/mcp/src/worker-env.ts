@@ -17,6 +17,4 @@ export interface WorkerEnv extends ApiClient.ApiEnv {
    * the app exists: the sign-in pages then answer 503 (`login-not-configured.ts`).
    */
   readonly GITHUB_CLIENT_ID?: string;
-  /** The only GitHub login that may authorize a client. */
-  readonly ALLOWED_GITHUB_LOGIN: string;
 }

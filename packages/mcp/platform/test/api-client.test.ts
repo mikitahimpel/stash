@@ -104,7 +104,10 @@ describe("createMcpToken", () => {
       ),
     );
     return Effect.gen(function* () {
-      const minted = yield* ApiClient.createMcpToken({ API: binding }, "synthetic-user");
+      const minted = yield* ApiClient.createMcpToken(
+        { API: binding },
+        { login: "synthetic-user", id: "1001" },
+      );
       assert.isTrue(Redacted.isRedacted(minted));
       assert.strictEqual(Redacted.value(minted), "synthetic-minted-token");
       const [request] = requests;
@@ -113,6 +116,7 @@ describe("createMcpToken", () => {
       assert.isNull(request!.headers.get("authorization"));
       assert.deepStrictEqual(yield* Effect.promise(() => request!.json()), {
         login: "synthetic-user",
+        githubId: "1001",
       });
     });
   });
@@ -122,9 +126,10 @@ describe("createMcpToken", () => {
       Response.json({ _tag: "LoginNotAllowed", message: "no" }, { status: 403 }),
     );
     return Effect.gen(function* () {
-      const error = yield* ApiClient.createMcpToken({ API: binding }, "synthetic-x").pipe(
-        Effect.flip,
-      );
+      const error = yield* ApiClient.createMcpToken(
+        { API: binding },
+        { login: "synthetic-x", id: "1002" },
+      ).pipe(Effect.flip);
       assert.instanceOf(error, Errors.LoginNotAllowed);
     });
   });

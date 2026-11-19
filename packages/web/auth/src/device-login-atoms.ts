@@ -1,10 +1,12 @@
 import * as Clipboard from "@effect/platform-browser/Clipboard";
 import type * as AuthGroup from "@stash/contracts-api/auth";
+import type * as Invite from "@stash/contracts-domain/invite";
 import type * as ApiAtoms from "@stash/web-api-client/api-atoms";
 import { StashApiClient } from "@stash/web-api-client/stash-api-client";
 import * as WebPlatform from "@stash/web-platform/live";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
+import type * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as HttpClientError from "effect/http/HttpClientError";
@@ -52,12 +54,19 @@ const end = (login: DeviceLogin) => [[login], Option.none<number>()] as const;
 // One poll every `interval` seconds until the flow ends. `slow_down` makes every later wait 5
 // seconds longer. Expired, denied and not-allowed answers end the flow; transport failures fail the
 // stream, and the page offers to start over.
-const poll = (client: ApiAtoms.Client, flowId: AuthGroup.DeviceFlowId, waiting: Waiting) =>
+const poll = (
+  client: ApiAtoms.Client,
+  flowId: AuthGroup.DeviceFlowId,
+  waiting: Waiting,
+  invite: Invite.InviteToken | undefined,
+) =>
   Stream.paginate(waiting.interval, (interval) =>
     Effect.gen(function* () {
       yield* Effect.sleep(Duration.seconds(interval));
       if ((yield* Clock.currentTimeMillis) >= waiting.expiresAt) return end({ step: "expired" });
-      const status = yield* client.auth.devicePoll({ payload: { flowId } });
+      const status = yield* client.auth.devicePoll({
+        payload: invite === undefined ? { flowId } : { flowId, invite },
+      });
       switch (status.status) {
         case "pending":
           return [[], Option.some(interval)] as const;
@@ -81,8 +90,12 @@ const poll = (client: ApiAtoms.Client, flowId: AuthGroup.DeviceFlowId, waiting: 
  * Starts a GitHub Device Flow (`/auth/device/start`) and polls `/auth/device/poll` at the interval
  * the api gives until the flow ends. Its value is the latest `DeviceLogin`. Writing it again starts
  * a new flow, which is how the page restarts an expired one.
+ *
+ * Its argument is the invite the page was opened with (`/invite/<token>`), if any: it goes along
+ * with every poll, and the api signs a GitHub account without a Stash account up with it. An
+ * account that has one signs in as before, and the invite stays unused.
  */
-export const deviceLogin = StashApiClient.runtime.fn<void>()(() =>
+export const deviceLogin = StashApiClient.runtime.fn<Invite.InviteToken | undefined>()((invite) =>
   Stream.unwrap(
     Effect.gen(function* () {
       const client = yield* StashApiClient;
@@ -102,7 +115,7 @@ export const deviceLogin = StashApiClient.runtime.fn<void>()(() =>
       };
       return Stream.concat(
         Stream.succeed<DeviceLogin>(waiting),
-        poll(client, started.flowId, waiting),
+        poll(client, started.flowId, waiting, invite),
       );
     }),
   ),
@@ -143,4 +156,26 @@ export const copyCode = clipboardRuntime.fn((code: string) =>
     const clipboard = yield* Clipboard.Clipboard;
     yield* clipboard.writeString(code);
   }),
+);
+
+/**
+ * Whether an invite link still works, asked before anyone signs in: `open` (until `expiresAt`),
+ * or `closed` when it was used, revoked, has expired or never existed (the api does not say
+ * which).
+ */
+export type InviteState =
+  | { readonly state: "open"; readonly expiresAt: DateTime.Utc }
+  | { readonly state: "closed" };
+
+/** Asks the api about the invite `token`. One atom per token. */
+export const invite = Atom.family((token: Invite.InviteToken) =>
+  StashApiClient.runtime.atom(
+    Effect.gen(function* () {
+      const client = yield* StashApiClient;
+      return yield* client.invites.check({ payload: { token } }).pipe(
+        Effect.map((open): InviteState => ({ state: "open", expiresAt: open.expiresAt })),
+        Effect.catchTag("NotFound", () => Effect.succeed<InviteState>({ state: "closed" })),
+      );
+    }),
+  ),
 );

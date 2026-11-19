@@ -1,5 +1,6 @@
 import * as Ai from "@stash/backend-platform/ai";
 import * as Vectors from "@stash/backend-platform/vectors";
+import * as Security from "@stash/contracts-api/security";
 import type * as Link from "@stash/contracts-domain/link";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -30,13 +31,20 @@ export const embeddingText = (input: EmbedInput): string =>
 
 /**
  * Embeds a link with Workers AI (`@cf/baai/bge-m3`) and upserts the vector into Vectorize under the
- * link id, replacing any earlier one. Both calls are retried on the `EnrichPolicy` schedule.
+ * link id, replacing any earlier one. The vector carries the current user's id as metadata
+ * (`Vectors.userIdKey`): semantic search asks the index only for the searcher's own vectors. Both
+ * calls are retried on the `EnrichPolicy` schedule.
  */
 export const embedLink = (
   id: Link.LinkId,
   input: EmbedInput,
-): Effect.Effect<void, Ai.AiError | Vectors.VectorsError, Ai.Ai | Vectors.Vectors> =>
+): Effect.Effect<
+  void,
+  Ai.AiError | Vectors.VectorsError,
+  Ai.Ai | Vectors.Vectors | Security.CurrentUser
+> =>
   Effect.gen(function* () {
+    const user = yield* Security.CurrentUser;
     const policy = yield* EnrichPolicy.EnrichPolicy;
     const retry = { schedule: policy.retrySchedule, times: policy.retries };
     const [values] = yield* Effect.retry(
@@ -47,7 +55,9 @@ export const embedLink = (
       return yield* new Ai.AiError({ model: Ai.embeddingModel, cause: "no embedding returned" });
     }
     yield* Effect.retry(
-      Vectors.Vectors.use((vectors) => vectors.upsert([{ id, values }])),
+      Vectors.Vectors.use((vectors) =>
+        vectors.upsert([{ id, values, metadata: { [Vectors.userIdKey]: user.id } }]),
+      ),
       retry,
     );
   }).pipe(Effect.withSpan("embedLink"));
