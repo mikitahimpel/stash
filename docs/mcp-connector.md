@@ -22,7 +22,7 @@ come from env, except `GITHUB_CLIENT_ID`, which is public and committed for stag
 | Env var | On `Mcp` as | Must be |
 |---|---|---|
 | `STASH_MCP_ORIGIN` | `MCP_ORIGIN` (also on `Api`, for the Connect page) | the server's public origin, exactly as Claude reaches it (no path, no trailing slash). A deploy derives it: `https://<domain>` on a stage with a custom domain (where this variable is not read), else `https://<your-mcp>.workers.dev` when unset |
-| `STASH_ALLOWED_GITHUB_LOGIN` | `ALLOWED_GITHUB_LOGIN` | your GitHub login. It is the only account that can authorize a client (compared case-insensitively) |
+| `STASH_ALLOWED_GITHUB_LOGIN` | — (on `Api` as `ALLOWED_GITHUB_LOGIN`) | the owner's GitHub login. The `Mcp` Worker does not read it: the api decides who has an account (the owner by this login, members by the id of the GitHub account they joined with) |
 | `GITHUB_CLIENT_ID` | same name | the client ID of a GitHub OAuth App with **Enable Device Flow** checked. It is public, so it is a plain var. There is no client secret |
 
 `MCP_ORIGIN` is the OAuth issuer and sets the protected resource (`<origin>/mcp`). A deploy
@@ -55,7 +55,8 @@ GitHub never redirects back to it. Claude never sees a GitHub token, and the Wor
    the interval GitHub asks for (5 seconds more after each `slow_down`). The approved request and
    the device code wait in `OAUTH_KV`, bound to your browser by a cookie, for at most 10 minutes.
 6. When GitHub returns a token, the Worker reads your login with it once, drops the token, and
-   compares the login with `ALLOWED_GITHUB_LOGIN` (case-insensitively). The allowlisted login gets
+   asks the api for a token for that account. An account that has a Stash account (the owner, or
+   a member who joined with an invite) gets
    a grant, and the tab returns you to Claude with a code. Before granting, the Worker mints an
    api token for that login over the `API` Service Binding (`POST /internal/mcp-tokens`, see
    below) and stores it in the grant's props, which the provider encrypts. If the api cannot mint
@@ -72,7 +73,7 @@ GitHub never redirects back to it. Claude never sees a GitHub token, and the Wor
 ### The connector's api token
 
 - Each authorization mints its own user token named **Claude (MCP)**. It has no device, acts as
-  the allowlisted user, and is listed in **Settings → API tokens** like any token. The api stores
+  the user who signed in (and only as them), and is listed in **Settings → API tokens** like any token. The api stores
   only its hash, and the plaintext exists only in the grant's encrypted props.
 - **Revoking it** in Settings disconnects that Claude client: the next `/mcp` request finds the
   token rejected, the Worker revokes the grant, and answers `401` with
@@ -82,7 +83,9 @@ GitHub never redirects back to it. Claude never sees a GitHub token, and the Wor
 - The mint endpoint exists only on the `Api` Worker's `InternalApi` entrypoint, which the `Mcp`
   Worker's `API` binding targets. A named entrypoint cannot be reached from the internet, so
   `POST /internal/mcp-tokens` answers 404 on `stash-api.*.workers.dev` and through the web
-  Worker's `/api/*` proxy. The api also checks the login against its own `ALLOWED_GITHUB_LOGIN`.
+  Worker's `/api/*` proxy. The api decides whose token it is: the owner's for the allowlisted login
+  (its own `ALLOWED_GITHUB_LOGIN`), a member's for the GitHub account id they joined with, and
+  none (`LoginNotAllowed`) for anyone else.
 
 You can check the metadata without signing in:
 
@@ -146,13 +149,13 @@ command, and the device closes it the next time it checks for commands.
 |---|---|---|
 | Claude says it cannot connect, or never opens a sign-in page | The URL lacks `/mcp`, or `MCP_ORIGIN` differs from the URL you added (other host, `http` vs `https`, trailing path) | Use `<origin>/mcp`. Run the two `curl` commands above: `issuer` and `resource` must match it. Redeploy with the right `STASH_MCP_ORIGIN` |
 | Continue with GitHub returns "GitHub sign-in failed" to Claude at once | GitHub refused the device code request: `GITHUB_CLIENT_ID` is wrong (or `dev_only`), or the OAuth App does not have **Enable Device Flow** checked | Check the client ID and the app setting, then redeploy |
-| Sign-in ends with "This GitHub account may not use this server" | You entered the code while signed in to a GitHub account other than `ALLOWED_GITHUB_LOGIN` | Switch GitHub accounts at `github.com/login/device`, or fix `STASH_ALLOWED_GITHUB_LOGIN` and redeploy |
+| Sign-in ends with "This GitHub account may not use this server" | You entered the code while signed in to a GitHub account that has no Stash account (Claude never signs anyone up) | Switch GitHub accounts at `github.com/login/device`, join with an invite link in the web app first, or fix `STASH_ALLOWED_GITHUB_LOGIN` and redeploy |
 | The code page says the code expired, or "This sign-in expired" | More than 10 minutes passed, or the Stash tab was closed while waiting | Connect again from Claude for a new code |
 | The code page says the authorization was not started in this browser | The poll came without the browser-binding cookie (another browser, or cookies blocked) | Start and finish the sign-in in the same browser with cookies allowed |
 | The consent page says the request is invalid (400) | The client's registration was lost (KV cleared or a different stage) or the redirect does not match it | Remove the connector and add it again, so Claude registers anew |
 | "This app could not be verified." | The client sent a Client ID Metadata Document URL, which this server does not enable | Use a client that supports Dynamic Client Registration (claude.ai, Desktop and Claude Code do) |
 | Claude asks to connect again after it worked | The connector's **Claude (MCP)** token was revoked in Settings, or the grant predates per-grant tokens | Connect again: a new token is minted |
-| Sign-in ends with "Stash could not issue a token" | The `API` Service Binding or the `Api` Worker failed, or the api's `ALLOWED_GITHUB_LOGIN` differs from the `Mcp` Worker's | Check `alchemy logs` for `Mcp` and `Api`, and that both Workers got the same allowlisted login |
+| Sign-in ends with "Stash could not issue a token" | The `API` Service Binding or the `Api` Worker failed | Check `alchemy logs` for `Mcp` and `Api` |
 | Connected, but every tool call fails with an internal error | The `API` Service Binding is broken | Check `alchemy logs` for `Mcp` and `Api` |
 | Tools disappear after about a month | The refresh token expired (30 days) | Reconnect: **Settings → Connectors → Stash → Connect**, or `/mcp` → **Authenticate** in Claude Code |
 | A client gets `404` for its `Mcp-Session-Id` now and then | The Worker isolate was recycled and the older protocol revisions keep sessions in memory | Nothing to do: the client initializes again, as the spec requires. Revision `2026-07-28` is sessionless |

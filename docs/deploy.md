@@ -46,6 +46,31 @@ PROTON_PASS_AGENT_REASON="stash deploy" \
   `mcpUrl` are `https://<domain>` (the connector URL is `<mcpUrl>/mcp`), and `url` is still the
   api's `workers.dev` address.
 
+### Deploying the multi-user change (#177)
+
+The first deploy after #177 migrates live data. Nothing in it is manual, but know what it does:
+
+- **Order.** Alchemy creates the Vectorize metadata index on `userId` (`VectorsUserIndex`), applies
+  the D1 migrations `0011` to `0022`, then deploys the Workers. The index must exist before a
+  vector is written with that metadata, or Vectorize cannot filter on it, so the `Api` Worker
+  takes a var from the index resource (`VECTORS_USER_PROPERTY`) and is deployed after it.
+- **Migrations.** Each file and its bookkeeping row are one D1 transaction, so a file that fails
+  leaves nothing behind and the next deploy applies it again. Every existing row goes to the user
+  `owner`; no row is deleted; `api_tokens` and `digests` are copied into a new shape (tokens keep
+  their hashes, so devices and the Claude connector stay signed in). `links_fts` is dropped and
+  rebuilt from `links` in the same transaction (`0021`). Web sessions are kept.
+- **Between the migration and the new Worker** (seconds) the old Worker cannot write: its inserts
+  carry no `user_id` and are refused. Saves made in that window fail and are retried by the
+  clients (the extension and the Shortcut report the error). Deploy when you are not saving.
+- **Vectors.** Semantic search filters on `userId`, and vectors stored earlier have none. The
+  hourly cron writes it onto them (`backfillVectors`, up to 1000 links a run, read and written
+  back in small batches), so semantic search finds old links again within an hour or a few;
+  keyword search works at once, and hybrid search falls back to it. Nothing is re-embedded.
+- **Check.** `pnpm --filter @stash/web check:live` as before; then Settings → Members shows the
+  owner with the number of links there were before the deploy.
+- **Roll back.** The old Worker does not run on the new schema. Roll forward instead; the data is
+  intact either way.
+
 ## What gets created
 
 Workers are named `stash-<role>` on stage `prod` (`stash-<role>-<stage>` on any other stage). On
@@ -83,7 +108,7 @@ same way. The api's CORS for `WEB_ORIGIN` stays only for a SPA built with a cros
 `VITE_API_BASE_URL`.
 
 `Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`)
-and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets `ALLOWED_GITHUB_LOGIN`,
+and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets
 `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`), and its `API` binding targets the `Api`
 Worker's `InternalApi` entrypoint. It has no secrets: each Claude sign-in mints its own api token
 (see [mcp-connector.md](mcp-connector.md#the-connectors-api-token)).

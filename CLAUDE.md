@@ -17,7 +17,7 @@ apps/                 deployables: thin composition roots, no business logic
   migrate/            one-off import CLI (Zen sessions, Craft export)                   → apps/migrate/CLAUDE.md
 packages/
   contracts/          the ONLY code shared across contexts (domain schemas, HttpApi)    → packages/contracts/CLAUDE.md
-  backend/            api features: links, enrichment, search, tabs, auth, digest       → packages/backend/CLAUDE.md
+  backend/            api features: links, enrichment, search, tabs, auth, users, digest → packages/backend/CLAUDE.md
   mcp/                MCP tools                                                         → packages/mcp/CLAUDE.md
   web/                web features and UI kit                                           → packages/web/CLAUDE.md
   extension/          extension features                                                → packages/extension/CLAUDE.md
@@ -103,6 +103,19 @@ two `pnpm turbo run …` at once. Prefer `--filter=...[origin/main]` to a full r
 - **`<concept>-<role>` file names:** `links-repo.ts`, `save-link.ts`, `links-list-page.vue`,
   `link-details-atoms.ts`, `links-repo.test.ts`.
 - **`import/no-cycle`** is on.
+
+## Users
+
+A Stash has an owner and invited members, and every row of user data belongs to one of them
+([docs/architecture.md](docs/architecture.md#users)). Three rules hold everywhere:
+
+- **Every query names its user.** A table with user data has `user_id`; a repo method requires
+  `CurrentUser` (`@stash/contracts-api/security`) and filters on it. Never add a query, a vector
+  query, an R2 key listing or an event without it, and never pass a user id from a request body.
+- **Another user's thing does not exist.** The answer for it is the answer for a missing id (404),
+  with nothing of theirs in it.
+- **A new endpoint gets a case** in `apps/api/test/user-isolation.test.ts`, which fails until it
+  has one.
 
 ## Platform rule
 
