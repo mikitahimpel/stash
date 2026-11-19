@@ -2,11 +2,16 @@
 import { Play } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
 import Avatar from "../avatar/avatar.vue";
+import MediaFit from "../media-fit/media-fit.vue";
 import * as SiteCover from "./site-cover";
 
 // The preview of a `<MediaRow>`: 16:9, 160×90 (110×62 on phones), radius 8. A video carries a small
 // play mark. The image is remote (an `og:image`, a video thumbnail): it loads lazily and without a
 // referrer, so the other site learns nothing about this page and hotlink checks by referrer pass.
+//
+// The box is always 16:9. A picture close to that fills it, cropped from its upper third; a
+// portrait, a square or a panorama is shown whole over a blurred copy of itself (`<MediaFit>`,
+// #176). `aspect` is the shape when the caller knows it; otherwise it is measured on load.
 //
 // A post without media shows its author's picture on that cover instead of the favicon.
 //
@@ -18,6 +23,8 @@ const props = withDefaults(
   defineProps<{
     /** The image. Decorative: the title names the link. */
     src?: string | null | undefined;
+    /** The width over the height of the image, when known (a post's media carry their size). */
+    aspect?: number | null | undefined;
     /** The link's or tab's URL: the cover's host, favicon and hue come from it. */
     url?: string | undefined;
     /** Shown when there is no favicon: the first letter of this. Defaults to the url's host. */
@@ -29,7 +36,14 @@ const props = withDefaults(
      */
     avatar?: { readonly src: string | null; readonly name: string } | undefined;
   }>(),
-  { src: undefined, url: undefined, initial: undefined, video: false, avatar: undefined },
+  {
+    src: undefined,
+    aspect: undefined,
+    url: undefined,
+    initial: undefined,
+    video: false,
+    avatar: undefined,
+  },
 );
 
 const failed = ref(false);
@@ -71,16 +85,7 @@ const coverStyle = computed(() =>
       coverStyle === undefined ? 'bg-sunken text-muted-foreground' : 'media-cover',
     ]"
   >
-    <img
-      v-if="image !== undefined"
-      :src="image"
-      alt=""
-      loading="lazy"
-      decoding="async"
-      referrerpolicy="no-referrer"
-      class="size-full object-cover"
-      @error="failed = true"
-    />
+    <MediaFit v-if="image !== undefined" :src="image" :aspect="aspect" @error="failed = true" />
     <template v-else>
       <Avatar
         v-if="avatar !== undefined"

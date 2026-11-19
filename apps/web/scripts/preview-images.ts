@@ -79,6 +79,54 @@ export const photo = (sky: string, sun: string, near: string, far: string) =>
       `<path d="M0 156l70-34 60 22 76-40 114 46v30H0z" fill="${near}"/>`,
   );
 
+/**
+ * A picture of a given size, for media that are not 16:9 (#176): a person against a sky, with the
+ * face in the upper third and the shirt below. A centre crop to 16:9 would show the shirt only.
+ * The SVG states its size, so the browser reports the real shape when it has loaded.
+ */
+export const figure = (width: number, height: number, sky: string, shirt: string) => {
+  const unit = Math.min(width, height);
+  const cx = width / 2;
+  const cy = height * 0.3;
+  const head = unit * 0.17;
+  const shoulders = Math.min(width * 0.42, unit * 0.6);
+  const top = cy + head * 1.25;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<rect width="${width}" height="${height}" fill="${sky}"/>` +
+    `<circle cx="${width * 0.82}" cy="${height * 0.14}" r="${unit * 0.07}" fill="#ffd166"/>` +
+    `<path d="M0 ${height * 0.62}L${width * 0.2} ${height * 0.5}L${width * 0.38} ${height * 0.6}L${width * 0.7} ${height * 0.46}L${width} ${height * 0.58}V${height}H0z" fill="#000000" fill-opacity="0.18"/>` +
+    `<path d="M${cx - shoulders} ${height}C${cx - shoulders} ${top + head * 0.4} ${cx - head} ${top} ${cx} ${top}S${cx + shoulders} ${top + head * 0.4} ${cx + shoulders} ${height}z" fill="${shirt}"/>` +
+    `<circle cx="${cx}" cy="${cy}" r="${head}" fill="#e8c7a8"/>` +
+    `<path d="M${cx - head} ${cy - head * 0.1}a${head} ${head} 0 0 1 ${head * 2} 0c-${head * 0.5}-${head * 0.5}-${head * 1.5}-${head * 0.5}-${head * 2} 0z" fill="#3a2a22"/>` +
+    `</svg>`
+  );
+};
+
+/** The shapes of `…/previews/shapes/<name>.svg`, as width and height in pixels. */
+export const shapes = {
+  portrait: [1080, 1920],
+  tall: [900, 1600],
+  square: [1200, 1200],
+  panorama: [3000, 1000],
+  wide: [1920, 1080],
+} as const satisfies Record<string, readonly [number, number]>;
+
+const shapeColors: Readonly<Record<keyof typeof shapes, readonly [string, string]>> = {
+  portrait: ["#7fb7d9", "#c2410c"],
+  tall: ["#b9a6e0", "#1f6f5c"],
+  square: ["#f3d9c4", "#2f4858"],
+  panorama: ["#9ad1c0", "#5b3a8c"],
+  wide: ["#f2c078", "#12324a"],
+};
+
+const shaped = (path: string): string | undefined => {
+  const name = /\/shapes\/([a-z]+)\.svg$/.exec(path)?.[1];
+  if (name === undefined || !Object.hasOwn(shapes, name)) return undefined;
+  const key = name as keyof typeof shapes;
+  return figure(shapes[key][0], shapes[key][1], ...shapeColors[key]);
+};
+
 /** A person's picture: a square in one colour with a head and shoulders. */
 export const avatar = (background: string, foreground: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">` +
@@ -109,6 +157,8 @@ export const forUrl = (url: string): string => {
   let sum = 0;
   const path = new URL(url).pathname;
   for (const char of path) sum = (sum * 31 + char.charCodeAt(0)) >>> 0;
+  const shape = shaped(path);
+  if (shape !== undefined) return shape;
   // `…/previews/avatars/<name>.svg` is a person's picture.
   return path.includes("/avatars/")
     ? avatars[sum % avatars.length]!

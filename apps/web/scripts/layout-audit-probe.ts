@@ -329,5 +329,15 @@ export const probe = (body: HTMLElement): Snapshot => {
     .filter((row) => visible(row) && row.getAttribute("data-state") !== "selected")
     .map((row) => ({ label: label(row), height: box(row).height }));
 
-  return { content, controls, blocks, gaps, groups, rows, mono };
+  // The big media, against the window under the header.
+  const header = doc.querySelector("[data-slot=app-bar]");
+  const viewport = {
+    height: view.innerHeight,
+    header: header === null ? 0 : header.getBoundingClientRect().height,
+  };
+  const heroes = [...main.querySelectorAll("[data-slot=media-hero], [data-slot=post-media]")]
+    .filter(visible)
+    .map((hero) => ({ label: label(hero), height: box(hero).height }));
+
+  return { content, controls, blocks, gaps, groups, rows, viewport, heroes, mono };
 };

@@ -33,6 +33,14 @@ describe("YoutubeEmbed", () => {
     expect(YoutubeEmbed.thumbnail(url)).toBeUndefined();
   });
 
+  it("knows a Short is vertical, and nothing about the shape of the rest", () => {
+    expect(YoutubeEmbed.aspect("https://www.youtube.com/shorts/synthetic01")).toBeCloseTo(9 / 16);
+    expect(YoutubeEmbed.aspect("https://www.youtube.com/watch?v=synthetic01")).toBeUndefined();
+    expect(YoutubeEmbed.aspect("https://youtu.be/synthetic01")).toBeUndefined();
+    expect(YoutubeEmbed.aspect("https://example.com/shorts/synthetic01")).toBeUndefined();
+    expect(YoutubeEmbed.aspect("not a url")).toBeUndefined();
+  });
+
   it("knows the video's thumbnail from its id", () => {
     expect(YoutubeEmbed.thumbnail("https://youtu.be/synthetic01")).toBe(
       "https://i.ytimg.com/vi/synthetic01/hqdefault.jpg",

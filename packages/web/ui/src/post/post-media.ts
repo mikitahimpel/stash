@@ -1,3 +1,5 @@
+import * as MediaShape from "../media-fit/media-shape";
+
 /** A photo of a post. `fullUrl` is the rendition the lightbox shows, when it differs. */
 export interface Photo {
   readonly kind: "photo";
@@ -21,15 +23,19 @@ export type Media = Photo | Video;
 /** At most this many media are shown: a post has no more. */
 export const maxMedia = 4;
 
-/** A single medium keeps its own shape between these: a tall one is cropped, never a tower. */
-export const minRatio = 3 / 4;
-export const maxRatio = 2.4;
+/** The width over the height of a medium, or `undefined` when the source gave no size. */
+export const ratio = (media: Media): number | undefined =>
+  MediaShape.ratio(media.width, media.height);
 
-/** The width over the height of the box a single medium gets. 16:9 when its size is unknown. */
-export const ratio = (media: Media): number =>
-  media.width === null || media.height === null || media.width <= 0 || media.height <= 0
-    ? 16 / 9
-    : Math.min(maxRatio, Math.max(minRatio, media.width / media.height));
+/**
+ * The ratio of the box a single medium gets: its own shape (16:9 when unknown), so it is shown
+ * whole. The box's height is capped (`MediaShape.maxHeight`), so a tall one is never a tower: it
+ * stands in the middle of the box. `compact` (a quoted post) is never taller than 16:9.
+ */
+export const boxRatio = (media: Media, compact = false): number => {
+  const box = MediaShape.box(ratio(media));
+  return compact ? Math.max(MediaShape.wide, box) : box;
+};
 
 const escapeAttribute = (value: string): string =>
   value

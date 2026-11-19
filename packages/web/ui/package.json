@@ -63,6 +63,8 @@
     "./media-row-title": "./src/media-row/media-row-title.vue",
     "./media-thumb": "./src/media-row/media-thumb.vue",
     "./site-cover": "./src/media-row/site-cover.ts",
+    "./media-fit": "./src/media-fit/media-fit.vue",
+    "./media-shape": "./src/media-fit/media-shape.ts",
     "./media-hero": "./src/media-hero/media-hero.vue",
     "./meta-line": "./src/meta-line/meta-line.vue",
     "./action-bar": "./src/action-bar/action-bar.vue",

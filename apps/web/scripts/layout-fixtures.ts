@@ -159,6 +159,34 @@ const youtube = (now: number) => ({
   enrichedAt: iso(now - 3 * day + 60_000),
 });
 
+// Media that are not 16:9 (#176), outside a post: a YouTube Short (a vertical video, known from
+// its URL) and an article whose og:image is a portrait (known only once it has loaded). Both are
+// in the Inbox, where their previews are letterboxed, and have a page.
+export const shapeLinkIds = { short: "seed-link-short", tall: "seed-link-tall" } as const;
+const shapeLinks = (now: number) => [
+  {
+    ...youtube(now),
+    id: shapeLinkIds.short,
+    url: "https://www.youtube.com/shorts/synthetic02",
+    title: "One chart in forty seconds: why rent follows rates",
+    createdAt: iso(now - 0.5 * day),
+    imageUrl: `${PreviewImages.origin}shapes/portrait.svg`,
+    enrichedAt: iso(now - 0.5 * day + 60_000),
+  },
+  {
+    ...youtube(now),
+    id: shapeLinkIds.tall,
+    url: "https://example.com/design/poster",
+    title: "A poster for the field guide, set in one weight",
+    type: "article",
+    tags: ["design"],
+    createdAt: iso(now - 0.6 * day),
+    imageUrl: `${PreviewImages.origin}shapes/tall.svg`,
+    author: "Mara Lindqvist",
+    enrichedAt: iso(now - 0.6 * day + 60_000),
+  },
+];
+
 // Posts on X (#170), one of each kind: words only, one photo, four photos, a video, a reply that
 // quotes another post, and a post that could not be read. Invented people and words; the pictures
 // are drawn previews (a person's under `avatars/`), and the video's address is never requested
@@ -175,7 +203,7 @@ const plain = person("Plain Economics", "example_plain");
 
 const postPhoto = (name: string, width = 1600, height = 900) => ({
   kind: "photo",
-  url: `${PreviewImages.origin}posts/${name}.svg`,
+  url: `${PreviewImages.origin}${name.includes("/") ? name : `posts/${name}`}.svg`,
   width,
   height,
 });
@@ -210,6 +238,12 @@ export const postLinkIds = {
   video: "seed-post-video",
   quote: "seed-post-quote",
   unavailable: "seed-post-unavailable",
+  // Media of other shapes (#176): a vertical video, a portrait photo, a square and a panorama.
+  // The 16:9 one is `video`.
+  portraitVideo: "seed-post-portrait-video",
+  portraitPhoto: "seed-post-portrait-photo",
+  square: "seed-post-square",
+  panorama: "seed-post-panorama",
 } as const;
 
 const postLinks = (now: number) => {
@@ -306,6 +340,63 @@ const postLinks = (now: number) => {
         counts: null,
       },
     }),
+    link(
+      postLinkIds.portraitVideo,
+      0.3,
+      "new",
+      ["economics"],
+      {
+        ...postFields(now, "1700000000000000017", mara, 0.5),
+        text: "An example clip filmed on a phone: the whole argument, standing up, in thirty seconds.",
+        media: [
+          {
+            kind: "video",
+            posterUrl: `${PreviewImages.origin}shapes/portrait.svg`,
+            videoUrl: "https://example.com/previews/shapes/portrait.mp4",
+            width: PreviewImages.shapes.portrait[0],
+            height: PreviewImages.shapes.portrait[1],
+            durationMs: 30_000,
+          },
+        ],
+      },
+      `${PreviewImages.origin}shapes/portrait.svg`,
+    ),
+    link(
+      postLinkIds.portraitPhoto,
+      0.8,
+      "seen",
+      ["design"],
+      {
+        ...postFields(now, "1700000000000000018", plain, 1),
+        text: "An example portrait from the same trip, taken upright.",
+        media: [postPhoto("shapes/tall", ...PreviewImages.shapes.tall)],
+      },
+      `${PreviewImages.origin}shapes/tall.svg`,
+    ),
+    link(
+      postLinkIds.square,
+      1.2,
+      "seen",
+      ["design"],
+      {
+        ...postFields(now, "1700000000000000019", mara, 1.4),
+        text: "An example square crop, the way a camera app likes it.",
+        media: [postPhoto("shapes/square", ...PreviewImages.shapes.square)],
+      },
+      `${PreviewImages.origin}shapes/square.svg`,
+    ),
+    link(
+      postLinkIds.panorama,
+      1.5,
+      "new",
+      ["design"],
+      {
+        ...postFields(now, "1700000000000000020", plain, 1.7),
+        text: "An example panorama: three frames of the ridge stitched into one.",
+        media: [postPhoto("shapes/panorama", ...PreviewImages.shapes.panorama)],
+      },
+      `${PreviewImages.origin}shapes/panorama.svg`,
+    ),
     {
       id: postLinkIds.unavailable,
       url: gone,
@@ -326,7 +417,10 @@ const postLinks = (now: number) => {
   ];
 };
 
-type AnyLink = ReturnType<typeof links>[number] | ReturnType<typeof postLinks>[number];
+type AnyLink =
+  | ReturnType<typeof links>[number]
+  | ReturnType<typeof shapeLinks>[number]
+  | ReturnType<typeof postLinks>[number];
 
 /** Seeded links for the link page: an article with an og:image, and one with no image. */
 export const articleLinkId = "seed-link-2";
@@ -454,7 +548,7 @@ const search = (all: ReadonlyArray<AnyLink>, url: URL) => {
 
 /** The api with the seeded data. */
 export const seeded = (now: number): Fixtures => {
-  const all = [...links(now), ...postLinks(now)];
+  const all = [...links(now), ...shapeLinks(now), ...postLinks(now)];
   return {
     answer: (method, url) => {
       const path = url.pathname.replace(/^\/api/, "");

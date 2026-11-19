@@ -1,4 +1,5 @@
 import type * as Link from "@stash/contracts-domain/link";
+import * as MediaShape from "@stash/web-ui/media-shape";
 import * as SiteTitle from "@stash/web-ui/site-title";
 import * as DateTime from "effect/DateTime";
 import * as YoutubeEmbed from "./details/youtube-embed.ts";
@@ -18,6 +19,15 @@ export const image = (link: Link.Link): string | null =>
     : (YoutubeEmbed.thumbnail(link.url) ??
       (link.canonicalUrl === null ? undefined : YoutubeEmbed.thumbnail(link.canonicalUrl)) ??
       null);
+
+/**
+ * The width over the height of `image`, when it is known before the image loads: a post's first
+ * photo or video carries its size. `undefined` for the rest, whose preview is measured on load.
+ */
+export const imageAspect = (link: Link.Link): number | undefined => {
+  const first = PostDisplay.available(link)?.media[0];
+  return first === undefined ? undefined : MediaShape.ratio(first.width, first.height);
+};
 
 /**
  * The title, or the URL while enrichment hasn't filled one in. A post that could not be read and
