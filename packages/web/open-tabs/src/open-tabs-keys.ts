@@ -34,6 +34,9 @@ const letters: Readonly<Record<string, Command>> = {
  * selected row's link has the focus, so Enter opens it.
  */
 export const command = (press: Keyboard.KeyPress): Command | undefined => {
+  // A key something else already took, or pressed while a dialog or a menu is open, is not the
+  // page's: a row's menu shows E and W beside its items, and they must not act on another row.
+  if (press.handled || press.modal) return undefined;
   if (press.typing || press.metaKey || press.ctrlKey || press.altKey) return undefined;
   if (press.key === "ArrowUp") return "up";
   if (press.key === "ArrowDown") return "down";

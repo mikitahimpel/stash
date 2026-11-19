@@ -92,7 +92,7 @@ defineSlots<{ actions?: () => unknown }>();
         <span
           v-if="meta !== ''"
           data-slot="group-header-meta"
-          class="shrink-0 font-normal tracking-normal text-muted-foreground normal-case before:mr-2 before:content-['·']"
+          class="min-w-0 shrink-[1000] truncate font-normal tracking-normal text-muted-foreground normal-case before:mr-2 before:content-['·']"
           >{{ meta }}</span
         >
       </component>

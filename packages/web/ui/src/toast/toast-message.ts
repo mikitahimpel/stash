@@ -9,4 +9,9 @@ export interface ToastMessage {
   readonly variant?: "default" | "destructive";
   /** Milliseconds before the toast closes by itself; falls back to the toaster's `duration`. */
   readonly duration?: number;
+  /**
+   * One action on the toast, such as `Undo`: a button with this label. The toaster emits
+   * `action` with the toast's id when it is pressed, and then `dismiss`.
+   */
+  readonly action?: string;
 }

@@ -6,6 +6,8 @@ import { StashApiClient } from "@stash/web-api-client/stash-api-client";
 import * as WebPlatform from "@stash/web-platform/live";
 import type { ToastMessage } from "@stash/web-ui/toast-message";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -57,8 +59,11 @@ export const dismissToast = (registry: AtomRegistry.AtomRegistry, id: string): v
   registry.update(toasts, (all) => all.filter((toast) => toast.id !== id));
 
 let toastCount = 0;
-const toast = (registry: AtomRegistry.AtomRegistry, message: Omit<ToastMessage, "id">): void =>
-  registry.update(toasts, (all) => [...all, { ...message, id: `open-tabs-${++toastCount}` }]);
+const toast = (registry: AtomRegistry.AtomRegistry, message: Omit<ToastMessage, "id">): string => {
+  const id = `open-tabs-${++toastCount}`;
+  registry.update(toasts, (all) => [...all, { ...message, id }]);
+  return id;
+};
 
 /** The saved links the page knows, by page address. Empty until `recentLinks` has answered. */
 const saved: Atom.Atom<OpenTabsView.SavedIndex> = Atom.make((get) => {
@@ -150,13 +155,87 @@ export const archive = optimistic("Couldn't archive the tab", ["tabs", "links"],
   }),
 );
 
-/** Queues a `close-tab` command for the tab's device. */
-export const closeOnDevice = optimistic("Couldn't close the tab", ["tabs"], (client, tab) =>
-  client.devices.sendCommand({
-    params: { id: tab.deviceId },
-    payload: { kind: "close-tab", url: tab.url },
-  }),
+/**
+ * How long Close on device waits before it sends the command, with an Undo in a toast. A command
+ * that was sent can't be taken back: the device closes the tab when it next checks in.
+ */
+export const closeDelay: Atom.Writable<Duration.Duration> = Atom.make(Duration.seconds(5)).pipe(
+  Atom.keepAlive,
 );
+
+// The closes that wait for their delay, by the id of their toast: completing one undoes it.
+const pendingCloses = new WeakMap<
+  AtomRegistry.AtomRegistry,
+  Map<string, Deferred.Deferred<void>>
+>();
+
+/** Takes back the close whose toast has this id, if it has not been sent yet. */
+export const undoClose = (registry: AtomRegistry.AtomRegistry, toastId: string): void => {
+  const pending = pendingCloses.get(registry)?.get(toastId);
+  if (pending !== undefined) Deferred.doneUnsafe(pending, Effect.void);
+};
+
+/**
+ * Closes the tab on its device, with a way back: the tab disappears at once and a toast offers
+ * Undo for `closeDelay`; only then is the `close-tab` command queued. Undo brings the tab back
+ * and sends nothing. If the request fails the tab comes back and a toast says so. Kept alive, so
+ * leaving the page within the delay still closes the tab.
+ */
+export const closeOnDevice = StashApiClient.runtime
+  .fn<OpenTabsView.TabRow>()(
+    (tab, get) =>
+      Effect.gen(function* () {
+        const registry = get.registry;
+        const entry: OpenTabsView.Hidden = {
+          deviceId: tab.deviceId,
+          url: tab.url,
+          since: yield* DateTime.now,
+        };
+        const show = () => registry.update(hidden, (all) => all.filter((other) => other !== entry));
+        registry.update(hidden, (all) => [...all, entry]);
+
+        const delay = registry.get(closeDelay);
+        const undone = yield* Deferred.make<void>();
+        const id = toast(registry, {
+          title: `Closing on ${tab.deviceName}`,
+          description: tab.title ?? tab.url,
+          action: "Undo",
+          duration: Duration.toMillis(delay),
+        });
+        let pending = pendingCloses.get(registry);
+        if (pending === undefined) pendingCloses.set(registry, (pending = new Map()));
+        pending.set(id, undone);
+        const waited = yield* Effect.raceFirst(
+          Effect.as(Effect.sleep(delay), "send" as const),
+          Effect.as(Deferred.await(undone), "undo" as const),
+        ).pipe(Effect.ensuring(Effect.sync(() => pendingCloses.get(registry)?.delete(id))));
+        dismissToast(registry, id);
+        if (waited === "undo") {
+          show();
+          return null;
+        }
+        return yield* StashApiClient.use((client) =>
+          client.devices.sendCommand({
+            params: { id: tab.deviceId },
+            payload: { kind: "close-tab", url: tab.url },
+          }),
+        ).pipe(
+          Reactivity.mutation(["tabs"]),
+          Effect.onError(() =>
+            Effect.sync(() => {
+              show();
+              toast(registry, {
+                title: "Couldn't close the tab",
+                description: tab.title ?? tab.url,
+                variant: "destructive",
+              });
+            }),
+          ),
+        );
+      }),
+    { concurrent: true },
+  )
+  .pipe(Atom.keepAlive);
 
 const saveInput = (tab: OpenTabsView.TabRow): Link.SaveLinkInput => ({
   url: tab.url,
@@ -167,7 +246,8 @@ const saveInput = (tab: OpenTabsView.TabRow): Link.SaveLinkInput => ({
 /**
  * Saves tabs to Stash and leaves them open (unlike `archive`): one request for one tab or many.
  * Tabs that are saved already, and second tabs of one page, are left out. The rows say Saved as
- * soon as the api answers; if it fails a toast says so and nothing changes.
+ * soon as the api answers; if it fails a toast says so and nothing changes. More tabs than one
+ * request carries (`maxBatchSize`) are saved up to that many, and the toast says how many are left.
  */
 export const save = StashApiClient.runtime.fn<ReadonlyArray<OpenTabsView.TabRow>>()(
   (tabs, get) =>
@@ -178,8 +258,10 @@ export const save = StashApiClient.runtime.fn<ReadonlyArray<OpenTabsView.TabRow>
         const key = OpenTabsView.pageKey(tab.url);
         if (tab.saved === null && !fresh.has(key)) fresh.set(key, tab);
       }
-      // One call carries at most `maxBatchSize` links; nobody selects more tabs than that.
+      // One call carries at most `maxBatchSize` links; what is over that is left for a second
+      // go, and the toast says how many.
       const wanted = [...fresh.values()].slice(0, LinksGroup.maxBatchSize);
+      const left = fresh.size - wanted.length;
       if (wanted.length === 0) return 0;
       const links = yield* StashApiClient.use((client) =>
         wanted.length === 1
@@ -212,7 +294,14 @@ export const save = StashApiClient.runtime.fn<ReadonlyArray<OpenTabsView.TabRow>
         });
         return next;
       });
-      if (wanted.length > 1) toast(registry, { title: `Saved ${wanted.length} tabs` });
+      if (wanted.length > 1) {
+        toast(registry, {
+          title: `Saved ${wanted.length} tabs`,
+          ...(left > 0
+            ? { description: `${left} more are not saved yet: save again for the rest.` }
+            : {}),
+        });
+      }
       return wanted.length;
     }),
   { concurrent: true },

@@ -4,6 +4,7 @@ import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import { enableAutoUnmount, flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
@@ -15,7 +16,8 @@ import * as Fixtures from "./fixtures.ts";
 
 enableAutoUnmount(afterEach);
 
-const mountPage = async (routes: ApiTesting.Routes) => {
+// `closeDelay`: how long Close on device waits for an Undo. None unless the test is about it.
+const mountPage = async (routes: ApiTesting.Routes, closeDelay = Duration.zero) => {
   // Built once, so the test presses keys on the same keyboard the page listens to.
   const keyboard = Layer.build(PlatformTesting.layerKeyboard).pipe(Effect.scoped, Effect.runSync);
   const clipboard = Layer.build(PlatformTesting.layerClipboard).pipe(Effect.scoped, Effect.runSync);
@@ -26,6 +28,7 @@ const mountPage = async (routes: ApiTesting.Routes) => {
       initialValues: [
         [OpenTabsKeys.layer, Layer.succeedContext(keyboard)],
         [OpenTabsAtoms.clipboard, Layer.succeedContext(clipboard)],
+        [OpenTabsAtoms.closeDelay, closeDelay],
       ],
     },
   );
@@ -36,9 +39,13 @@ const mountPage = async (routes: ApiTesting.Routes) => {
     global: { provide: { [AtomVue.registryKey]: registry }, stubs: { RouterLink: RouterLinkStub } },
   });
   await flushPromises();
-  const press = async (key: string, typing = false) => {
+  const press = async (
+    key: string,
+    typing = false,
+    more: { readonly modal?: boolean; readonly handled?: boolean } = {},
+  ) => {
     const taken = Effect.runSync(
-      Context.get(keyboard, PlatformTesting.TestKeyboard).press({ key, typing }),
+      Context.get(keyboard, PlatformTesting.TestKeyboard).press({ key, typing, ...more }),
     );
     await flushPromises();
     return taken;
@@ -277,6 +284,77 @@ describe("open-tabs-page", () => {
     await press("w");
     expect(titles(wrapper)).not.toContain("Example a");
     await eventually(() => expect(commands).toEqual(["laptop"]));
+  });
+
+  it("leaves the page alone while a row's menu is open", async () => {
+    const calls: Array<string> = [];
+    const { wrapper, press } = await mountPage({
+      "GET /tabs": () => ApiTesting.json(laptopAndPhone()),
+      "POST /devices/:id/commands": (_, { id }) => {
+        calls.push(`close ${id}`);
+        return ApiTesting.json(Fixtures.command(id ?? "", "https://example.com/a"), 201);
+      },
+      "POST /tabs/archive": () => {
+        calls.push("archive");
+        return ApiTesting.json({ archived: 1 });
+      },
+      "POST /links": () => {
+        calls.push("save");
+        return ApiTesting.json(Fixtures.link("link-a", "https://example.com/a"), 201);
+      },
+    });
+    // Row A is selected; the menu of another row is open (the platform reports it as `modal`).
+    await press("ArrowDown");
+    const selected = () =>
+      wrapper.findAll("[data-tab]").map((item) => item.attributes("data-state") === "selected");
+    const before = selected();
+    expect(before.filter(Boolean)).toHaveLength(1);
+    const shownBefore = titles(wrapper);
+
+    for (const key of ["w", "e", "s", "c", "x", "ArrowDown", "ArrowUp", "Enter"]) {
+      expect(await press(key, false, { modal: true })).toBe(false);
+    }
+    // A key the menu itself took is not the page's either.
+    expect(await press("w", false, { handled: true })).toBe(false);
+
+    expect(calls).toEqual([]);
+    expect(selected()).toEqual(before);
+    expect(titles(wrapper)).toEqual(shownBefore);
+    expect(wrapper.find("[data-action=done-picking]").exists()).toBe(false);
+  });
+
+  it("selects a row when its menu opens, so the keys and the menu mean one tab", async () => {
+    const { wrapper } = await mountPage({ "GET /tabs": () => ApiTesting.json(laptopAndPhone()) });
+    const item = row(wrapper, "Example c");
+    expect(item.attributes("data-state")).not.toBe("selected");
+    await item.find("[data-slot=dropdown-menu-trigger]").trigger("keydown", { key: "Enter" });
+    await flushPromises();
+    expect(row(wrapper, "Example c").attributes("data-state")).toBe("selected");
+  });
+
+  it("offers Undo for a tab closed on its device, and Undo sends nothing", async () => {
+    const commands: Array<string | undefined> = [];
+    const { wrapper, press } = await mountPage(
+      {
+        "GET /tabs": () => ApiTesting.json(laptopAndPhone()),
+        "POST /devices/:id/commands": (_, { id }) => {
+          commands.push(id);
+          return ApiTesting.json(Fixtures.command(id ?? "", "https://example.com/a"), 201);
+        },
+      },
+      Duration.minutes(1),
+    );
+    const all = titles(wrapper);
+    await press("ArrowDown");
+    await press("w");
+    expect(titles(wrapper)).toHaveLength(all.length - 1);
+    const body = wrapper.element.ownerDocument.body;
+    await eventually(() => expect(body.textContent).toContain("Closing on"));
+
+    (body.querySelector("[data-slot=toast-action]") as HTMLElement | null)?.click();
+    await eventually(() => expect(titles(wrapper)).toEqual(all));
+    expect(commands).toEqual([]);
+    await eventually(() => expect(body.textContent).not.toContain("Closing on"));
   });
 
   it("saves a tab from its row: it stays open and says Saved", async () => {

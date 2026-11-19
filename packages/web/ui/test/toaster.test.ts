@@ -50,6 +50,21 @@ describe("Toaster", () => {
     expect(wrapper.emitted("dismiss")).toEqual([["saved"]]);
   });
 
+  it("shows a toast's action as a button, and emits action and dismiss when it is pressed", async () => {
+    const wrapper = mount(Toaster, {
+      props: { toasts: [{ id: "closing", title: "Closing on Laptop", action: "Undo" }, ...toasts] },
+      attachTo: "body",
+    });
+    await flushPromises();
+
+    const actions = page(wrapper).findAll("[data-slot=toast-action]");
+    expect(actions.map((action) => action.text())).toEqual(["Undo"]);
+    await actions[0]?.trigger("click");
+
+    expect(wrapper.emitted("action")).toEqual([["closing"]]);
+    expect(wrapper.emitted("dismiss")).toEqual([["closing"]]);
+  });
+
   it("emits dismiss when a toast times out, honouring its own duration", async () => {
     const wrapper = await mountToaster();
 

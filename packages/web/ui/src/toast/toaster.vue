@@ -22,7 +22,12 @@ const props = withDefaults(
   }>(),
   { duration: 5000, closeLabel: "Close" },
 );
-const emit = defineEmits<{ dismiss: [id: string] }>();
+const emit = defineEmits<{ dismiss: [id: string]; action: [id: string] }>();
+
+const onAction = (id: string) => {
+  emit("action", id);
+  emit("dismiss", id);
+};
 
 const onOpenChange = (id: string, open: boolean) => {
   if (!open) emit("dismiss", id);
@@ -41,7 +46,7 @@ const onOpenChange = (id: string, open: boolean) => {
       class="group pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-surface border border-hairline bg-popover p-3 pr-12 text-popover-foreground shadow-(--popover-shadow) data-[state=closed]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:animate-in data-[state=open]:slide-in-from-top-full data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--reka-toast-swipe-end-x) data-[swipe=move]:translate-x-(--reka-toast-swipe-move-x) data-[swipe=move]:transition-none data-[variant=destructive]:text-destructive sm:data-[state=open]:slide-in-from-bottom-full"
       @update:open="onOpenChange(toast.id, $event)"
     >
-      <div class="grid gap-1">
+      <div class="grid min-w-0 gap-1">
         <ToastTitle data-slot="toast-title" class="text-label">{{ toast.title }}</ToastTitle>
         <ToastDescription
           v-if="toast.description"
@@ -51,6 +56,15 @@ const onOpenChange = (id: string, open: boolean) => {
           {{ toast.description }}
         </ToastDescription>
       </div>
+      <button
+        v-if="toast.action"
+        type="button"
+        data-slot="toast-action"
+        :class="cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'ml-auto')"
+        @click="onAction(toast.id)"
+      >
+        {{ toast.action }}
+      </button>
       <ToastClose
         data-slot="toast-close"
         :class="cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'absolute top-2 right-2')"

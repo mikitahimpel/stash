@@ -2,6 +2,7 @@ import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
@@ -13,7 +14,12 @@ import type * as OpenTabsView from "../src/open-tabs-view.ts";
 import * as Fixtures from "./fixtures.ts";
 
 let registry: AtomRegistry.AtomRegistry | undefined;
-const use = (routes: ApiTesting.Routes) => (registry = ApiTesting.makeRegistry(routes));
+// Close on device sends at once here; the tests of its Undo set a delay of their own.
+const use = (routes: ApiTesting.Routes) => {
+  registry = ApiTesting.makeRegistry(routes);
+  registry.set(OpenTabsAtoms.closeDelay, Duration.zero);
+  return registry;
+};
 afterEach(() => {
   registry?.dispose();
   registry = undefined;
@@ -232,7 +238,7 @@ describe("closeOnDevice", () => {
       const command = yield* AtomRegistry.getResult(reg, OpenTabsAtoms.closeOnDevice, {
         suspendOnWaiting: true,
       });
-      expect(command.status).toBe("pending");
+      expect(command?.status).toBe("pending");
       expect(commands).toEqual([
         { id: "laptop", payload: { kind: "close-tab", url: "https://example.com/b" } },
       ]);
@@ -264,6 +270,58 @@ describe("closeOnDevice", () => {
     }),
   );
 
+  it.effect("waits with an Undo toast, and Undo brings the tab back and sends nothing", () =>
+    Effect.gen(function* () {
+      let sent = 0;
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "POST /devices/:id/commands": (_, { id }) => {
+          sent += 1;
+          return ApiTesting.json(Fixtures.command(id ?? "", "https://example.com/b"), 201);
+        },
+      });
+      reg.set(OpenTabsAtoms.closeDelay, Duration.minutes(1));
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      reg.set(OpenTabsAtoms.closeOnDevice, rowOf(reg, "b"));
+      expect(shown(reg)).toEqual([["https://example.com/a"]]);
+      const [toast] = reg.get(OpenTabsAtoms.toasts);
+      expect(toast).toMatchObject({
+        title: "Closing on Device laptop",
+        description: "Example b",
+        action: "Undo",
+      });
+
+      OpenTabsAtoms.undoClose(reg, toast?.id ?? "");
+      const command = yield* AtomRegistry.getResult(reg, OpenTabsAtoms.closeOnDevice, {
+        suspendOnWaiting: true,
+      });
+      expect(command).toBeNull();
+      expect(sent).toBe(0);
+      expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/b"]]);
+      expect(reg.get(OpenTabsAtoms.toasts)).toEqual([]);
+      // Nothing waits any more: a second Undo is a no-op.
+      OpenTabsAtoms.undoClose(reg, toast?.id ?? "");
+      unmount();
+    }),
+  );
+
+  it.effect("takes its Undo toast away once the command is sent", () =>
+    Effect.gen(function* () {
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "POST /devices/:id/commands": (_, { id }) =>
+          ApiTesting.json(Fixtures.command(id ?? "", "https://example.com/b"), 201),
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      reg.set(OpenTabsAtoms.closeOnDevice, rowOf(reg, "b"));
+      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.closeOnDevice, { suspendOnWaiting: true });
+      expect(reg.get(OpenTabsAtoms.toasts)).toEqual([]);
+      unmount();
+    }),
+  );
+
   it.effect("shows the tab again once a newer snapshot still reports it", () =>
     Effect.gen(function* () {
       let snapshotAt = Fixtures.takenAt;
@@ -288,6 +346,44 @@ describe("closeOnDevice", () => {
       reg.refresh(OpenTabsAtoms.tabs);
       yield* loaded(reg);
       expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/b"]]);
+      unmount();
+    }),
+  );
+});
+
+describe("save, more tabs than one request carries", () => {
+  it.effect("saves the first 500 and says how many are left", () =>
+    Effect.gen(function* () {
+      const sent: Array<number> = [];
+      const reg = use({
+        "GET /tabs": () =>
+          ApiTesting.json(
+            Fixtures.allTabs(
+              Fixtures.deviceTabs(
+                "laptop",
+                Array.from({ length: 503 }, (_, index) => Fixtures.tab(`t${index}`)),
+              ),
+            ),
+          ),
+        "GET /links": () => ApiTesting.json(Fixtures.linksPage()),
+        "POST /links/batch": (request) => {
+          const { links } = body(request) as { links: ReadonlyArray<unknown> };
+          sent.push(links.length);
+          return ApiTesting.json({ links: [] }, 201);
+        },
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
+      const view = reg.get(OpenTabsAtoms.view);
+      const all = AsyncResult.isSuccess(view) ? view.value.flatMap((group) => group.tabs) : [];
+      reg.set(OpenTabsAtoms.save, all);
+      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.save, { suspendOnWaiting: true });
+      expect(sent).toEqual([500]);
+      expect(reg.get(OpenTabsAtoms.toasts).at(-1)).toMatchObject({
+        title: "Saved 500 tabs",
+        description: "3 more are not saved yet: save again for the rest.",
+      });
       unmount();
     }),
   );

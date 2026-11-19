@@ -158,7 +158,8 @@ const onTitleClick = (event: MouseEvent) => {
           <ArrowUpRight aria-hidden="true" />
         </a>
       </Button>
-      <DropdownMenu>
+      <!-- The menu's row is the selected one: what the menu says and what a key does can't differ. -->
+      <DropdownMenu @update:open="(open: boolean) => open && emit('select')">
         <DropdownMenuTrigger as-child>
           <Button as-child variant="ghost" size="icon-sm">
             <button

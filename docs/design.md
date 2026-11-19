@@ -271,6 +271,12 @@ Open tabs are scanned, not read, so the page is a compact list:
 - **Filter**: a compact field (`sm`, 288px; the row's width on phones) over the list filters by
   title, address and device. The header's search stays the Inbox's.
 - Keys: ↑/↓ select, ↵ open, S save, C copy link, X pick, E archive, W close on device.
+  While a row's menu (or a dialog) is open the page takes no keys: the platform reports an open
+  `[role=menu]` as `modal`, and opening a row's menu selects that row, so the key hints in the
+  menu and the selection always mean the same tab.
+- Close on device is undoable: the tab leaves the list at once and a toast ("Closing on Work
+  laptop", `Undo`) waits 5 s before the command is sent. A sent command can't be taken back.
+  A toast's one action is `ToastMessage.action`; the `<Toaster>` emits `action` with its id.
 
 The api reports no windows or workspaces and no last-active time for a tab yet, so the groups
 stop at the device and the row's time is the time since it was opened.

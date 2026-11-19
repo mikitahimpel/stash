@@ -38,6 +38,8 @@ AtomVue.useAtomValue(() => OpenTabsAtoms.recentLinks);
 const retry = () => registry.refresh(OpenTabsAtoms.tabs);
 
 const dismiss = (id: string) => OpenTabsAtoms.dismissToast(registry, id);
+// The one toast with an action is Close on device's, and the action is Undo.
+const undo = (id: string) => OpenTabsAtoms.undoClose(registry, id);
 
 const success = <A>(result: AsyncResult.AsyncResult<A, unknown>): A | undefined =>
   AsyncResult.isSuccess(result) ? result.value : undefined;
@@ -129,6 +131,10 @@ const pick = (key: string) => {
   picking.value = true;
   revealed.value = null;
   toggle(key);
+};
+const startPicking = () => {
+  picking.value = true;
+  revealed.value = null;
 };
 const stopPicking = () => {
   picking.value = false;
@@ -237,7 +243,7 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
           </Button>
         </ActionBar>
         <Button v-else-if="rows.length > 0" as-child variant="ghost" size="sm" class="ml-auto">
-          <button type="button" data-action="pick" @click="picking = true">Select</button>
+          <button type="button" data-action="pick" @click="startPicking">Select</button>
         </Button>
       </div>
 
@@ -334,6 +340,6 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
       @confirm="archiveStale"
       @cancel="confirming = false"
     />
-    <Toaster :toasts="toasts" @dismiss="dismiss" />
+    <Toaster :toasts="toasts" @dismiss="dismiss" @action="undo" />
   </section>
 </template>
