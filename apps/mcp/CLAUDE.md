@@ -6,8 +6,8 @@ Read the root [CLAUDE.md](../../CLAUDE.md) and [packages/mcp/CLAUDE.md](../../pa
 
 The Cloudflare Worker that serves the remote MCP server, which users add to Claude as a custom
 connector. It implements OAuth 2.1 for connectors with `@cloudflare/workers-oauth-provider`
-(state in KV, GitHub as the upstream identity through the Device Flow, one allowlisted login from
-env), registers the tools from `packages/mcp/*`, and calls `apps/api` through a Service Binding. It
+(state in KV, GitHub as the upstream identity through the Device Flow; the api decides whether
+that GitHub account has a Stash account), registers the tools from `packages/mcp/*`, and calls `apps/api` through a Service Binding. It
 owns no data.
 
 ## May depend on
@@ -37,8 +37,10 @@ context, which the client's auth middleware reads.
 ## Rules
 
 - Keep the entry small: OAuth provider, MCP transport, tool registration.
-- The GitHub client ID (public, a plain var), the allowlisted login and the KV namespace come from
-  env. Never commit them. Device Flow needs no client secret, so this Worker has none.
+- The GitHub client ID (public, a plain var) and the KV namespace come from
+  env. This Worker has no allowlist: it sends the GitHub account's login and numeric id to the
+  api's mint endpoint, which answers with a token of that user or `LoginNotAllowed` (then no grant
+  is made). The tools then act as that user alone, through that token. Never commit them. Device Flow needs no client secret, so this Worker has none.
 - The GitHub access token is read once for the login and dropped. Never store or log it.
 - The public origin is `MCP_ORIGIN`: the OAuth issuer and, with `/mcp`, the resource. On a stage
   with a custom domain it is the site's host, and requests arrive from the web Worker over a
@@ -57,7 +59,7 @@ behavior is tested in `packages/mcp/*`.
 - `src/worker.ts` (entry: reads `env`, builds the live layers), `src/worker-env.ts` (bindings,
   kept in sync with `alchemy.run.ts`)
 - `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent, device code
-  page, poll endpoint, allowlist), `src/authorize-pages.ts` (the server-rendered HTML), `src/stash-mark.ts` (the logo inline for
+  page, poll endpoint, minting the api token), `src/authorize-pages.ts` (the server-rendered HTML), `src/stash-mark.ts` (the logo inline for
   those pages, a copy of the web kit's small mark),
   `src/device-flow-store.ts` (pending device flows in KV), `src/github-identity.ts` (GitHub Device
   Flow over `HttpClient`), `src/login-not-configured.ts` (503 on `/authorize*` while

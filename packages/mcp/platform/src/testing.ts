@@ -9,6 +9,7 @@ import * as Errors from "@stash/contracts-domain/errors";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tab from "@stash/contracts-domain/tab";
 import type * as Tag from "@stash/contracts-domain/tag";
+import * as User from "@stash/contracts-domain/user";
 import { Context, DateTime, Effect, Layer, Option, Redacted } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
@@ -24,6 +25,12 @@ import * as ApiClient from "./api-client.ts";
  * accepted too, until revoked.
  */
 export const apiToken = "synthetic-mcp-token";
+
+/** The user every token of the fake api acts for. */
+export const userId = User.UserId.make("owner");
+
+/** The numeric id (as text) of the GitHub account `allowedLogin`. */
+export const allowedGithubId = "1001";
 
 /** The only login the fake api's `/internal/mcp-tokens` mints a token for. */
 export const allowedLogin = "synthetic-user";
@@ -109,7 +116,10 @@ const authorizationStub = (state: State) =>
     Security.Authorization.of({
       bearer: (handler, { credential }) =>
         state.activeTokens.has(Redacted.value(credential))
-          ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "user" })
+          ? handler.pipe(
+              Effect.provideService(Security.CurrentPrincipal, { kind: "user" }),
+              Effect.provideService(Security.CurrentUser, { id: userId, role: "owner" }),
+            )
           : Effect.fail(new Errors.Unauthorized({ message: "Invalid token" })),
       session: () => Effect.fail(new Errors.Unauthorized({ message: "No session" })),
     }),
@@ -317,6 +327,22 @@ const groups = (state: State) => {
     handlers.handle("stream", () => unsupported("events.stream")),
   );
 
+  // The MCP tools manage neither members nor invites.
+  const members = HttpApiBuilder.group(Api.StashApi, "members", (handlers) =>
+    handlers
+      .handle("me", () => unsupported("members.me"))
+      .handle("list", () => unsupported("members.list"))
+      .handle("remove", () => unsupported("members.remove")),
+  );
+
+  const invites = HttpApiBuilder.group(Api.StashApi, "invites", (handlers) =>
+    handlers
+      .handle("list", () => unsupported("invites.list"))
+      .handle("create", () => unsupported("invites.create"))
+      .handle("revoke", () => unsupported("invites.revoke"))
+      .handle("check", () => unsupported("invites.check")),
+  );
+
   return Layer.mergeAll(
     links,
     search,
@@ -328,6 +354,8 @@ const groups = (state: State) => {
     pairings,
     connect,
     events,
+    members,
+    invites,
   );
 };
 

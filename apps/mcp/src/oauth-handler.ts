@@ -41,13 +41,16 @@ export interface Props {
 
 export interface Options {
   readonly origin: string;
-  readonly allowedLogin: string;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
   /**
-   * Mints the api token for a new grant, for the verified GitHub login, over the Service Binding.
-   * Rejects if the api refuses or is unreachable: the client then gets `server_error`.
+   * Mints the api token for a new grant, for the verified GitHub account, over the Service
+   * Binding. The api decides who that is: `null` when the account has no Stash user (the client
+   * then gets `access_denied`). Rejects if the api is unreachable: the client gets `server_error`.
    */
-  readonly mintApiToken: (login: string) => Promise<string>;
+  readonly mintApiToken: (account: {
+    readonly login: string;
+    readonly id: string;
+  }) => Promise<string | null>;
   /** Epoch milliseconds. Tests pass a clock they control. */
   readonly now?: () => number;
 }
@@ -83,7 +86,6 @@ const redirect = (location: string, headers = new Headers(), status = 302) => {
 const makeNonce = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 
 export const make = (options: Options) => {
-  const allowedLogin = options.allowedLogin.toLowerCase();
   const now = options.now ?? Date.now;
   const github = <A, E>(effect: Effect.Effect<A, E, GitHub.GitHubIdentity>) =>
     Effect.runPromise(Effect.provide(effect, options.github));
@@ -226,12 +228,16 @@ export const make = (options: Options) => {
     if (result === undefined) return fail("failed", "GitHub sign-in failed", "server_error");
     if (result._tag === "Expired") return fail("expired", "The code expired. Start again.");
     if (result._tag === "Denied") return fail("denied", "Sign-in was cancelled on GitHub.");
-    if (result.login.toLowerCase() !== allowedLogin) {
-      return fail("not_allowed", "This GitHub account may not use this server");
-    }
-    const apiToken = await options.mintApiToken(result.login).catch(() => undefined);
+    // The api knows the users (the owner and the invited members) and mints a token only for one
+    // of them, so the token always acts for exactly the person who signed in.
+    const apiToken = await options
+      .mintApiToken({ login: result.login, id: result.id })
+      .catch(() => undefined);
     if (apiToken === undefined) {
       return fail("failed", "Stash could not issue a token. Try again.", "server_error");
+    }
+    if (apiToken === null) {
+      return fail("not_allowed", "This GitHub account may not use this server");
     }
     return json(
       {
