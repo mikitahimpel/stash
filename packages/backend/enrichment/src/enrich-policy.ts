@@ -26,6 +26,14 @@ export interface Policy {
  */
 export const metadataVersion = 1;
 
+/**
+ * The version of the metadata on a link's vector, stamped on every link whose vector is stored
+ * (`links.vector_version`). Version 1 is `{ userId }`, which every semantic search filters on. A
+ * vector with an older stamp is written again with the current metadata by the hourly cron (see
+ * `backfill-vectors.ts`). Raise it when the metadata changes.
+ */
+export const vectorVersion = 1;
+
 export const defaultPolicy: Policy = {
   retrySchedule: Schedule.exponential("1 second").pipe(Schedule.jittered),
   retries: 2,

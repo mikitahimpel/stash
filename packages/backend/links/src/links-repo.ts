@@ -1,7 +1,9 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as Security from "@stash/contracts-api/security";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
+import type * as User from "@stash/contracts-domain/user";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -61,17 +63,20 @@ export interface LinkChanges {
   readonly tags?: ReadonlyArray<Tag.TagName>;
 }
 
-/** The links tables. */
+/**
+ * The links tables. Every method reads and writes only the current user's links (`CurrentUser`):
+ * each statement names `user_id`, so another user's link is simply not there.
+ */
 export class LinksRepo extends Context.Service<
   LinksRepo,
   {
     readonly findById: (
       id: Link.LinkId,
-    ) => Effect.Effect<Option.Option<Link.Link>, D1Database.DatabaseError>;
+    ) => Effect.Effect<Option.Option<Link.Link>, D1Database.DatabaseError, Security.CurrentUser>;
     /** The stored links with these canonical URLs, in no particular order. */
     readonly findByCanonicalUrls: (
       urls: ReadonlyArray<Link.Url>,
-    ) => Effect.Effect<ReadonlyArray<Link.Link>, D1Database.DatabaseError>;
+    ) => Effect.Effect<ReadonlyArray<Link.Link>, D1Database.DatabaseError, Security.CurrentUser>;
     /**
      * Inserts the links in order, in one transaction, skipping any whose canonical URL is already
      * stored (including by an earlier link of the same call). Returns the stored link for each
@@ -79,18 +84,20 @@ export class LinksRepo extends Context.Service<
      */
     readonly insertAll: (
       links: ReadonlyArray<NewLink>,
-    ) => Effect.Effect<ReadonlyArray<Link.Link>, D1Database.DatabaseError>;
+    ) => Effect.Effect<ReadonlyArray<Link.Link>, D1Database.DatabaseError, Security.CurrentUser>;
     /** Newest first: by `createdAt`, then by insertion order. At most `limit` links. */
     readonly list: (
       filter: ListFilter,
-    ) => Effect.Effect<ReadonlyArray<ListedLink>, D1Database.DatabaseError>;
+    ) => Effect.Effect<ReadonlyArray<ListedLink>, D1Database.DatabaseError, Security.CurrentUser>;
     /** `None` if there is no such link. */
     readonly update: (
       id: Link.LinkId,
       changes: LinkChanges,
-    ) => Effect.Effect<Option.Option<Link.Link>, D1Database.DatabaseError>;
+    ) => Effect.Effect<Option.Option<Link.Link>, D1Database.DatabaseError, Security.CurrentUser>;
     /** `false` if there is no such link. */
-    readonly remove: (id: Link.LinkId) => Effect.Effect<boolean, D1Database.DatabaseError>;
+    readonly remove: (
+      id: Link.LinkId,
+    ) => Effect.Effect<boolean, D1Database.DatabaseError, Security.CurrentUser>;
   }
 >()("@stash/backend-links/LinksRepo") {}
 
@@ -140,20 +147,28 @@ const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.st
   l.source_device_id AS sourceDeviceId, l.created_at AS createdAt, l.enriched_at AS enrichedAt,
   COALESCE(l.updated_at, l.created_at) AS updatedAt`;
 
-/** `[{ id, tags }]` as JSON: the tag rows and link-tag rows for these links, if they exist. */
-const tagStatements = (json: string): ReadonlyArray<D1Database.Statement> => [
+/**
+ * `[{ id, tags }]` as JSON: the tag rows and link-tag rows for these links, if they exist and are
+ * the user's.
+ */
+const tagStatements = (userId: User.UserId, json: string): ReadonlyArray<D1Database.Statement> => [
   D1Database.statement(
     `INSERT OR IGNORE INTO tags (name)
       SELECT DISTINCT t.value FROM json_each(?) AS l, json_each(l.value, '$.tags') AS t
-      WHERE EXISTS (SELECT 1 FROM links WHERE links.id = json_extract(l.value, '$.id'))`,
+      WHERE EXISTS (SELECT 1 FROM links
+        WHERE links.id = json_extract(l.value, '$.id') AND links.user_id = ?)`,
     json,
+    userId,
   ),
   D1Database.statement(
-    `INSERT OR IGNORE INTO link_tags (link_id, tag_id)
-      SELECT json_extract(l.value, '$.id'), tags.id
+    `INSERT OR IGNORE INTO link_tags (link_id, tag_id, user_id)
+      SELECT json_extract(l.value, '$.id'), tags.id, ?
       FROM json_each(?) AS l, json_each(l.value, '$.tags') AS t JOIN tags ON tags.name = t.value
-      WHERE EXISTS (SELECT 1 FROM links WHERE links.id = json_extract(l.value, '$.id'))`,
+      WHERE EXISTS (SELECT 1 FROM links
+        WHERE links.id = json_extract(l.value, '$.id') AND links.user_id = ?)`,
+    userId,
     json,
+    userId,
   ),
 ];
 
@@ -162,7 +177,10 @@ const tagStatements = (json: string): ReadonlyArray<D1Database.Statement> => [
  * URL included: the last link of the call per device, pointing at the stored link. An unknown
  * device matches no row.
  */
-const lastSaveStatements = (links: ReadonlyArray<NewLink>): ReadonlyArray<D1Database.Statement> => {
+const lastSaveStatements = (
+  userId: User.UserId,
+  links: ReadonlyArray<NewLink>,
+): ReadonlyArray<D1Database.Statement> => {
   const lastByDevice = new Map<string, NewLink>();
   for (const link of links) {
     if (link.sourceDeviceId !== null) lastByDevice.set(link.sourceDeviceId, link);
@@ -170,10 +188,13 @@ const lastSaveStatements = (links: ReadonlyArray<NewLink>): ReadonlyArray<D1Data
   return [...lastByDevice].map(([deviceId, link]) =>
     D1Database.statement(
       `UPDATE devices SET last_save_at = ?,
-        last_save_link_id = (SELECT id FROM links WHERE canonical_url = ?) WHERE id = ?`,
+        last_save_link_id = (SELECT id FROM links WHERE user_id = ? AND canonical_url = ?)
+        WHERE id = ? AND user_id = ?`,
       DateTime.formatIso(link.createdAt),
+      userId,
       link.canonicalUrl,
       deviceId,
+      userId,
     ),
   );
 };
@@ -184,28 +205,40 @@ export const make = Effect.gen(function* () {
   const query = <S extends Schema.Constraint>(schema: S, s: D1Database.Statement) =>
     D1Database.query(schema)(s).pipe(provide);
 
+  const currentUser = Effect.service(Security.CurrentUser);
+
   const findById = (id: Link.LinkId) =>
-    D1Database.queryFirst(LinkRow)(
-      D1Database.statement(`SELECT ${linkColumns} FROM links l WHERE l.id = ?`, id),
-    ).pipe(Effect.map(Option.map(toLink)), provide);
+    Effect.flatMap(currentUser, (user) =>
+      D1Database.queryFirst(LinkRow)(
+        D1Database.statement(
+          `SELECT ${linkColumns} FROM links l WHERE l.id = ? AND l.user_id = ?`,
+          id,
+          user.id,
+        ),
+      ).pipe(Effect.map(Option.map(toLink)), provide),
+    );
 
   const findByCanonicalUrls = (urls: ReadonlyArray<Link.Url>) =>
     urls.length === 0
-      ? Effect.succeed([])
-      : query(
-          LinkRow,
-          D1Database.statement(
-            `SELECT ${linkColumns} FROM links l
-              WHERE l.canonical_url IN (SELECT value FROM json_each(?))`,
-            JSON.stringify(urls),
-          ),
-        ).pipe(Effect.map((rows) => rows.map(toLink)));
+      ? Effect.as(currentUser, [])
+      : Effect.flatMap(currentUser, (user) =>
+          query(
+            LinkRow,
+            D1Database.statement(
+              `SELECT ${linkColumns} FROM links l
+                WHERE l.user_id = ? AND l.canonical_url IN (SELECT value FROM json_each(?))`,
+              user.id,
+              JSON.stringify(urls),
+            ),
+          ).pipe(Effect.map((rows) => rows.map(toLink))),
+        );
 
   return LinksRepo.of({
     findById,
     findByCanonicalUrls,
     insertAll: Effect.fn("LinksRepo.insertAll")(function* (links) {
       if (links.length === 0) return [];
+      const user = yield* currentUser;
       const rows = JSON.stringify(
         links.map((link) => ({
           id: link.id,
@@ -220,17 +253,19 @@ export const make = Effect.gen(function* () {
       // `WHERE true` keeps SQLite from reading `ON CONFLICT` as a join constraint.
       yield* db.batch([
         D1Database.statement(
-          `INSERT INTO links (id, url, canonical_url, title, source_device_id, created_at)
-            SELECT json_extract(value, '$.id'), json_extract(value, '$.url'),
+          `INSERT INTO links (id, user_id, url, canonical_url, title, source_device_id, created_at)
+            SELECT json_extract(value, '$.id'), ?1, json_extract(value, '$.url'),
               json_extract(value, '$.canonicalUrl'), json_extract(value, '$.title'),
-              (SELECT d.id FROM devices d WHERE d.id = json_extract(value, '$.sourceDeviceId')),
+              (SELECT d.id FROM devices d
+                WHERE d.id = json_extract(value, '$.sourceDeviceId') AND d.user_id = ?1),
               json_extract(value, '$.createdAt')
-            FROM json_each(?) WHERE true ORDER BY key
-            ON CONFLICT (canonical_url) DO NOTHING`,
+            FROM json_each(?2) WHERE true ORDER BY key
+            ON CONFLICT (user_id, canonical_url) DO NOTHING`,
+          user.id,
           rows,
         ),
-        ...tagStatements(rows),
-        ...lastSaveStatements(links),
+        ...tagStatements(user.id, rows),
+        ...lastSaveStatements(user.id, links),
       ]);
       const stored = yield* findByCanonicalUrls(links.map((link) => link.canonicalUrl));
       const byCanonicalUrl = new Map(stored.map((link) => [link.canonicalUrl, link]));
@@ -241,9 +276,10 @@ export const make = Effect.gen(function* () {
           : Effect.succeed(found);
       });
     }),
-    list: (filter) => {
-      const conditions: Array<string> = [];
-      const params: Array<D1Database.Value> = [];
+    list: Effect.fnUntraced(function* (filter) {
+      const user = yield* currentUser;
+      const conditions: Array<string> = ["l.user_id = ?"];
+      const params: Array<D1Database.Value> = [user.id];
       if (filter.status !== undefined) {
         conditions.push("l.status = ?");
         params.push(filter.status);
@@ -276,8 +312,8 @@ export const make = Effect.gen(function* () {
         conditions.push("(l.created_at < ? OR (l.created_at = ? AND l.seq < ?))");
         params.push(filter.after.createdAt, filter.after.createdAt, filter.after.seq);
       }
-      const where = conditions.length === 0 ? "" : `WHERE ${conditions.join(" AND ")}`;
-      return query(
+      const where = `WHERE ${conditions.join(" AND ")}`;
+      return yield* query(
         ListedRow,
         D1Database.statement(
           `SELECT ${linkColumns}, l.seq, l.created_at AS createdAtText FROM links l ${where}
@@ -293,8 +329,9 @@ export const make = Effect.gen(function* () {
           })),
         ),
       );
-    },
+    }),
     update: Effect.fn("LinksRepo.update")(function* (id, changes) {
+      const user = yield* currentUser;
       if (Option.isNone(yield* findById(id))) return Option.none();
       const sets: Array<string> = [];
       const params: Array<D1Database.Value> = [];
@@ -311,22 +348,29 @@ export const make = Effect.gen(function* () {
       const statements: Array<D1Database.Statement> = [];
       if (sets.length > 0) {
         statements.push(
-          D1Database.statement(`UPDATE links SET ${sets.join(", ")} WHERE id = ?`, ...params, id),
+          D1Database.statement(
+            `UPDATE links SET ${sets.join(", ")} WHERE id = ? AND user_id = ?`,
+            ...params,
+            id,
+            user.id,
+          ),
         );
       }
       if (changes.tags !== undefined) {
         statements.push(
-          D1Database.sql`DELETE FROM link_tags WHERE link_id = ${id}`,
-          ...tagStatements(JSON.stringify([{ id, tags: changes.tags }])),
+          D1Database.sql`DELETE FROM link_tags WHERE link_id = ${id} AND user_id = ${user.id}`,
+          ...tagStatements(user.id, JSON.stringify([{ id, tags: changes.tags }])),
         );
       }
       yield* db.batch(statements);
       return yield* findById(id);
     }),
     remove: (id) =>
-      db
-        .run(D1Database.sql`DELETE FROM links WHERE id = ${id}`)
-        .pipe(Effect.map((result) => result.changes > 0)),
+      Effect.flatMap(currentUser, (user) =>
+        db
+          .run(D1Database.sql`DELETE FROM links WHERE id = ${id} AND user_id = ${user.id}`)
+          .pipe(Effect.map((result) => result.changes > 0)),
+      ),
   });
 });
 

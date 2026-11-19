@@ -24,21 +24,24 @@ const TestLayer = ApiTokensRepo.layer.pipe(
 );
 
 describe("createMcpToken", () => {
-  it.effect("mints a user token named Claude (MCP) and stores only its hash and login", () =>
+  it.effect("mints a user token named Claude (MCP) for the owner and stores only its hash", () =>
     Effect.gen(function* () {
-      const created = yield* CreateMcpToken.createMcpToken("Synthetic-Owner");
+      const created = yield* CreateMcpToken.createMcpToken({
+        id: "1001",
+        login: "Synthetic-Owner",
+      });
       expect(created.deviceId).toBeNull();
       expect(created.name).toBe(ApiToken.mcpTokenName);
       expect(Redacted.value(created.token).startsWith(ApiTokenSecret.prefix)).toBe(true);
 
       const rows = yield* D1Database.Database.use((db) =>
-        db.all(D1Database.sql`SELECT device_id, name, github_login, hash FROM api_tokens`),
+        db.all(D1Database.sql`SELECT device_id, name, user_id, hash FROM api_tokens`),
       );
       expect(rows).toEqual([
         {
           device_id: null,
           name: ApiToken.mcpTokenName,
-          github_login: "Synthetic-Owner",
+          user_id: Testing.owner.id,
           hash: yield* ApiTokenSecret.hash(created.token),
         },
       ]);
@@ -55,11 +58,39 @@ describe("createMcpToken", () => {
     }).pipe(Effect.provide(TestLayer)),
   );
 
-  it.effect("refuses a login other than the allowlisted one", () =>
+  it.effect("refuses an account that is neither the owner nor a member", () =>
     Effect.gen(function* () {
-      const error = yield* CreateMcpToken.createMcpToken("synthetic-stranger").pipe(Effect.flip);
+      const error = yield* CreateMcpToken.createMcpToken({
+        id: "2002",
+        login: "synthetic-stranger",
+      }).pipe(Effect.flip);
       expect(error).toBeInstanceOf(Errors.LoginNotAllowed);
       expect(yield* ListApiTokens.listApiTokens).toEqual([]);
+      expect(yield* ListApiTokens.listApiTokens.pipe(Testing.as(Testing.member))).toEqual([]);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("mints a member's token for that member, found by the account's id", () =>
+    Effect.gen(function* () {
+      yield* D1Database.Database.use((db) =>
+        db.run(
+          D1Database.sql`INSERT INTO user_identities (provider, subject, user_id, label)
+            VALUES (${"github"}, ${"3003"}, ${Testing.member.id}, ${"synthetic-member"})`,
+        ),
+      );
+      // The login was renamed since: the id still finds the member.
+      const created = yield* CreateMcpToken.createMcpToken({ id: "3003", login: "renamed" });
+      expect(
+        (yield* ListApiTokens.listApiTokens.pipe(Testing.as(Testing.member))).map((t) => t.id),
+      ).toEqual([created.id]);
+      // It is not the owner's token, and the owner does not see it.
+      expect(yield* ListApiTokens.listApiTokens).toEqual([]);
+      // A stranger who took the member's old login gets nothing.
+      const error = yield* CreateMcpToken.createMcpToken({
+        id: "4004",
+        login: "synthetic-member",
+      }).pipe(Effect.flip);
+      expect(error).toBeInstanceOf(Errors.LoginNotAllowed);
     }).pipe(Effect.provide(TestLayer)),
   );
 });
@@ -73,12 +104,14 @@ describe("internal handlers", () => {
   it.effect("serves POST /internal/mcp-tokens without any credential", () =>
     Effect.gen(function* () {
       const client = yield* HttpApiTest.groups(InternalApi.InternalApi, ["internal"]);
-      const created = yield* client.internal.createMcpToken({ payload: { login: allowedLogin } });
+      const created = yield* client.internal.createMcpToken({
+        payload: { login: allowedLogin, githubId: "1001" },
+      });
       expect(created.name).toBe(ApiToken.mcpTokenName);
       expect(Redacted.value(created.token)).not.toBe("");
 
       const error = yield* client.internal
-        .createMcpToken({ payload: { login: "synthetic-stranger" } })
+        .createMcpToken({ payload: { login: "synthetic-stranger", githubId: "2002" } })
         .pipe(Effect.flip);
       expect(error).toBeInstanceOf(Errors.LoginNotAllowed);
     }).pipe(Effect.provide(server)),

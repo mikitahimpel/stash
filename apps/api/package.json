@@ -19,6 +19,7 @@
     "@stash/backend-platform": "workspace:*",
     "@stash/backend-search": "workspace:*",
     "@stash/backend-tabs": "workspace:*",
+    "@stash/backend-users": "workspace:*",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"

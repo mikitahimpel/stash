@@ -5,7 +5,9 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as DevicesRepo from "./devices/devices-repo.ts";
 
-// The signed-in user may act for every device. A device token acts only for its own device, with
+// Every device here is the current user's: the repos find no other (`CurrentUser`), so a caller
+// asking about someone else's device gets `NotFound` before any of this runs. Among their own
+// devices, the signed-in user may act for every one. A device token acts only for its own device, with
 // one exception: `mac-agent` reads Safari's iCloud Tabs on a Mac and reports the tabs of the iOS
 // devices it registered, so it may write the snapshot of any `ios` device.
 

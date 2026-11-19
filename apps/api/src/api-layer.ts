@@ -9,6 +9,7 @@ import * as PairingsRepo from "@stash/backend-auth/pairings-repo";
 import * as SessionsRepo from "@stash/backend-auth/sessions-repo";
 import * as DigestsRepo from "@stash/backend-digest/digests-repo";
 import type * as Ai from "@stash/backend-platform/ai";
+import type * as Blobs from "@stash/backend-platform/blobs";
 import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as D1Database from "@stash/backend-platform/d1-database";
@@ -20,6 +21,9 @@ import * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as Vectors from "@stash/backend-platform/vectors";
 import * as SearchRepo from "@stash/backend-search/search-repo";
 import * as SearchService from "@stash/backend-search/search-service";
+import * as AiQuota from "@stash/backend-users/ai-quota";
+import * as InvitesRepo from "@stash/backend-users/invites-repo";
+import * as UsersRepo from "@stash/backend-users/users-repo";
 import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
@@ -44,6 +48,7 @@ export type Requirements =
   | HttpClient.HttpClient
   | Ai.Ai
   | Vectors.Vectors
+  | Blobs.Blobs
   | LinkEvents.LinkEvents;
 
 /** Unauthenticated liveness probe. */
@@ -89,6 +94,7 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(DigestsRepo.layer),
       Layer.provide(LinksRepo.layer),
       Layer.provide(SaveRateLimiter.layer()),
+      Layer.provide(Layer.mergeAll(UsersRepo.layer, InvitesRepo.layer, AiQuota.layer)),
     ),
     health,
     cors,
@@ -105,7 +111,7 @@ export const internalLayer: Layer.Layer<never, never, HttpRouter.HttpRouter | Re
     layer,
     HttpApiBuilder.layer(InternalApi.InternalApi).pipe(
       Layer.provide(InternalHandlers.layer),
-      Layer.provide(ApiTokensRepo.layer),
+      Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, UsersRepo.layer, InvitesRepo.layer)),
       Layer.provide(HttpServer.layerServices),
     ),
   );

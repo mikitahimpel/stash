@@ -2,6 +2,7 @@ import type * as LinksRepo from "@stash/backend-links/links-repo";
 import * as PublishLinkEvent from "@stash/backend-links/publish-link-event";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as LinkEvents from "@stash/backend-platform/link-events";
+import type * as Security from "@stash/contracts-api/security";
 import * as Link from "@stash/contracts-domain/link";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -17,7 +18,8 @@ import * as FetchContent from "./fetch-content.ts";
 // images and authors gets them now, and nothing else about it changes.
 //
 // - Only metadata is fetched: one oEmbed request for a YouTube link (its thumbnail comes from the
-//   video id), the page for any other. No classifier call, no embedding, no text.
+//   video id), the page for any other. No classifier call, no embedding, no text, so it does
+//   not count against the daily AI quota.
 // - Only missing fields are filled. A stored image or author stays, and the title, summary, type
 //   and tags are never touched.
 // - Once per metadata version: a finished backfill stamps `EnrichPolicy.metadataVersion` on the
@@ -45,7 +47,8 @@ export type Requirements =
   | EnrichmentRepo.EnrichmentRepo
   | HttpClient.HttpClient
   | LinksRepo.LinksRepo
-  | LinkEvents.LinkEvents;
+  | LinkEvents.LinkEvents
+  | Security.CurrentUser;
 
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
 const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);

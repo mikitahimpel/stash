@@ -28,15 +28,29 @@ describe("embedLink", () => {
     expect(text.length).toBeLessThanOrEqual(EmbedLink.maxEmbeddingTextLength);
   });
 
-  it.effect("upserts the embedding under the link id", () =>
+  it.effect("upserts the embedding under the link id, with its user as metadata", () =>
     Effect.gen(function* () {
       yield* EmbedLink.embedLink(id, input);
       yield* EmbedLink.embedLink(id, input);
       const matches = yield* Vectors.Vectors.use((vectors) =>
         vectors.query(Testing.fakeEmbedding(EmbedLink.embeddingText(input))),
       );
-      expect(matches).toEqual([{ id, score: expect.closeTo(1, 6), metadata: {} }]);
-    }).pipe(Effect.provide(Layer.mergeAll(Testing.layerAi(), Testing.layerVectors))),
+      expect(matches).toEqual([
+        { id, score: expect.closeTo(1, 6), metadata: { userId: Testing.owner.id } },
+      ]);
+      // Written again as another user's (it never is: a link has one user), the metadata follows.
+      yield* EmbedLink.embedLink(id, input).pipe(Testing.as(Testing.member));
+      const forMember = yield* Vectors.Vectors.use((vectors) =>
+        vectors.query(Testing.fakeEmbedding(EmbedLink.embeddingText(input)), {
+          filter: { [Vectors.userIdKey]: Testing.member.id },
+        }),
+      );
+      expect(forMember.map((match) => match.id)).toEqual([id]);
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(Testing.layerAi(), Testing.layerVectors, Testing.layerCurrentUser()),
+      ),
+    ),
   );
 
   it.effect("retries Workers AI on the policy schedule", () => {
@@ -55,6 +69,8 @@ describe("embedLink", () => {
         }),
       );
       expect(calls).toBe(3);
-    }).pipe(Effect.provide(Layer.mergeAll(flaky, Testing.layerVectors)));
+    }).pipe(
+      Effect.provide(Layer.mergeAll(flaky, Testing.layerVectors, Testing.layerCurrentUser())),
+    );
   });
 });

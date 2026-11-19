@@ -1,4 +1,5 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as Security from "@stash/contracts-api/security";
 import * as Command from "@stash/contracts-domain/command";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Context from "effect/Context";
@@ -14,25 +15,35 @@ import * as Schema from "effect/Schema";
 /** The outcome a device reports. */
 export type Outcome = Exclude<Command.CommandStatus, "pending">;
 
-/** The `commands` table. */
+/** The `commands` table: the commands of the current user's devices (`CurrentUser`). */
 export class CommandsRepo extends Context.Service<
   CommandsRepo,
   {
-    readonly insert: (command: Command.Command) => Effect.Effect<void, D1Database.DatabaseError>;
+    readonly insert: (
+      command: Command.Command,
+    ) => Effect.Effect<void, D1Database.DatabaseError, Security.CurrentUser>;
     readonly findById: (
       id: Command.CommandId,
-    ) => Effect.Effect<Option.Option<Command.Command>, D1Database.DatabaseError>;
+    ) => Effect.Effect<
+      Option.Option<Command.Command>,
+      D1Database.DatabaseError,
+      Security.CurrentUser
+    >;
     /** The device's commands, oldest first, optionally with one status. */
     readonly listByDevice: (
       deviceId: Device.DeviceId,
       status?: Command.CommandStatus,
-    ) => Effect.Effect<ReadonlyArray<Command.Command>, D1Database.DatabaseError>;
+    ) => Effect.Effect<
+      ReadonlyArray<Command.Command>,
+      D1Database.DatabaseError,
+      Security.CurrentUser
+    >;
     /** Moves a pending command to `status`. `false` if it was not pending (or does not exist). */
     readonly complete: (
       id: Command.CommandId,
       status: Outcome,
       completedAt: DateTime.Utc,
-    ) => Effect.Effect<boolean, D1Database.DatabaseError>;
+    ) => Effect.Effect<boolean, D1Database.DatabaseError, Security.CurrentUser>;
   }
 >()("@stash/backend-tabs/CommandsRepo") {}
 
@@ -47,43 +58,56 @@ const commandColumns = `id, device_id AS deviceId, payload, status, created_at A
 export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
   const provide = Effect.provideService(D1Database.Database, db);
+  const currentUser = Effect.service(Security.CurrentUser);
   return CommandsRepo.of({
     insert: (command) =>
-      db
-        .run(
-          D1Database.sql`INSERT INTO commands (id, device_id, kind, payload, status, created_at)
-            VALUES (${command.id}, ${command.deviceId}, ${command.payload.kind},
+      Effect.flatMap(currentUser, (user) =>
+        db.run(
+          D1Database.sql`INSERT INTO commands
+              (id, user_id, device_id, kind, payload, status, created_at)
+            VALUES (${command.id}, ${user.id}, ${command.deviceId}, ${command.payload.kind},
               ${JSON.stringify(command.payload)}, ${command.status},
               ${DateTime.formatIso(command.createdAt)})`,
-        )
-        .pipe(Effect.asVoid),
+        ),
+      ).pipe(Effect.asVoid),
     findById: (id) =>
-      D1Database.queryFirst(CommandRow)(
-        D1Database.statement(`SELECT ${commandColumns} FROM commands WHERE id = ?`, id),
-      ).pipe(provide),
+      Effect.flatMap(currentUser, (user) =>
+        D1Database.queryFirst(CommandRow)(
+          D1Database.statement(
+            `SELECT ${commandColumns} FROM commands WHERE id = ? AND user_id = ?`,
+            id,
+            user.id,
+          ),
+        ).pipe(provide),
+      ),
     listByDevice: (deviceId, status) =>
-      D1Database.query(CommandRow)(
-        status === undefined
-          ? D1Database.statement(
-              `SELECT ${commandColumns} FROM commands WHERE device_id = ?
-                ORDER BY created_at, rowid`,
-              deviceId,
-            )
-          : D1Database.statement(
-              `SELECT ${commandColumns} FROM commands WHERE device_id = ? AND status = ?
-                ORDER BY created_at, rowid`,
-              deviceId,
-              status,
-            ),
-      ).pipe(provide),
+      Effect.flatMap(currentUser, (user) =>
+        D1Database.query(CommandRow)(
+          status === undefined
+            ? D1Database.statement(
+                `SELECT ${commandColumns} FROM commands WHERE device_id = ? AND user_id = ?
+                  ORDER BY created_at, rowid`,
+                deviceId,
+                user.id,
+              )
+            : D1Database.statement(
+                `SELECT ${commandColumns} FROM commands
+                  WHERE device_id = ? AND user_id = ? AND status = ?
+                  ORDER BY created_at, rowid`,
+                deviceId,
+                user.id,
+                status,
+              ),
+        ).pipe(provide),
+      ),
     complete: (id, status, completedAt) =>
-      db
-        .run(
+      Effect.flatMap(currentUser, (user) =>
+        db.run(
           D1Database.sql`UPDATE commands SET status = ${status},
             completed_at = ${DateTime.formatIso(completedAt)}
-            WHERE id = ${id} AND status = 'pending'`,
-        )
-        .pipe(Effect.map((result) => result.changes > 0)),
+            WHERE id = ${id} AND user_id = ${user.id} AND status = 'pending'`,
+        ),
+      ).pipe(Effect.map((result) => result.changes > 0)),
   });
 });
 

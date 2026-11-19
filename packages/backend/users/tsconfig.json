@@ -1,0 +1,4 @@
+{
+  "extends": "@stash/config-tsconfig/workers.json",
+  "include": ["src"]
+}

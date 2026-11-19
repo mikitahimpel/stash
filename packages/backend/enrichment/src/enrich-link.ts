@@ -15,6 +15,8 @@ import * as Schema from "effect/Schema";
 import * as ClassifyLink from "./classify-link.ts";
 import type * as ContentHttp from "./content-http.ts";
 import * as ContentText from "./content-text.ts";
+import * as AiQuota from "@stash/backend-users/ai-quota";
+import * as Security from "@stash/contracts-api/security";
 import * as EmbedLink from "./embed-link.ts";
 import * as EnrichPolicy from "./enrich-policy.ts";
 import * as EnrichmentRepo from "./enrichment-repo.ts";
@@ -45,6 +47,12 @@ import * as XPostUrl from "@stash/backend-links/x-post-url";
 //   whatever the saving client called the tab, and a short post is its own summary: the model
 //   still tags it, but writes a summary only for a long one. A post that is gone is stored as
 //   unavailable and is enriched like any link with no content.
+// - Each enrichment counts against its user's daily AI quota (`AiQuota`). With the cap used up
+//   the link is `Deferred`: nothing is fetched or sent to a model, the link stays pending, and
+//   the hourly requeue sends it again when the user has room, the next day at the latest. A run
+//   that does not end in a stored enrichment gives its count back.
+// - Everything runs as the link's user (`CurrentUser`): the vector carries their id, and the
+//   event goes to their stream only.
 // - A stored enrichment is published to the live stream (`GET /events`), once, as the whole link,
 //   so an open page turns `summarizing…` into the summary by itself. Publishing never fails.
 
@@ -61,6 +69,8 @@ export type Outcome =
   | { readonly _tag: "Skipped" }
   /** No such link: it was deleted after it was queued. */
   | { readonly _tag: "Missing" }
+  /** The user's daily AI quota is used up. The link stays pending and is enriched later. */
+  | { readonly _tag: "Deferred" }
   /** Failed permanently and marked as failed. */
   | { readonly _tag: "Failed"; readonly reason: string };
 
@@ -81,7 +91,9 @@ export type Requirements =
   | Vectors.Vectors
   | Blobs.Blobs
   | LinksRepo.LinksRepo
-  | LinkEvents.LinkEvents;
+  | LinkEvents.LinkEvents
+  | AiQuota.AiQuota
+  | Security.CurrentUser;
 
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
 const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);
@@ -113,6 +125,29 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
     if (link.enrichedAt !== null || link.enrichmentError !== null) {
       return { _tag: "Skipped" } as const;
     }
+
+    const quota = yield* AiQuota.AiQuota;
+    if (!(yield* quota.reserve)) {
+      yield* repo.untake(id);
+      return { _tag: "Deferred" } as const;
+    }
+    return yield* enrichReserved(link).pipe(
+      // Only a stored enrichment keeps its count.
+      Effect.onExit((exit) =>
+        exit._tag === "Success" && exit.value._tag === "Enriched"
+          ? Effect.void
+          : Effect.ignore(quota.release),
+      ),
+    );
+  }).pipe(Effect.withSpan("enrichLink", { attributes: { linkId: id } }));
+
+/** The pipeline for a link that is due and has its place in today's quota. */
+const enrichReserved = (
+  link: EnrichmentRepo.LinkToEnrich,
+): Effect.Effect<Outcome, EnrichError, Requirements> =>
+  Effect.gen(function* () {
+    const repo = yield* EnrichmentRepo.EnrichmentRepo;
+    const { id } = link;
 
     // The cron's last requeue: stop fetching, so the link is done whatever its site answers.
     const policy = yield* EnrichPolicy.EnrichPolicy;
@@ -201,10 +236,11 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       tags: classification.tags,
       enrichedAt: DateTime.formatIso(now),
       metadataVersion: EnrichPolicy.metadataVersion,
+      vectorVersion: EnrichPolicy.vectorVersion,
     });
     yield* PublishLinkEvent.changed(id);
     return {
       _tag: "Enriched",
       source: Option.match(content, { onNone: () => "none" as const, onSome: (c) => c.source }),
     } as const;
-  }).pipe(Effect.withSpan("enrichLink", { attributes: { linkId: id } }));
+  });

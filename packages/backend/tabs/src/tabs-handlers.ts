@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import type * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
@@ -23,7 +24,7 @@ import * as ReplaceTabsSnapshot from "./snapshots/replace-tabs-snapshot.ts";
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "tabs", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<
+    const context = yield* ServiceContext.capture<
       | DevicesRepo.DevicesRepo
       | OpenTabsRepo.OpenTabsRepo
       | CommandsRepo.CommandsRepo

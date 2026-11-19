@@ -33,6 +33,8 @@ export const handleSmoke = async (
     return Response.json({ tables: results.map((row) => row.name) });
   }
 
+  // Everything seeded here belongs to the owner (the user `owner` the migrations create).
+
   // Seeds a device and an API token from the token's SHA-256 hash (never the plaintext), so the
   // smoke test can authenticate against the HttpApi.
   if (request.method === "POST" && url.pathname === "/_smoke/api-token") {
@@ -40,15 +42,12 @@ export const handleSmoke = async (
     const deviceId = `smoke-device-${crypto.randomUUID()}`;
     const tokenId = `smoke-token-${crypto.randomUUID()}`;
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO devices (id, name, kind) VALUES (?, ?, 'zen')").bind(
-        deviceId,
-        "Smoke device",
-      ),
-      env.DB.prepare("INSERT INTO api_tokens (id, device_id, hash) VALUES (?, ?, ?)").bind(
-        tokenId,
-        deviceId,
-        hash,
-      ),
+      env.DB.prepare(
+        "INSERT INTO devices (id, user_id, name, kind) VALUES (?, 'owner', ?, 'zen')",
+      ).bind(deviceId, "Smoke device"),
+      env.DB.prepare(
+        "INSERT INTO api_tokens (id, user_id, device_id, hash) VALUES (?, 'owner', ?, ?)",
+      ).bind(tokenId, deviceId, hash),
     ]);
     return Response.json({ deviceId, tokenId }, { status: 201 });
   }
@@ -63,7 +62,9 @@ export const handleSmoke = async (
   if (request.method === "POST" && url.pathname === "/_smoke/session") {
     const { hash } = await request.json<{ hash: string }>();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await env.DB.prepare("INSERT INTO sessions (id, github_login, expires_at) VALUES (?, ?, ?)")
+    await env.DB.prepare(
+      "INSERT INTO sessions (id, user_id, github_login, expires_at) VALUES (?, 'owner', ?, ?)",
+    )
       .bind(hash, env.ALLOWED_GITHUB_LOGIN, expiresAt)
       .run();
     return Response.json({ expiresAt }, { status: 201 });

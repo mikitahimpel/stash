@@ -32,7 +32,7 @@ const validSession = "synthetic-session";
 const layerSessionStub = Layer.succeed(SessionVerifier.SessionVerifier)({
   verify: (session) =>
     Redacted.value(session) === validSession
-      ? Effect.succeed({ kind: "user" as const })
+      ? Effect.succeed({ principal: { kind: "user" as const }, user: Testing.owner })
       : Effect.fail(new Errors.Unauthorized({ message: "Unknown session" })),
 });
 
@@ -116,7 +116,10 @@ describe("Authorization (live)", () => {
 
     it.effect("authenticates a user token (the MCP connector's) as that user", () =>
       Effect.gen(function* () {
-        const created = yield* CreateMcpToken.createMcpToken("synthetic-owner");
+        const created = yield* CreateMcpToken.createMcpToken({
+          id: "1001",
+          login: "synthetic-owner",
+        });
         const bearer = Redacted.value(created.token);
         const client = yield* HttpApiTest.groups(Api.StashApi, ["auth"]).pipe(
           Effect.provide(
@@ -125,7 +128,7 @@ describe("Authorization (live)", () => {
             ),
           ),
         );
-        expect(yield* client.auth.me()).toEqual({ kind: "user", login: "synthetic-owner" });
+        expect(yield* client.auth.me()).toEqual({ kind: "user" });
 
         yield* RevokeApiToken.revokeApiToken(created.id);
         yield* expectUnauthorized({ bearer });

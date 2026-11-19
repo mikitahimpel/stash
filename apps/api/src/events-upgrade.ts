@@ -8,7 +8,10 @@ import * as Events from "@stash/contracts-api/events";
 // 1. It asks the router for the same path with the same credentials and no upgrade. The `events`
 //    group answers 426 to an authenticated request and the middleware 401 to any other, so the
 //    stream is guarded by the very `Authorization` every endpoint uses.
-// 2. On 426 it hands the request to the user's `LinkEvents` object, which accepts the socket.
+// 2. On 426 it asks the router who that is (`GET /members/me`, same credentials) and hands the
+//    request to that user's own `LinkEvents` object, which accepts the socket. The object is
+//    chosen from the authenticated user and from nothing the client sends, so nobody can open
+//    another user's stream.
 //
 // The session cookie is `SameSite=Lax`, so a page of another site cannot open the stream with it.
 // As a second guard, a stream opened with the cookie (no `Authorization` header) must come from
@@ -18,19 +21,21 @@ import * as Events from "@stash/contracts-api/events";
 /** The headers of the upgrade itself, left out of the plain request of step 1. */
 const upgradeHeaders = /^(?:upgrade|connection|sec-websocket-.*)$/i;
 
+/** `members.me`: who the credentials of a request are. */
+export const mePath = "/members/me";
+
 /** The part of the `LINK_EVENTS` binding this module uses. */
 export type Namespace = LinkEvents.Namespace<{ fetch(request: Request): Promise<Response> }>;
 
 /**
  * Answers a WebSocket upgrade of `GET /events`, or `undefined` for any other request. `api`
- * is the composed `StashApi` handler, `user` the login whose streams the object holds, and
- * `webOrigin` the only origin a cookie-authenticated stream may come from.
+ * is the composed `StashApi` handler and `webOrigin` the only origin a cookie-authenticated stream
+ * may come from.
  */
 export const handleEvents = async (
   request: Request,
   api: (request: Request) => Promise<Response>,
   namespace: Namespace | undefined,
-  user: string,
   webOrigin: string,
 ): Promise<Response | undefined> => {
   if (request.method !== "GET" || new URL(request.url).pathname !== Events.path) return undefined;
@@ -47,5 +52,11 @@ export const handleEvents = async (
   const checked = await api(new Request(request.url, { method: "GET", headers }));
   if (checked.status !== 426) return checked;
   if (namespace === undefined) return new Response("Live updates are off", { status: 503 });
-  return LinkEvents.stub(namespace, user).fetch(request);
+  const me = await api(new Request(new URL(mePath, request.url), { method: "GET", headers }));
+  if (me.status !== 200) return me;
+  const { id } = await me.json<{ id?: unknown }>();
+  if (typeof id !== "string" || id === "") {
+    return new Response("Live updates are off", { status: 503 });
+  }
+  return LinkEvents.stub(namespace, id).fetch(request);
 };

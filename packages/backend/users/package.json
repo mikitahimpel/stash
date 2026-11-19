@@ -1,0 +1,44 @@
+{
+  "name": "@stash/backend-users",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./users-repo": "./src/users-repo.ts",
+    "./ai-quota": "./src/ai-quota.ts",
+    "./for-each-user": "./src/for-each-user.ts",
+    "./secret-hash": "./src/secret-hash.ts",
+    "./invites-repo": "./src/invites/invites-repo.ts",
+    "./create-invite": "./src/invites/create-invite.ts",
+    "./accept-invite": "./src/invites/accept-invite.ts",
+    "./invites-handlers": "./src/invites/invites-handlers.ts",
+    "./require-owner": "./src/members/require-owner.ts",
+    "./get-account": "./src/members/get-account.ts",
+    "./remove-member": "./src/members/remove-member.ts",
+    "./members-handlers": "./src/members/members-handlers.ts"
+  },
+  "scripts": {
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stash/backend-platform": "workspace:*",
+    "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@stash/config-tsconfig": "workspace:*",
+    "@stash/config-vitest": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,4 +1,5 @@
 import type * as D1Database from "@stash/backend-platform/d1-database";
+import type * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
 import * as SearchRepo from "./search-repo.ts";
 
@@ -18,7 +19,7 @@ export const keywordSearch = (
 ): Effect.Effect<
   ReadonlyArray<SearchRepo.RankedLink>,
   D1Database.DatabaseError,
-  SearchRepo.SearchRepo
+  SearchRepo.SearchRepo | Security.CurrentUser
 > => {
   const match = toFtsQuery(q);
   return match === ""

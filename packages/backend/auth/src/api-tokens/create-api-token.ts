@@ -7,7 +7,7 @@ import * as ApiTokenSecret from "./api-token-secret.ts";
 import * as ApiTokensRepo from "./api-tokens-repo.ts";
 
 /**
- * Issues a token for a device. Only the hash is stored. The plaintext is in the result and is
+ * Issues a token for one of the current user's devices (`NotFound` for anyone else's). Only the hash is stored. The plaintext is in the result and is
  * never readable again.
  */
 export const createApiToken = Effect.fn("createApiToken")(function* (deviceId: Device.DeviceId) {

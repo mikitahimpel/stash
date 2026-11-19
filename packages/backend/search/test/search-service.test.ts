@@ -32,8 +32,8 @@ describe("SearchService", () => {
             imageUrl: null,
             author: null,
             enrichedAt: null,
-            // Never stamped (this table copy has no triggers), so the save time stands in.
-            updatedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+            // Stamped by the triggers when the fixture was inserted.
+            updatedAt: expect.any(Object),
           },
           score: expect.any(Number),
         },

@@ -206,6 +206,21 @@ export default Alchemy.Stack(
           metric: "cosine",
           ...prodName("Vectors"),
         });
+    // Semantic search filters every query on the vector metadata `userId` (#177), and Vectorize
+    // filters only on a property with a metadata index. Vectorize indexes a vector's metadata
+    // only when the vector is written after the index exists, so the index must be there before
+    // the new code writes its first vector: the `Api` Worker takes the indexed property's name
+    // from this resource (`VECTORS_USER_PROPERTY`), which makes the Worker depend on it and
+    // deploy after it. The vectors stored before the index are written again by the hourly cron
+    // (`backfill-vectors.ts`).
+    const vectorsUserIndex =
+      vectors === undefined
+        ? undefined
+        : yield* Cloudflare.Vectorize.MetadataIndex("VectorsUserIndex", {
+            indexName: vectors.indexName,
+            propertyName: "userId",
+            indexType: "string",
+          });
 
     const api = yield* Cloudflare.Worker("Api", {
       main: "./apps/api/src/worker.ts",
@@ -221,7 +236,13 @@ export default Alchemy.Stack(
         // drives its class migration. A namespace has no name of its own: it belongs to the
         // Worker script, which `named("api")` fixes, so `PROD_NAMES` has nothing to pin here.
         LINK_EVENTS: Cloudflare.DurableObject("LinkEvents"),
-        ...(vectors === undefined ? {} : { VECTORS: vectors, AI: Cloudflare.Workers.AI() }),
+        ...(vectors === undefined || vectorsUserIndex === undefined
+          ? {}
+          : {
+              VECTORS: vectors,
+              AI: Cloudflare.Workers.AI(),
+              VECTORS_USER_PROPERTY: vectorsUserIndex.propertyName,
+            }),
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
         WEB_ORIGIN: origins.web,
         // For the Connect page's Claude guide (`GET /connect/info` answers `<MCP_ORIGIN>/mcp`).
@@ -256,7 +277,6 @@ export default Alchemy.Stack(
         MCP_ORIGIN: origins.mcp,
         ...optional("MCP_LEGACY_ORIGIN", Option.fromNullishOr(origins.mcpLegacy)),
         ...optional("GITHUB_CLIENT_ID", githubClientId),
-        ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
       },
       dev: { host, port: mcpPort, strictPort: true },
     });

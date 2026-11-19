@@ -77,13 +77,10 @@ describe("saveLink", () => {
     }).pipe(
       // The object behind the stream rejects every call, as when it is overloaded or gone.
       Effect.provide(
-        LinkEvents.layer(
-          {
-            idFromName: (name) => name,
-            get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
-          },
-          "example-user",
-        ),
+        LinkEvents.layer({
+          idFromName: (name) => name,
+          get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
+        }),
       ),
       Effect.provide(LinksTestLayer.layer()),
     ),

@@ -38,11 +38,12 @@ export const layer: Layer.Layer<
       if (stored.value.revokedAt !== null) return yield* unauthorized("Token revoked");
       // For the Connect page's status. Losing this write must not fail the request.
       yield* repo.touch(stored.value.id, yield* DateTime.now).pipe(Effect.ignore);
-      const { deviceId, githubLogin } = stored.value;
-      if (deviceId !== null) return { kind: "device", deviceId } satisfies Security.Principal;
-      // A user token (the MCP connector's) acts as the user it was minted for.
-      if (githubLogin === null) return yield* unauthorized("Invalid token");
-      return { kind: "user", login: githubLogin } satisfies Security.Principal;
+      const { deviceId, userId, role } = stored.value;
+      // A device token acts for the device's owner, a user token (the MCP connector's) for the
+      // user it was minted for.
+      const principal: Security.Principal =
+        deviceId !== null ? { kind: "device", deviceId } : { kind: "user" };
+      return { principal, user: { id: userId, role } };
     });
 
     const userFor = (session: Redacted.Redacted<string>) =>
@@ -50,15 +51,24 @@ export const layer: Layer.Layer<
         ? Effect.fail(unauthorized("Missing session cookie"))
         : sessions.verify(session);
 
+    // Both services come from the same credential, so a handler never sees a principal with
+    // someone else's user.
+    const provide = <A, E, R>(
+      handler: Effect.Effect<A, E, R>,
+      verified:
+        | SessionVerifier.Verified
+        | { principal: Security.Principal; user: SessionVerifier.Verified["user"] },
+    ) =>
+      handler.pipe(
+        Effect.provideService(Security.CurrentPrincipal, verified.principal),
+        Effect.provideService(Security.CurrentUser, verified.user),
+      );
+
     return Security.Authorization.of({
       bearer: (handler, { credential }) =>
-        Effect.flatMap(principalFor(credential), (principal) =>
-          Effect.provideService(handler, Security.CurrentPrincipal, principal),
-        ),
+        Effect.flatMap(principalFor(credential), (verified) => provide(handler, verified)),
       session: (handler, { credential }) =>
-        Effect.flatMap(userFor(credential), (principal) =>
-          Effect.provideService(handler, Security.CurrentPrincipal, principal),
-        ),
+        Effect.flatMap(userFor(credential), (verified) => provide(handler, verified)),
     });
   }),
 );

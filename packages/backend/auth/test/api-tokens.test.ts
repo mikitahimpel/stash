@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as Testing from "@stash/backend-platform/testing";
 import * as ApiToken from "@stash/contracts-domain/api-token";
 import * as Device from "@stash/contracts-domain/device";
 import * as Errors from "@stash/contracts-domain/errors";
@@ -29,9 +30,9 @@ describe("API tokens", () => {
       expect(rows).toEqual([
         {
           id: created.id,
+          user_id: Testing.owner.id,
           device_id: AuthTestLayer.deviceId,
           name: null,
-          github_login: null,
           hash: yield* ApiTokenSecret.hash(created.token),
           created_at: DateTime.formatIso(created.createdAt),
           revoked_at: null,
@@ -113,6 +114,28 @@ describe("API tokens", () => {
         Effect.flip,
       );
       expect(error).toEqual(new Errors.NotFound({ resource: "token", id: "nope" }));
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("keeps each user's tokens to that user", () =>
+    Effect.gen(function* () {
+      const asMember = Testing.as(Testing.member);
+      const mine = yield* CreateApiToken.createApiToken(AuthTestLayer.deviceId);
+      const theirs = yield* CreateApiToken.createApiToken(AuthTestLayer.memberDeviceId).pipe(
+        asMember,
+      );
+      expect((yield* ListApiTokens.listApiTokens).map((token) => token.id)).toEqual([mine.id]);
+      expect((yield* ListApiTokens.listApiTokens.pipe(asMember)).map((token) => token.id)).toEqual([
+        theirs.id,
+      ]);
+      // No token for a device of someone else, and no revoking a token of someone else.
+      expect(
+        yield* CreateApiToken.createApiToken(AuthTestLayer.deviceId).pipe(asMember, Effect.flip),
+      ).toEqual(new Errors.NotFound({ resource: "device", id: AuthTestLayer.deviceId }));
+      expect(yield* RevokeApiToken.revokeApiToken(mine.id).pipe(asMember, Effect.flip)).toEqual(
+        new Errors.NotFound({ resource: "token", id: mine.id }),
+      );
+      expect((yield* ListApiTokens.listApiTokens)[0]?.revokedAt).toBeNull();
     }).pipe(Effect.provide(TestLayer)),
   );
 });

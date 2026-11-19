@@ -1,5 +1,6 @@
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as D1Database from "@stash/backend-platform/d1-database";
+import type * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
 import * as EnrichPolicy from "./enrich-policy.ts";
 import * as EnrichmentRepo from "./enrichment-repo.ts";
@@ -22,13 +23,13 @@ export interface Options {
 
 export const defaultOptions: Options = { limit: 25 };
 
-/** Enqueues metadata backfills. Returns how many. */
+/** Enqueues metadata backfills for the current user. Returns how many. */
 export const requeueBackfill = (
   options: Options = defaultOptions,
 ): Effect.Effect<
   number,
   D1Database.DatabaseError | EnrichmentQueue.EnrichmentQueueError,
-  EnrichmentRepo.EnrichmentRepo | EnrichmentQueue.EnrichmentQueue
+  EnrichmentRepo.EnrichmentRepo | EnrichmentQueue.EnrichmentQueue | Security.CurrentUser
 > =>
   Effect.gen(function* () {
     const repo = yield* EnrichmentRepo.EnrichmentRepo;

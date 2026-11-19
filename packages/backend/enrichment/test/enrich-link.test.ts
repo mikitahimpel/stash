@@ -102,13 +102,10 @@ describe("enrichLink", () => {
     }).pipe(
       // The object behind the stream rejects every call.
       Effect.provide(
-        LinkEvents.layer(
-          {
-            idFromName: (name) => name,
-            get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
-          },
-          "example-user",
-        ),
+        LinkEvents.layer({
+          idFromName: (name) => name,
+          get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
+        }),
       ),
       Effect.provide(
         EnrichmentTestLayer.layer({ [articleUrl]: { body: Fixtures.articlePage } }, classification),

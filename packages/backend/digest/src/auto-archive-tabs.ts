@@ -17,7 +17,7 @@ import * as Effect from "effect/Effect";
 const openedAt = (tab: Tab.OpenTab): DateTime.Utc => tab.openedAt ?? tab.lastSeenAt;
 
 /**
- * Archives the tabs open on `zen` devices for longer than `archiveAfterDays`: each becomes an
+ * Archives the current user's tabs open on `zen` devices for longer than `archiveAfterDays`: each becomes an
  * `archived` link (a link that was already saved and is still `new` becomes `archived` too; one
  * the user has already read or finished keeps its status) and gets a `close-tab` command for its
  * device. Returns how many tabs were archived.

@@ -23,19 +23,31 @@ import * as TabsTestLayer from "./tabs-test-layer.ts";
 // `devices` handlers, on an in-memory D1, queue and KV. `Authorization` is stubbed: a bearer token
 // names a synthetic device, and anything else is `Unauthorized`.
 
-const tokens: Record<string, Security.Principal> = {
-  "token-zen-a": TabsTestLayer.asDevice(TabsTestLayer.zenA),
-  "token-zen-b": TabsTestLayer.asDevice(TabsTestLayer.zenB),
+const tokens: Record<
+  string,
+  { readonly principal: Security.Principal; readonly user: Security.CurrentUser["Service"] }
+> = {
+  "token-zen-a": { principal: TabsTestLayer.asDevice(TabsTestLayer.zenA), user: Testing.owner },
+  "token-zen-b": { principal: TabsTestLayer.asDevice(TabsTestLayer.zenB), user: Testing.owner },
+  "token-owner": { principal: { kind: "user" }, user: Testing.owner },
+  "token-member": { principal: { kind: "user" }, user: Testing.member },
+  "token-member-zen": {
+    principal: TabsTestLayer.asDevice(TabsTestLayer.memberZen),
+    user: Testing.member,
+  },
 };
 
 const unauthorized = new Errors.Unauthorized({ message: "Invalid token" });
 
 const layerAuthorizationStub = Layer.succeed(Security.Authorization)({
   bearer: (handler, { credential }) => {
-    const principal = tokens[Redacted.value(credential)];
-    return principal === undefined
+    const known = tokens[Redacted.value(credential)];
+    return known === undefined
       ? Effect.fail(unauthorized)
-      : Effect.provideService(handler, Security.CurrentPrincipal, principal);
+      : handler.pipe(
+          Effect.provideService(Security.CurrentPrincipal, known.principal),
+          Effect.provideService(Security.CurrentUser, known.user),
+        );
   },
   session: () => Effect.fail(unauthorized),
 });
@@ -242,8 +254,8 @@ describe("tabs and devices handlers", () => {
       });
       yield* D1Database.Database.use((db) =>
         db.run(
-          D1Database.sql`INSERT INTO api_tokens (id, device_id, hash, last_used_at)
-            VALUES ('token-mac', ${TabsTestLayer.macAgent}, 'hash-mac', '2026-02-15T00:00:00.000Z')`,
+          D1Database.sql`INSERT INTO api_tokens (user_id, id, device_id, hash, last_used_at)
+            VALUES ('owner', 'token-mac', ${TabsTestLayer.macAgent}, 'hash-mac', '2026-02-15T00:00:00.000Z')`,
         ),
       );
 
@@ -258,6 +270,103 @@ describe("tabs and devices handlers", () => {
       });
       expect(mac?.lastSeenAt).toEqual(DateTime.makeUnsafe("2026-02-15T00:00:00.000Z"));
       expect(iphone).toEqual({ deviceId: TabsTestLayer.iphone, lastSeenAt: null, lastSave: null });
+    }).pipe(Effect.provide(server)),
+  );
+});
+
+// Two users (#177): the owner's devices and the member's one Zen. Whatever a user asks about a
+// device, a tab or a command of the other, the answer is the one for a thing that does not exist.
+describe("tabs and devices of two users", () => {
+  it.effect("each user lists their own devices, tabs and activity only", () =>
+    Effect.gen(function* () {
+      const owner = yield* clientAs("token-owner");
+      const member = yield* clientAs("token-member");
+      const memberZen = yield* clientAs("token-member-zen");
+      yield* memberZen.tabs.report({
+        params: { id: TabsTestLayer.memberZen },
+        payload: { takenAt, tabs: [tab("https://example.com/member-tab")] },
+      });
+      yield* (yield* clientAs("token-zen-a")).tabs.report({
+        params: { id: TabsTestLayer.zenA },
+        payload: { takenAt, tabs: [tab("https://example.com/owner-tab")] },
+      });
+
+      const ownerIds = [
+        TabsTestLayer.zenA,
+        TabsTestLayer.zenB,
+        TabsTestLayer.macAgent,
+        TabsTestLayer.iphone,
+      ];
+      expect((yield* owner.devices.list()).map((device) => device.id)).toEqual(ownerIds);
+      expect((yield* owner.devices.activity()).map((entry) => entry.deviceId)).toEqual(ownerIds);
+      expect((yield* member.devices.list()).map((device) => device.id)).toEqual([
+        TabsTestLayer.memberZen,
+      ]);
+      expect((yield* member.devices.activity()).map((entry) => entry.deviceId)).toEqual([
+        TabsTestLayer.memberZen,
+      ]);
+
+      const ownerTabs = JSON.stringify(yield* owner.tabs.list());
+      expect(ownerTabs).toContain("owner-tab");
+      expect(ownerTabs).not.toContain("member");
+      const memberTabs = yield* member.tabs.list();
+      expect(memberTabs.devices.map((entry) => entry.device.id)).toEqual([TabsTestLayer.memberZen]);
+      expect(JSON.stringify(memberTabs)).not.toContain("owner-tab");
+    }).pipe(Effect.provide(server)),
+  );
+
+  it.effect("answers 404 for another user's device, tabs and commands, and changes nothing", () =>
+    Effect.gen(function* () {
+      const owner = yield* clientAs("token-owner");
+      const member = yield* clientAs("token-member");
+      const closeTab = { kind: "close-tab", url: url("https://example.com/member-tab") } as const;
+      const theirs = yield* member.devices.sendCommand({
+        params: { id: TabsTestLayer.memberZen },
+        payload: closeTab,
+      });
+
+      const attempts = [
+        owner.devices.sendCommand({ params: { id: TabsTestLayer.memberZen }, payload: closeTab }),
+        owner.devices.listCommands({ params: { id: TabsTestLayer.memberZen }, query: {} }),
+        owner.devices.ackCommand({ params: { id: theirs.id }, payload: { status: "done" } }),
+        owner.tabs.report({
+          params: { id: TabsTestLayer.memberZen },
+          payload: { takenAt, tabs: [] },
+        }),
+        owner.tabs.archive({
+          payload: { deviceId: TabsTestLayer.memberZen, url: url("https://example.com/x") },
+        }),
+        // And the other way round: a member and the owner's device.
+        member.devices.sendCommand({ params: { id: TabsTestLayer.zenA }, payload: closeTab }),
+        member.devices.listCommands({ params: { id: TabsTestLayer.zenA }, query: {} }),
+      ];
+      for (const attempt of attempts) {
+        expect(yield* Effect.flip(attempt as Effect.Effect<unknown, unknown>)).toBeInstanceOf(
+          Errors.NotFound,
+        );
+      }
+
+      // The member's command is as it was, and the only one.
+      const commands = yield* member.devices.listCommands({
+        params: { id: TabsTestLayer.memberZen },
+        query: {},
+      });
+      expect(commands.map((command) => [command.id, command.status])).toEqual([
+        [theirs.id, "pending"],
+      ]);
+    }).pipe(Effect.provide(server)),
+  );
+
+  it.effect("a device token of one user is no way into another user's device", () =>
+    Effect.gen(function* () {
+      const memberZen = yield* clientAs("token-member-zen");
+      const error = yield* memberZen.tabs
+        .report({ params: { id: TabsTestLayer.zenA }, payload: { takenAt, tabs: [] } })
+        .pipe(Effect.flip);
+      // Not even 403, which would say the device exists: for this user it does not.
+      expect(error).toBeInstanceOf(Errors.NotFound);
+      const { devices } = yield* (yield* clientAs("token-owner")).tabs.list();
+      expect(devices.find((entry) => entry.device.id === TabsTestLayer.zenA)?.snapshot).toBeNull();
     }).pipe(Effect.provide(server)),
   );
 });

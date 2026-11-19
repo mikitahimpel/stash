@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as Api from "@stash/contracts-api/api";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
@@ -9,7 +10,7 @@ import * as GetLatestDigest from "./get-latest-digest.ts";
 /** The `digest` group of the `StashApi`. Needs `DigestsRepo` and the `Authorization` middleware. */
 export const layer = HttpApiBuilder.group(Api.StashApi, "digest", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<DigestsRepo.DigestsRepo>();
+    const context = yield* ServiceContext.capture<DigestsRepo.DigestsRepo>();
     return handlers.handle("latest", () =>
       GetLatestDigest.getLatestDigest.pipe(
         Effect.provideContext(context),

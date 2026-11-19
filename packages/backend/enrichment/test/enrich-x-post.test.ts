@@ -191,8 +191,8 @@ describe("enrichLink: a post on X", () => {
   it.effect("gives a link saved without a handle the handle's URL once the post is read", () =>
     Effect.gen(function* () {
       yield* D1Database.Database.use((db) =>
-        db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
-          ('nameless', 'https://x.com/i/status/${X.postId}', 'https://x.com/i/status/${X.postId}')`),
+        db.exec(`INSERT INTO links (user_id, id, url, canonical_url) VALUES
+          ('owner', 'nameless', 'https://x.com/i/status/${X.postId}', 'https://x.com/i/status/${X.postId}')`),
       );
       const id = Link.LinkId.make("nameless");
       yield* EnrichLink.enrichLink(id);
@@ -214,10 +214,10 @@ describe("enrichLink: a post on X", () => {
       Effect.gen(function* () {
         // Two links as they were stored before posts had one form.
         yield* D1Database.Database.use((db) =>
-          db.exec(`INSERT INTO links (id, url, canonical_url) VALUES
-          ('old-1', 'https://twitter.com/${X.handle}/status/${X.postId}?s=20',
+          db.exec(`INSERT INTO links (user_id, id, url, canonical_url) VALUES
+          ('owner', 'old-1', 'https://twitter.com/${X.handle}/status/${X.postId}?s=20',
             'https://twitter.com/${X.handle}/status/${X.postId}?s=20'),
-          ('old-2', 'https://mobile.twitter.com/${X.handle}/status/${X.postId}',
+          ('owner', 'old-2', 'https://mobile.twitter.com/${X.handle}/status/${X.postId}',
             'https://mobile.twitter.com/${X.handle}/status/${X.postId}')`),
         );
         const [first, second] = [Link.LinkId.make("old-1"), Link.LinkId.make("old-2")];

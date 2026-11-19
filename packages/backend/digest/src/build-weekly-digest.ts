@@ -95,7 +95,7 @@ export const summarize = (
   };
 };
 
-/** Builds the digest of the links saved in the last `periodDays` days and stores it. */
+/** Builds the current user's digest of the links saved in the last `periodDays` days and stores it. */
 export const buildWeeklyDigest = Effect.fn("buildWeeklyDigest")(function* () {
   const period = yield* currentPeriod;
   const links = yield* linksCreatedIn(period.start, period.end);

@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as Api from "@stash/contracts-api/api";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
@@ -14,7 +15,7 @@ import * as PairingsRepo from "./pairings-repo.ts";
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "pairings", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<
+    const context = yield* ServiceContext.capture<
       ApiTokensRepo.ApiTokensRepo | PairingsRepo.PairingsRepo
     >();
     return handlers

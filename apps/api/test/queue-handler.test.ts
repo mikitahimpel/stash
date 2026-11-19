@@ -6,30 +6,25 @@ import * as EnrichmentRepo from "@stash/backend-enrichment/enrichment-repo";
 import * as LinksRepo from "@stash/backend-links/links-repo";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
+import * as AiQuota from "@stash/backend-users/ai-quota";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
-import * as Fs from "node:fs";
-import * as Path from "node:path";
 import * as QueueHandler from "../src/queue-handler.ts";
-
-const migrationsDir = Path.resolve(import.meta.dirname, "../migrations");
-const migrations = Fs.readdirSync(migrationsDir)
-  .filter((name) => name.endsWith(".sql"))
-  .sort()
-  .map((name) => Fs.readFileSync(Path.join(migrationsDir, name), "utf8"));
 
 const layerDatabase = Layer.effectDiscard(
   Effect.gen(function* () {
     const db = yield* D1Database.Database;
-    for (const migration of migrations) yield* db.exec(migration);
-    yield* db.run(
-      D1Database.sql`INSERT INTO links (id, url) VALUES ('link-1', 'https://example.com/a')`,
-    );
+    yield* db.batch([
+      D1Database.sql`INSERT INTO links (id, user_id, url)
+        VALUES ('link-1', ${Testing.owner.id}, 'https://example.com/a')`,
+      D1Database.sql`INSERT INTO links (id, user_id, url)
+        VALUES ('link-member', ${Testing.member.id}, 'https://example.com/a')`,
+    ]);
   }).pipe(Effect.orDie),
-).pipe(Layer.provideMerge(Testing.layerD1Database));
+).pipe(Layer.provideMerge(Testing.layerDatabase));
 
 /** Pages are never fetched for real: every request fails with a 404. */
 const layerNotFound = Layer.succeed(HttpClient.HttpClient)(
@@ -40,7 +35,7 @@ const layerNotFound = Layer.succeed(HttpClient.HttpClient)(
 
 // Without an Anthropic key, as under `alchemy dev`.
 const layer = QueueHandler.layer.pipe(
-  Layer.provide(Layer.mergeAll(EnrichmentRepo.layer, LinksRepo.layer)),
+  Layer.provide(Layer.mergeAll(EnrichmentRepo.layer, LinksRepo.layer, AiQuota.layer)),
   Layer.provideMerge(
     Layer.mergeAll(
       layerDatabase,
@@ -90,8 +85,8 @@ describe("QueueHandler.layer", () => {
   it.effect("runs only the metadata backfill for a message with task metadata", () =>
     Effect.gen(function* () {
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, title, enriched_at)
-          VALUES ('link-video', 'https://youtu.be/aaaaaaaaaaa', 'A synthetic video',
+        db.run(D1Database.sql`INSERT INTO links (id, user_id, url, title, enriched_at)
+          VALUES ('link-video', ${Testing.member.id}, 'https://youtu.be/aaaaaaaaaaa', 'A synthetic video',
             '2026-03-10T00:01:00.000Z')`),
       );
       // The classifier has no key here, so a full enrichment would fail and be retried.
@@ -109,13 +104,44 @@ describe("QueueHandler.layer", () => {
           metadataVersion: 1,
         },
       });
-      // The filled thumbnail reaches the live stream as one `link.updated`.
-      const events = yield* Testing.TestLinkEvents.use((stream) => stream.published);
+      // The filled thumbnail reaches the live stream of the link's user, as one `link.updated`,
+      // and nobody else's: the consumer found the user from the link.
+      const stream = yield* Testing.TestLinkEvents;
+      expect(yield* stream.publishedTo(Testing.owner.id)).toEqual([]);
+      const events = yield* stream.publishedTo(Testing.member.id);
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({
         type: "link.updated",
         link: { id: "link-video", imageUrl: "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg" },
       });
+    }).pipe(Effect.provide(layer)),
+  );
+
+  it.effect("acks a link over its user's daily AI quota and leaves it pending", () =>
+    Effect.gen(function* () {
+      yield* D1Database.Database.use((db) =>
+        db.run(D1Database.sql`UPDATE users SET daily_ai_quota = 0 WHERE id = ${Testing.member.id}`),
+      );
+      const deferred = message("m1", { linkId: "link-member" });
+      // The owner's link is not held back by the member's quota: it gets as far as the missing key.
+      const owners = message("m2", { linkId: "link-1" });
+      yield* QueueHandler.handleBatch([deferred.message, owners.message]);
+      expect(deferred.settled).toEqual(["ack"]);
+      expect(owners.settled).toEqual(["retry"]);
+      const rows = yield* D1Database.Database.use((db) =>
+        db.all(D1Database.sql`SELECT id, enriched_at AS enrichedAt, enrichment_error AS error
+          FROM links ORDER BY id`),
+      );
+      expect(rows).toEqual([
+        { id: "link-1", enrichedAt: null, error: null },
+        { id: "link-member", enrichedAt: null, error: null },
+      ]);
+      expect(
+        yield* D1Database.Database.use((db) =>
+          db.all(D1Database.sql`SELECT * FROM ai_usage
+        WHERE links > 0`),
+        ),
+      ).toEqual([]);
     }).pipe(Effect.provide(layer)),
   );
 });

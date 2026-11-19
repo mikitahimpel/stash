@@ -23,7 +23,7 @@ const fakeNamespace = (answer: () => Promise<{ status: number }>) => {
     idFromName: (name) => name,
     get: (name) => ({
       fetch: (url, init) => {
-        calls.push({ name, url, ...init });
+        calls.push({ name, url, method: init.method, body: init.body ?? "" });
         return answer();
       },
     }),
@@ -35,9 +35,9 @@ describe("LinkEvents", () => {
   it.effect("posts the event as JSON to the user's object", () =>
     Effect.gen(function* () {
       const { namespace, calls } = fakeNamespace(async () => ({ status: 200 }));
-      yield* LinkEvents.make(namespace, "example-user").publish(deleted);
+      yield* LinkEvents.make(namespace).publish("user-a", deleted);
       expect(calls).toHaveLength(1);
-      expect(calls[0]).toMatchObject({ name: "example-user", method: "POST" });
+      expect(calls[0]).toMatchObject({ name: LinkEvents.objectName("user-a"), method: "POST" });
       expect(new URL(calls[0]!.url).pathname).toBe(LinkEvents.publishPath);
       expect(JSON.parse(calls[0]!.body)).toEqual({
         type: "link.deleted",
@@ -50,10 +50,10 @@ describe("LinkEvents", () => {
   it.effect("posts several events in one call, one per line, and nothing for none", () =>
     Effect.gen(function* () {
       const { namespace, calls } = fakeNamespace(async () => ({ status: 200 }));
-      const events = LinkEvents.make(namespace, "example-user");
-      yield* events.publishAll([]);
+      const events = LinkEvents.make(namespace);
+      yield* events.publishAll("user-a", []);
       expect(calls).toHaveLength(0);
-      yield* events.publishAll([deleted, { ...deleted, id: Link.LinkId.make("link-2") }]);
+      yield* events.publishAll("user-a", [deleted, { ...deleted, id: Link.LinkId.make("link-2") }]);
       expect(calls).toHaveLength(1);
       const lines = calls[0]!.body.split("\n");
       expect(lines.map((line) => (JSON.parse(line) as { id: string }).id)).toEqual([
@@ -73,14 +73,14 @@ describe("LinkEvents", () => {
   it.effect("never fails: an object that rejects or throws only loses the event", () =>
     Effect.gen(function* () {
       const rejecting = fakeNamespace(() => Promise.reject(new Error("object is overloaded")));
-      yield* LinkEvents.make(rejecting.namespace, "example-user").publish(deleted);
+      yield* LinkEvents.make(rejecting.namespace).publish("user-a", deleted);
       const throwing: LinkEvents.Namespace = {
         idFromName: () => {
           throw new Error("no binding");
         },
         get: () => ({ fetch: async () => ({ status: 200 }) }),
       };
-      yield* LinkEvents.make(throwing, "example-user").publish(deleted);
+      yield* LinkEvents.make(throwing).publish("user-a", deleted);
     }),
   );
 
@@ -88,7 +88,7 @@ describe("LinkEvents", () => {
     Effect.gen(function* () {
       const hanging = fakeNamespace(() => new Promise(() => {}));
       const fiber = yield* Effect.forkChild(
-        LinkEvents.make(hanging.namespace, "example-user").publish(deleted),
+        LinkEvents.make(hanging.namespace).publish("user-a", deleted),
       );
       yield* TestClock.adjust(LinkEvents.publishTimeoutMillis);
       yield* Fiber.join(fiber);
@@ -96,10 +96,44 @@ describe("LinkEvents", () => {
     }),
   );
 
-  it.effect("keeps the events in the testing layer", () =>
+  it.effect("sends each user's events to that user's own object, and to no other", () =>
     Effect.gen(function* () {
-      yield* (yield* LinkEvents.LinkEvents).publish(deleted);
-      expect(yield* (yield* Testing.TestLinkEvents).published).toEqual([deleted]);
+      const { namespace, calls } = fakeNamespace(async () => ({ status: 200 }));
+      const events = LinkEvents.make(namespace);
+      yield* events.publish("user-a", deleted);
+      yield* events.publish("user-b", { ...deleted, id: Link.LinkId.make("link-b") });
+      expect(calls.map((call) => call.name)).toEqual([
+        LinkEvents.objectName("user-a"),
+        LinkEvents.objectName("user-b"),
+      ]);
+      expect(LinkEvents.objectName("user-a")).not.toBe(LinkEvents.objectName("user-b"));
+      expect(calls[0]!.body).not.toContain("link-b");
+      expect(calls[1]!.body).not.toContain("link-1");
+    }),
+  );
+
+  it.effect("closes a removed user's object, and never fails doing it", () =>
+    Effect.gen(function* () {
+      const { namespace, calls } = fakeNamespace(async () => ({ status: 200 }));
+      yield* LinkEvents.make(namespace).close("user-a");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({ name: LinkEvents.objectName("user-a"), method: "POST" });
+      expect(new URL(calls[0]!.url).pathname).toBe(LinkEvents.closePath);
+      const rejecting = fakeNamespace(() => Promise.reject(new Error("gone")));
+      yield* LinkEvents.make(rejecting.namespace).close("user-a");
+    }),
+  );
+
+  it.effect("keeps the events in the testing layer, per user", () =>
+    Effect.gen(function* () {
+      const events = yield* LinkEvents.LinkEvents;
+      const test = yield* Testing.TestLinkEvents;
+      yield* events.publish("user-a", deleted);
+      yield* events.close("user-b");
+      expect(yield* test.published).toEqual([deleted]);
+      expect(yield* test.publishedTo("user-a")).toEqual([deleted]);
+      expect(yield* test.publishedTo("user-b")).toEqual([]);
+      expect(yield* test.closed).toEqual(["user-b"]);
     }).pipe(Effect.provide(Testing.layerLinkEvents)),
   );
 });
@@ -107,12 +141,15 @@ describe("LinkEvents", () => {
 describe("LinkEventsObject", () => {
   const socket = (fail = false) => {
     const sent: Array<string> = [];
+    const closed: Array<number | undefined> = [];
     return {
       sent,
+      closed,
       send: (text: string | ArrayBuffer | ArrayBufferView) => {
         if (fail) throw new TypeError("WebSocket is closed");
         sent.push(String(text));
       },
+      close: (code?: number) => void closed.push(code),
     };
   };
 
@@ -147,6 +184,31 @@ describe("LinkEventsObject", () => {
       );
       expect(await published.json()).toEqual({ sent: LinkEventsObject.maxStreams });
       expect(sockets[0]!.sent).toEqual(["one", "two"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("closes every stream and clears its storage when its user is removed", async () => {
+    vi.stubGlobal("WebSocketRequestResponsePair", class {});
+    try {
+      const sockets = [socket(), socket()];
+      let cleared = 0;
+      const object = new LinkEventsObject.LinkEventsObject({
+        acceptWebSocket: () => {},
+        getWebSockets: () => sockets,
+        setWebSocketAutoResponse: () => {},
+        storage: { deleteAll: async () => void cleared++ },
+      });
+      const answer = await object.fetch(
+        new Request(`https://link-events${LinkEvents.closePath}`, { method: "POST" }),
+      );
+      expect(await answer.json()).toEqual({ closed: 2 });
+      expect(sockets.map((s) => s.closed)).toEqual([
+        [LinkEventsObject.removedCloseCode],
+        [LinkEventsObject.removedCloseCode],
+      ]);
+      expect(cleared).toBe(1);
     } finally {
       vi.unstubAllGlobals();
     }

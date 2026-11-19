@@ -21,9 +21,15 @@ import * as LinksTestLayer from "./links-test-layer.ts";
 
 const layerAuthorizationStub = Layer.succeed(Security.Authorization)({
   bearer: (handler) =>
-    Effect.provideService(handler, Security.CurrentPrincipal, LinksTestLayer.device),
+    handler.pipe(
+      Effect.provideService(Security.CurrentPrincipal, LinksTestLayer.device),
+      Effect.provideService(Security.CurrentUser, Testing.owner),
+    ),
   session: (handler) =>
-    Effect.provideService(handler, Security.CurrentPrincipal, LinksTestLayer.device),
+    handler.pipe(
+      Effect.provideService(Security.CurrentPrincipal, LinksTestLayer.device),
+      Effect.provideService(Security.CurrentUser, Testing.owner),
+    ),
 });
 
 const server = (rateLimit?: { limit: number; windowSeconds: number }) =>

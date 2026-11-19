@@ -18,18 +18,18 @@ const now = DateTime.makeUnsafe("2026-03-16T06:00:00.000Z");
 const seed = D1Database.Database.use((db) =>
   db.batch([
     // Pending: saved long ago, never enriched (or reset by a migration).
-    D1Database.sql`INSERT INTO links (id, url, created_at)
-      VALUES ('pending-1', 'https://example.com/1', '2026-03-10T00:00:00.000Z')`,
-    D1Database.sql`INSERT INTO links (id, url, created_at)
-      VALUES ('pending-2', 'https://example.com/2', '2026-03-16T05:30:00.000Z')`,
+    D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+      VALUES ('owner', 'pending-1', 'https://example.com/1', '2026-03-10T00:00:00.000Z')`,
+    D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+      VALUES ('owner', 'pending-2', 'https://example.com/2', '2026-03-16T05:30:00.000Z')`,
     // Saved a minute ago: its first message is still on its way.
-    D1Database.sql`INSERT INTO links (id, url, created_at)
-      VALUES ('fresh', 'https://example.com/3', '2026-03-16T05:59:00.000Z')`,
-    D1Database.sql`INSERT INTO links (id, url, created_at, enriched_at)
-      VALUES ('enriched', 'https://example.com/4', '2026-03-10T00:00:00.000Z',
+    D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+      VALUES ('owner', 'fresh', 'https://example.com/3', '2026-03-16T05:59:00.000Z')`,
+    D1Database.sql`INSERT INTO links (user_id, id, url, created_at, enriched_at)
+      VALUES ('owner', 'enriched', 'https://example.com/4', '2026-03-10T00:00:00.000Z',
         '2026-03-10T00:01:00.000Z')`,
-    D1Database.sql`INSERT INTO links (id, url, created_at, enrichment_error)
-      VALUES ('failed', 'https://example.com/5', '2026-03-10T00:00:00.000Z',
+    D1Database.sql`INSERT INTO links (user_id, id, url, created_at, enrichment_error)
+      VALUES ('owner', 'failed', 'https://example.com/5', '2026-03-10T00:00:00.000Z',
         'classify: ContentPolicyError')`,
   ]),
 );
@@ -68,8 +68,8 @@ describe("requeuePending", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(now));
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, created_at)
-          VALUES ('dead-site', 'https://example.com/dead', '2026-03-10T00:00:00.000Z')`),
+        db.run(D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+          VALUES ('owner', 'dead-site', 'https://example.com/dead', '2026-03-10T00:00:00.000Z')`),
       );
       const id = Link.LinkId.make("dead-site");
       const { maxRequeues } = EnrichPolicy.defaultPolicy;
@@ -110,8 +110,8 @@ describe("requeuePending", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(now));
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, created_at)
-          VALUES ('no-model', 'https://youtu.be/aaaaaaaaaaa', '2026-03-10T00:00:00.000Z')`),
+        db.run(D1Database.sql`INSERT INTO links (user_id, id, url, created_at)
+          VALUES ('owner', 'no-model', 'https://youtu.be/aaaaaaaaaaa', '2026-03-10T00:00:00.000Z')`),
       );
       const id = Link.LinkId.make("no-model");
       const { maxRequeues } = EnrichPolicy.defaultPolicy;
@@ -130,8 +130,8 @@ describe("requeuePending", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(now));
       yield* D1Database.Database.use((db) =>
-        db.run(D1Database.sql`INSERT INTO links (id, url, created_at, enrichment_attempts)
-          VALUES ('retried', 'https://youtu.be/aaaaaaaaaaa', '2026-03-10T00:00:00.000Z', 5)`),
+        db.run(D1Database.sql`INSERT INTO links (user_id, id, url, created_at, enrichment_attempts)
+          VALUES ('owner', 'retried', 'https://youtu.be/aaaaaaaaaaa', '2026-03-10T00:00:00.000Z', 5)`),
       );
       const id = Link.LinkId.make("retried");
       // Past the cap there is no fetch, but a video still gets its thumbnail.

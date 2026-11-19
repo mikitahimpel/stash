@@ -1,5 +1,4 @@
 import * as StashConfig from "@stash/backend-platform/stash-config";
-import type * as Security from "@stash/contracts-api/security";
 import * as Errors from "@stash/contracts-domain/errors";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -13,8 +12,10 @@ import * as SessionsRepo from "./sessions-repo.ts";
 const unauthorized = (message: string) => new Errors.Unauthorized({ message });
 
 /**
- * Accepts a session cookie whose session exists, has not expired and still belongs to the
- * allowlisted login. Expired sessions are deleted on sight. Database failures are defects.
+ * Accepts a session cookie whose session exists, has not expired and whose user still exists. The
+ * owner's session must also still belong to the allowlisted login, so changing
+ * `ALLOWED_GITHUB_LOGIN` signs the old owner out. Expired sessions are deleted on sight. Database
+ * failures are defects.
  */
 export const layer: Layer.Layer<
   SessionVerifier.SessionVerifier,
@@ -33,10 +34,14 @@ export const layer: Layer.Layer<
           yield* repo.remove(id).pipe(Effect.orDie);
           return yield* unauthorized("Session expired");
         }
-        if (!GithubClient.sameLogin(stored.value.githubLogin, config.allowedGithubLogin)) {
+        const { userId, role, githubLogin } = stored.value;
+        if (role === "owner" && !GithubClient.sameLogin(githubLogin, config.allowedGithubLogin)) {
           return yield* unauthorized("Login no longer allowed");
         }
-        return { kind: "user", login: stored.value.githubLogin } satisfies Security.UserPrincipal;
+        return {
+          principal: { kind: "user", login: githubLogin },
+          user: { id: userId, role },
+        } satisfies SessionVerifier.Verified;
       }),
     });
   }),

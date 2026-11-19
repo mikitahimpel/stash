@@ -19,6 +19,12 @@ export interface WorkerEnv
     Partial<AnthropicConfig.Env>,
     Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE" | "KV">,
     Partial<Pick<Live.PlatformEnv, "VECTORS" | "AI" | "BLOBS" | "LINK_EVENTS">> {
+  /**
+   * The vector metadata property Vectorize indexes for filtering (`userId`). Set with `VECTORS`.
+   * Nothing reads it: it is here so that the Worker is deployed after the metadata index exists
+   * (see `alchemy.run.ts`).
+   */
+  readonly VECTORS_USER_PROPERTY?: string;
   /** `"on"` only under `alchemy dev`; enables the `/_smoke/*` routes. */
   readonly SMOKE_ROUTES: string;
 }

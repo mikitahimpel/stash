@@ -8,8 +8,8 @@ import * as LinkEvents from "./link-events.ts";
 // call reads the sockets from the runtime (`getWebSockets`), and the keep-alive (`ping` → `pong`)
 // is an auto response, which does not wake the object.
 //
-// The Worker authenticates a request before it gets here. A named object is reachable only
-// through the Worker's binding.
+// The Worker authenticates a request before it gets here and picks the object by the user's id
+// (`LinkEvents.stub`). A named object is reachable only through the Worker's binding.
 
 /**
  * The most streams one object holds. A tab holds one while it is visible, so one person's
@@ -21,9 +21,14 @@ export const maxStreams = 32;
 /** The part of `DurableObjectState` the object uses. */
 export interface State {
   acceptWebSocket(socket: WebSocket): void;
-  getWebSockets(): Array<Pick<WebSocket, "send">>;
+  getWebSockets(): Array<Pick<WebSocket, "send" | "close">>;
+  /** The object's storage. Nothing is kept there today; a removed user's object is still cleared. */
+  readonly storage?: { deleteAll(): Promise<unknown> };
   setWebSocketAutoResponse(pair?: WebSocketRequestResponsePair): void;
 }
+
+/** The close code of a stream whose user was removed: the client must not reconnect. */
+export const removedCloseCode = 4001;
 
 /** The first message of a stream, as text. */
 export const ready = (now: Date): string =>
@@ -75,6 +80,18 @@ export class LinkEventsObject {
     if (request.method === "POST" && url.pathname === LinkEvents.publishPath) {
       const sent = broadcastAll(this.state.getWebSockets(), await request.text());
       return Response.json({ sent });
+    }
+    if (request.method === "POST" && url.pathname === LinkEvents.closePath) {
+      const sockets = this.state.getWebSockets();
+      for (const socket of sockets) {
+        try {
+          socket.close(removedCloseCode, "The account was removed");
+        } catch {
+          // Closed already.
+        }
+      }
+      await this.state.storage?.deleteAll();
+      return Response.json({ closed: sockets.length });
     }
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("Expected a WebSocket", { status: 426 });

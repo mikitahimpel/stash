@@ -1,4 +1,5 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as Security from "@stash/contracts-api/security";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
@@ -27,7 +28,10 @@ export interface RankedLink {
   readonly score: number;
 }
 
-/** The tables search reads: `links`, `links_fts`, `link_tags` and `tags`. */
+/**
+ * The tables search reads: `links`, `links_fts`, `link_tags` and `tags`. Every method reads only
+ * the current user's links (`CurrentUser`).
+ */
 export class SearchRepo extends Context.Service<
   SearchRepo,
   {
@@ -39,16 +43,20 @@ export class SearchRepo extends Context.Service<
       match: string,
       filters: SearchFilters,
       limit: number,
-    ) => Effect.Effect<ReadonlyArray<RankedLink>, D1Database.DatabaseError>;
+    ) => Effect.Effect<ReadonlyArray<RankedLink>, D1Database.DatabaseError, Security.CurrentUser>;
     /** The ids that exist and pass `filters`. */
     readonly filterIds: (
       ids: ReadonlyArray<string>,
       filters: SearchFilters,
-    ) => Effect.Effect<ReadonlyArray<Link.LinkId>, D1Database.DatabaseError>;
+    ) => Effect.Effect<ReadonlyArray<Link.LinkId>, D1Database.DatabaseError, Security.CurrentUser>;
     /** The links with these ids, keyed by id. Unknown ids are left out. */
     readonly loadLinks: (
       ids: ReadonlyArray<Link.LinkId>,
-    ) => Effect.Effect<ReadonlyMap<Link.LinkId, Link.Link>, D1Database.DatabaseError>;
+    ) => Effect.Effect<
+      ReadonlyMap<Link.LinkId, Link.Link>,
+      D1Database.DatabaseError,
+      Security.CurrentUser
+    >;
   }
 >()("@stash/backend-search/SearchRepo") {}
 
@@ -123,15 +131,20 @@ export const make = Effect.gen(function* () {
   const db = yield* D1Database.Database;
   const provide = Effect.provideService(D1Database.Database, db);
   return SearchRepo.of({
-    keyword: (match, filters, limit) => {
+    keyword: Effect.fnUntraced(function* (match, filters, limit) {
+      const user = yield* Security.CurrentUser;
       const filter = filterSql(filters);
-      return D1Database.query(KeywordRow)(
+      // The index row carries its user, so other users' matches are dropped before the join;
+      // the join then checks the link itself.
+      return yield* D1Database.query(KeywordRow)(
         D1Database.statement(
           `SELECT l.id AS linkId, ${bm25} AS rank FROM links_fts
             JOIN links AS l ON l.seq = links_fts.rowid
-            WHERE links_fts MATCH ?${filter.sql}
+            WHERE links_fts MATCH ? AND links_fts.user_id = ? AND l.user_id = ?${filter.sql}
             ORDER BY rank, l.id LIMIT ?`,
           match,
+          user.id,
+          user.id,
           ...filter.params,
           limit,
         ),
@@ -140,13 +153,16 @@ export const make = Effect.gen(function* () {
         Effect.map((rows) => rows.map(({ linkId, rank }) => ({ linkId, score: -rank }))),
         provide,
       );
-    },
-    filterIds: (ids, filters) => {
-      if (ids.length === 0) return Effect.succeed([]);
+    }),
+    filterIds: Effect.fnUntraced(function* (ids, filters) {
+      const user = yield* Security.CurrentUser;
+      if (ids.length === 0) return [];
       const filter = filterSql(filters);
-      return D1Database.query(IdRow)(
+      return yield* D1Database.query(IdRow)(
         D1Database.statement(
-          `SELECT l.id FROM links AS l WHERE l.id IN (${placeholders(ids.length)})${filter.sql}`,
+          `SELECT l.id FROM links AS l
+            WHERE l.user_id = ? AND l.id IN (${placeholders(ids.length)})${filter.sql}`,
+          user.id,
           ...ids,
           ...filter.params,
         ),
@@ -154,25 +170,28 @@ export const make = Effect.gen(function* () {
         Effect.map((rows) => rows.map(({ id }) => id)),
         provide,
       );
-    },
-    loadLinks: (ids) => {
-      if (ids.length === 0) return Effect.succeed(new Map());
-      return D1Database.query(LinkRow)(
+    }),
+    loadLinks: Effect.fnUntraced(function* (ids) {
+      const user = yield* Security.CurrentUser;
+      if (ids.length === 0) return new Map<Link.LinkId, Link.Link>();
+      return yield* D1Database.query(LinkRow)(
         D1Database.statement(
-          `SELECT ${linkColumns} FROM links AS l WHERE l.id IN (${placeholders(ids.length)})`,
+          `SELECT ${linkColumns} FROM links AS l
+            WHERE l.user_id = ? AND l.id IN (${placeholders(ids.length)})`,
+          user.id,
           ...ids,
         ),
       ).pipe(
         // A link that is no post has no `post` key.
         Effect.map(
           (rows) =>
-            new Map(
+            new Map<Link.LinkId, Link.Link>(
               rows.map(({ post, ...link }) => [link.id, post === null ? link : { ...link, post }]),
             ),
         ),
         provide,
       );
-    },
+    }),
   });
 });
 

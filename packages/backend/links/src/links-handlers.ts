@@ -1,3 +1,4 @@
+import * as ServiceContext from "@stash/backend-platform/service-context";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Api from "@stash/contracts-api/api";
@@ -23,7 +24,7 @@ import * as SaveRateLimiter from "./save/save-rate-limiter.ts";
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "links", (handlers) =>
   Effect.gen(function* () {
-    const context = yield* Effect.context<
+    const context = yield* ServiceContext.capture<
       | LinksRepo.LinksRepo
       | SaveRateLimiter.SaveRateLimiter
       | EnrichmentQueue.EnrichmentQueue

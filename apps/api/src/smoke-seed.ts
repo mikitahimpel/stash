@@ -210,12 +210,35 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
     db.prepare("DELETE FROM links WHERE id LIKE 'seed-%'"),
     // Cascades to open_tabs, commands and api_tokens.
     db.prepare("DELETE FROM devices WHERE id LIKE 'seed-%'"),
+    // A second person and an invite nobody has used, for Settings → Members. Removing the
+    // member takes their rows along.
+    db.prepare("DELETE FROM users WHERE id = 'seed-member'"),
+    db.prepare("DELETE FROM invites WHERE id = 'seed-invite'"),
+    db
+      .prepare(
+        `INSERT INTO users (id, display_name, role, daily_ai_quota, created_at)
+          VALUES ('seed-member', 'example-friend', 'member', 200, ?)`,
+      )
+      .bind(iso(now, 12)),
+    db
+      .prepare(
+        `INSERT INTO links (user_id, id, url, canonical_url, title, created_at)
+          VALUES ('seed-member', 'seed-member-link', 'https://example.com/friend',
+            'https://example.com/friend', 'A link of the second user', ?)`,
+      )
+      .bind(iso(now, 3)),
+    db
+      .prepare(
+        `INSERT INTO invites (id, token_hash, created_by, created_at, expires_at)
+          VALUES ('seed-invite', 'seed-invite-hash', 'owner', ?, ?)`,
+      )
+      .bind(iso(now, 2), iso(now, -5)),
   ];
   for (const device of devices) {
     statements.push(
       db
         .prepare(
-          "INSERT INTO devices (id, name, kind, created_at, tabs_taken_at) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO devices (id, user_id, name, kind, created_at, tabs_taken_at) VALUES (?, 'owner', ?, ?, ?, ?)",
         )
         .bind(device.id, device.name, device.kind, iso(now, 60), iso(now, 0.01)),
     );
@@ -226,9 +249,9 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
     statements.push(
       db
         .prepare(
-          `INSERT INTO links (id, url, canonical_url, title, status, type, summary, language,
-            source_device_id, created_at, enriched_at, image_url, author, metadata_version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, 1)`,
+          `INSERT INTO links (user_id, id, url, canonical_url, title, status, type, summary, language,
+            source_device_id, created_at, enriched_at, image_url, author, metadata_version, vector_version)
+            VALUES ('owner', ?, ?, ?, ?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, 1, 1)`,
         )
         .bind(
           id,
@@ -252,7 +275,9 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
       statements.push(
         db.prepare("INSERT OR IGNORE INTO tags (name) VALUES (?)").bind(tag),
         db
-          .prepare("INSERT INTO link_tags (link_id, tag_id) SELECT ?, id FROM tags WHERE name = ?")
+          .prepare(
+            "INSERT INTO link_tags (link_id, tag_id, user_id) SELECT ?, id, 'owner' FROM tags WHERE name = ?",
+          )
           .bind(id, tag),
       );
     }
@@ -264,7 +289,7 @@ export const seed = async (env: WorkerEnv): Promise<{ links: number; tabs: numbe
       statements.push(
         db
           .prepare(
-            "INSERT INTO open_tabs (device_id, url, title, opened_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO open_tabs (user_id, device_id, url, title, opened_at, last_seen_at) VALUES ('owner', ?, ?, ?, ?, ?)",
           )
           .bind(deviceId, `https://${page}`, title, iso(now, ageDays), iso(now, 0.01)),
       );

@@ -30,8 +30,14 @@ export interface R2Binding {
     arrayBuffer(): Promise<ArrayBuffer>;
     httpMetadata?: { contentType?: string };
   } | null>;
-  delete(key: string): Promise<void>;
+  delete(key: string | Array<string>): Promise<void>;
 }
+
+/** The most keys one `deleteMany` call takes (R2's limit). */
+export const maxDeleteKeys = 1000;
+
+/** The key of a link's page text or transcript. Enrichment writes it; removing a member deletes it. */
+export const linkTextKey = (linkId: string): string => `links/${linkId}.txt`;
 
 /** The R2 bucket for page text and transcripts. */
 export class Blobs extends Context.Service<
@@ -46,6 +52,8 @@ export class Blobs extends Context.Service<
     /** The blob decoded as UTF-8 text. */
     readonly getText: (key: string) => Effect.Effect<Option.Option<string>, BlobsError>;
     readonly delete: (key: string) => Effect.Effect<void, BlobsError>;
+    /** Deletes up to `maxDeleteKeys` blobs in one call. Missing keys are ignored. */
+    readonly deleteMany: (keys: ReadonlyArray<string>) => Effect.Effect<void, BlobsError>;
   }
 >()("@stash/backend-platform/Blobs") {}
 
@@ -87,6 +95,10 @@ export const make = (bucket: R2Binding): Blobs["Service"] => {
         });
       }),
     delete: (key) => call("delete", key, () => bucket.delete(key)),
+    deleteMany: (keys) =>
+      keys.length === 0
+        ? Effect.void
+        : call("delete", `${keys.length} keys`, () => bucket.delete([...keys])),
   });
 };
 
