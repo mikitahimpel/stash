@@ -59,9 +59,12 @@ The first deploy after #177 migrates live data. Nothing in it is manual, but kno
   `owner`; no row is deleted; `api_tokens` and `digests` are copied into a new shape (tokens keep
   their hashes, so devices and the Claude connector stay signed in). `links_fts` is dropped and
   rebuilt from `links` in the same transaction (`0021`). Web sessions are kept.
-- **Between the migration and the new Worker** (seconds) the old Worker cannot write: its inserts
-  carry no `user_id` and are refused. Saves made in that window fail and are retried by the
-  clients (the extension and the Shortcut report the error). Deploy when you are not saving.
+- **Between the migration and the new Worker** (seconds) the old Worker is broken for most
+  requests. Its bearer auth reads `api_tokens.github_login`, which `0019` drops, so every device
+  and Claude request fails, reads included. Its inserts carry no `user_id` and are refused, so web
+  saves fail too; only web-session reads still work. Clients retry saves (the extension and the
+  Shortcut report the error), and everything works again once the new Worker is live. Deploy when
+  you are not saving.
 - **Vectors.** Semantic search filters on `userId`, and vectors stored earlier have none. The
   hourly cron writes it onto them (`backfillVectors`, up to 1000 links a run, read and written
   back in small batches), so semantic search finds old links again within an hour or a few;

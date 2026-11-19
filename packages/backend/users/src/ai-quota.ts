@@ -13,6 +13,11 @@ import * as Schema from "effect/Schema";
 // the cap is still saved. It stays pending, and the hourly requeue sends it again once the user
 // has room, which is the next day at the latest.
 //
+// What the count leaves out, on purpose: a run that ends `Failed` releases its reservation, even
+// though the model may already have been called, so a user whose links keep failing can use more
+// AI than the cap. Query embeddings for semantic search are not counted at all. Both are cheap
+// next to an enrichment, and counting them would make a failure or a search cost a user a link.
+//
 // Everything here is about the current user (`CurrentUser`).
 
 /** The UTC day of a moment, as `ai_usage.day` holds it. */
