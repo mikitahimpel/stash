@@ -40,6 +40,11 @@ context, which the client's auth middleware reads.
 - The GitHub client ID (public, a plain var), the allowlisted login and the KV namespace come from
   env. Never commit them. Device Flow needs no client secret, so this Worker has none.
 - The GitHub access token is read once for the login and dropped. Never store or log it.
+- The public origin is `MCP_ORIGIN`: the OAuth issuer and, with `/mcp`, the resource. On a stage
+  with a custom domain it is the site's host, and requests arrive from the web Worker over a
+  Service Binding with the public URL. The Worker then also answers on its old `workers.dev`
+  origin (`MCP_LEGACY_ORIGIN`) with a provider of that origin (`OAuthProvider.make`), so
+  connectors added before the move keep working. Never derive an origin from the request alone.
 
 ## Testing
 

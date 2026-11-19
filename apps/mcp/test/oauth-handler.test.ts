@@ -624,3 +624,60 @@ describe("api token per grant", () => {
     expect(grants()).toEqual([]);
   });
 });
+
+// A deploy that moved the server to the site's host: the Worker is still reached at its old
+// `workers.dev` address by connectors added before the move.
+describe("a server that moved to another host", () => {
+  const legacyOrigin = "https://stash-mcp.example-account.workers.dev";
+  const movedProvider = () =>
+    OAuthProvider.make({
+      env: {
+        MCP_ORIGIN: origin,
+        MCP_LEGACY_ORIGIN: legacyOrigin,
+        ALLOWED_GITHUB_LOGIN: allowedLogin,
+      },
+      mcp: (request, apiToken) =>
+        mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
+      github: githubLayer,
+      mintApiToken: mintFromFakeApi,
+      isApiTokenActive: () => Promise.resolve(true),
+      now: () => clock,
+    });
+  const sendTo = (at: string, path: string, init?: RequestInit) =>
+    movedProvider().fetch(
+      new Request(new URL(path, at), init),
+      env as OAuthProvider.ProviderEnv,
+      ctx(),
+    );
+
+  it("names each host as its own issuer and resource", async () => {
+    for (const at of [origin, legacyOrigin]) {
+      const server = await sendTo(at, "/.well-known/oauth-authorization-server");
+      expect(await server.json()).toMatchObject({
+        issuer: at,
+        authorization_endpoint: `${at}/authorize`,
+        token_endpoint: `${at}/token`,
+        registration_endpoint: `${at}/register`,
+      });
+      const protectedResource = await sendTo(at, "/.well-known/oauth-protected-resource/mcp");
+      expect(await protectedResource.json()).toMatchObject({
+        resource: `${at}/mcp`,
+        authorization_servers: [at],
+      });
+    }
+  });
+
+  it("serves /mcp on both hosts: a request without a token is challenged, not lost", async () => {
+    for (const at of [origin, legacyOrigin]) {
+      const response = await sendTo(at, "/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      });
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain(
+        `resource_metadata="${at}/.well-known/oauth-protected-resource/mcp"`,
+      );
+    }
+  });
+});

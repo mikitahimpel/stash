@@ -1,9 +1,10 @@
 // Infrastructure for Stash, declared with Alchemy v2 (beta). See docs/alchemy.md.
 //
 // Physical names are derived from the stack, the stage (`--stage` or ALCHEMY_STAGE) and the logical
-// ids below, except on stage `prod`, which pins them (`PROD_NAMES`). The only personal value is the
-// owner's public GitHub login for `prod`, committed at the owner's request. The Cloudflare account
-// comes from CLOUDFLARE_ACCOUNT_ID or the Alchemy profile, used only by `alchemy deploy`.
+// ids below, except on stage `prod`, which pins them (`PROD_NAMES`). The only personal values are
+// the owner's public GitHub login and the hostname of `prod`, committed at the owner's request. The
+// Cloudflare account comes from CLOUDFLARE_ACCOUNT_ID or the Alchemy profile, used only by
+// `alchemy deploy`.
 // `alchemy dev` emulates every resource here locally and needs no credentials.
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as BuildMemo from "@stash/web/build-memo";
@@ -30,6 +31,12 @@ const PROD_GITHUB_CLIENT_ID = "Ov23liVGZpbhL9oxUor1";
 // The GitHub login allowed to sign in on stage `prod`, given by the owner. Env overrides it, and any
 // other deployed stage requires it in env.
 const PROD_ALLOWED_GITHUB_LOGIN = "mikitahimpel";
+
+// The hostname stage `prod` is served on, given by the owner (#179): the web app, the api under
+// `/api` and the MCP server under `/mcp`. Its zone is in the deploy's Cloudflare account. Env
+// (`STASH_DOMAIN`) overrides it. Any other deployed stage has no domain unless env sets one, and
+// stays on `workers.dev`.
+const PROD_DOMAIN = "stash.mikitahimpel.com";
 
 // Physical names of the prod storage, fixed to the resources the first deploys created (#46), so a
 // deploy adopts them by name even without state and never creates a second set. Other stages keep
@@ -112,10 +119,34 @@ export default Alchemy.Stack(
         ? `stash-${role}`
         : `stash-${role}-${stage.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
     const named = (role: string) => (dev ? {} : { name: workerName(role) });
-    // The api allows the web origin by CORS (for a SPA built with a cross-origin
-    // `VITE_API_BASE_URL`), and mcp needs its own origin, so the deployed origins are derived from
-    // the fixed names and the account's workers.dev subdomain, unless set.
-    const origins = dev
+    // The custom domain of a deployed stage: a bare hostname whose zone is in the Cloudflare
+    // account. `alchemy dev` has none. An empty `STASH_DOMAIN` keeps a stage on `workers.dev`.
+    const domain = dev
+      ? Option.none<string>()
+      : Option.filter(
+          yield* Config.option(
+            stage === "prod"
+              ? Config.String("STASH_DOMAIN").pipe(Config.withDefault(PROD_DOMAIN))
+              : Config.String("STASH_DOMAIN"),
+          ),
+          (name) => name !== "",
+        );
+    // The public origins. Everything that names the site derives from them: the api's CORS and
+    // the origin its live stream accepts (`WEB_ORIGIN`), the Connect page's MCP URL, the OAuth
+    // issuer and MCP resource (`MCP_ORIGIN`), and the origin baked into the extension the site
+    // serves (`STASH_WEB_ORIGIN` of the build). Session cookies are host-only, so they follow.
+    //
+    // With a domain, the site and the MCP server share it (`https://<domain>` and
+    // `https://<domain>/mcp`): the `Web` Worker owns the hostname and hands the MCP paths to `Mcp`
+    // through a Service Binding (see `Web` below), and `STASH_WEB_ORIGIN` / `STASH_MCP_ORIGIN` are
+    // not read. `mcpLegacy` is then the `workers.dev` address `Mcp` had before, where it keeps
+    // answering for connectors added with the old URL. Without a domain the origins are derived
+    // from the fixed names and the account's workers.dev subdomain, unless set.
+    const origins: {
+      readonly web: string;
+      readonly mcp: string;
+      readonly mcpLegacy?: string;
+    } = dev
       ? {
           web: yield* Config.String("STASH_WEB_ORIGIN").pipe(
             Config.withDefault("http://localhost:5173"),
@@ -128,6 +159,10 @@ export default Alchemy.Stack(
           const subdomain = yield* workersSubdomain;
           const workersDev = (role: string) =>
             `https://${workerName(role)}.${subdomain}.workers.dev`;
+          if (Option.isSome(domain)) {
+            const origin = `https://${domain.value}`;
+            return { web: origin, mcp: origin, mcpLegacy: workersDev("mcp") };
+          }
           return {
             web: yield* Config.String("STASH_WEB_ORIGIN").pipe(
               Config.withDefault(workersDev("web")),
@@ -219,6 +254,7 @@ export default Alchemy.Stack(
         API: Cloudflare.WorkerEntrypoint(api, "InternalApi"),
         OAUTH_KV: oauthState,
         MCP_ORIGIN: origins.mcp,
+        ...optional("MCP_LEGACY_ORIGIN", Option.fromNullishOr(origins.mcpLegacy)),
         ...optional("GITHUB_CLIENT_ID", githubClientId),
         ALLOWED_GITHUB_LOGIN: allowedGithubLogin,
       },
@@ -228,9 +264,10 @@ export default Alchemy.Stack(
     // The SPA, served as Workers Static Assets, with the api same-origin under `/api`: the `Web`
     // Worker (`apps/web/src/web-worker.ts`) forwards `/api/*` to `Api` through the `API` Service
     // Binding with the prefix stripped, so the session cookie is first-party (`*.workers.dev` is
-    // on the Public Suffix List, so `stash-web` and `stash-api` are different sites). Only `/api`
-    // runs the Worker; the assets layer answers every other path, and unknown paths fall back to
-    // `index.html` so the client router takes over. The build needs no api URL: the client calls
+    // on the Public Suffix List, so `stash-web` and `stash-api` are different sites). The Worker
+    // runs first for every path but the static files under `/assets/` and `/downloads/`, and
+    // hands what is not its own to the assets, where unknown paths fall back to `index.html` so
+    // the client router takes over. The build needs no api URL: the client calls
     // `/api` on its own origin. `alchemy dev` builds `apps/web` and serves `dist/` the same way,
     // against the local `Api`. For hot reload use `pnpm dev:web` (Vite, which proxies `/api`).
     // `build:deploy` also puts the installable clients under `/downloads/` (the Connect page links
@@ -241,6 +278,14 @@ export default Alchemy.Stack(
     // `STASH_WEB_ORIGIN` (`env` also reaches the build command), and the extension build bakes it
     // in (apps/extension/build-origin.ts), so the `.xpi` this site serves pairs with this site
     // without asking for an address.
+    //
+    // With a domain, Alchemy attaches the hostname to this Worker as a Cloudflare custom domain
+    // (it creates the DNS record and the certificate; the zone is looked up by name), and the
+    // Worker also serves the MCP server on it: `/mcp`, `/authorize*`, `/token`, `/register` and
+    // `/.well-known/oauth-*` go to `Mcp` through the `MCP` binding with the URL unchanged, so the
+    // OAuth discovery documents name this host. The SPA has no route under those paths
+    // (apps/web/test/web-worker.test.ts). The Worker keeps its `workers.dev` address: there it
+    // answers a GET of a page with a 301 to the domain, and still serves `/api` to old clients.
     const web = yield* Cloudflare.Website.StaticSite("Web", {
       cwd: "./apps/web",
       command: dev ? "pnpm run build" : "pnpm run build:deploy",
@@ -248,15 +293,28 @@ export default Alchemy.Stack(
       main: "./apps/web/src/web-worker.ts",
       ...named("web"),
       // Bindings must match `WorkerEnv` in apps/web/src/web-worker.ts.
-      env: { API: api, STASH_WEB_ORIGIN: origins.web },
-      assets: { notFoundHandling: "single-page-application", runWorkerFirst: ["/api", "/api/*"] },
+      env: {
+        API: api,
+        ...(Option.isSome(domain) ? { MCP: mcp } : {}),
+        STASH_WEB_ORIGIN: origins.web,
+      },
+      ...(Option.isSome(domain) ? { domain: domain.value } : {}),
+      assets: {
+        notFoundHandling: "single-page-application",
+        runWorkerFirst: ["/*", "!/assets/*", "!/downloads/*"],
+      },
       // Rebuild when an input of the build changes. The globs, and why they must stay narrow, are
       // in apps/web/scripts/build-memo.ts.
       memo: { include: BuildMemo.include(dev), lockfile: true },
       dev: { host: webHost, port: webPort },
     });
 
-    return { url: api.url, mcpUrl: mcp.url, webUrl: web.url };
+    // With a domain, `webUrl` is `https://<domain>` and the MCP server is reached through it.
+    return {
+      url: api.url,
+      mcpUrl: Option.isSome(domain) ? origins.mcp : mcp.url,
+      webUrl: web.url,
+    };
   }),
 );
 

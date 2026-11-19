@@ -1,7 +1,9 @@
 # Deploying Stash
 
-Stash deploys to Cloudflare `*.workers.dev` with Alchemy, from the root
-[`alchemy.run.ts`](../alchemy.run.ts). [alchemy.md](alchemy.md) covers the stack itself, local
+Stash deploys to Cloudflare with Alchemy, from the root [`alchemy.run.ts`](../alchemy.run.ts).
+Stage `prod` is served on the custom domain **`stash.mikitahimpel.com`** (see
+[Custom domain](#custom-domain)); any other stage stays on `*.workers.dev` unless `STASH_DOMAIN`
+is set. [alchemy.md](alchemy.md) covers the stack itself, local
 dev and the config table. This page covers a real deploy: credentials, the command, what it
 creates, how to check it, and how to tear it down.
 
@@ -23,7 +25,8 @@ Nothing else is needed for stage `prod`. Everything else is optional there:
 | `STASH_ALLOWED_GITHUB_LOGIN` | stage `prod` uses the committed owner login (`PROD_ALLOWED_GITHUB_LOGIN` in [`alchemy.run.ts`](../alchemy.run.ts), public and committed at the owner's request). Any other deployed stage fails without it |
 | `GITHUB_CLIENT_ID` | stage `prod` uses the committed id of the project's OAuth App (see [below](#github-oauth-app)). Any other stage: the login routes answer **503** `NotConfigured` (`POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp), and everything else works |
 | `ANTHROPIC_API_KEY` (secret) | the enrichment consumer fails each message and the queue retries it |
-| `STASH_WEB_ORIGIN`, `STASH_MCP_ORIGIN` | derived: `https://stash-web.<subdomain>.workers.dev`, `https://stash-mcp.<subdomain>.workers.dev` |
+| `STASH_DOMAIN` | stage `prod` uses the committed hostname (`PROD_DOMAIN` in [`alchemy.run.ts`](../alchemy.run.ts), committed at the owner's request). Any other stage has no custom domain. Set it empty to keep a stage on `workers.dev` |
+| `STASH_WEB_ORIGIN`, `STASH_MCP_ORIGIN` | read only without a domain, then derived: `https://stash-web.<subdomain>.workers.dev`, `https://stash-mcp.<subdomain>.workers.dev`. With a domain both origins are `https://<domain>` |
 | `CLOUDFLARE_WORKERS_SUBDOMAIN` | read once from the Cloudflare API with the deploy's credentials |
 
 The account id is never written to the repo. It reaches Alchemy only through `pp run`.
@@ -39,7 +42,9 @@ PROTON_PASS_AGENT_REASON="stash deploy" \
   `alchemy` itself (see [alchemy.md](alchemy.md#what-needs-real-credentials)).
 - `--yes` skips the approval prompt. Run `alchemy plan --stage prod` the same way first to preview.
 - Redeploying is idempotent: an unchanged stack plans `no changes`.
-- The deploy prints the three URLs (`url`, `mcpUrl`, `webUrl`).
+- The deploy prints the three URLs (`url`, `mcpUrl`, `webUrl`). With a domain, `webUrl` and
+  `mcpUrl` are `https://<domain>` (the connector URL is `<mcpUrl>/mcp`), and `url` is still the
+  api's `workers.dev` address.
 
 ## What gets created
 
@@ -50,8 +55,9 @@ other stages the storage gets Alchemy's derived names (`stash-<LogicalId>-<stage
 | Logical id | Cloudflare resource | Notes |
 |---|---|---|
 | `Api` | Worker `stash-api` | `fetch`, `queue` and `scheduled` handlers. Cron Triggers `0 3 * * *`, `0 6 * * 1` and `0 * * * *` (UTC) |
-| `Mcp` | Worker `stash-mcp` | Service Binding `API` → `stash-api` |
-| `Web` | Worker `stash-web` | Workers Static Assets with SPA fallback, and a Worker (`apps/web/src/web-worker.ts`) that runs only for `/api` and `/api/*`: it forwards them to `stash-api` through the Service Binding `API`, with the `/api` prefix stripped. The SPA calls `/api` on its own origin |
+| `Mcp` | Worker `stash-mcp` | Service Binding `API` → `stash-api`. With a domain it is reached through `Web`, and keeps its `workers.dev` address for old connectors |
+| `Web` | Worker `stash-web` | Workers Static Assets with SPA fallback, and a Worker (`apps/web/src/web-worker.ts`) that runs first for every path but `/assets/*` and `/downloads/*`. It forwards `/api` and `/api/*` to `stash-api` through the Service Binding `API`, with the `/api` prefix stripped (the SPA calls `/api` on its own origin). With a domain it also holds the custom domain, the Service Binding `MCP` → `stash-mcp`, and the redirect of its old address (see [Custom domain](#custom-domain)) |
+| — | Custom domain on `Web` | with a domain only: the hostname attached to `stash-web`. Cloudflare creates its DNS record and certificate |
 | `Database` | D1 database | `apps/api/migrations` applied on every deploy, tracked in `__alchemy_migrations` |
 | `EnrichmentQueue` | Queue | producer on `Api` |
 | `EnrichmentConsumer` | Queue consumer | delivers to `Api`'s `queue()` (batch 10, max wait 1 s) |
@@ -84,6 +90,79 @@ Worker's `InternalApi` entrypoint. It has no secrets: each Claude sign-in mints 
 
 The account's `workers.dev` subdomain itself is read, never changed.
 
+## Custom domain
+
+A stage with a domain (`STASH_DOMAIN`, by default only `prod`) is served on one hostname:
+
+| URL | Served by |
+|---|---|
+| `https://<domain>/` | the SPA (`stash-web`, Static Assets) |
+| `https://<domain>/api/*` | the api, through `stash-web`'s `API` binding (the live stream `/api/events` is a WebSocket on the same path) |
+| `https://<domain>/mcp` | the MCP server, through `stash-web`'s `MCP` binding |
+| `https://<domain>/authorize*`, `/token`, `/register`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource*` | the MCP server's OAuth endpoints and discovery, the same way |
+
+**How the hostname is attached.** `Web` gets Alchemy's `domain` prop, a Cloudflare *custom
+domain*: Alchemy looks the zone up by name and attaches the hostname to `stash-web`, and
+Cloudflare creates the proxied DNS record and the edge certificate. The zone must be active in
+the deploy's account. Nothing is set up by hand.
+
+**How MCP shares the host.** The `Web` Worker proxies the MCP paths to `stash-mcp` over a Service
+Binding, with the request URL unchanged. This was chosen over zone routes
+(`<domain>/mcp*` → `stash-mcp`): it needs no route per path and no extra token permission, it is
+plain code with tests (`apps/web/test/web-worker.test.ts`), and the mcp Worker sees the public
+URL, so the OAuth issuer, the endpoints in `/.well-known/oauth-authorization-server` and the
+resource in `/.well-known/oauth-protected-resource/mcp` all name `https://<domain>`. The SPA has
+no route under `/mcp`, `/authorize`, `/token`, `/register` or `/.well-known/` (the same test
+checks it against the router), so nothing collides.
+
+**Origins.** Everything derives from the domain: `WEB_ORIGIN` on the api (CORS, and the only
+`Origin` a cookie-authenticated `/api/events` WebSocket is accepted from), `MCP_ORIGIN` on the
+api (the Connect page's connector URL) and on mcp (issuer and resource), and `STASH_WEB_ORIGIN`
+of the web build, which is baked into the extension `.xpi` the site serves. The Connect guides
+(Mac installer command, Shortcut URL, bookmarklet) use the page's own origin. The session cookie
+is host-only, so it belongs to the new host: **everyone signs in once more after the move**.
+
+### Old `workers.dev` addresses
+
+The Workers keep their `workers.dev` addresses, so clients set up before the move keep working
+until they are moved:
+
+| Old address | After the move |
+|---|---|
+| `https://stash-web.<subdomain>.workers.dev/<page>` | a `GET` (or `HEAD`) answers **301** to `https://<domain>/<page>`, path and query kept. That covers bookmarks, the home-screen app and the Shortcut's `/save?…` page |
+| `https://stash-web.<subdomain>.workers.dev/api/*` | still served, any method, no redirect: an extension paired with the old address, the Mac agent and a token-based Shortcut keep calling it |
+| `https://stash-web.<subdomain>.workers.dev/assets/*`, `/downloads/*` | still served (static files never reach the Worker) |
+| `https://stash-mcp.<subdomain>.workers.dev` | still served in full, with itself as issuer and resource (`MCP_LEGACY_ORIGIN`), so a connector added with the old URL keeps its grant, refreshes its token and can sign in again. Its sign-in pages are part of that flow, so they are not redirected |
+| `https://stash-api.<subdomain>.workers.dev` | unchanged: the api has no custom domain of its own |
+
+Nothing but a `GET`/`HEAD` of a page is ever redirected: a redirect would drop the
+`Authorization` header and turn a `POST` into a `GET`. To move a client: install the extension
+from the new site (the `.xpi` there has the new address built in), run the Mac installer command
+from the new site's Settings, re-copy the Shortcut URL, and add `https://<domain>/mcp` as a new
+connector in Claude (then remove the old one). Once nothing calls the old addresses, they can be
+turned off with `workersDev: false` on the Workers.
+
+### Deploy token permissions
+
+On top of what a `workers.dev` deploy needs, the custom domain needs these on
+`CLOUDFLARE_API_TOKEN`, scoped to the domain's zone:
+
+- **Zone → Zone: Read**: Alchemy finds the zone by name (`GET /zones?name=…`).
+- **Zone → Workers Routes: Edit**: adding a custom domain to a Worker
+  (`PUT /accounts/<id>/workers/domains`) needs it for every affected zone
+  ([Cloudflare: Routes and Custom Domains](https://developers.cloudflare.com/workers/authorization/workers/#routes-and-custom-domains)).
+
+The token needs no **DNS: Edit** and no **SSL and Certificates: Edit**: Cloudflare creates the
+record and the certificate itself as part of the custom domain. This list comes from Alchemy's
+source and Cloudflare's docs; it was not tried against the account before the first deploy.
+
+Without the permissions the deploy fails at `Web`, with an authentication error from the zone
+lookup or the domain attach. `Api` and `Mcp` may already carry the new origins by then, while the
+site still answers only on `workers.dev`: there the live updates stream is refused (the api
+accepts a cookie-authenticated WebSocket only from `WEB_ORIGIN`) and the Connect page shows the
+new connector URL, until a redeploy with the fixed token completes the move. Everything else
+keeps working. To avoid that window, run `alchemy plan --stage prod` and check the token first.
+
 ## State
 
 Stage `prod` keeps its Alchemy state in the D1 database **`stash-alchemy-state`** of the same
@@ -113,15 +192,28 @@ There is no CI deploy job yet: it would need the Cloudflare and Anthropic secret
 
 ## Check a deploy
 
-Replace the hosts with the URLs the deploy printed.
+`W` is the web URL the deploy printed (`https://<domain>`, or
+`https://stash-web.<subdomain>.workers.dev` on a stage without a domain), `M` the MCP origin (the
+same as `W` with a domain, else `https://stash-mcp.<subdomain>.workers.dev`).
 
 ```sh
 curl -sf https://stash-api.<subdomain>.workers.dev/health                                   # {"status":"ok"}
 curl -s -o /dev/null -w '%{http_code}\n' https://stash-api.<subdomain>.workers.dev/links      # 401
-curl -s -o /dev/null -w '%{http_code} %{content_type}\n' https://stash-web.<subdomain>.workers.dev/  # 200 text/html
-curl -s https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server     # 200, issuer = mcp origin
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' $W/                                 # 200 text/html
+curl -s $M/.well-known/oauth-authorization-server                                            # 200, issuer = $M
+curl -s $M/.well-known/oauth-protected-resource/mcp                                          # 200, resource = $M/mcp
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $M/mcp                                       # 401
 curl -s -X POST https://stash-api.<subdomain>.workers.dev/auth/device/start                  # 200 {"flowId",…,"userCode":"XXXX-XXXX","verificationUri":"https://github.com/login/device",…}
-curl -s -X POST https://stash-web.<subdomain>.workers.dev/api/auth/device/start              # the same, same-origin through the web Worker
+curl -s -X POST $W/api/auth/device/start                                                     # the same, same-origin through the web Worker
+```
+
+After a move to a custom domain, the old addresses (see [above](#old-workersdev-addresses)):
+
+```sh
+O=https://stash-web.<subdomain>.workers.dev
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "$O/links?q=x"                       # 301 https://<domain>/links?q=x
+curl -sf $O/api/health                                                                       # {"status":"ok"}, no redirect
+curl -s https://stash-mcp.<subdomain>.workers.dev/.well-known/oauth-authorization-server     # 200, issuer = the old mcp origin
 ```
 
 `pnpm --filter @stash/web check:live` (`apps/web/scripts/live-session-check.ts`) checks the web
@@ -133,16 +225,27 @@ the prod D1 `sessions` table with the deploy credentials, takes the cookie attri
 jar sends the cookie back on `/api/auth/me` (200). With that session it opens the live stream
 (`/api/events`, a WebSocket through the `Web` Worker and the api to the `LinkEvents` Durable Object)
 and expects `stream.ready` and a `pong` for its `ping`; without a session the stream answers 401.
+It opens the stream as a browser on the site does, with `Origin: <STASH_WEB_URL>`, which the api
+accepts only when its `WEB_ORIGIN` is that address, and expects 403 for another origin.
 It changes no link. It then logs out and
 deletes the rows. Prod auth is unchanged: no route is added.
 
 ```sh
 PROTON_PASS_AGENT_REASON="stash live session check" pp run --env-file .env -- env \
-  STASH_WEB_URL=https://stash-web.<subdomain>.workers.dev \
+  STASH_WEB_URL=https://<domain> \
+  STASH_MCP_URL=https://<domain>/mcp \
+  STASH_OLD_WEB_URL=https://stash-web.<subdomain>.workers.dev \
   STASH_D1_DATABASE=<PROD_NAMES.Database in alchemy.run.ts> \
   STASH_ALLOWED_GITHUB_LOGIN=<PROD_ALLOWED_GITHUB_LOGIN in alchemy.run.ts> \
   pnpm --filter @stash/web check:live
 ```
+
+`STASH_WEB_URL` is the address the site is served on: the custom domain on `prod`. The two
+optional variables add the checks of the move: with `STASH_MCP_URL` (the connector URL), the
+OAuth discovery documents on its host name that host as issuer and the URL as resource, and the
+endpoint answers 401 without a token; with `STASH_OLD_WEB_URL`, a `GET` of a page on the old
+address answers 301 to the same path on `STASH_WEB_URL`, and `/api` is still served there. Leave
+both out on a stage without a domain.
 
 A `userCode` from `POST /auth/device/start` proves GitHub accepts the client id. On a stage
 without `GITHUB_CLIENT_ID` the same call answers 503 `NotConfigured`. The MCP side is checked in
@@ -172,8 +275,8 @@ settings → OAuth Apps:
 
 | Field | Value |
 |---|---|
-| Homepage URL | `https://stash-web.<subdomain>.workers.dev` |
-| Authorization callback URL | `https://stash-web.<subdomain>.workers.dev/` |
+| Homepage URL | the web URL (`https://<domain>`, or `https://stash-web.<subdomain>.workers.dev`) |
+| Authorization callback URL | the same, with a trailing `/` |
 | Enable Device Flow | **checked** |
 
 GitHub's form requires a callback URL even though the Device Flow never uses one. Then change
@@ -183,10 +286,10 @@ GitHub's form requires a callback URL even though the Device Flow never uses one
 
 The MCP `/authorize` page needs a registered client. Register a throwaway one (Dynamic Client
 Registration), open the consent page, approve it, and read the user code from the device page.
-`M` is the mcp URL the deploy printed:
+`M` is the MCP origin (`mcpUrl` of the deploy):
 
 ```sh
-M=https://stash-mcp.<subdomain>.workers.dev; J=$(mktemp); R=http://localhost:9999/callback
+M=https://<domain>; J=$(mktemp); R=http://localhost:9999/callback
 CID=$(curl -s -X POST $M/register -H 'content-type: application/json' \
   -d "{\"client_name\":\"deploy-check\",\"redirect_uris\":[\"$R\"],\"token_endpoint_auth_method\":\"none\"}" \
   | node -pe 'JSON.parse(require("fs").readFileSync(0)).client_id')
@@ -204,16 +307,22 @@ Don't pass `-X POST`: curl would keep POST on the 303 to `/authorize/device` and
 A full sign-in needs a person to enter the code on github.com, signed in as
 `STASH_ALLOWED_GITHUB_LOGIN`. Any other account is refused after GitHub approves.
 
-1. **Web.** Open `https://stash-web.<subdomain>.workers.dev`. The login gate shows a code and a
+1. **Web.** Open the web URL (`https://<domain>`). The login gate shows a code and a
    link to `https://github.com/login/device`. Open it, enter the code, authorize the app. The
    page signs in by itself within a few seconds (it polls `/api/auth/device/poll`) and shows your links.
-2. **MCP.** Add `https://stash-mcp.<subdomain>.workers.dev/mcp` as a custom connector in Claude
+2. **MCP.** Add `https://<domain>/mcp` as a custom connector in Claude
    ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue with
    GitHub**, enter the code shown on github.com, keep the tab open, and it returns you to Claude.
 3. **MCP tools.** Nothing to set up: the sign-in minted a **Claude (MCP)** token, listed in the web
    app under Settings → API tokens. Ask Claude to search or save a link to check.
 
 ## Last deployed
+
+The move to the custom domain (#179) is not deployed yet. Its first deploy changes `Web` (the
+custom domain, the `MCP` binding, the Worker running first), `Mcp` (`MCP_ORIGIN`,
+`MCP_LEGACY_ORIGIN`) and `Api` (`WEB_ORIGIN`, `MCP_ORIGIN`), and rebuilds the extension with the
+new address. It needs the [token permissions](#deploy-token-permissions) above. The GitHub OAuth
+App needs no change: the Device Flow uses neither its homepage nor its callback URL.
 
 Commit `ea4e92f` on 2026-10-31, stage `prod`, from the #133 branch (same-origin api under `/api`).
 Only the `stash-web` Worker changed: it gained the `API` Service Binding and lost

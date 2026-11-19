@@ -37,8 +37,8 @@ run it, and what to watch for.
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |
 | `EnrichmentConsumer` | `Cloudflare.Queues.Consumer` | delivers the queue to `Api`'s `queue()` handler |
 | `OAuthState` | `Cloudflare.KV.Namespace` | `OAUTH_KV` on `Mcp` (`KVNamespace`): OAuth clients, grants, tokens |
-| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`'s `InternalApi` entrypoint), `OAUTH_KV`, vars `MCP_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN` |
-| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, `main: ./apps/web/src/web-worker.ts`, deployed as `stash-web` | `API` (Service Binding to `Api`), `ASSETS`. The Worker runs only for `/api` and `/api/*` (`runWorkerFirst`) and forwards them to `Api` with the prefix stripped; the assets layer serves the SPA. See [deploy.md](deploy.md#same-origin-api) |
+| `Mcp` | `Cloudflare.Worker`, `main: ./apps/mcp/src/worker.ts`, deployed as `stash-mcp` | `API` (Service Binding to `Api`'s `InternalApi` entrypoint), `OAUTH_KV`, vars `MCP_ORIGIN`, `MCP_LEGACY_ORIGIN` (with a domain: its `workers.dev` origin, where it keeps answering), `GITHUB_CLIENT_ID` (when set; always on `prod`), `ALLOWED_GITHUB_LOGIN` |
+| `Web` | `Cloudflare.Website.StaticSite`, `cwd: ./apps/web`, `outdir: dist`, `main: ./apps/web/src/web-worker.ts`, deployed as `stash-web` | `API` (Service Binding to `Api`), `ASSETS`. With a domain also `MCP` (Service Binding to `Mcp`) and the custom domain. The Worker runs first for every path but `/assets/*` and `/downloads/*` (`runWorkerFirst`): it forwards `/api` and `/api/*` to `Api` with the prefix stripped, with a domain the MCP paths to `Mcp`, and hands the rest to the assets layer, which serves the SPA. See [deploy.md](deploy.md#same-origin-api) and [deploy.md](deploy.md#custom-domain) |
 
 - `Api` is an **async Worker**: `main` points at a plain module that exports `fetch`, `queue` and
   `scheduled`,
@@ -63,6 +63,10 @@ run it, and what to watch for.
   a `-<stage>` suffix on other stages), so the stack can derive their `workers.dev` origins from
   the account subdomain before they exist. The api and the SPA need each other's origin, which
   Alchemy outputs alone can't express without a cycle.
+- A stage with a domain (`STASH_DOMAIN`; stage `prod` has a committed default) is served on that
+  hostname instead: `Web` gets Alchemy's `domain` prop (a Cloudflare custom domain) and serves
+  the MCP server under `/mcp` through a Service Binding, and both origins are `https://<domain>`.
+  `alchemy dev` never has a domain. See [deploy.md](deploy.md#custom-domain).
 
 Config read by the stack (optional under `alchemy dev`; only the MCP API
 token is secret):
@@ -71,11 +75,12 @@ token is secret):
 |---|---|---|
 | `STASH_API_PORT` | `8787` | local dev port of `Api` (`strictPort`: it fails instead of picking another) |
 | `STASH_API_HOST` | `0.0.0.0` | local dev bind host |
-| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on deploy | `WEB_ORIGIN` on `Api`: the only CORS origin (only a SPA built with a cross-origin `VITE_API_BASE_URL` needs it; the web app calls `/api` same-origin) |
+| `STASH_DOMAIN` | none under `alchemy dev` (never read); the committed `PROD_DOMAIN` on stage `prod`; none on other stages | the hostname a deployed stage is served on (a bare hostname in a zone of the account). Both origins become `https://<domain>`. Empty keeps the stage on `workers.dev` |
+| `STASH_WEB_ORIGIN` | `http://localhost:5173` under `alchemy dev`, `https://stash-web.<subdomain>.workers.dev` on a deploy without a domain (not read with one) | `WEB_ORIGIN` on `Api`: the only CORS origin (only a SPA built with a cross-origin `VITE_API_BASE_URL` needs it; the web app calls `/api` same-origin) and the only `Origin` of a cookie-authenticated live stream. Also the origin baked into the extension the site serves |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `dev_only` under `alchemy dev` (not a valid GitHub login), the committed owner login on stage `prod`, **required** for any other deployed stage | `ALLOWED_GITHUB_LOGIN` on `Api` and `Mcp` |
 | `GITHUB_CLIENT_ID` | `dev_only` under `alchemy dev`; on stage `prod` the committed `PROD_GITHUB_CLIENT_ID`; optional on other stages (unset: the login routes answer 503) | `GITHUB_CLIENT_ID` on `Api` and `Mcp`: the OAuth app's public client id for the GitHub Device Flow (a plain var, no secret) |
 | `STASH_MCP_PORT` | `8790` | local dev port of `Mcp` (`strictPort`) |
-| `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on deploy | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
+| `STASH_MCP_ORIGIN` | `http://localhost:$STASH_MCP_PORT` under `alchemy dev`, `https://stash-mcp.<subdomain>.workers.dev` on a deploy without a domain (not read with one) | `MCP_ORIGIN` on `Mcp`: OAuth issuer and resource origin (resource is `<origin>/mcp`) |
 | `STASH_WEB_PORT` | `8791` | local dev port of `Web` (not strict: it picks the next free port when taken) |
 | `STASH_WEB_HOST` | `0.0.0.0` | local dev bind host of `Web` |
 | `ANTHROPIC_API_KEY` (secret) | never read by `alchemy dev`, optional on deploy | `ANTHROPIC_API_KEY` on `Api`: the classifier's key |
