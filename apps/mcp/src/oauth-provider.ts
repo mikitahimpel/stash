@@ -9,7 +9,7 @@ import type { WorkerEnv } from "./worker-env.ts";
 export type ProviderEnv = WorkerEnv & { readonly OAUTH_PROVIDER: OAuthHelpers };
 
 export interface Options {
-  readonly env: Pick<WorkerEnv, "MCP_ORIGIN" | "ALLOWED_GITHUB_LOGIN">;
+  readonly env: Pick<WorkerEnv, "MCP_ORIGIN" | "MCP_LEGACY_ORIGIN" | "ALLOWED_GITHUB_LOGIN">;
   /** Serves an authenticated MCP request, calling the api with the grant's `apiToken`. */
   readonly mcp: (request: Request, apiToken: string) => Promise<Response>;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
@@ -22,11 +22,38 @@ export interface Options {
 }
 
 /**
- * The Worker's `fetch`: OAuth 2.1 metadata, dynamic client registration and tokens from
+ * The Worker's `fetch`. A deploy that moved the server to another host keeps answering on the old
+ * one (`MCP_LEGACY_ORIGIN`), so connectors added with the old URL keep working: the provider
+ * serves only its own resource (a request for `/mcp` on any other origin gets 404) and names its
+ * origin as the issuer, so each origin gets a provider of its own. Both read the same KV, and a
+ * grant stays bound to the resource it was made for. A request on any other host gets the
+ * provider of `MCP_ORIGIN`.
+ */
+export const make = (options: Options) => {
+  const { MCP_ORIGIN, MCP_LEGACY_ORIGIN } = options.env;
+  const current = makeFor(new URL(MCP_ORIGIN).origin, options);
+  if (MCP_LEGACY_ORIGIN === undefined || MCP_LEGACY_ORIGIN === "") return current;
+  const legacyOrigin = new URL(MCP_LEGACY_ORIGIN).origin;
+  if (legacyOrigin === new URL(MCP_ORIGIN).origin) return current;
+  const legacy = makeFor(legacyOrigin, options);
+  return {
+    fetch: (request: Request, env: ProviderEnv, ctx: ExecutionContext) =>
+      (new URL(request.url).origin === legacyOrigin ? legacy : current).fetch(
+        request as never,
+        env,
+        ctx,
+      ),
+  };
+};
+
+/**
+ * The provider of one origin: OAuth 2.1 metadata, dynamic client registration and tokens from
  * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub Device Flow sign-in pages.
  */
-export const make = ({ env, mcp, github, mintApiToken, isApiTokenActive, now }: Options) => {
-  const origin = new URL(env.MCP_ORIGIN).origin;
+const makeFor = (
+  origin: string,
+  { env, mcp, github, mintApiToken, isApiTokenActive, now }: Options,
+) => {
   const handleOAuth = OAuthHandler.make({
     origin,
     allowedLogin: env.ALLOWED_GITHUB_LOGIN,

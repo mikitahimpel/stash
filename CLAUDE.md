@@ -38,7 +38,7 @@ pnpm --filter @stash/<package> test                                     # one pa
 pnpm format                                                             # oxfmt --write the whole repo
 pnpm dev:api                                                            # api Worker + D1 + Queue + web Static Assets locally via Alchemy (no credentials), see docs/alchemy.md
 pnpm dev:web                                                            # web SPA with hot reload (Vite on 0.0.0.0:5173)
-PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes  # real deploy to *.workers.dev, see docs/deploy.md
+PROTON_PASS_AGENT_REASON="stash deploy" pp run --env-file .env -- pnpm exec alchemy deploy --stage prod --yes  # real deploy (prod: the custom domain), see docs/deploy.md
 ```
 
 - Lint is `oxlint`, format is `oxfmt` (`printWidth` 100; Markdown is not formatted), typecheck is
@@ -128,8 +128,10 @@ behind services.
 ## Public repo hygiene
 
 - The repo is public. Never commit secrets, tokens, account IDs, domains, real e-mail addresses or
-  GitHub logins. Personal values come from env. The one exception is the owner's GitHub login,
-  committed at the owner's request as the prod default in `alchemy.run.ts`.
+  GitHub logins. Personal values come from env. The two exceptions, both committed at the owner's
+  request as prod defaults in `alchemy.run.ts`, are the owner's GitHub login and the prod hostname
+  `stash.mikitahimpel.com` (which the README and `docs/deploy.md` also name). No other domain, and
+  never the account's `workers.dev` subdomain.
 - Never hardcode, log or print secret values. That includes command output, test snapshots and
   error messages.
 - User data never enters git. Test fixtures are synthetic: invented URLs (`https://example.com/...`),

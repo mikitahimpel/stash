@@ -15,8 +15,17 @@
 //    and the row is deleted in any case.
 // 4. The live stream works on the web origin: with that session, `<web>/api/events` upgrades to a
 //    WebSocket through the `Web` Worker and the api to the user's `LinkEvents` Durable Object,
-//    which says `stream.ready` and answers `ping` with `pong`. Without a session it answers 401.
-//    The check changes no link, so it reads no `link.updated` event.
+//    which says `stream.ready` and answers `ping` with `pong`. The stream is opened as a browser
+//    on the site opens it, with `Origin: <web>`: the api accepts a cookie only from that origin, so
+//    this fails when the api's `WEB_ORIGIN` is not the address checked. Without a session it
+//    answers 401, and from another origin 403. The check changes no link, so it reads no
+//    `link.updated` event.
+// 5. With `STASH_MCP_URL` (the connector URL, `<web>/mcp` on a custom domain): the OAuth discovery
+//    documents on its host name that host as the issuer and the URL as the resource, and the
+//    endpoint challenges a request without a token (401) instead of serving the SPA.
+// 6. With `STASH_OLD_WEB_URL` (the web Worker's `workers.dev` address, after a move to a custom
+//    domain): a GET of a page answers 301 to the same path on `<web>`, and the api under `/api`
+//    is still served there.
 //
 // Env: `STASH_WEB_URL` (the deployed web origin), `STASH_D1_DATABASE` (the api's D1 database name,
 // `PROD_NAMES.Database` in `alchemy.run.ts` for stage `prod`), `STASH_ALLOWED_GITHUB_LOGIN` (the
@@ -286,7 +295,11 @@ const main = async () => {
     // 4. The live stream, with the same session.
     const eventsUrl = at("/api/events");
     check((await openStream(eventsUrl, {})) === 401, "/api/events without a session: 401");
-    const stream = await openStream(eventsUrl, { cookie: sent });
+    check(
+      (await openStream(eventsUrl, { cookie: sent, origin: "https://other.example.com" })) === 403,
+      "/api/events with the session from another origin: 403",
+    );
+    const stream = await openStream(eventsUrl, { cookie: sent, origin: web.origin });
     if (typeof stream === "number") throw new Error(`FAIL /api/events did not upgrade: ${stream}`);
     try {
       const types = () =>
@@ -298,7 +311,7 @@ const main = async () => {
           }
         });
       await until("the stream says stream.ready", () => types().includes("stream.ready"));
-      check(true, "/api/events upgrades and says stream.ready");
+      check(true, "/api/events upgrades for the site's own Origin and says stream.ready");
       stream.send("ping");
       await until("the stream answers ping", () => stream.messages.includes("pong"));
       check(true, "the stream answers ping with pong");
@@ -311,6 +324,60 @@ const main = async () => {
     check(out.status === 204 && after.status === 401, "logout ends the session: /api/auth/me 401");
   } finally {
     for (const token of tokens) await query("DELETE FROM sessions WHERE id = ?", [hash(token)]);
+  }
+
+  // 5. The MCP server and its OAuth discovery, where the connector URL says.
+  const mcpUrl = process.env["STASH_MCP_URL"];
+  if (mcpUrl !== undefined && mcpUrl !== "") {
+    const mcp = new URL(mcpUrl);
+    const json = async (path: string) => {
+      const answer = await request("GET", new URL(path, mcp).href);
+      return answer.status === 200 ? (JSON.parse(answer.body) as Record<string, unknown>) : {};
+    };
+    const server = await json("/.well-known/oauth-authorization-server");
+    check(
+      server["issuer"] === mcp.origin &&
+        server["authorization_endpoint"] === `${mcp.origin}/authorize` &&
+        server["token_endpoint"] === `${mcp.origin}/token` &&
+        server["registration_endpoint"] === `${mcp.origin}/register`,
+      "the OAuth issuer and endpoints are on the connector URL's host",
+    );
+    const resource = await json(`/.well-known/oauth-protected-resource${mcp.pathname}`);
+    check(
+      resource["resource"] === mcp.href &&
+        JSON.stringify(resource["authorization_servers"]) === JSON.stringify([mcp.origin]),
+      "the protected resource is the connector URL",
+    );
+    const call = await request("POST", mcp.href, {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    check(
+      call.status === 401 &&
+        String(call.headers["www-authenticate"]).includes(
+          `${mcp.origin}/.well-known/oauth-protected-resource${mcp.pathname}`,
+        ),
+      `${mcp.pathname} without a token: 401 with the resource metadata of this host`,
+    );
+  }
+
+  // 6. The old workers.dev address: pages move, the api stays.
+  const oldWebUrl = process.env["STASH_OLD_WEB_URL"];
+  if (oldWebUrl !== undefined && oldWebUrl !== "") {
+    const old = new URL(oldWebUrl);
+    for (const path of ["/", "/links?q=check"]) {
+      const moved = await request("GET", new URL(path, old).href);
+      check(
+        moved.status === 301 && moved.headers["location"] === at(path).href,
+        `GET ${path} on the old host: 301 to the new host`,
+      );
+    }
+    const health = await request("GET", new URL("/api/health", old).href);
+    const oldStart = await request("POST", new URL("/api/auth/device/start", old).href);
+    check(
+      health.status === 200 && oldStart.status === 200,
+      "the old host still serves the api under /api (GET and POST)",
+    );
   }
 };
 

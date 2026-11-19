@@ -8,6 +8,11 @@ export interface WorkerEnv extends ApiClient.ApiEnv {
   /** Public origin of this Worker (`https://…`, or `http://localhost:<port>` in dev). */
   readonly MCP_ORIGIN: string;
   /**
+   * The origin this Worker was reached at before it moved to `MCP_ORIGIN` (its `workers.dev`
+   * address, on a stage with a custom domain). It keeps answering there for old connectors.
+   */
+  readonly MCP_LEGACY_ORIGIN?: string;
+  /**
    * The GitHub OAuth App's client ID for the Device Flow. A plain var: it is public. Missing until
    * the app exists: the sign-in pages then answer 503 (`login-not-configured.ts`).
    */

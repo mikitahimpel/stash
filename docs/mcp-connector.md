@@ -21,7 +21,7 @@ come from env, except `GITHUB_CLIENT_ID`, which is public and committed for stag
 
 | Env var | On `Mcp` as | Must be |
 |---|---|---|
-| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` (also on `Api`, for the Connect page) | the Worker's public origin, exactly as Claude reaches it (`https://<your-mcp>.workers.dev`, no path, no trailing slash). A deploy derives it when unset |
+| `STASH_MCP_ORIGIN` | `MCP_ORIGIN` (also on `Api`, for the Connect page) | the server's public origin, exactly as Claude reaches it (no path, no trailing slash). A deploy derives it: `https://<domain>` on a stage with a custom domain (where this variable is not read), else `https://<your-mcp>.workers.dev` when unset |
 | `STASH_ALLOWED_GITHUB_LOGIN` | `ALLOWED_GITHUB_LOGIN` | your GitHub login. It is the only account that can authorize a client (compared case-insensitively) |
 | `GITHUB_CLIENT_ID` | same name | the client ID of a GitHub OAuth App with **Enable Device Flow** checked. It is public, so it is a plain var. There is no client secret |
 

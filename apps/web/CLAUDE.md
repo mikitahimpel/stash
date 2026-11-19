@@ -37,14 +37,23 @@ app shell doesn't use them either.
   `vite.config.ts` reads it into `server.allowedHosts` and `preview.allowedHosts`. Unset keeps
   Vite's default. Never hardcode machine names.
 - The api is same-origin under `/api` (see [docs/deploy.md](../../docs/deploy.md#same-origin-api)).
-  `src/web-worker.ts` is the `Web` Worker: it runs only for `/api` and `/api/*` and forwards them to
-  the api through the `API` Service Binding with the prefix stripped. A Workers entry may export
-  only handlers, so it exports nothing but `default` and types. The SPA's api base URL defaults to
+  `src/web-worker.ts` is the `Web` Worker: it runs first for every path but `/assets/*` and
+  `/downloads/*`. It forwards `/api` and `/api/*` to the api through the `API` Service Binding with
+  the prefix stripped, on any host. On a stage with a custom domain it also forwards the MCP
+  server's paths (`/mcp`, `/authorize`, `/token`, `/register`, `/.well-known/oauth-*`) to the mcp
+  Worker through the `MCP` binding, URL unchanged, and answers a GET of a page on its old
+  `*.workers.dev` host with a 301 to the domain (see
+  [docs/deploy.md](../../docs/deploy.md#custom-domain)). Everything else goes to `ASSETS`. **Never
+  add an SPA route under one of the MCP paths**: `test/web-worker.test.ts` checks the router
+  against them. A Workers entry may export only handlers, so it exports nothing but `default` and
+  types. The SPA's api base URL defaults to
   `/api` (`@stash/web-api-client/api-base-url`) and `VITE_API_BASE_URL` overrides it, never a
   hardcoded URL. The Vite dev and preview servers proxy `/api` (WebSockets too, for the live stream) to `STASH_DEV_API_URL` (default
   `http://localhost:8787`, `alchemy dev`).
 - `scripts/live-session-check.ts` (`pnpm --filter @stash/web check:live`): the scripted check of a
-  deployed web origin (same-origin api, no `stash-api.` in the bundle, session cookie round-trip),
+  deployed web origin (same-origin api, no `stash-api.` in the bundle, session cookie round-trip,
+  the live stream with the site's own `Origin`; with `STASH_MCP_URL` the OAuth discovery on the
+  site's host, with `STASH_OLD_WEB_URL` the redirect of the old `workers.dev` pages),
   see [docs/deploy.md](../../docs/deploy.md#check-a-deploy).
 - Adding a page means adding a route export in a feature package and mounting it here, in
   `featureRoutes` of `src/app-router.ts`. Keep the route names (`links`, `open-tabs`,
