@@ -7,6 +7,7 @@
   "exports": {
     "./links-repo": "./src/links-repo.ts",
     "./links-handlers": "./src/links-handlers.ts",
+    "./events-handlers": "./src/events-handlers.ts",
     "./canonicalize-url": "./src/save/canonicalize-url.ts",
     "./x-post-url": "./src/save/x-post-url.ts",
     "./save-link": "./src/save/save-link.ts",
@@ -15,7 +16,8 @@
     "./list-links": "./src/list/list-links.ts",
     "./get-link": "./src/details/get-link.ts",
     "./update-link": "./src/details/update-link.ts",
-    "./delete-link": "./src/details/delete-link.ts"
+    "./delete-link": "./src/details/delete-link.ts",
+    "./publish-link-event": "./src/publish-link-event.ts"
   },
   "scripts": {
     "lint": "oxlint .",

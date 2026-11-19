@@ -1,4 +1,7 @@
+import type * as LinksRepo from "@stash/backend-links/links-repo";
+import * as PublishLinkEvent from "@stash/backend-links/publish-link-event";
 import type * as D1Database from "@stash/backend-platform/d1-database";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Link from "@stash/contracts-domain/link";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -24,6 +27,8 @@ import * as FetchContent from "./fetch-content.ts";
 //   again. That does not go on forever: on the cron's last requeue nothing is fetched, the link
 //   gets what its URL alone gives (a video's thumbnail) and is done.
 // - A site that answers for good with nothing useful (404, a PDF) finishes the backfill too.
+// - A backfill that filled a field is published to the live stream (`GET /events`), once. One
+//   that only stamped the version changed nothing a client shows, and sends nothing.
 
 export type Outcome =
   /** Read and stamped. `filled` names the fields that were missing and are now set. */
@@ -36,7 +41,11 @@ export type Outcome =
 /** A transient failure: the message should be delivered again. */
 export type BackfillError = ContentHttp.ContentFetchError | D1Database.DatabaseError;
 
-export type Requirements = EnrichmentRepo.EnrichmentRepo | HttpClient.HttpClient;
+export type Requirements =
+  | EnrichmentRepo.EnrichmentRepo
+  | HttpClient.HttpClient
+  | LinksRepo.LinksRepo
+  | LinkEvents.LinkEvents;
 
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
 const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);
@@ -95,5 +104,6 @@ export const backfillMetadata = (
     const filled: Array<"imageUrl" | "author"> = [];
     if (link.imageUrl === null && imageUrl !== null) filled.push("imageUrl");
     if (link.author === null && author !== null) filled.push("author");
+    if (filled.length > 0) yield* PublishLinkEvent.changed(id);
     return { _tag: "Backfilled", filled } as const;
   }).pipe(Effect.withSpan("backfillMetadata", { attributes: { linkId: id } }));

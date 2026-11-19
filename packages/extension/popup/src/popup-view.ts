@@ -2,6 +2,7 @@ import * as Link from "@stash/contracts-domain/link";
 import * as Tabs from "@stash/ext-platform/browser-tabs";
 import * as ExtensionConfig from "@stash/ext-platform/extension-config";
 import * as StashApiClient from "@stash/ext-platform/stash-api-client";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -9,6 +10,15 @@ import * as PopupLink from "./popup-link.ts";
 
 /** How many of the latest saved links the popup lists. */
 export const recentCount = 5;
+
+/** The first wait before the recent links that are still being enriched are asked for again. */
+export const catchUpFirst = Duration.seconds(3);
+
+/** The longest wait between two such asks: each one is twice the one before. */
+export const catchUpMax = Duration.seconds(30);
+
+/** How many times they are asked for at most (about three minutes), while the popup stays open. */
+export const catchUpAttempts = 8;
 
 /** The tab the popup was opened on. */
 export interface Page {
@@ -133,3 +143,29 @@ export const load: Effect.Effect<
     ),
   );
 }).pipe(Effect.orElseSucceed(() => notPaired));
+
+/**
+ * Brings the listed links that enrichment had not reached up to date while the popup is open: the
+ * same catch-up call the web app makes without its live stream (`GET /links?ids=…`, only the
+ * pending ones). It asks after `catchUpFirst`, then after twice as long each time up to
+ * `catchUpMax`, and hands each link that changed to `onUpdate`. It stops when none is pending,
+ * after `catchUpAttempts`, or when the api fails. With nothing pending it asks nothing.
+ */
+export const catchUp = (
+  links: ReadonlyArray<PopupLink.PopupLink>,
+  onUpdate: (link: PopupLink.PopupLink) => void,
+): Effect.Effect<void, never, StashApiClient.StashApiClient> =>
+  Effect.gen(function* () {
+    let pending = links.filter((link) => !link.enriched).map((link) => link.id);
+    if (pending.length === 0) return;
+    const client = yield* StashApiClient.StashApiClient;
+    let wait = catchUpFirst;
+    for (let attempt = 0; attempt < catchUpAttempts && pending.length > 0; attempt++) {
+      yield* Effect.sleep(wait);
+      wait = Duration.min(Duration.times(wait, 2), catchUpMax);
+      const page = yield* client.links.list({ query: { ids: pending, limit: pending.length } });
+      const enriched = page.items.map(PopupLink.fromLink).filter((link) => link.enriched);
+      for (const link of enriched) onUpdate(link);
+      pending = pending.filter((id) => !enriched.some((link) => link.id === id));
+    }
+  }).pipe(Effect.ignore);

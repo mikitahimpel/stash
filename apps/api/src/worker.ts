@@ -10,17 +10,20 @@ import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import * as GithubConfig from "@stash/backend-platform/github-config";
 import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as Kv from "@stash/backend-platform/kv";
+import * as LinkEventsService from "@stash/backend-platform/link-events";
+import * as LinkEventsObject from "@stash/backend-platform/link-events-object";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import * as Vectors from "@stash/backend-platform/vectors";
 import * as CommandsRepo from "@stash/backend-tabs/commands-repo";
 import * as DevicesRepo from "@stash/backend-tabs/devices-repo";
 import * as OpenTabsRepo from "@stash/backend-tabs/open-tabs-repo";
-import { env, WorkerEntrypoint } from "cloudflare:workers";
+import { DurableObject, env, WorkerEntrypoint } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as Layer from "effect/Layer";
 import * as Scheduler from "effect/Scheduler";
 import * as ApiLayer from "./api-layer.ts";
+import { handleEvents } from "./events-upgrade.ts";
 import * as QueueHandler from "./queue-handler.ts";
 import * as ScheduledHandler from "./scheduled-handler.ts";
 import { handleLoginNotConfigured } from "./login-not-configured.ts";
@@ -44,6 +47,10 @@ const platform = Layer.mergeAll(
     : GithubConfig.layerFromEnv(workerEnv),
   HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
+  // The live stream of link changes: every write publishes to the owner's `LinkEvents` object.
+  workerEnv.LINK_EVENTS === undefined
+    ? LinkEventsService.layerNoop
+    : LinkEventsService.layer(workerEnv.LINK_EVENTS, workerEnv.ALLOWED_GITHUB_LOGIN),
   Vectors.layer(
     workerEnv.VECTORS ?? {
       upsert: missingBinding("VECTORS"),
@@ -59,6 +66,8 @@ const enrichment = QueueHandler.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       EnrichmentRepo.layer,
+      // To read the enriched link for its event on the live stream.
+      LinksRepo.layer,
       workerEnv.ANTHROPIC_API_KEY === undefined
         ? ClassifyLink.layerMissingKey
         : ClassifyLink.layerAnthropic.pipe(
@@ -116,11 +125,40 @@ export class InternalApi extends WorkerEntrypoint<WorkerEnv> {
   }
 }
 
+/**
+ * The Durable Object behind `GET /events`: one per user, holding that user's open WebSockets with
+ * the Hibernation API. The logic is `LinkEventsObject` in `@stash/backend-platform`. Bound as
+ * `LINK_EVENTS` in the root `alchemy.run.ts`.
+ */
+export class LinkEvents extends DurableObject<WorkerEnv> {
+  readonly #object: LinkEventsObject.LinkEventsObject;
+
+  constructor(ctx: DurableObjectState, env: WorkerEnv) {
+    super(ctx, env);
+    this.#object = new LinkEventsObject.LinkEventsObject(ctx);
+  }
+
+  override fetch(request: Request): Promise<Response> {
+    return this.#object.fetch(request);
+  }
+
+  override webSocketClose(socket: WebSocket): void {
+    this.#object.webSocketClose(socket);
+  }
+}
+
 export default {
   async fetch(request, env): Promise<Response> {
     return (
       (await handleSmoke(request, env)) ??
       handleLoginNotConfigured(request, env) ??
+      (await handleEvents(
+        request,
+        app.handler,
+        env.LINK_EVENTS,
+        env.ALLOWED_GITHUB_LOGIN,
+        env.WEB_ORIGIN,
+      )) ??
       app.handler(request)
     );
   },

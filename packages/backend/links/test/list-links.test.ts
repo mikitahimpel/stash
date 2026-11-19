@@ -1,7 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as D1Database from "@stash/backend-platform/d1-database";
 import type * as LinksGroup from "@stash/contracts-api/links";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as TestClock from "effect/testing/TestClock";
 import * as UpdateLink from "../src/details/update-link.ts";
@@ -118,6 +120,52 @@ describe("listLinks", () => {
       expect(yield* ids("https://example.com/1")).toEqual([b!.id]);
       expect(yield* ids("https://www.example.com/1/?utm_source=feed#top")).toEqual([b!.id]);
       expect(yield* ids("https://example.com/not-saved")).toEqual([]);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("keeps the links that changed since a moment, the moment included", () =>
+    Effect.gen(function* () {
+      const [a, b, c] = yield* seed(3);
+      const db = yield* D1Database.Database;
+      const changedAt = (id: Link.LinkId, at: string) =>
+        db.run(D1Database.sql`UPDATE links SET updated_at = ${at} WHERE id = ${id}`);
+      yield* changedAt(a!.id, "2026-01-02T03:04:05.000Z");
+      yield* changedAt(b!.id, "2026-01-02T03:04:06.000Z");
+      yield* changedAt(c!.id, "2026-01-02T03:04:07.500Z");
+      const since = (at: string) =>
+        ListLinks.listLinks({ updatedSince: DateTime.makeUnsafe(at) }).pipe(
+          Effect.map((page) => page.items.map((link) => link.id)),
+        );
+      expect(yield* since("2026-01-02T03:04:00.000Z")).toEqual([c!.id, b!.id, a!.id]);
+      expect(yield* since("2026-01-02T03:04:06.000Z")).toEqual([c!.id, b!.id]);
+      expect(yield* since("2026-01-02T03:04:07.501Z")).toEqual([]);
+
+      // A change now is after any moment in the past, and the filter pages like the others.
+      yield* UpdateLink.updateLink(a!.id, { status: "seen" });
+      expect(yield* since("2026-01-02T03:04:07.501Z")).toEqual([a!.id]);
+      const pages = yield* allPages({
+        updatedSince: DateTime.makeUnsafe("2026-01-02T03:04:00.000Z"),
+        limit: 2,
+      });
+      expect(pages.map(urls)).toEqual([
+        ["https://example.com/2", "https://example.com/1"],
+        ["https://example.com/0"],
+      ]);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("keeps the links with the given ids", () =>
+    Effect.gen(function* () {
+      const [a, , c] = yield* seed(3);
+      const ids = (query: LinksGroup.ListLinksQuery) =>
+        ListLinks.listLinks(query).pipe(Effect.map((page) => page.items.map((link) => link.id)));
+      expect(yield* ids({ ids: [a!.id, c!.id, Link.LinkId.make("link-missing")] })).toEqual([
+        c!.id,
+        a!.id,
+      ]);
+      expect(yield* ids({ ids: [Link.LinkId.make("link-missing")] })).toEqual([]);
+      yield* UpdateLink.updateLink(a!.id, { status: "seen" });
+      expect(yield* ids({ ids: [a!.id, c!.id], seen: false })).toEqual([c!.id]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
   );
 

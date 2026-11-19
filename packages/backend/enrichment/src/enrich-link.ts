@@ -1,6 +1,9 @@
+import type * as LinksRepo from "@stash/backend-links/links-repo";
+import * as PublishLinkEvent from "@stash/backend-links/publish-link-event";
 import type * as Ai from "@stash/backend-platform/ai";
 import type * as Blobs from "@stash/backend-platform/blobs";
 import type * as D1Database from "@stash/backend-platform/d1-database";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import type * as Vectors from "@stash/backend-platform/vectors";
 import * as Link from "@stash/contracts-domain/link";
 import type * as LanguageModel from "effect/ai/LanguageModel";
@@ -42,6 +45,8 @@ import * as XPostUrl from "@stash/backend-links/x-post-url";
 //   whatever the saving client called the tab, and a short post is its own summary: the model
 //   still tags it, but writes a summary only for a long one. A post that is gone is stored as
 //   unavailable and is enriched like any link with no content.
+// - A stored enrichment is published to the live stream (`GET /events`), once, as the whole link,
+//   so an open page turns `summarizing…` into the summary by itself. Publishing never fails.
 
 /** The keyword-search excerpt kept in `links.text`. The full text is in R2. */
 export const maxSearchTextLength = 20_000;
@@ -74,7 +79,9 @@ export type Requirements =
   | LanguageModel.LanguageModel
   | Ai.Ai
   | Vectors.Vectors
-  | Blobs.Blobs;
+  | Blobs.Blobs
+  | LinksRepo.LinksRepo
+  | LinkEvents.LinkEvents;
 
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
 const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);
@@ -195,6 +202,7 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       enrichedAt: DateTime.formatIso(now),
       metadataVersion: EnrichPolicy.metadataVersion,
     });
+    yield* PublishLinkEvent.changed(id);
     return {
       _tag: "Enriched",
       source: Option.match(content, { onNone: () => "none" as const, onSome: (c) => c.source }),

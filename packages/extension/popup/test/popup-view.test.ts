@@ -1,6 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Testing from "@stash/ext-platform/testing";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as TestClock from "effect/testing/TestClock";
+import type * as PopupLink from "../src/popup-link.ts";
 import * as PopupView from "../src/popup-view.ts";
 import * as PopupApi from "./popup-api.ts";
 
@@ -126,5 +129,68 @@ describe("load", () => {
         }),
       ),
     );
+  });
+});
+
+describe("catchUp", () => {
+  const enrichedAt = "2026-01-01T00:00:06.000Z";
+  const layerOf = (api: ReturnType<typeof PopupApi.make>) =>
+    Testing.make({ tabs, config: PopupApi.config, handler: api.handler });
+
+  it.effect("asks only for the pending links, with growing waits, until all are enriched", () => {
+    const api = PopupApi.make({
+      links: [PopupApi.link("a"), PopupApi.link("b", { enrichedAt }), PopupApi.link("c")],
+    });
+    // `a` is enriched by the second ask, `c` by the third.
+    const asks = () => api.sent.filter((it) => it.query["ids"] !== undefined).length;
+    api.beforeGet((link) => {
+      const due = link.id === "a" ? 2 : link.id === "c" ? 3 : 0;
+      return link.enrichedAt === null && due > 0 && asks() >= due
+        ? { ...link, tags: ["invented"], enrichedAt }
+        : link;
+    });
+    const seen: Array<PopupLink.PopupLink> = [];
+    return Effect.gen(function* () {
+      const view = yield* PopupView.load;
+      api.sent.length = 0;
+      const fiber = yield* Effect.forkChild(
+        PopupView.catchUp(view.recent, (link) => seen.push(link)),
+      );
+      yield* TestClock.adjust("2 seconds");
+      expect(api.sent).toHaveLength(0);
+      yield* TestClock.adjust("1 second");
+      expect(api.sent.map((it) => it.query["ids"])).toEqual(["a,c"]);
+      yield* TestClock.adjust("6 seconds");
+      expect(api.sent.map((it) => it.query["ids"])).toEqual(["a,c", "a,c"]);
+      expect(seen.map((link) => link.id)).toEqual(["a"]);
+      yield* TestClock.adjust("12 seconds");
+      yield* Fiber.join(fiber);
+      expect(api.sent.map((it) => it.query["ids"])).toEqual(["a,c", "a,c", "c"]);
+      expect(seen.map((link) => [link.id, link.enriched, link.tags])).toEqual([
+        ["a", true, ["invented"]],
+        ["c", true, ["invented"]],
+      ]);
+      // Nothing is pending: no more requests.
+      yield* TestClock.adjust("10 minutes");
+      expect(api.sent).toHaveLength(3);
+    }).pipe(Effect.provide(layerOf(api)));
+  });
+
+  it.effect("asks nothing when every link is enriched, and gives up after the last attempt", () => {
+    const api = PopupApi.make({ links: [PopupApi.link("a")] });
+    return Effect.gen(function* () {
+      const view = yield* PopupView.load;
+      api.sent.length = 0;
+      yield* PopupView.catchUp(
+        view.recent.map((link) => ({ ...link, enriched: true })),
+        () => {},
+      );
+      expect(api.sent).toHaveLength(0);
+
+      const fiber = yield* Effect.forkChild(PopupView.catchUp(view.recent, () => {}));
+      yield* TestClock.adjust("1 hour");
+      yield* Fiber.join(fiber);
+      expect(api.sent).toHaveLength(PopupView.catchUpAttempts);
+    }).pipe(Effect.provide(layerOf(api)));
   });
 });

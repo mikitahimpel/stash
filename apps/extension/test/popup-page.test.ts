@@ -52,6 +52,7 @@ const mountPopup = async (options: { saved: PopupLink.PopupLink | null; created?
     })),
     undo: vi.fn(async () => ({ _tag: "Removed" as const })),
     watch: vi.fn(async () => {}),
+    catchUp: vi.fn(async () => {}),
     openStash: vi.fn(async () => {}),
     search: vi.fn(async () => {}),
     openLink: vi.fn(async () => {}),

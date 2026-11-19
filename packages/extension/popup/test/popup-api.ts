@@ -52,7 +52,7 @@ export const make = (
 ) => {
   const links = [...(options.links ?? [])];
   const sent: Array<Sent> = [];
-  /** Runs before each `GET /links/:id`, to let enrichment "happen" between polls. */
+  /** Runs before each `GET /links/:id` and `GET /links?ids=`, to let enrichment "happen" between polls. */
   let beforeGet: (link: StoredLink) => StoredLink = (it) => it;
   const json = (body: unknown, status = 200) => Response.json(body, { status });
   const handler = (request: HttpClientRequest.HttpClientRequest) =>
@@ -90,7 +90,11 @@ export const make = (
       }
       if (path === "/links" && request.method === "GET") {
         const wanted = query["url"];
-        const items = wanted === undefined ? links : links.filter((it) => it.url === wanted);
+        const ids = query["ids"]?.split(",");
+        if (ids !== undefined) links.splice(0, links.length, ...links.map(beforeGet));
+        const items = links
+          .filter((it) => wanted === undefined || it.url === wanted)
+          .filter((it) => ids === undefined || ids.includes(it.id));
         return json({ items: items.slice(0, Number(query["limit"] ?? 50)), nextCursor: null });
       }
       if (path === "/links" && request.method === "POST") {

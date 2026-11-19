@@ -15,6 +15,7 @@
     "./digest": "./src/digest-group.ts",
     "./pairings": "./src/pairings-group.ts",
     "./connect": "./src/connect-group.ts",
+    "./events": "./src/events-group.ts",
     "./security": "./src/security.ts",
     "./internal-api": "./src/internal-api.ts"
   },

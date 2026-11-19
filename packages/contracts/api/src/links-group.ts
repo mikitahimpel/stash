@@ -1,6 +1,6 @@
 import * as Link from "@stash/contracts-domain/link";
 import * as Tag from "@stash/contracts-domain/tag";
-import { Schema } from "effect";
+import { Schema, SchemaTransformation } from "effect";
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api";
 import * as ErrorStatuses from "./error-statuses.ts";
 import * as Security from "./security.ts";
@@ -42,11 +42,27 @@ export const PageSize = Schema.Int.pipe(
 );
 
 /**
+ * Link ids in one query parameter, separated by commas (`ids=a,b,c`): at most a page of them.
+ */
+export const LinkIds = Schema.String.pipe(
+  Schema.decodeTo(
+    Schema.Array(Link.LinkId).pipe(Schema.check(Schema.isBetweenLength(1, maxPageSize))),
+    SchemaTransformation.transform<ReadonlyArray<string>, string>({
+      decode: (text) => text.split(","),
+      encode: (ids) => ids.join(","),
+    }),
+  ),
+);
+
+/**
  * Filters for `GET /links`. All are optional and combine with AND. `seen: false` means links still
  * in status `new`. `url` looks a link up by its URL: the page holds the one link stored for that
  * page (the same canonical URL, so tracking parameters and the like don't matter), or nothing. A
- * client asks this to learn whether a page is already saved, without saving it. `cursor` is the
- * opaque `nextCursor` of the previous page.
+ * client asks this to learn whether a page is already saved, without saving it. `updatedSince`
+ * keeps the links that changed at or after that moment (see `Link.updatedAt`): a client that
+ * follows the live stream (`GET /events`) catches up with it after a gap. `ids` keeps the links
+ * with these ids: a client without the stream asks for the links it is waiting on. Neither tells
+ * about deleted links. `cursor` is the opaque `nextCursor` of the previous page.
  */
 export const ListLinksQuery = Schema.Struct({
   status: Schema.optionalKey(Link.LinkStatus),
@@ -54,6 +70,8 @@ export const ListLinksQuery = Schema.Struct({
   tag: Schema.optionalKey(Tag.TagName),
   seen: Schema.optionalKey(Schema.Boolean),
   url: Schema.optionalKey(Link.Url),
+  updatedSince: Schema.optionalKey(Schema.DateTimeUtcFromString),
+  ids: Schema.optionalKey(LinkIds),
   cursor: Schema.optionalKey(Schema.String.pipe(Schema.check(Schema.isNonEmpty()))),
   limit: Schema.optionalKey(PageSize),
   sort: Schema.optionalKey(LinksSort),

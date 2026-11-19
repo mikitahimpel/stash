@@ -186,6 +186,13 @@ describe("Link", () => {
     expect(() => Schema.decodeUnknownSync(Link.Link)({ ...link, ...patch })).toThrow();
   });
 
+  it("takes `updatedAt` when the api sends it, and does without", () => {
+    const withIt = { ...link, updatedAt: "2026-01-02T03:04:06.500Z" };
+    const decoded = Schema.decodeUnknownSync(Link.Link)(withIt);
+    expect(Schema.encodeSync(Link.Link)(decoded)).toEqual(withIt);
+    expect(Schema.decodeUnknownSync(Link.Link)(link).updatedAt).toBeUndefined();
+  });
+
   it("rejects a missing field", () => {
     const { title: _, ...rest } = link;
     expect(() => Schema.decodeUnknownSync(Link.Link)(rest)).toThrow();

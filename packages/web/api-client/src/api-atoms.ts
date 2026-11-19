@@ -1,4 +1,6 @@
 import type * as StashApi from "@stash/contracts-api/api";
+import type * as Link from "@stash/contracts-domain/link";
+import * as Cause from "effect/Cause";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as HttpApiClient from "effect/http-api/HttpApiClient";
@@ -10,6 +12,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as LinkPatches from "./link-patches.ts";
 import { StashApiClient } from "./stash-api-client.ts";
 
 /** The typed client: one object per api group, one method per endpoint. */
@@ -57,13 +60,35 @@ const markAsked = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<any>): v
 // opens again shows the cached success at once, and a refresh runs behind it. While that refresh
 // runs the result stays a `Success` (with `waiting`), so pages keep their rows instead of a
 // skeleton. A cached failure is not retried by itself: pages offer Retry for that.
-const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(atom: A) => {
+//
+// Live updates. Readers see the answer with what the live stream said since laid over it
+// (`LinkPatches`): a link that changed is replaced in place, with no request, so a patch never
+// counts as an ask and changes nothing about when a query refreshes. The cached answer itself
+// stays as the api gave it; the overlay is applied each time it is read.
+//
+// A list that says which links it takes (`accepts`, see `pages`) also gets the links the stream
+// brought that it does not hold yet: one saved on another device appears at its place.
+const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(
+  atom: A,
+  accepts?: (link: Link.Link) => boolean,
+) => {
   const source = Atom.setIdleTTL(atom, idleTTL);
   const self: Atom.Atom<any> = Atom.transform(
     source,
     (get) => {
+      const patched = (result: AsyncResult.AsyncResult<any, any>) => {
+        const patches = get.once(LinkPatches.state);
+        const laid = overlay(result, patches);
+        // The list's age is read from the api's own answer: the overlay makes new objects.
+        const next =
+          accepts === undefined ? laid : withNew(laid, patches, accepts, listAnsweredAt(result));
+        LinkPatches.track(get.registry, self, AsyncResult.isSuccess(next) ? next.value : null);
+        return next;
+      };
+      get.addFinalizer(() => LinkPatches.track(get.registry, self, undefined));
       const current = get.once(source);
-      get.subscribe(source, (value) => get.setSelf(value));
+      get.subscribe(source, (value) => get.setSelf(patched(value)));
+      get.subscribe(LinkPatches.state, () => get.setSelf(patched(get.once(source))));
       if (AsyncResult.isInitial(current)) markAsked(get.registry, self);
       if (AsyncResult.isSuccess(current) && !current.waiting) {
         markAsked(get.registry, self);
@@ -73,12 +98,81 @@ const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(ato
           if (active) get.refresh(source);
         }, 0);
       }
-      return current;
+      return patched(current);
     },
     { initialValueTarget: source },
   );
   return self as unknown as A;
 };
+
+// The result with the patches applied to its value. An answer no patch touches is returned as it
+// is, so a patch for a link a query does not hold changes nothing for its readers.
+const overlay = (
+  result: AsyncResult.AsyncResult<any, any>,
+  patches: LinkPatches.Patches,
+): AsyncResult.AsyncResult<any, any> => {
+  if (patches.size === 0 || AsyncResult.isInitial(result)) return result;
+  if (AsyncResult.isSuccess(result)) {
+    const value: unknown = LinkPatches.apply(result.value, patches);
+    return value === result.value ? result : AsyncResult.map(result, () => value);
+  }
+  return AsyncResult.map(result, (value: unknown) => LinkPatches.apply(value, patches));
+};
+
+// When a list was answered, in epoch ms, by its first link (or, for an empty list, its failure).
+// A page appended later is a newer result with the same first link, and the list is as old as
+// its first page: that one is what a link saved since is missing from.
+//
+// It must be read from the answer as the api gave it, before the overlay: a patched first link
+// is a new object on every read, and would make the list look as young as its last page.
+const answered = new WeakMap<object, number>();
+const answeredAt = (key: object | undefined, seen: number): number => {
+  if (key === undefined) return seen;
+  const known = answered.get(key);
+  if (known === undefined) answered.set(key, seen);
+  return known ?? seen;
+};
+const listAnsweredAt = (source: AsyncResult.AsyncResult<any, any>): number => {
+  if (AsyncResult.isSuccess(source)) {
+    const { items } = source.value as { readonly items: ReadonlyArray<object> };
+    return answeredAt(items[0], source.timestamp);
+  }
+  return AsyncResult.isFailure(source) ? answeredAt(source.cause, Date.now()) : Date.now();
+};
+
+// A `pages` result with the links the stream brought that the list does not hold yet. A list
+// that is empty (it fails with `NoSuchElementError`) becomes a list of them.
+const withNew = (
+  result: AsyncResult.AsyncResult<any, any>,
+  patches: LinkPatches.Patches,
+  accepts: (link: Link.Link) => boolean,
+  listedAt: number,
+): AsyncResult.AsyncResult<any, any> => {
+  if (patches.size === 0) return result;
+  if (AsyncResult.isSuccess(result)) {
+    const value = result.value as {
+      readonly done: boolean;
+      readonly items: ReadonlyArray<Link.Link>;
+    };
+    const items = LinkPatches.insert(value.items, {
+      done: value.done,
+      patches,
+      accepts,
+      answeredAt: listedAt,
+    });
+    return items === value.items ? result : AsyncResult.map(result, () => ({ ...value, items }));
+  }
+  if (!AsyncResult.isFailure(result) || !isEmpty(result.cause)) return result;
+  const items = LinkPatches.insert([], { done: true, patches, accepts, answeredAt: listedAt });
+  return items.length === 0
+    ? result
+    : AsyncResult.success({ done: true, items }, { waiting: result.waiting });
+};
+
+const isEmpty = (cause: Cause.Cause<unknown>): boolean =>
+  cause.reasons.some(
+    (reason) => reason._tag === "Fail" && reason.error instanceof Cause.NoSuchElementError,
+  );
 
 /**
  * An atom that runs `run` against the client and holds its result. It runs again whenever one of
@@ -133,6 +227,11 @@ export interface Page<A> {
  * pages while no page reads it and reloads in the background when one does again. An empty result fails
  * with `NoSuchElementError`.
  *
+ * `accepts` is for a newest-first list of links: it says which links belong to the list (its
+ * filters). A link the live stream brings that the list does not hold yet, one saved a moment ago
+ * on another device, is then put in at its place by the time it was saved, with no request. Without
+ * it the list only changes the links it holds.
+ *
  * ```ts
  * const recent = ApiAtoms.pages(["links"], (client, cursor) =>
  *   client.links.list({ query: { sort: "recent", ...(cursor ? { cursor } : {}) } }),
@@ -142,6 +241,7 @@ export interface Page<A> {
 export const pages = <A, E>(
   keys: Keys,
   run: (client: Client, cursor: string | undefined) => Effect.Effect<Page<A>, E>,
+  options: { readonly accepts?: (link: Link.Link) => boolean } = {},
 ): Atom.Writable<Atom.PullResult<A, Exclude<E, Defect>>, void> =>
   revalidated(
     StashApiClient.runtime.factory.withReactivity(keys)(
@@ -153,6 +253,7 @@ export const pages = <A, E>(
         ),
       ),
     ),
+    options.accepts,
   );
 
 /** How long `prefetch` keeps reading its queries, in ms: the time a page has to take them over. */

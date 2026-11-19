@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Link from "@stash/contracts-domain/link";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -9,6 +10,7 @@ import * as D1Database from "../src/d1-database.ts";
 import * as EnrichmentQueue from "../src/enrichment-queue.ts";
 import * as GithubConfig from "../src/github-config.ts";
 import * as Kv from "../src/kv.ts";
+import * as LinkEvents from "../src/link-events.ts";
 import * as Live from "../src/live.ts";
 import * as SqliteD1 from "../src/sqlite-d1.ts";
 import * as StashConfig from "../src/stash-config.ts";
@@ -38,6 +40,10 @@ const fakeEnv = (): Live.PlatformEnv => {
       delete: async (key: string) => void kv.delete(key),
     },
     AI: { run: async () => ({ data: [[1, 0]] }) },
+    LINK_EVENTS: {
+      idFromName: (name: string) => name,
+      get: () => ({ fetch: async () => ({ status: 200 }) }),
+    },
     ALLOWED_GITHUB_LOGIN: "example-user",
     WEB_ORIGIN: "https://example.com",
     GITHUB_CLIENT_ID: "synthetic-client-id",
@@ -61,6 +67,11 @@ describe("live layer", () => {
       expect(yield* (yield* Ai.Ai).embed(["x"])).toEqual([[1, 0]]);
       expect((yield* StashConfig.StashConfig).archiveAfterDays).toBe(30);
       expect((yield* GithubConfig.GithubConfig).clientId).toBe("synthetic-client-id");
+      yield* (yield* LinkEvents.LinkEvents).publish({
+        type: "link.deleted",
+        at: yield* DateTime.now,
+        id: Schema.decodeSync(Link.LinkId)("link-1"),
+      });
     }).pipe(Effect.provide(Live.layer(fakeEnv()))),
   );
 
@@ -90,6 +101,8 @@ describe("testing layer", () => {
       yield* Blobs.Blobs;
       yield* Kv.Kv;
       yield* Ai.Ai;
+      yield* LinkEvents.LinkEvents;
+      yield* Testing.TestLinkEvents;
       expect((yield* StashConfig.StashConfig).allowedGithubLogin).toBe("example-user");
       expect((yield* GithubConfig.GithubConfig).clientId).toBe("synthetic-client-id");
     }).pipe(Effect.provide(Testing.layer)),

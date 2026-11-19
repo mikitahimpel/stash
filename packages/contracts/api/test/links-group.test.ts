@@ -56,4 +56,22 @@ describe("ListLinksQuery", () => {
     expect(decode({})._tag).toBe("Some");
     expect(decode({ url: "about:blank" })._tag).toBe("None");
   });
+
+  it("takes `updatedSince` as a moment and `ids` as one comma-separated parameter", () => {
+    const decode = Schema.decodeUnknownOption(LinksGroup.ListLinksQuery);
+    const query = Schema.decodeUnknownSync(LinksGroup.ListLinksQuery)({
+      updatedSince: "2026-01-02T03:04:05.000Z",
+      ids: "link-1,link-2",
+    });
+    expect(query.ids).toEqual(["link-1", "link-2"]);
+    expect(Schema.encodeSync(LinksGroup.ListLinksQuery)(query)).toEqual({
+      updatedSince: "2026-01-02T03:04:05.000Z",
+      ids: "link-1,link-2",
+    });
+    expect(decode({ updatedSince: "yesterday" })._tag).toBe("None");
+    expect(decode({ ids: "" })._tag).toBe("None");
+    expect(decode({ ids: "link-1,,link-2" })._tag).toBe("None");
+    const tooMany = Array.from({ length: LinksGroup.maxPageSize + 1 }, (_, i) => `link-${i}`);
+    expect(decode({ ids: tooMany.join(",") })._tag).toBe("None");
+  });
 });

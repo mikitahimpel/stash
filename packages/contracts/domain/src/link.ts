@@ -136,6 +136,8 @@ export type LinkPost = typeof LinkPost.Type;
  * YouTube channel, an article's author. `summary` stays `null` when the page gave no text to
  * summarize. `post` is set on a link to a post on X (absent on any other link): the
  * post itself, or the fact that it is unavailable. For a short post `summary` is the post's text.
+ * `updatedAt` is when the link last changed (the save, enrichment, an edit, a tag): the api always
+ * sends it, and of two copies of a link the one with the later `updatedAt` is current.
  */
 export const Link = Schema.Struct({
   id: LinkId,
@@ -153,6 +155,7 @@ export const Link = Schema.Struct({
   createdAt: Schema.DateTimeUtcFromString,
   enrichedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   post: Schema.optionalKey(LinkPost),
+  updatedAt: Schema.optionalKey(Schema.DateTimeUtcFromString),
 });
 export type Link = typeof Link.Type;
 

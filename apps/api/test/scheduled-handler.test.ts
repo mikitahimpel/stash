@@ -58,6 +58,7 @@ const layer = ScheduledHandler.layer.pipe(
       layerDatabase,
       Testing.layerEnrichmentQueue,
       Testing.layerKv,
+      Testing.layerLinkEvents,
       Testing.layerStashConfig(),
     ),
   ),

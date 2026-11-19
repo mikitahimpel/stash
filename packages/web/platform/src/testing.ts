@@ -1,4 +1,5 @@
 import * as Clipboard from "@effect/platform-browser/Clipboard";
+import * as Cause from "effect/Cause";
 import * as IndexedDb from "@effect/platform-browser/IndexedDb";
 import * as Permissions from "@effect/platform-browser/Permissions";
 import * as Context from "effect/Context";
@@ -8,6 +9,7 @@ import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
 import * as KeyValueStore from "effect/persistence/KeyValueStore";
+import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
@@ -15,6 +17,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import type * as Live from "./live.ts";
 import { Keyboard, type KeyPress } from "./keyboard.ts";
+import { LiveSocket, LiveSocketError } from "./live-socket.ts";
 import { Network } from "./network.ts";
 import * as RecentSearches from "./recent-searches.ts";
 import { Share, ShareError, type ShareData } from "./share.ts";
@@ -139,7 +142,11 @@ export const layerNetwork = (
 /** Test controls for the in-memory `Visibility`. */
 export class TestVisibility extends Context.Service<
   TestVisibility,
-  { readonly setState: (state: VisibilityState) => Effect.Effect<void> }
+  {
+    readonly setState: (state: VisibilityState) => Effect.Effect<void>;
+    /** The window gains the focus. */
+    readonly focus: Effect.Effect<void>;
+  }
 >()("@stash/web-platform/TestVisibility") {}
 
 /** Starts `"visible"` unless told otherwise. Change it with `TestVisibility.setState`. */
@@ -149,11 +156,79 @@ export const layerVisibility = (
   Layer.effectContext(
     Effect.gen(function* () {
       const state = yield* SubscriptionRef.make(options.state ?? "visible");
+      const focuses = yield* PubSub.unbounded<void>();
       return Context.make(Visibility, {
         current: SubscriptionRef.get(state),
         changes: SubscriptionRef.changes(state).pipe(Stream.changes),
+        focused: Stream.fromPubSub(focuses),
       }).pipe(
-        Context.add(TestVisibility, { setState: (value) => SubscriptionRef.set(state, value) }),
+        Context.add(TestVisibility, {
+          setState: (value) => SubscriptionRef.set(state, value),
+          focus: Effect.asVoid(PubSub.publish(focuses, undefined)),
+        }),
+      );
+    }),
+  );
+
+/** Test controls for the in-memory `LiveSocket`: the server's side of each connection. */
+export class TestLiveSocket extends Context.Service<
+  TestLiveSocket,
+  {
+    /** The address of every connection made so far, oldest first, open or not. */
+    readonly opened: Effect.Effect<ReadonlyArray<string>>;
+    /** How many connections are open now. */
+    readonly open: Effect.Effect<number>;
+    /** Sends a text message over every open connection. */
+    readonly send: (message: string) => Effect.Effect<void>;
+    /** Drops every open connection: each stream fails with this reason. */
+    readonly drop: (reason?: LiveSocketError["reason"]) => Effect.Effect<void>;
+    /** Whether connections can be made. While `false`, every new stream fails at once. */
+    readonly setReachable: (reachable: boolean) => Effect.Effect<void>;
+  }
+>()("@stash/web-platform/TestLiveSocket") {}
+
+/** A server that accepts every connection unless `reachable: false`. Drive it with `TestLiveSocket`. */
+export const layerLiveSocket = (
+  options: { readonly reachable?: boolean } = {},
+): Layer.Layer<LiveSocket | TestLiveSocket> =>
+  Layer.effectContext(
+    Effect.sync(() => {
+      let reachable = options.reachable ?? true;
+      const opened: Array<string> = [];
+      const connections = new Set<Queue.Enqueue<string, LiveSocketError>>();
+      return Context.make(LiveSocket, {
+        messages: (url) =>
+          Stream.callback<string, LiveSocketError>((queue) =>
+            Effect.acquireRelease(
+              Effect.sync(() => {
+                opened.push(url);
+                if (reachable) connections.add(queue);
+                else
+                  Queue.failCauseUnsafe(
+                    queue,
+                    Cause.fail(new LiveSocketError({ reason: "error" })),
+                  );
+              }),
+              () => Effect.sync(() => void connections.delete(queue)),
+            ),
+          ),
+      }).pipe(
+        Context.add(TestLiveSocket, {
+          opened: Effect.sync(() => [...opened]),
+          open: Effect.sync(() => connections.size),
+          send: (message) =>
+            Effect.sync(() => {
+              for (const queue of connections) Queue.offerUnsafe(queue, message);
+            }),
+          drop: (reason = "closed") =>
+            Effect.sync(() => {
+              for (const queue of connections) {
+                connections.delete(queue);
+                Queue.failCauseUnsafe(queue, Cause.fail(new LiveSocketError({ reason })));
+              }
+            }),
+          setReachable: (value) => Effect.sync(() => void (reachable = value)),
+        }),
       );
     }),
   );
@@ -255,7 +330,13 @@ export const layerRecentSearches: Layer.Layer<RecentSearches.RecentSearches> =
 
 /** Every service from `./live`, in memory, plus the test controls. */
 export const layer: Layer.Layer<
-  Live.Services | TestShare | TestNetwork | TestVisibility | TestTheme | TestKeyboard
+  | Live.Services
+  | TestShare
+  | TestNetwork
+  | TestVisibility
+  | TestTheme
+  | TestKeyboard
+  | TestLiveSocket
 > = Layer.mergeAll(
   Layer.mergeAll(layerTheme(), RecentSearches.layer).pipe(Layer.provideMerge(layerKeyValueStore)),
   layerIndexedDb,
@@ -266,4 +347,5 @@ export const layer: Layer.Layer<
   layerNetwork(),
   layerVisibility(),
   layerKeyboard,
+  layerLiveSocket(),
 );

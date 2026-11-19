@@ -27,6 +27,7 @@ import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import * as LinksAtoms from "../links-atoms.ts";
 import * as InboxShortcuts from "./inbox-shortcuts.ts";
+import * as KeepPlace from "./keep-place.ts";
 import * as LinkDays from "./link-days.ts";
 import LinkRow from "./link-row.vue";
 import LinksFilters from "./links-filters.vue";
@@ -127,6 +128,21 @@ const groups = computed(() =>
   view.value.state === "links" ? LinkDays.groupByDay(view.value.links, view.value.now, zone) : [],
 );
 
+// A link that arrives live (saved on another device) takes its place without a jump: the rows
+// under it slide down from where they were.
+const page = useTemplateRef<HTMLElement>("page");
+watch(
+  () => links.value.map((link) => link.id as string),
+  (now, before) => {
+    const root = page.value;
+    if (root === null || searching.value || !KeepPlace.isInsert(before, now)) return;
+    const tops = KeepPlace.measure(root);
+    void nextTick(() => KeepPlace.slide(root, tops));
+  },
+  // Before the list is drawn again, to see where its rows stand now.
+  { flush: "pre" },
+);
+
 const recent = AtomVue.useAtomValue(() => SavedRead.recent);
 const history = computed(() =>
   AsyncResult.isSuccess(recent.value)
@@ -146,7 +162,12 @@ const filtered = computed(
 
 // A new link has no type or tags yet, so a filtered feed won't show it.
 const allPending = AtomVue.useAtomValue(() => LinksAtoms.pending);
-const pending = computed(() => (filtered.value || searching.value ? [] : allPending.value));
+// A link the live stream already brought into the list has its real row: no placeholder beside it.
+const pending = computed(() =>
+  filtered.value || searching.value
+    ? []
+    : allPending.value.filter((entry) => !links.value.some((link) => link.url === entry.url)),
+);
 watch([result, allPending], ([now]) => {
   if (!now.waiting && !AsyncResult.isInitial(now)) LinksAtoms.settlePending(registry);
 });
@@ -260,7 +281,7 @@ onMounted(() => listen({ run }));
 </script>
 
 <template>
-  <section class="flex flex-col gap-6">
+  <section ref="page" class="flex flex-col gap-6">
     <PageHeader title="Inbox" :subtitle="subtitle">
       <template #actions><SaveLinkField /></template>
     </PageHeader>
@@ -371,8 +392,9 @@ onMounted(() => listen({ run }));
           </ul>
         </section>
       </div>
-      <LoadMore v-if="!view.done" :loading="view.waiting" @more="pull()" />
+      <LoadMore v-if="!view.done" data-keep-place :loading="view.waiting" @more="pull()" />
       <p
+        data-keep-place
         class="hidden flex-wrap items-center gap-x-4 gap-y-2 text-meta text-muted-foreground sm:flex"
       >
         <span class="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> select</span>

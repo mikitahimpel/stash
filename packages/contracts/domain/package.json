@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./link": "./src/link.ts",
+    "./link-event": "./src/link-event.ts",
     "./tag": "./src/tag.ts",
     "./device": "./src/device.ts",
     "./tab": "./src/tab.ts",

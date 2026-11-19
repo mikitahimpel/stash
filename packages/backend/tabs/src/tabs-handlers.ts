@@ -1,6 +1,7 @@
 import type * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as LinksRepo from "@stash/backend-links/links-repo";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Api from "@stash/contracts-api/api";
 import * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
@@ -17,7 +18,7 @@ import * as ReplaceTabsSnapshot from "./snapshots/replace-tabs-snapshot.ts";
 
 /**
  * The `tabs` group of the `StashApi`. Needs `DevicesRepo`, `OpenTabsRepo`, `CommandsRepo`, the
- * links services that `archive` saves through (`LinksRepo`, `SaveRateLimiter`, `EnrichmentQueue`)
+ * links services that `archive` saves through (`LinksRepo`, `SaveRateLimiter`, `EnrichmentQueue`, `LinkEvents`)
  * and the `Authorization` middleware.
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "tabs", (handlers) =>
@@ -27,6 +28,7 @@ export const layer = HttpApiBuilder.group(Api.StashApi, "tabs", (handlers) =>
       | OpenTabsRepo.OpenTabsRepo
       | CommandsRepo.CommandsRepo
       | LinksRepo.LinksRepo
+      | LinkEvents.LinkEvents
       | SaveRateLimiter.SaveRateLimiter
       | EnrichmentQueue.EnrichmentQueue
     >();

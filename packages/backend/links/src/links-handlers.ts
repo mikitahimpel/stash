@@ -1,4 +1,5 @@
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Api from "@stash/contracts-api/api";
 import * as Security from "@stash/contracts-api/security";
 import * as Effect from "effect/Effect";
@@ -17,13 +18,16 @@ import * as SaveRateLimiter from "./save/save-rate-limiter.ts";
 // they answer 500. An unknown cursor answers 400 through the respondable `BadRequest`.
 
 /**
- * The `links` group of the `StashApi`. Needs `LinksRepo`, `SaveRateLimiter`, `EnrichmentQueue`
- * and the `Authorization` middleware.
+ * The `links` group of the `StashApi`. Needs `LinksRepo`, `SaveRateLimiter`, `EnrichmentQueue`,
+ * `LinkEvents` and the `Authorization` middleware.
  */
 export const layer = HttpApiBuilder.group(Api.StashApi, "links", (handlers) =>
   Effect.gen(function* () {
     const context = yield* Effect.context<
-      LinksRepo.LinksRepo | SaveRateLimiter.SaveRateLimiter | EnrichmentQueue.EnrichmentQueue
+      | LinksRepo.LinksRepo
+      | SaveRateLimiter.SaveRateLimiter
+      | EnrichmentQueue.EnrichmentQueue
+      | LinkEvents.LinkEvents
     >();
     const withServices = Effect.provideContext(context);
     return handlers

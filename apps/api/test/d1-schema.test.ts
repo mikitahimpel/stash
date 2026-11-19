@@ -230,6 +230,37 @@ describe("D1 migrations", () => {
     });
   });
 
+  it("stamps a link when it is saved and with every change a client can see (#169)", () => {
+    const stamp = () =>
+      String(db.prepare("SELECT updated_at FROM links WHERE id = 'link-1'").get()?.["updated_at"]);
+    const past = "2026-01-02T03:04:05.000Z";
+    const rewind = () => db.exec(`UPDATE links SET updated_at = '${past}' WHERE id = 'link-1'`);
+    db.exec("INSERT INTO links (id, url) VALUES ('link-1', 'https://example.com/a')");
+    expect(stamp()).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+
+    for (const change of [
+      "UPDATE links SET status = 'seen' WHERE id = 'link-1'",
+      "UPDATE links SET summary = 'A summary.', enriched_at = '2026-01-02T03:05:00.000Z' WHERE id = 'link-1'",
+      "UPDATE links SET image_url = 'https://example.com/a.png' WHERE id = 'link-1'",
+      "INSERT INTO tags (name) VALUES ('economics'); INSERT INTO link_tags (link_id, tag_id) SELECT 'link-1', id FROM tags",
+      "DELETE FROM link_tags WHERE link_id = 'link-1'",
+    ]) {
+      rewind();
+      db.exec(change);
+      expect(stamp(), change).not.toBe(past);
+    }
+
+    // Bookkeeping a client never sees leaves the stamp alone.
+    for (const change of [
+      "UPDATE links SET enrichment_attempts = enrichment_attempts + 1 WHERE id = 'link-1'",
+      "UPDATE links SET enrichment_error = 'classify: x', metadata_version = 1 WHERE id = 'link-1'",
+    ]) {
+      rewind();
+      db.exec(change);
+      expect(stamp(), change).toBe(past);
+    }
+  });
+
   it("removes a link's tags when the link is deleted", () => {
     db.exec(`
       INSERT INTO links (id, url) VALUES ('l1', 'https://example.com/a');

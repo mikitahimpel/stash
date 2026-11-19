@@ -13,3 +13,4 @@ export const Conflict = Errors.Conflict.pipe(HttpApiSchema.status(409));
 export const DeviceFlowExpired = Errors.DeviceFlowExpired.pipe(HttpApiSchema.status(410));
 export const DeviceFlowDenied = Errors.DeviceFlowDenied.pipe(HttpApiSchema.status(403));
 export const LoginNotAllowed = Errors.LoginNotAllowed.pipe(HttpApiSchema.status(403));
+export const UpgradeRequired = Errors.UpgradeRequired.pipe(HttpApiSchema.status(426));

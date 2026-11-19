@@ -40,3 +40,8 @@ export class DeviceFlowDenied extends Schema.TaggedError<DeviceFlowDenied>()("De
 export class LoginNotAllowed extends Schema.TaggedError<LoginNotAllowed>()("LoginNotAllowed", {
   message: Schema.String,
 }) {}
+
+/** The endpoint only speaks another protocol: `GET /events` is a WebSocket. */
+export class UpgradeRequired extends Schema.TaggedError<UpgradeRequired>()("UpgradeRequired", {
+  message: Schema.String,
+}) {}

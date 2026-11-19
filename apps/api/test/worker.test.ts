@@ -16,6 +16,7 @@ import * as Fs from "node:fs";
 import * as Path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import * as ApiLayer from "../src/api-layer.ts";
+import * as EventsUpgrade from "../src/events-upgrade.ts";
 
 const migrationsDir = Path.resolve(import.meta.dirname, "../migrations");
 const migrations = Fs.readdirSync(migrationsDir)
@@ -62,6 +63,7 @@ const makeApp = (layer: typeof ApiLayer.layer) =>
       Layer.provide(layerNoNetwork),
       Layer.provide(Testing.layerEnrichmentQueue),
       Layer.provide(Testing.layerKv),
+      Layer.provide(Testing.layerLinkEvents),
     ),
     { disableLogger: true },
   );
@@ -213,6 +215,107 @@ describe("composed API", () => {
       ]),
       nextCursor: null,
     });
+  });
+
+  it("serves the catch-up filters of the links group: ids and updatedSince", async () => {
+    const byId = await request("GET", "/links?ids=link-1,link-missing", bearer);
+    expect(byId.status).toBe(200);
+    const [link] = ((await byId.json()) as { items: Array<{ id: string; updatedAt: string }> })
+      .items;
+    expect(link).toMatchObject({ id: "link-1" });
+    // The migration's trigger stamped the seeded link.
+    expect(link!.updatedAt).toMatch(/^\d{4}-\d\d-\d\dT.*Z$/);
+
+    const since = (at: string) =>
+      request("GET", `/links?updatedSince=${encodeURIComponent(at)}`, bearer).then(
+        async (response) => ((await response.json()) as { items: Array<{ id: string }> }).items,
+      );
+    expect((await since(link!.updatedAt)).map((item) => item.id)).toContain("link-1");
+    expect(await since("2999-01-01T00:00:00.000Z")).toEqual([]);
+    expect((await request("GET", "/links?updatedSince=yesterday", bearer)).status).toBe(400);
+  });
+
+  it("guards the live stream: 401 without a credential, 426 to a plain request", async () => {
+    const anonymous = await request("GET", "/events");
+    expect(anonymous.status).toBe(401);
+    const plain = await request("GET", "/events", bearer);
+    expect(plain.status).toBe(426);
+    expect(await plain.json()).toMatchObject({ _tag: "UpgradeRequired" });
+  });
+
+  it("hands an authenticated WebSocket upgrade to the user's LinkEvents object", async () => {
+    const opened: Array<{ user: string; request: Request }> = [];
+    const namespace: EventsUpgrade.Namespace = {
+      idFromName: (user) => user,
+      get: (user) => ({
+        fetch: async (request) => {
+          opened.push({ user, request });
+          // Node cannot build a 101: any answer of the object passes through as it is.
+          return new Response("socket", { status: 200 });
+        },
+      }),
+    };
+    const upgrade = (path: string, headers: Record<string, string>, method = "GET") =>
+      EventsUpgrade.handleEvents(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: { ...headers, upgrade: "websocket", connection: "Upgrade" },
+        }),
+        app.handler,
+        namespace,
+        "example-user",
+        webOrigin,
+      );
+
+    // No credential, a bad one: the router's 401, and the object is never reached.
+    expect((await upgrade("/events", {}))?.status).toBe(401);
+    expect((await upgrade("/events", { authorization: "Bearer nope" }))?.status).toBe(401);
+    expect(opened).toEqual([]);
+
+    // A device token and the session cookie both open the stream of the one user.
+    for (const credential of [bearer, cookie]) {
+      const response = await upgrade("/events", credential);
+      expect(await response?.text()).toBe("socket");
+    }
+    expect(opened.map(({ user }) => user)).toEqual(["example-user", "example-user"]);
+    expect(opened[0]!.request.headers.get("upgrade")).toBe("websocket");
+
+    // The cookie opens a stream only from the web app's own origin (a browser always names it):
+    // a page of another site is refused before anything else. A token needs no origin.
+    const before = opened.length;
+    expect(
+      (await upgrade("/events", { ...cookie, origin: "https://evil.example.com" }))?.status,
+    ).toBe(403);
+    expect(opened.length).toBe(before);
+    expect(await (await upgrade("/events", { ...cookie, origin: webOrigin }))?.text()).toBe(
+      "socket",
+    );
+    expect(
+      await (await upgrade("/events", { ...bearer, origin: "https://other.example.com" }))?.text(),
+    ).toBe("socket");
+
+    // Everything else stays with the router.
+    expect(await upgrade("/links", bearer)).toBeUndefined();
+    expect(await upgrade("/events", bearer, "POST")).toBeUndefined();
+    expect(
+      await EventsUpgrade.handleEvents(
+        new Request("http://localhost/events", { headers: bearer }),
+        app.handler,
+        namespace,
+        "example-user",
+        webOrigin,
+      ),
+    ).toBeUndefined();
+
+    // A Worker deployed without the binding says so, after the same check.
+    const unbound = await EventsUpgrade.handleEvents(
+      new Request("http://localhost/events", { headers: { ...bearer, upgrade: "websocket" } }),
+      app.handler,
+      undefined,
+      "example-user",
+      webOrigin,
+    );
+    expect(unbound?.status).toBe(503);
   });
 
   it("answers 400 to an unknown links cursor", async () => {

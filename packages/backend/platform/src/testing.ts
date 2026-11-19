@@ -13,6 +13,7 @@ import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
 import * as GithubConfig from "./github-config.ts";
 import * as Kv from "./kv.ts";
+import * as LinkEvents from "./link-events.ts";
 import type * as Live from "./live.ts";
 import * as SqliteD1 from "./sqlite-d1.ts";
 import * as StashConfig from "./stash-config.ts";
@@ -215,14 +216,37 @@ export const layerAnthropicConfig: Layer.Layer<AnthropicConfig.AnthropicConfig> 
   AnthropicConfig.AnthropicConfig,
 )({ apiKey: Redacted.make("synthetic-anthropic-key") });
 
-/** Every service from `./live`, in memory, plus the queue's consumer side. */
-export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue> = Layer.mergeAll(
-  layerD1Database,
-  layerEnrichmentQueue,
-  layerVectors,
-  layerBlobs,
-  layerKv,
-  layerAi(),
-  layerStashConfig(),
-  layerGithubConfig,
-);
+/** Test controls for the in-memory `LinkEvents`: what was published. */
+export class TestLinkEvents extends Context.Service<
+  TestLinkEvents,
+  {
+    /** Every published event, oldest first. */
+    readonly published: Effect.Effect<ReadonlyArray<LinkEvents.Published>>;
+  }
+>()("@stash/backend-platform/TestLinkEvents") {}
+
+/** Keeps the published events instead of sending them. */
+export const layerLinkEvents: Layer.Layer<LinkEvents.LinkEvents | TestLinkEvents> =
+  Layer.effectContext(
+    Effect.sync(() => {
+      const events: Array<LinkEvents.Published> = [];
+      return Context.make(LinkEvents.LinkEvents, {
+        publish: (event) => Effect.sync(() => void events.push(event)),
+        publishAll: (all) => Effect.sync(() => void events.push(...all)),
+      }).pipe(Context.add(TestLinkEvents, { published: Effect.sync(() => [...events]) }));
+    }),
+  );
+
+/** Every service from `./live`, in memory, plus the queue's consumer side and the published events. */
+export const layer: Layer.Layer<Live.Services | TestEnrichmentQueue | TestLinkEvents> =
+  Layer.mergeAll(
+    layerLinkEvents,
+    layerD1Database,
+    layerEnrichmentQueue,
+    layerVectors,
+    layerBlobs,
+    layerKv,
+    layerAi(),
+    layerStashConfig(),
+    layerGithubConfig,
+  );

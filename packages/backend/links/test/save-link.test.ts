@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Testing from "@stash/backend-platform/testing";
 import * as Device from "@stash/contracts-domain/device";
 import * as Errors from "@stash/contracts-domain/errors";
@@ -17,6 +18,7 @@ const url = (value: string) => Link.Url.make(value);
 const tag = (value: string) => Tag.TagName.make(value);
 
 const drain = Testing.TestEnrichmentQueue.use((queue) => queue.drain);
+const published = Effect.flatMap(Testing.TestLinkEvents, (events) => events.published);
 
 describe("saveLink", () => {
   it.effect("stores a new link and enqueues it for enrichment", () =>
@@ -41,10 +43,50 @@ describe("saveLink", () => {
         imageUrl: null,
         author: null,
         enrichedAt: null,
+        updatedAt: saved.updatedAt,
         created: true,
       });
+      expect(saved.updatedAt).toBeDefined();
       expect(yield* drain).toEqual([{ linkId: saved.id }]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("announces a new link on the live stream once, and a repeat save not at all", () =>
+    Effect.gen(function* () {
+      const { created: _, ...link } = yield* SaveLink.saveLink(LinksTestLayer.device, {
+        url: url("https://example.com/live"),
+        title: "Saved on the phone",
+      });
+      // The whole link, so an Inbox open on another device can show it at once.
+      expect(yield* published).toEqual([{ type: "link.updated", at: yield* DateTime.now, link }]);
+      const again = yield* SaveLink.saveLink(LinksTestLayer.user, {
+        url: url("https://www.example.com/live/"),
+      });
+      expect(again.created).toBe(false);
+      expect(yield* published).toHaveLength(1);
+    }).pipe(Effect.provide(LinksTestLayer.layer())),
+  );
+
+  it.effect("saves the link when the stream cannot be reached", () =>
+    Effect.gen(function* () {
+      const saved = yield* SaveLink.saveLink(LinksTestLayer.device, {
+        url: url("https://example.com/live"),
+      });
+      expect(saved.created).toBe(true);
+      expect(yield* drain).toEqual([{ linkId: saved.id }]);
+    }).pipe(
+      // The object behind the stream rejects every call, as when it is overloaded or gone.
+      Effect.provide(
+        LinkEvents.layer(
+          {
+            idFromName: (name) => name,
+            get: () => ({ fetch: () => Promise.reject(new Error("stream is closed")) }),
+          },
+          "example-user",
+        ),
+      ),
+      Effect.provide(LinksTestLayer.layer()),
+    ),
   );
 
   it.effect("returns the existing link for a duplicate canonical URL and enqueues nothing", () =>
@@ -167,6 +209,11 @@ describe("saveLinksBatch", () => {
       expect(saved[2]).toMatchObject({ title: "B", tags: ["one", "two"] });
 
       expect(yield* drain).toEqual([{ linkId: saved[0]?.id }, { linkId: saved[2]?.id }]);
+      // The links this batch created, each once, in order (after the first save's own event).
+      expect((yield* published).slice(1)).toEqual([
+        { type: "link.updated", at: yield* DateTime.now, link: saved[0] },
+        { type: "link.updated", at: yield* DateTime.now, link: saved[2] },
+      ]);
       const tags = yield* D1Database.Database.use((db) =>
         db.all(D1Database.sql`SELECT name FROM tags ORDER BY name`),
       );

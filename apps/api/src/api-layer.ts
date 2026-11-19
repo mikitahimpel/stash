@@ -15,6 +15,7 @@ import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as GithubConfig from "@stash/backend-platform/github-config";
 import type * as Kv from "@stash/backend-platform/kv";
+import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as StashConfig from "@stash/backend-platform/stash-config";
 import type * as Vectors from "@stash/backend-platform/vectors";
 import * as SearchRepo from "@stash/backend-search/search-repo";
@@ -42,7 +43,8 @@ export type Requirements =
   | GithubConfig.GithubConfig
   | HttpClient.HttpClient
   | Ai.Ai
-  | Vectors.Vectors;
+  | Vectors.Vectors
+  | LinkEvents.LinkEvents;
 
 /** Unauthenticated liveness probe. */
 const health = HttpRouter.add("GET", "/health", HttpServerResponse.jsonUnsafe({ status: "ok" }));

@@ -132,6 +132,12 @@ describe("backfillMetadata", () => {
         imageUrl: "https://example.com/kept.png",
         author: "Ada Example",
       });
+      // One event per filled link, with the link as it is now.
+      const events = yield* Testing.TestLinkEvents.use((stream) => stream.published);
+      expect(events.map((event) => event.type === "link.updated" && event.link.author)).toEqual([
+        "Ada Example",
+        "Ada Example",
+      ]);
     }).pipe(
       Effect.provide(
         EnrichmentTestLayer.layer({
@@ -213,6 +219,8 @@ describe("backfillMetadata", () => {
         author: null,
         metadataVersion: EnrichPolicy.metadataVersion,
       });
+      // Nothing a client shows changed, so nothing is published.
+      expect(yield* Testing.TestLinkEvents.use((stream) => stream.published)).toEqual([]);
     }).pipe(
       Effect.provide(EnrichmentTestLayer.layer({ "https://example.com/gone": { status: 404 } })),
     ),

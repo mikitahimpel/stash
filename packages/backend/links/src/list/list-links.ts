@@ -1,5 +1,6 @@
 import type * as LinksGroup from "@stash/contracts-api/links";
 import * as Data from "effect/Data";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Base64Url from "effect/encoding/Base64Url";
 import * as Result from "effect/Result";
@@ -46,6 +47,10 @@ export const listLinks = Effect.fn("listLinks")(function* (query: LinksGroup.Lis
     ...(query.seen === undefined ? {} : { seen: query.seen }),
     // The same key a save dedupes on, so a lookup finds what a save of this URL would answer.
     ...(query.url === undefined ? {} : { canonicalUrl: CanonicalizeUrl.canonicalize(query.url) }),
+    ...(query.updatedSince === undefined
+      ? {}
+      : { updatedSince: DateTime.formatIso(query.updatedSince) }),
+    ...(query.ids === undefined ? {} : { ids: query.ids }),
     ...(after === undefined ? {} : { after }),
     limit: limit + 1,
   });

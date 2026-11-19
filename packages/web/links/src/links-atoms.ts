@@ -72,18 +72,31 @@ export const listQuery = (filters: Filters, cursor?: string): LinksGroup.ListLin
 export const shows = (filters: Filters, link: Link.Link): boolean =>
   filters.feed !== "recent" || link.status !== "archived";
 
+/**
+ * Whether the feed of `filters` lists `link`: what `GET /links` answers for `listQuery`, less the
+ * archived links on `recent`. A link the live stream brings is put into the feeds that list it.
+ */
+export const lists = (filters: Filters, link: Link.Link): boolean =>
+  (filters.feed !== "unseen" || link.status === "new") &&
+  shows(filters, link) &&
+  (filters.tag === undefined || link.tags.includes(filters.tag)) &&
+  (filters.type === undefined || link.type === filters.type);
+
 // Families memoize by argument, and objects compare by reference, so the feed is keyed by the
 // serialized filters.
 const feedByKey = Atom.family((key: string) => {
   const filters = JSON.parse(key) as Filters;
-  return ApiAtoms.pages(["links"], (client, cursor) =>
-    client.links.list({ query: listQuery(filters, cursor) }),
+  return ApiAtoms.pages(
+    ["links"],
+    (client, cursor) => client.links.list({ query: listQuery(filters, cursor) }),
+    { accepts: (link) => lists(filters, link) },
   );
 });
 
 /**
  * The links that match `filters`, one page at a time (infinite scroll): reading loads the first
- * page and each write appends the next. It starts over whenever a links mutation succeeds.
+ * page and each write appends the next. It starts over whenever a links mutation succeeds. A link
+ * saved elsewhere meanwhile (another device, the extension, MCP) appears at its place by itself.
  */
 export const feed = (filters: Filters) =>
   feedByKey(JSON.stringify({ feed: filters.feed, tag: filters.tag, type: filters.type }));
