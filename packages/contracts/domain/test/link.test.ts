@@ -19,6 +19,52 @@ const link = {
   enrichedAt: null,
 };
 
+const quoted = {
+  id: "1700000000000000004",
+  url: "https://x.com/example_quoted/status/1700000000000000004",
+  author: { name: "Example Quoted", handle: "example_quoted", avatarUrl: null, verified: false },
+  text: "The quoted example",
+  entities: [],
+  createdAt: null,
+  media: [],
+  replyTo: null,
+  counts: null,
+  long: false,
+};
+
+const post = {
+  state: "available",
+  id: "1700000000000000001",
+  url: "https://x.com/example_writer/status/1700000000000000001",
+  author: {
+    name: "Example Writer",
+    handle: "example_writer",
+    avatarUrl: "https://pbs.twimg.com/profile_images/1/synthetic_normal.jpg",
+    verified: true,
+  },
+  text: "An example post, see example.com/a #parsing",
+  entities: [
+    { kind: "link", start: 21, end: 34, url: "https://example.com/a" },
+    { kind: "hashtag", start: 35, end: 43, url: "https://x.com/hashtag/parsing" },
+  ],
+  createdAt: "2026-01-02T03:04:05.000Z",
+  media: [
+    { kind: "photo", url: "https://pbs.twimg.com/media/Synthetic1.jpg", width: 1200, height: 800 },
+    {
+      kind: "video",
+      posterUrl: "https://pbs.twimg.com/ext_tw_video_thumb/1/pu/img/synthetic.jpg",
+      videoUrl: "https://video.twimg.com/ext_tw_video/1/pu/vid/1280x720/synthetic.mp4",
+      width: 1280,
+      height: 720,
+      durationMs: 42000,
+    },
+  ],
+  replyTo: "example_reader",
+  counts: { likes: 12, replies: null },
+  long: false,
+  quoted,
+};
+
 describe("Url", () => {
   it("accepts absolute http(s) URLs", () => {
     const decode = Schema.decodeUnknownSync(Link.Url);
@@ -66,6 +112,47 @@ describe("Link", () => {
       expect((yield* Schema.encodeEffect(Link.Link)(decoded)).imageUrl).toBe(imageUrl);
     }),
   );
+
+  it.effect("round-trips a post on X, with its media and the post it quotes", () =>
+    Effect.gen(function* () {
+      const withPost = { ...link, post };
+      const decoded = yield* Schema.decodeUnknownEffect(Link.Link)(withPost);
+      expect(decoded.post?.state).toBe("available");
+      expect(yield* Schema.encodeEffect(Link.Link)(decoded)).toEqual(withPost);
+    }),
+  );
+
+  it.effect("round-trips an unavailable post, and a link with no post has no key", () =>
+    Effect.gen(function* () {
+      const unavailable = { state: "unavailable", id: post.id, url: post.url };
+      const decoded = yield* Schema.decodeUnknownEffect(Link.Link)({ ...link, post: unavailable });
+      expect((yield* Schema.encodeEffect(Link.Link)(decoded)).post).toEqual(unavailable);
+      const plain = yield* Schema.decodeUnknownEffect(Link.Link)(link);
+      expect(plain).not.toHaveProperty("post");
+    }),
+  );
+
+  it.each([
+    ["an unknown state", { state: "hidden" }],
+    ["a handle with an @", { author: { ...post.author, handle: "@example_writer" } }],
+    [
+      "media that is not http(s)",
+      { media: [{ ...post.media[0], url: "data:image/png;base64,AA" }] },
+    ],
+    ["an entity without a URL", { entities: [{ kind: "link", start: 0, end: 2 }] }],
+    [
+      "a quote that quotes",
+      { quoted: { ...post.quoted, quoted: null, state: "available" }, id: 7 },
+    ],
+    ["a null post", null],
+  ])("rejects a post with %s", (_, patch) => {
+    expect(() =>
+      Schema.decodeUnknownSync(Link.Link)({
+        ...link,
+        post: patch === null ? null : { ...post, ...patch },
+      }),
+    ).toThrow();
+  });
 
   it.effect("accepts nulls for fields enrichment fills later", () =>
     Effect.gen(function* () {

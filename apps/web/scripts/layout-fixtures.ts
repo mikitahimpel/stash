@@ -159,6 +159,175 @@ const youtube = (now: number) => ({
   enrichedAt: iso(now - 3 * day + 60_000),
 });
 
+// Posts on X (#170), one of each kind: words only, one photo, four photos, a video, a reply that
+// quotes another post, and a post that could not be read. Invented people and words; the pictures
+// are drawn previews (a person's under `avatars/`), and the video's address is never requested
+// (nothing presses play).
+const person = (name: string, handle: string, verified = false) => ({
+  name,
+  handle,
+  avatarUrl: `${PreviewImages.origin}avatars/${handle}.svg`,
+  verified,
+});
+
+const mara = person("Mara Lindqvist", "example_mara", true);
+const plain = person("Plain Economics", "example_plain");
+
+const postPhoto = (name: string, width = 1600, height = 900) => ({
+  kind: "photo",
+  url: `${PreviewImages.origin}posts/${name}.svg`,
+  width,
+  height,
+});
+
+const postFields = (now: number, id: string, author: ReturnType<typeof person>, age: number) => ({
+  id,
+  url: `https://x.com/${author.handle}/status/${id}`,
+  author,
+  entities: [] as ReadonlyArray<object>,
+  createdAt: iso(now - age * day),
+  media: [] as ReadonlyArray<object>,
+  replyTo: null as string | null,
+  counts: { likes: 1284, replies: 56 } as object | null,
+  long: false,
+});
+
+/** `text` with an entity for each part that should be a link. */
+const withEntities = (text: string, parts: ReadonlyArray<readonly [string, string, string]>) => ({
+  text,
+  entities: parts.map(([part, kind, url]) => ({
+    kind,
+    start: text.indexOf(part),
+    end: text.indexOf(part) + part.length,
+    url,
+  })),
+});
+
+export const postLinkIds = {
+  text: "seed-post-text",
+  photo: "seed-post-photo",
+  photos: "seed-post-photos",
+  video: "seed-post-video",
+  quote: "seed-post-quote",
+  unavailable: "seed-post-unavailable",
+} as const;
+
+const postLinks = (now: number) => {
+  const link = (
+    id: string,
+    age: number,
+    status: string,
+    tags: ReadonlyArray<string>,
+    post: ReturnType<typeof postFields> & { readonly text: string; readonly quoted?: object },
+    imageUrl: string | null = null,
+  ) => ({
+    id,
+    url: post.url,
+    canonicalUrl: post.url,
+    title: `${post.author.name}: ${post.text.split("\n")[0]}`,
+    status,
+    type: "other",
+    summary: post.text,
+    language: "en",
+    tags,
+    sourceDeviceId: devices[2].id,
+    createdAt: iso(now - age * day),
+    imageUrl,
+    author: `@${post.author.handle}`,
+    enrichedAt: iso(now - age * day + 60_000),
+    post: { state: "available", quoted: null, ...post },
+  });
+  const gone = `https://x.com/${plain.handle}/status/1700000000000000016`;
+  return [
+    link(postLinkIds.text, 0.2, "new", ["economics", "housing"], {
+      ...postFields(now, "1700000000000000011", mara, 0.4),
+      ...withEntities(
+        "An example thought about housing: rates move prices a year late, and everyone is surprised each time.\n\nThe chart is at example.com/rates, with thanks to @example_plain #economics",
+        [
+          ["example.com/rates", "link", "https://example.com/economics/rates"],
+          ["@example_plain", "mention", "https://x.com/example_plain"],
+          ["#economics", "hashtag", "https://x.com/hashtag/economics"],
+        ],
+      ),
+    }),
+    link(
+      postLinkIds.photo,
+      0.7,
+      "new",
+      ["design"],
+      {
+        ...postFields(now, "1700000000000000012", plain, 0.9),
+        text: "An example photo from the field trip. The light did all the work.",
+        media: [postPhoto("field", 1600, 1200)],
+      },
+      `${PreviewImages.origin}posts/field.svg`,
+    ),
+    link(
+      postLinkIds.photos,
+      1.1,
+      "seen",
+      ["design", "ux"],
+      {
+        ...postFields(now, "1700000000000000013", mara, 1.3),
+        text: "Four example screens of the keyboard-first inbox, before and after.",
+        media: ["before", "after", "detail", "phone"].map((name) => postPhoto(name)),
+      },
+      `${PreviewImages.origin}posts/before.svg`,
+    ),
+    link(
+      postLinkIds.video,
+      1.4,
+      "new",
+      ["economics"],
+      {
+        ...postFields(now, "1700000000000000014", plain, 1.6),
+        text: "An example clip: one chart, forty seconds, how a policy rate reaches a mortgage.",
+        media: [
+          {
+            kind: "video",
+            posterUrl: `${PreviewImages.origin}posts/clip.svg`,
+            videoUrl: "https://example.com/previews/posts/clip.mp4",
+            width: 1920,
+            height: 1080,
+            durationMs: 40_000,
+          },
+        ],
+      },
+      `${PreviewImages.origin}posts/clip.svg`,
+    ),
+    link(postLinkIds.quote, 2.4, "seen", ["search"], {
+      ...postFields(now, "1700000000000000015", mara, 2.6),
+      text: "Agreed with this example, and the second point matters more than it looks.",
+      replyTo: plain.handle,
+      counts: { likes: 12, replies: null },
+      quoted: {
+        ...postFields(now, "1700000000000000010", plain, 3),
+        text: "An example claim: search by meaning finds what you forgot the words for, and keyword search finds what you remember exactly.",
+        counts: null,
+      },
+    }),
+    {
+      id: postLinkIds.unavailable,
+      url: gone,
+      canonicalUrl: gone,
+      title: null,
+      status: "seen",
+      type: "other",
+      summary: null,
+      language: null,
+      tags: [] as ReadonlyArray<string>,
+      sourceDeviceId: devices[0].id,
+      createdAt: iso(now - 2.8 * day),
+      imageUrl: null,
+      author: `@${plain.handle}`,
+      enrichedAt: iso(now - 2.8 * day + 60_000),
+      post: { state: "unavailable", id: "1700000000000000016", url: gone },
+    },
+  ];
+};
+
+type AnyLink = ReturnType<typeof links>[number] | ReturnType<typeof postLinks>[number];
+
 /** Seeded links for the link page: an article with an og:image, and one with no image. */
 export const articleLinkId = "seed-link-2";
 export const coverLinkId = "seed-link-3";
@@ -218,7 +387,7 @@ const me = { kind: "user", login: "example" };
 
 const info = { mcpUrl: "https://mcp.example.com/mcp" };
 
-const activity = (now: number, all: ReturnType<typeof links>) =>
+const activity = (now: number, all: ReadonlyArray<AnyLink>) =>
   devices.map((device, d) => {
     const save = all.find((link) => link.sourceDeviceId === device.id);
     return {
@@ -250,9 +419,11 @@ const saved = (now: number) => ({
   created: true,
 });
 
-const listLinks = (all: ReturnType<typeof links>, url: URL) => {
+const listLinks = (all: ReadonlyArray<AnyLink>, url: URL) => {
   const q = url.searchParams;
-  const items = all
+  const items = [...all]
+    // Newest first, as the api lists them: the posts sit among the other links.
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
     .filter((link) => (q.get("seen") === "false" ? link.status === "new" : true))
     .filter((link) => (q.has("status") ? link.status === q.get("status") : true))
     .filter((link) => (q.has("type") ? link.type === q.get("type") : true))
@@ -261,7 +432,7 @@ const listLinks = (all: ReturnType<typeof links>, url: URL) => {
   return { items, nextCursor: null };
 };
 
-const search = (all: ReturnType<typeof links>, url: URL) => {
+const search = (all: ReadonlyArray<AnyLink>, url: URL) => {
   const terms = (url.searchParams.get("q") ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const q = url.searchParams;
   const since = q.get("since");
@@ -283,7 +454,7 @@ const search = (all: ReturnType<typeof links>, url: URL) => {
 
 /** The api with the seeded data. */
 export const seeded = (now: number): Fixtures => {
-  const all = links(now);
+  const all = [...links(now), ...postLinks(now)];
   return {
     answer: (method, url) => {
       const path = url.pathname.replace(/^\/api/, "");

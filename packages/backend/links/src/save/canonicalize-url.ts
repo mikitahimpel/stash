@@ -1,4 +1,6 @@
 import * as Link from "@stash/contracts-domain/link";
+import * as Option from "effect/Option";
+import * as XPostUrl from "./x-post-url.ts";
 
 // The canonical URL is the dedupe key (`links.canonical_url` is unique). The link keeps the URL it
 // was saved with, so canonicalization may drop anything that does not change what the page is.
@@ -50,6 +52,10 @@ const youtubeVideoId = (url: URL): string | undefined => {
     : undefined;
 };
 
+/** A post on X as `https://x.com/<handle>/status/<id>`, if this is a status URL (`XPostUrl`). */
+const xPostUrl = (url: URL): string | undefined =>
+  Option.getOrUndefined(Option.map(XPostUrl.target(url.href), XPostUrl.canonicalUrl));
+
 /** Hash routes (`#/path`, `#!/path`) address a page in a single-page app. Other fragments don't. */
 const isRouteFragment = (hash: string): boolean => hash.startsWith("#/") || hash.startsWith("#!");
 
@@ -59,7 +65,9 @@ const isRouteFragment = (hash: string): boolean => hash.startsWith("#/") || hash
  * - no tracking parameters (`utm_*`, `fbclid`, …), remaining parameters sorted by name;
  * - no trailing slash on a non-root path, no fragment unless it is a hash route;
  * - YouTube videos (`youtu.be/<id>`, `/shorts/<id>`, `/embed/<id>`, `m.youtube.com`) as
- *   `https://youtube.com/watch?v=<id>`.
+ *   `https://youtube.com/watch?v=<id>`;
+ * - posts on X (`twitter.com`, `mobile.twitter.com`, `fxtwitter.com`, `vxtwitter.com`, any query,
+ *   `/photo/1`) as `https://x.com/<handle>/status/<id>`, the handle in lowercase.
  */
 export const canonicalize = (input: Link.Url): Link.Url => {
   const url = new URL(input);
@@ -72,6 +80,9 @@ export const canonicalize = (input: Link.Url): Link.Url => {
   if (videoId !== undefined) {
     return Link.Url.make(`https://youtube.com/watch?v=${encodeURIComponent(videoId)}`);
   }
+
+  const post = xPostUrl(url);
+  if (post !== undefined) return Link.Url.make(post);
 
   const params = [...url.searchParams].filter(([name]) => !isTrackingParam(name));
   params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));

@@ -8,10 +8,21 @@ interface Props extends PrimitiveProps {
   selected?: boolean;
   /** Not yet seen: an accent dot before the title. */
   unread?: boolean;
+  /**
+   * A row whose text is its content (a post): the meta line comes first, as the author's line,
+   * and the title takes the two lines under it (a `<MediaRowTitle :lines="2">`). No summary line.
+   * The row keeps the height of every other row.
+   */
+  metaFirst?: boolean;
   class?: HTMLAttributes["class"];
 }
 
-const props = withDefaults(defineProps<Props>(), { as: "div", selected: false, unread: false });
+const props = withDefaults(defineProps<Props>(), {
+  as: "div",
+  selected: false,
+  unread: false,
+  metaFirst: false,
+});
 
 defineSlots<{
   /** The preview, a `<MediaThumb>`. */
@@ -44,6 +55,10 @@ defineSlots<{
 // under it: the two share the preview's height, so a one-line title leaves the space below the
 // meta. There is no summary, and the tags take one line under both, across the row.
 //
+// A `metaFirst` row (a post) has the same lines in another order: the meta line (who wrote it) on
+// top, then the title over two lines, in the place of the meta and summary lines. On phones the
+// meta line and the two lines of the title share the preview's height.
+//
 // Only the selected row is taller: it adds the action bar under its lines.
 //
 // From `sm` up the row's box sits exactly on the content edges and its content is inset by 12px,
@@ -52,6 +67,9 @@ defineSlots<{
 // edges there. In the meta line only an item marked `data-shrink` (a channel, an author) gives
 // way: its shrink factor is so large that the first item (the host) stays whole until there is
 // nothing left of it, and only then truncates too.
+
+const metaLine =
+  "flex h-5 min-w-0 items-center overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink-[1000000] [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate";
 </script>
 
 <template>
@@ -59,6 +77,7 @@ defineSlots<{
     data-slot="media-row"
     data-media-row=""
     :data-state="selected ? 'selected' : undefined"
+    :data-meta-first="metaFirst ? '' : undefined"
     :as="as"
     :as-child="asChild"
     :class="
@@ -81,13 +100,14 @@ defineSlots<{
       data-slot="media-row-title-line"
       :class="
         cn(
-          'col-start-2 row-start-1 flex min-w-0 items-start gap-2 sm:h-5',
-          !$slots.tags && 'sm:self-end',
+          'col-start-2 flex min-w-0 items-start gap-2',
+          metaFirst ? 'row-start-2 sm:row-span-2 sm:h-10' : 'row-start-1 sm:h-5',
+          !$slots.tags && !metaFirst && 'sm:self-end',
         )
       "
     >
       <span
-        v-if="unread"
+        v-if="unread && !metaFirst"
         data-slot="media-row-unread"
         role="img"
         aria-label="Not yet seen"
@@ -95,13 +115,32 @@ defineSlots<{
       />
       <slot name="title" />
     </div>
+    <!-- A `metaFirst` row's first line is the meta line, so its dot is there, where every row's is. -->
     <div
+      v-if="metaFirst"
+      data-slot="media-row-meta-line"
+      class="col-start-2 row-start-1 flex h-5 min-w-0 items-center gap-2"
+    >
+      <span
+        v-if="unread"
+        data-slot="media-row-unread"
+        role="img"
+        aria-label="Not yet seen"
+        class="size-1.5 shrink-0 rounded-full bg-signal"
+      />
+      <div data-slot="media-row-meta" :class="cn(metaLine, 'flex-1')">
+        <slot name="meta" />
+      </div>
+    </div>
+    <div
+      v-else
       data-slot="media-row-meta"
-      class="col-start-2 row-start-2 flex h-5 min-w-0 items-center self-start overflow-hidden text-meta whitespace-nowrap text-muted-foreground [&>*]:shrink-0 [&>[data-shrink]]:min-w-0 [&>[data-shrink]]:shrink-[1000000] [&>[data-shrink]]:truncate [&>*+*]:before:mx-1.5 [&>*+*]:before:content-['·'] [&>*:first-child]:min-w-0 [&>*:first-child]:shrink [&>*:first-child]:truncate"
+      :class="cn(metaLine, 'col-start-2 row-start-2 self-start')"
     >
       <slot name="meta" />
     </div>
     <div
+      v-if="!metaFirst"
       data-slot="media-row-summary"
       class="col-start-2 row-start-3 h-5 min-w-0 truncate text-body text-muted-foreground max-sm:hidden"
     >

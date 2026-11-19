@@ -16,11 +16,13 @@
     "./enrichment-repo": "./src/enrichment-repo.ts",
     "./fetch-content": "./src/fetch-content.ts",
     "./fetch-page-text": "./src/fetch-page-text.ts",
+    "./fetch-x-post": "./src/fetch-x-post.ts",
     "./fetch-youtube-content": "./src/fetch-youtube-content.ts",
     "./fetch-youtube-oembed": "./src/fetch-youtube-oembed.ts",
     "./fetch-youtube-transcript": "./src/fetch-youtube-transcript.ts",
     "./html-text": "./src/html-text.ts",
     "./junk-filter": "./src/junk-filter.ts",
+    "./parse-x-post": "./src/parse-x-post.ts",
     "./requeue-backfill": "./src/requeue-backfill.ts",
     "./requeue-pending": "./src/requeue-pending.ts",
     "./store-text": "./src/store-text.ts"
@@ -35,6 +37,7 @@
   },
   "dependencies": {
     "@effect/ai-anthropic": "catalog:",
+    "@stash/backend-links": "workspace:*",
     "@stash/backend-platform": "workspace:*",
     "@stash/contracts-domain": "workspace:*",
     "effect": "catalog:"
@@ -42,7 +45,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
-    "@stash/backend-links": "workspace:*",
     "@stash/config-tsconfig": "workspace:*",
     "@stash/config-vitest": "workspace:*",
     "@types/node": "catalog:",

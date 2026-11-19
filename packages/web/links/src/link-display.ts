@@ -2,6 +2,7 @@ import type * as Link from "@stash/contracts-domain/link";
 import * as SiteTitle from "@stash/web-ui/site-title";
 import * as DateTime from "effect/DateTime";
 import * as YoutubeEmbed from "./details/youtube-embed.ts";
+import * as PostDisplay from "./post-display.ts";
 
 /** The host a link points to, without `www.`. Prefers the canonical URL. */
 export const domain = (link: Link.Link): string =>
@@ -18,8 +19,12 @@ export const image = (link: Link.Link): string | null =>
       (link.canonicalUrl === null ? undefined : YoutubeEmbed.thumbnail(link.canonicalUrl)) ??
       null);
 
-/** The title, or the URL while enrichment hasn't filled one in. */
-export const title = (link: Link.Link): string => link.title ?? link.url;
+/**
+ * The title, or the URL while enrichment hasn't filled one in. A post that could not be read and
+ * has no title says so.
+ */
+export const title = (link: Link.Link): string =>
+  link.title ?? (PostDisplay.isUnavailable(link) ? PostDisplay.unavailableTitle : link.url);
 
 /**
  * The title as a row shows it: without the site's own name before or after it
@@ -30,10 +35,16 @@ export const rowTitle = (link: Link.Link): string =>
 
 /**
  * The one line under a row's meta: the summary, else who published the link, else nothing (the
- * line stays, empty, so every row has the same height).
+ * line stays, empty, so every row has the same height). A post that could not be read says so.
  */
 export const rowSummary = (link: Link.Link): string =>
-  link.summary !== null && link.summary.trim() !== "" ? link.summary : (link.author ?? "");
+  link.summary !== null && link.summary.trim() !== ""
+    ? link.summary
+    : PostDisplay.isUnavailable(link)
+      ? link.title !== null
+        ? PostDisplay.unavailableTitle
+        : PostDisplay.unavailableDescription
+      : (link.author ?? "");
 
 export const typeLabels: Readonly<Record<Link.LinkType, string>> = {
   article: "Article",

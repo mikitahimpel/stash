@@ -6,7 +6,8 @@ import { Tool } from "effect/ai";
 import * as LinkText from "./link-text.ts";
 
 export const tool = Tool.make("get_link", {
-  description: "Get one saved link by id, with its summary, tags and status.",
+  description:
+    "Get one saved link by id, with its summary, tags and status. A post on X comes with its text and author.",
   parameters: Schema.Struct({
     id: Link.LinkId.annotate({ description: "Link id from search_links or list_links" }),
   }),

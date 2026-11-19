@@ -16,8 +16,10 @@ import * as EmbedLink from "./embed-link.ts";
 import * as EnrichPolicy from "./enrich-policy.ts";
 import * as EnrichmentRepo from "./enrichment-repo.ts";
 import * as FetchContent from "./fetch-content.ts";
+import * as FetchXPost from "./fetch-x-post.ts";
 import * as JunkFilter from "./junk-filter.ts";
 import * as StoreText from "./store-text.ts";
+import * as XPostUrl from "@stash/backend-links/x-post-url";
 
 // The enrichment pipeline for one link: fetch → classify → embed → store.
 //
@@ -36,6 +38,10 @@ import * as StoreText from "./store-text.ts";
 //   description), never the model's prose about nothing. Placeholder tags are dropped (see
 //   `junk-filter.ts`). A title that is
 //   only the site's name ("- YouTube") is no title, whether a page or the saving client gave it.
+// - A link to a post on X stores the post (`links.post`). Its title is "<Name>: <first line>",
+//   whatever the saving client called the tab, and a short post is its own summary: the model
+//   still tags it, but writes a summary only for a long one. A post that is gone is stored as
+//   unavailable and is enriched like any link with no content.
 
 /** The keyword-search excerpt kept in `links.text`. The full text is in R2. */
 export const maxSearchTextLength = 20_000;
@@ -73,6 +79,8 @@ export type Requirements =
 const decodeUrl = Schema.decodeUnknownOption(Link.Url);
 const decodeAuthor = Schema.decodeUnknownOption(Link.LinkAuthor);
 
+const encodePost = Schema.encodeSync(Link.LinkPost);
+
 const usableTitle = Option.filter((title: string) => !JunkFilter.isSiteNameTitle(title));
 
 const fetchContent = (url: string) =>
@@ -108,10 +116,17 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
     const text = Option.match(content, { onNone: () => "", onSome: (c) => c.text });
     if (text !== "") yield* StoreText.storeText(id, text);
 
+    const post = Option.flatMapNullishOr(content, (c) => c.post);
+    const readPost = Option.filter(post, (p) => p.state === "available");
+    // A read post names itself: the title a client saved ("Name on X: …") gives way to it.
     const staleTitle = Option.fromNullishOr(link.title).pipe(
-      Option.filter(JunkFilter.isSiteNameTitle),
+      Option.filter((stored) => Option.isSome(readPost) || JunkFilter.isSiteNameTitle(stored)),
     );
-    const title = usableTitle(Option.fromNullishOr(link.title)).pipe(
+    const title = (
+      Option.isSome(readPost)
+        ? Option.none<string>()
+        : usableTitle(Option.fromNullishOr(link.title))
+    ).pipe(
       Option.orElse(() => usableTitle(Option.flatMap(content, (c) => c.title))),
       Option.map((t) => ContentText.truncate(t.trim(), maxTitleLength)),
     );
@@ -134,10 +149,15 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
       return { _tag: "Failed", reason: "classify" } as const;
     }
     const classification = classified.value;
+    const summary = readPost.pipe(
+      Option.filter(FetchXPost.isShort),
+      Option.map((p) => p.text.trim()),
+      Option.orElse(() => classification.summary),
+    );
 
     yield* EmbedLink.embedLink(id, {
       title,
-      summary: Option.getOrElse(classification.summary, () => ""),
+      summary: Option.getOrElse(summary, () => ""),
       tags: classification.tags,
       text,
     });
@@ -146,7 +166,7 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
     yield* repo.save(id, {
       title: Option.getOrNull(title),
       staleTitle: Option.getOrNull(staleTitle),
-      summary: Option.getOrNull(classification.summary),
+      summary: Option.getOrNull(summary),
       type: classification.type,
       language: Option.getOrNull(
         Option.orElse(classification.language, () => Option.flatMap(content, (c) => c.language)),
@@ -162,6 +182,15 @@ export const enrichLink = (id: Link.LinkId): Effect.Effect<Outcome, EnrichError,
         Option.flatMap(decodeAuthor),
         Option.getOrNull,
       ),
+      post: Option.getOrNull(Option.map(post, (p) => JSON.stringify(encodePost(p)))),
+      // The post's own address when it was read: a link saved as `/i/status/<id>` names no
+      // handle, and gets the handle's URL as its dedupe key once the handle is known.
+      canonicalUrl: XPostUrl.target(
+        Option.getOrElse(
+          Option.map(post, (p) => p.url),
+          () => link.url,
+        ),
+      ).pipe(Option.map(XPostUrl.canonicalUrl), Option.flatMap(decodeUrl), Option.getOrNull),
       tags: classification.tags,
       enrichedAt: DateTime.formatIso(now),
       metadataVersion: EnrichPolicy.metadataVersion,

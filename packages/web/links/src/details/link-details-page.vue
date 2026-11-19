@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as AtomVue from "@effect/atom-vue";
-import { ArrowLeft, ExternalLink } from "@lucide/vue";
+import { ArrowLeft, ExternalLink, MessageSquareOff } from "@lucide/vue";
 import type * as Link from "@stash/contracts-domain/link";
 import Badge from "@stash/web-ui/badge";
 import Button from "@stash/web-ui/button";
@@ -9,6 +9,10 @@ import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
 import MediaHero from "@stash/web-ui/media-hero";
 import MetaLine from "@stash/web-ui/meta-line";
+import PostByline from "@stash/web-ui/post-byline";
+import PostCard from "@stash/web-ui/post-card";
+import PostMedia from "@stash/web-ui/post-media";
+import PostText from "@stash/web-ui/post-text";
 import Skeleton from "@stash/web-ui/skeleton";
 import TagChip from "@stash/web-ui/tag-chip";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
@@ -19,6 +23,7 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import LinkDeleteButton from "../link-delete-button.vue";
 import * as LinkDisplay from "../link-display.ts";
 import * as LinksAtoms from "../links-atoms.ts";
+import * as PostDisplay from "../post-display.ts";
 import CopyButton from "./copy-button.vue";
 import * as LinkBack from "./link-back.ts";
 import LinkDetailsActions from "./link-details-actions.vue";
@@ -27,6 +32,13 @@ import * as YoutubeEmbed from "./youtube-embed.ts";
 // One link on its own page: the preview (a YouTube link plays in place), the title, one meta line
 // with the primary Open, the summary as reading text, the tags, the status actions, and the rest
 // (dates, language, URLs) folded away under Details. Delete stands apart at the end.
+//
+// A link to a post on X shows the post itself in the preview's place (#170), as X shows it: the
+// author, the words with their links, the photos (a press opens them large) or the video (it
+// plays in place), the quoted post inside, and the counts on a quiet line. Its primary action is
+// "Open on X", with "Copy text" beside it. The link's title repeats the post, so it is there for
+// screen readers only, and the summary shows only when it is not the post's own words (a long
+// post). A post that could not be read says so, and keeps its URL and every action.
 const registry = AtomVue.injectRegistry();
 const route = useRoute();
 const router = useRouter();
@@ -68,9 +80,16 @@ const saved = (link: Link.Link, now: DateTime.Utc) => {
   return age === "now" ? "saved just now" : `saved ${age} ago`;
 };
 
-/** Type and status as one quiet label: `Video · New`. */
+/** Type and status as one quiet label: `Video · New`. A link to X is a `Post`. */
 const kind = (link: Link.Link) =>
-  [link.type === null ? undefined : LinkDisplay.typeLabels[link.type], statusLabels[link.status]]
+  [
+    link.post !== undefined
+      ? "Post"
+      : link.type === null
+        ? undefined
+        : LinkDisplay.typeLabels[link.type],
+    statusLabels[link.status],
+  ]
     .filter((part) => part !== undefined)
     .join(" · ");
 const statusLabels: Readonly<Record<Link.LinkStatus, string>> = {
@@ -79,6 +98,12 @@ const statusLabels: Readonly<Record<Link.LinkStatus, string>> = {
   done: "Done",
   archived: "Archived",
 };
+
+/** The summary, unless it only repeats the post shown above it. */
+const summary = (link: Link.Link) =>
+  link.summary !== null && link.summary.trim() === PostDisplay.available(link)?.text.trim()
+    ? null
+    : link.summary;
 
 const formatDate = (date: DateTime.Utc) =>
   DateTime.format(DateTime.setZone(date, DateTime.zoneMakeLocal()), {
@@ -126,17 +151,90 @@ const leave = () => (back.history ? router.back() : void router.replace({ name: 
     />
     <ErrorState v-else-if="view.state === 'error'" title="Couldn't load the link" @retry="retry" />
     <article v-else class="flex max-w-3xl flex-col gap-6" data-slot="link-details">
-      <MediaHero
-        :src="LinkDisplay.image(view.link)"
-        :url="view.link.url"
-        :initial="LinkDisplay.domain(view.link)"
-        :embed="YoutubeEmbed.player(view.link.url)"
-        :title="LinkDisplay.title(view.link)"
-      />
+      <template v-for="post in [PostDisplay.available(view.link)]" :key="view.link.id">
+        <PostCard v-if="post !== undefined" class="max-w-xl" data-slot="post">
+          <PostByline
+            :name="post.author.name"
+            :handle="post.author.handle"
+            :avatar="PostDisplay.avatar(post.author)"
+            :verified="post.author.verified"
+            :href="PostDisplay.profileUrl(post.author.handle)"
+          >
+            <template v-if="post.createdAt !== null" #meta>
+              <span data-slot="post-day">{{ PostDisplay.day(post.createdAt) }}</span>
+            </template>
+          </PostByline>
+          <p
+            v-if="post.replyTo !== null"
+            data-slot="post-reply-to"
+            class="text-meta text-muted-foreground"
+          >
+            Replying to @{{ post.replyTo }}
+          </p>
+          <PostText v-if="post.text !== ''" :text="post.text" :entities="post.entities" />
+          <p v-if="post.long" data-slot="post-long" class="text-meta text-muted-foreground">
+            A long post: this is its beginning. Open it on X to read the rest.
+          </p>
+          <PostMedia :media="PostDisplay.media(post)" />
+          <PostCard v-if="post.quoted !== null" nested data-slot="post-quoted">
+            <PostByline
+              size="quote"
+              :name="post.quoted.author.name"
+              :handle="post.quoted.author.handle"
+              :avatar="PostDisplay.avatar(post.quoted.author)"
+              :verified="post.quoted.author.verified"
+              :href="post.quoted.url"
+            >
+              <template v-if="post.quoted.createdAt !== null" #meta>
+                <span>{{ PostDisplay.day(post.quoted.createdAt) }}</span>
+              </template>
+            </PostByline>
+            <PostText
+              v-if="post.quoted.text !== ''"
+              size="body"
+              :text="post.quoted.text"
+              :entities="post.quoted.entities"
+            />
+            <PostMedia compact :media="PostDisplay.media(post.quoted)" />
+          </PostCard>
+          <MetaLine
+            v-if="post.createdAt !== null || PostDisplay.counts(post).length > 0"
+            data-slot="post-facts"
+          >
+            <span v-if="post.createdAt !== null">{{ PostDisplay.moment(post.createdAt) }}</span>
+            <span v-for="fact in PostDisplay.counts(post)" :key="fact">{{ fact }}</span>
+          </MetaLine>
+        </PostCard>
+        <PostCard
+          v-else-if="PostDisplay.isUnavailable(view.link)"
+          class="max-w-xl"
+          data-slot="post-unavailable"
+        >
+          <EmptyState
+            :title="PostDisplay.unavailableTitle"
+            :description="PostDisplay.unavailableDescription"
+          >
+            <template #icon><MessageSquareOff aria-hidden="true" /></template>
+          </EmptyState>
+        </PostCard>
+        <MediaHero
+          v-else
+          :src="LinkDisplay.image(view.link)"
+          :url="view.link.url"
+          :initial="LinkDisplay.domain(view.link)"
+          :embed="YoutubeEmbed.player(view.link.url)"
+          :title="LinkDisplay.title(view.link)"
+        />
+      </template>
 
-      <header class="flex flex-col gap-3">
+      <!-- A post's lines and actions end where its card does. -->
+      <header :class="['flex flex-col gap-3', view.link.post !== undefined && 'max-w-xl']">
         <Badge variant="outline" data-slot="link-kind">{{ kind(view.link) }}</Badge>
-        <h1 class="line-clamp-3 text-title break-words">{{ LinkDisplay.title(view.link) }}</h1>
+        <h1
+          :class="view.link.post === undefined ? 'line-clamp-3 text-title break-words' : 'sr-only'"
+        >
+          {{ LinkDisplay.title(view.link) }}
+        </h1>
         <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
           <MetaLine>
             <a
@@ -147,24 +245,42 @@ const leave = () => (back.history ? router.back() : void router.replace({ name: 
               class="hover:text-foreground"
               >{{ LinkDisplay.domain(view.link) }}</a
             >
-            <span v-if="view.link.author !== null" data-slot="link-author" data-shrink="">{{
-              view.link.author
-            }}</span>
+            <span
+              v-if="view.link.author !== null && PostDisplay.available(view.link) === undefined"
+              data-slot="link-author"
+              data-shrink=""
+              >{{ view.link.author }}</span
+            >
             <span data-slot="link-saved">{{ saved(view.link, view.now) }}</span>
             <span v-if="deviceName(view.link) !== undefined" data-slot="link-device">{{
               deviceName(view.link)
             }}</span>
           </MetaLine>
-          <Button variant="primary" class="max-sm:w-full" as-child>
-            <a :href="view.link.url" target="_blank" rel="noopener noreferrer" data-action="open">
-              Open <ExternalLink aria-hidden="true" />
-            </a>
-          </Button>
+          <div class="flex flex-wrap items-center gap-2 max-sm:w-full">
+            <CopyButton
+              v-if="PostDisplay.available(view.link)?.text"
+              label="post text"
+              text="Copy text"
+              :value="PostDisplay.available(view.link)?.text ?? ''"
+              class="max-sm:flex-1"
+            />
+            <Button variant="primary" class="max-sm:flex-1" as-child>
+              <a
+                :href="view.link.post?.url ?? view.link.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-action="open"
+              >
+                {{ view.link.post === undefined ? "Open" : "Open on X" }}
+                <ExternalLink aria-hidden="true" />
+              </a>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <p v-if="view.link.summary" data-slot="link-summary" class="max-w-[65ch] text-prose">
-        {{ view.link.summary }}
+      <p v-if="summary(view.link)" data-slot="link-summary" class="max-w-[65ch] text-prose">
+        {{ summary(view.link) }}
       </p>
       <p v-else-if="view.link.enrichedAt === null" class="text-meta text-muted-foreground">
         summarizing…

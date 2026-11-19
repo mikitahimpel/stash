@@ -47,6 +47,11 @@ import MediaRowTitle from "@stash/web-ui/media-row-title";
 import MediaHero from "@stash/web-ui/media-hero";
 import MediaThumb from "@stash/web-ui/media-thumb";
 import MetaLine from "@stash/web-ui/meta-line";
+import PostByline from "@stash/web-ui/post-byline";
+import PostCard from "@stash/web-ui/post-card";
+import PostMedia from "@stash/web-ui/post-media";
+import type * as PostMediaItems from "@stash/web-ui/post-media-items";
+import PostText from "@stash/web-ui/post-text";
 import TagChip from "@stash/web-ui/tag-chip";
 import TagLine from "@stash/web-ui/tag-line";
 import ListRowSkeleton from "@stash/web-ui/list-row-skeleton";
@@ -167,6 +172,19 @@ const mediaRows = [
 ] as const;
 /** The page a row stands for: the cover of a row without an image comes from it. */
 const siteUrl = (host: string) => `https://${host}/`;
+
+// A synthetic post: its words with a link and a hashtag, and three "photos" (the drawn preview).
+const postWords = "An example post about tiny parsers,\nsee example.com/parsers #parsing";
+const postEntities = [
+  { start: 40, end: 59, url: "https://example.com/parsers" },
+  { start: 60, end: 68, url: "https://example.com/hashtag/parsing" },
+];
+const postPhotos: ReadonlyArray<PostMediaItems.Media> = [1, 2, 3].map(() => ({
+  kind: "photo",
+  url: preview,
+  width: 320,
+  height: 180,
+}));
 const selectedMedia = ref(1);
 const sort = ref("recent");
 
@@ -392,6 +410,46 @@ const swatches = [
             </MediaRow>
           </ul>
           <MediaRowSkeleton tags />
+        </section>
+
+        <section class="flex flex-col gap-3">
+          <SectionHeader title="Post" />
+          <ul class="flex flex-col">
+            <MediaRow as="li" meta-first unread>
+              <template #thumb>
+                <MediaThumb
+                  url="https://example.com/"
+                  :avatar="{ src: null, name: 'Example Writer' }"
+                />
+              </template>
+              <template #title>
+                <MediaRowTitle as-child :stretch="false" :lines="2">
+                  <a href="https://row.com/">{{ postWords }}</a>
+                </MediaRowTitle>
+              </template>
+              <template #meta>
+                <PostByline size="row" name="Example Writer" handle="example_writer" verified />
+                <span>2h</span>
+              </template>
+              <template #tags><TagLine :tags="['parsing']" /></template>
+            </MediaRow>
+          </ul>
+          <PostCard class="max-w-xl">
+            <PostByline name="Example Writer" handle="example_writer" verified>
+              <template #meta><span>Jan 2, 2026</span></template>
+            </PostByline>
+            <PostText :text="postWords" :entities="postEntities" />
+            <PostMedia :media="postPhotos" />
+            <PostCard nested>
+              <PostByline size="quote" name="Example Quoted" handle="example_quoted" />
+              <PostText size="body" text="The quoted example, in one line." />
+            </PostCard>
+            <MetaLine>
+              <span>3:04 AM · Jan 2, 2026</span>
+              <span>56 replies</span>
+              <span>1.2K likes</span>
+            </MetaLine>
+          </PostCard>
         </section>
 
         <section class="flex flex-col gap-3">

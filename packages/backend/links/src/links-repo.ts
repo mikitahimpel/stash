@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as SchemaTransformation from "effect/SchemaTransformation";
 
 // The `links`, `tags` and `link_tags` tables. Lists of values travel as one JSON parameter read
 // with `json_each`, so a statement never runs into D1's limit on bound parameters, and a batch of
@@ -89,11 +90,34 @@ export class LinksRepo extends Context.Service<
   }
 >()("@stash/backend-links/LinksRepo") {}
 
+const decodePost = Schema.decodeUnknownOption(Schema.fromJsonString(Link.LinkPost));
+const encodePost = Schema.encodeSync(Link.LinkPost);
+/**
+ * `links.post`: the JSON of a `Link.LinkPost`, or NULL. JSON this version cannot read (a shape
+ * from another version) is no post, never a failed query.
+ */
+const PostColumn = Schema.NullOr(Schema.String).pipe(
+  Schema.decodeTo(
+    Schema.NullOr(Schema.toType(Link.LinkPost)),
+    SchemaTransformation.transform({
+      decode: (json) => (json === null ? null : Option.getOrNull(decodePost(json))),
+      encode: (post) => (post === null ? null : JSON.stringify(encodePost(post))),
+    }),
+  ),
+);
+
 /** A link row as selected below: tags arrive as a JSON array. */
 const LinkRow = Schema.Struct({
   ...Link.Link.fields,
   tags: Schema.fromJsonString(Schema.Array(Tag.TagName)),
+  post: PostColumn,
 });
+
+type LinkRow = typeof LinkRow.Type;
+
+/** The row as a `Link`: a link that is no post has no `post` key. */
+const toLink = <R extends LinkRow>({ post, ...link }: R): Omit<R, "post"> & Link.Link =>
+  post === null ? link : { ...link, post };
 
 const ListedRow = Schema.Struct({
   ...LinkRow.fields,
@@ -102,7 +126,7 @@ const ListedRow = Schema.Struct({
 });
 
 const linkColumns = `l.id, l.url, l.canonical_url AS canonicalUrl, l.title, l.status, l.type,
-  l.summary, l.language, l.image_url AS imageUrl, l.author,
+  l.summary, l.language, l.image_url AS imageUrl, l.author, l.post,
   (SELECT json_group_array(name) FROM (
     SELECT t.name FROM link_tags lt JOIN tags t ON t.id = lt.tag_id
     WHERE lt.link_id = l.id ORDER BY t.name
@@ -156,7 +180,7 @@ export const make = Effect.gen(function* () {
   const findById = (id: Link.LinkId) =>
     D1Database.queryFirst(LinkRow)(
       D1Database.statement(`SELECT ${linkColumns} FROM links l WHERE l.id = ?`, id),
-    ).pipe(provide);
+    ).pipe(Effect.map(Option.map(toLink)), provide);
 
   const findByCanonicalUrls = (urls: ReadonlyArray<Link.Url>) =>
     urls.length === 0
@@ -168,7 +192,7 @@ export const make = Effect.gen(function* () {
               WHERE l.canonical_url IN (SELECT value FROM json_each(?))`,
             JSON.stringify(urls),
           ),
-        );
+        ).pipe(Effect.map((rows) => rows.map(toLink)));
 
   return LinksRepo.of({
     findById,
@@ -249,7 +273,7 @@ export const make = Effect.gen(function* () {
       ).pipe(
         Effect.map((rows) =>
           rows.map(({ seq, createdAtText, ...link }) => ({
-            link,
+            link: toLink(link),
             position: { createdAt: createdAtText, seq },
           })),
         ),

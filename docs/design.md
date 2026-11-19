@@ -210,6 +210,16 @@ content, not as a table of text:
   published it there, or nothing; an open tab shows its address.
 - **Tags** as 24px chips on one line (`TagLine`): as many as fit, three at most, then `+n`. On
   phones the line runs under the preview and the text, across the row.
+- **A post on X is the same row in a post's order** (#170, `MediaRow meta-first`): the meta line
+  comes first and starts with the author (`PostByline`: a 16px round picture, the name, a mark
+  for a verified account, the @handle, which gives way first on a narrow row), then the age and the device; the unread dot
+  is on this first line, as on every row; under it the post's own
+  words take two lines (`MediaRowTitle :lines="2"`, 14/20 in the foreground colour, never a
+  summary of them), where other rows have a title and a summary. They are the row's target. The
+  preview is the post's first photo or its video's poster (with the play mark); a post without
+  media shows the author's picture, 48px and round (36px on phones), on the generated cover in
+  the favicon's place. The row is as tall as every other. A post that could not be read is an
+  ordinary row that says `Post unavailable`.
 - The row's box sits **exactly on the content edges** and its content is inset by 12px, so the
   hover, focus and selected background ends on the edge and the preview sits 12px inside it. On
   phones there is no hover and the content uses the full width.
@@ -247,6 +257,41 @@ lines of a media row **2px** apart (20 + 20 + 20 + 24 and three gaps make the pr
 - **Phone**: the hero runs from one screen edge to the other without the radius, Open takes the
   full width, and the actions are a bar fixed to the bottom of the screen above the nav
   (`ActionBar`, 56px; `AppMain` pads the page's end for it).
+
+### Post page (#170)
+
+The page of a link to a post on X shows the post in the hero's place, the way X shows it
+(`PostCard`, at most 576px wide, radius 12, a hairline border):
+
+- **Header** (`PostByline`): a 40px round picture, the name (15/600) with the verified mark, and
+  under it the @handle · the day. The name opens the author's profile.
+- `Replying to @handle` for a reply, muted 13.
+- **The words** (`PostText`) as reading text, 16/1.6, with their line breaks. Links (shown in
+  their short form, opening the expanded address), mentions, hashtags and cashtags are accent
+  links that open in a new tab. A long post says that this is its beginning.
+- **Media** (`PostMedia`) in one box with radius 12: one photo or video in its own shape (between
+  3:4 and 2.4:1), two side by side, three as one tall and two small, four as a 2×2 grid, 2px
+  apart in a 16:9 box. A photo opens the **lightbox** (`PostLightbox`): the photo as large as the
+  screen allows on a 90% black backdrop, a counter, Previous / Next (36px, also ← →), and Close,
+  Esc or a click beside the photo to leave. A **video** shows its poster and a play button (44px
+  tall); the press puts the player in its place (an mp4 with the browser's controls; a GIF loops
+  silently).
+- **The quoted post** as a nested card inside: a 24px picture, name and @handle on one line, the
+  words at 14, its media never taller than 16:9. Its name opens the quoted post on X.
+- **A quiet last line** (`MetaLine`): time · day · replies · likes, as far as X gave them.
+- Under the card, the link's own lines as on any link page: the `Post · New` badge, the meta line
+  (`x.com` · saved · device), then **Open on X** as the page's `primary` with **Copy text**
+  (`secondary`) beside it; on phones the two share the width. The link's title only repeats the
+  post, so it is the page's `h1` for screen readers alone. A summary shows only when it is not the
+  post's own words (a long post gets a written one). Tags, actions, Details and Delete follow.
+- **Privacy**: every picture loads lazily with `referrerpolicy="no-referrer"`. A `<video>` has no
+  such attribute, so the player is a frame whose own document sets `no-referrer` for everything
+  it loads (`PostMediaItems.playerDocument`); it does not exist before the press. The frame is
+  sandboxed (`sandbox="allow-scripts"`, never `allow-same-origin`), so its document has an opaque
+  origin and cannot reach the app. X's video host
+  refuses requests that name another site, so this is also what makes the video play.
+- **A post that could not be read** (deleted, protected, or X gave no answer): the card says
+  `Post unavailable` and that the link is kept; the URL, Open on X and every action stay.
 
 ### Rows
 
@@ -382,7 +427,9 @@ credentials), seeds synthetic data and a session through the dev-only `/_smoke/s
 (`inbox-search-*`), the focused empty search field with recent searches (`inbox-search-recent-*`),
 the app header alone with the search field at rest and focused (`header-*`, `header-focused-*`),
 Open now, the `/save` result, a link's page three times (`link-youtube`, `link-article`,
-`link-cover`, answered in the browser from the audit's fixtures), Settings, Settings with each guide open (`settings-iphone-*` and so
+`link-cover`, answered in the browser from the audit's fixtures), a post on X of each kind
+(`post-text`, `post-photo`, `post-photos`, `post-video`, `post-quote`, `post-unavailable`), a photo opened
+large (`post-lightbox`) and the Inbox with posts among its links (`inbox-posts`), from the same fixtures, Settings, Settings with each guide open (`settings-iphone-*` and so
 on), the extension's approve page, Login, `/_ui`) in dark and light at 1440×900 and 390×844 into
 [`docs/screenshots/`](screenshots/). Inbox, Open now and Settings are also captured as a
 first-run user with no data (`inbox-empty-light-desktop.png` and so on), with the browser answering
@@ -489,6 +536,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
 | MediaRow | `media-row` (one fixed height; slots `thumb`, `title`, `meta`, `summary`, `tags`, `#actions` while `selected`; `unread`), `media-row-title` (15/600, one line, two on phones, the whole row's target unless `:stretch="false"`), `site-title` (a title without the site's own name), `tag-line` (the tags on one line: as many chips as fit, then `+n`), `media-thumb` (16:9, 160×90, 110×62 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
 | MediaHero | `media-hero` (`src`, `url`, `embed`, `title`): a link's preview on its own page, with a play button that loads the player on demand |
+| Post | `post-card` (the surface; `nested` for a quoted post), `post-byline` (`row` / `card` / `quote`: picture, name, verified mark, @handle, a `meta` slot; `href`), `post-text` (words with their links; `prose` / `body`; `post-text-parts` cuts them), `post-media` (1–4 photos and videos in one box, a lightbox for photos, a video that plays in a `no-referrer` frame; `compact`; `post-media-items` has the types and the player's document), `avatar` (a round picture, 16 / 24 / 40 / 48, the initial without one); `media-row` `meta-first` and `media-row-title` `:lines="2"` for a post's row, `media-thumb` `avatar` for its cover |
 | MetaLine | `meta-line`: the dot-separated meta line outside a row |
 | ActionBar | `action-bar` (`label`): an item's actions, a bottom bar on phones |
 | ScrollRow | `scroll-row`: a row of controls that wraps from `sm` up and is one sideways-scrolling line on phones, running off both screen edges |

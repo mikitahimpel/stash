@@ -8,6 +8,7 @@
     "./links-repo": "./src/links-repo.ts",
     "./links-handlers": "./src/links-handlers.ts",
     "./canonicalize-url": "./src/save/canonicalize-url.ts",
+    "./x-post-url": "./src/save/x-post-url.ts",
     "./save-link": "./src/save/save-link.ts",
     "./save-links-batch": "./src/save/save-links-batch.ts",
     "./save-rate-limiter": "./src/save/save-rate-limiter.ts",
