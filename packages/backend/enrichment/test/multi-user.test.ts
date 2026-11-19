@@ -99,7 +99,7 @@ describe("enrichment of several users", () => {
       yield* TestClock.adjust("24 hours");
       expect(yield* RequeuePending.requeuePending().pipe(asMember)).toBe(2);
       const requeued = yield* drain;
-      expect([...requeued].sort()).toEqual([...ids.slice(2)].sort());
+      expect([...requeued].sort()).toEqual(ids.slice(2).sort());
       for (const id of requeued) {
         expect((yield* EnrichLink.enrichLink(id).pipe(asMember))._tag).toBe("Enriched");
         expect((yield* state(id))["enrichedAt"]).not.toBeNull();

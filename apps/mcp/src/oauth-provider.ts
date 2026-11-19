@@ -50,10 +50,7 @@ export const make = (options: Options) => {
  * The provider of one origin: OAuth 2.1 metadata, dynamic client registration and tokens from
  * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub Device Flow sign-in pages.
  */
-const makeFor = (
-  origin: string,
-  { env, mcp, github, mintApiToken, isApiTokenActive, now }: Options,
-) => {
+const makeFor = (origin: string, { mcp, github, mintApiToken, isApiTokenActive, now }: Options) => {
   const handleOAuth = OAuthHandler.make({
     origin,
     github,

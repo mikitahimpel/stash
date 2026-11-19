@@ -2,6 +2,7 @@ import * as Links from "@stash/contracts-api/links";
 import * as Security from "@stash/contracts-api/security";
 import * as Errors from "@stash/contracts-domain/errors";
 import type * as Link from "@stash/contracts-domain/link";
+import * as User from "@stash/contracts-domain/user";
 import { Context, DateTime, Effect, Layer, Redacted } from "effect";
 import { FetchHttpClient, HttpRouter, HttpServer } from "effect/http";
 import { HttpApi, HttpApiBuilder } from "effect/http-api";
@@ -38,7 +39,13 @@ const AuthorizationStub = Layer.succeed(
   Security.Authorization.of({
     bearer: (handler, { credential }) =>
       Redacted.value(credential) === token
-        ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "user" })
+        ? handler.pipe(
+            Effect.provideService(Security.CurrentPrincipal, { kind: "user" }),
+            Effect.provideService(Security.CurrentUser, {
+              id: User.UserId.make("owner"),
+              role: "owner",
+            }),
+          )
         : Effect.fail(new Errors.Unauthorized({ message: "Invalid token" })),
     session: () => Effect.fail(new Errors.Unauthorized({ message: "No session" })),
   }),
