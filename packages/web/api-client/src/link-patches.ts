@@ -160,19 +160,38 @@ export const insert = <A extends Link.Link>(
   return next;
 };
 
-/** The ids of the links in `value` that enrichment has not reached yet, at any depth. */
-export const pendingIds = (
+/**
+ * How long after it was saved a link without enrichment still counts as pending, in ms.
+ * Enrichment takes seconds. A link that has waited this long failed for good or waits for the
+ * hourly retry: asking for it every few seconds would bring nothing.
+ */
+export const pendingMaxAgeMillis = 10 * 60_000;
+
+// The links in `value` without enrichment, at any depth, with the time each was saved.
+const unenriched = (
   value: unknown,
-  into: Set<Link.LinkId> = new Set(),
-): Set<Link.LinkId> => {
+  into: Map<Link.LinkId, number> = new Map(),
+): Map<Link.LinkId, number> => {
   if (Array.isArray(value)) {
-    for (const item of value as ReadonlyArray<unknown>) pendingIds(item, into);
+    for (const item of value as ReadonlyArray<unknown>) unenriched(item, into);
   } else if (isLink(value)) {
-    if (value.enrichedAt === null) into.add(value.id);
+    if (value.enrichedAt === null) into.set(value.id, created(value));
   } else if (isPlain(value)) {
-    for (const item of Object.values(value)) pendingIds(item, into);
+    for (const item of Object.values(value)) unenriched(item, into);
   }
   return into;
+};
+
+/**
+ * The ids of the links in `value` that enrichment has not reached yet, at any depth: the ones
+ * saved at most `pendingMaxAgeMillis` before `now` (epoch ms).
+ */
+export const pendingIds = (value: unknown, now: number = Date.now()): Set<Link.LinkId> => {
+  const ids = new Set<Link.LinkId>();
+  for (const [id, savedAt] of unenriched(value)) {
+    if (now - savedAt <= pendingMaxAgeMillis) ids.add(id);
+  }
+  return ids;
 };
 
 const put = (registry: AtomRegistry.AtomRegistry, id: Link.LinkId, patch: Patch): void =>
@@ -206,20 +225,28 @@ export const record = (registry: AtomRegistry.AtomRegistry, event: LinkEvent.Lin
   else if (event.type === "link.deleted") remove(registry, event.id);
 };
 
-// The links each query on screen is still waiting on, per registry. `revalidated` keeps it.
-const waiting = new WeakMap<AtomRegistry.AtomRegistry, Map<object, ReadonlySet<Link.LinkId>>>();
+// The links without enrichment in each query on screen, per registry. `revalidated` keeps it.
+const waiting = new WeakMap<
+  AtomRegistry.AtomRegistry,
+  Map<object, ReadonlyMap<Link.LinkId, number>>
+>();
 
 /** Notes the pending links of one query's current answer. `undefined` forgets the query. */
 export const track = (registry: AtomRegistry.AtomRegistry, query: object, value: unknown): void => {
   let queries = waiting.get(registry);
   if (queries === undefined) waiting.set(registry, (queries = new Map()));
   if (value === undefined) queries.delete(query);
-  else queries.set(query, pendingIds(value));
+  else queries.set(query, unenriched(value));
 };
 
-/** The links the queries being read right now are still waiting on. */
-export const pending = (registry: AtomRegistry.AtomRegistry): ReadonlySet<Link.LinkId> => {
+/** The links the queries being read right now are still waiting on, at `now` (epoch ms). */
+export const pending = (
+  registry: AtomRegistry.AtomRegistry,
+  now: number = Date.now(),
+): ReadonlySet<Link.LinkId> => {
   const ids = new Set<Link.LinkId>();
-  for (const query of waiting.get(registry)?.values() ?? []) for (const id of query) ids.add(id);
+  for (const query of waiting.get(registry)?.values() ?? []) {
+    for (const [id, savedAt] of query) if (now - savedAt <= pendingMaxAgeMillis) ids.add(id);
+  }
   return ids;
 };

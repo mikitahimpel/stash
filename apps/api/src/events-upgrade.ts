@@ -11,6 +11,9 @@ import * as Events from "@stash/contracts-api/events";
 // 2. On 426 it hands the request to the user's `LinkEvents` object, which accepts the socket.
 //
 // The session cookie is `SameSite=Lax`, so a page of another site cannot open the stream with it.
+// As a second guard, a stream opened with the cookie (no `Authorization` header) must come from
+// the web app: a browser names the page's origin on every WebSocket, and any other origin is
+// refused with 403 before anything else. A token is no ambient credential, so it needs no origin.
 
 /** The headers of the upgrade itself, left out of the plain request of step 1. */
 const upgradeHeaders = /^(?:upgrade|connection|sec-websocket-.*)$/i;
@@ -20,16 +23,22 @@ export type Namespace = LinkEvents.Namespace<{ fetch(request: Request): Promise<
 
 /**
  * Answers a WebSocket upgrade of `GET /events`, or `undefined` for any other request. `api`
- * is the composed `StashApi` handler, and `user` the login whose streams the object holds.
+ * is the composed `StashApi` handler, `user` the login whose streams the object holds, and
+ * `webOrigin` the only origin a cookie-authenticated stream may come from.
  */
 export const handleEvents = async (
   request: Request,
   api: (request: Request) => Promise<Response>,
   namespace: Namespace | undefined,
   user: string,
+  webOrigin: string,
 ): Promise<Response | undefined> => {
   if (request.method !== "GET" || new URL(request.url).pathname !== Events.path) return undefined;
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return undefined;
+  const origin = request.headers.get("origin");
+  if (!request.headers.has("authorization") && origin !== null && origin !== webOrigin) {
+    return new Response("Forbidden origin", { status: 403 });
+  }
   const headers = new Headers(request.headers);
   // A copy of the names: the headers change while they are walked.
   for (const name of Array.from(headers.keys())) {

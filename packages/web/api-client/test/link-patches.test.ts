@@ -168,8 +168,16 @@ describe("LinkPatches.pendingIds", () => {
       hits: [{ link: decode("c"), score: 1 }],
       one: decode("a"),
     };
-    expect([...LinkPatches.pendingIds(answer)].sort()).toEqual(["a", "c"]);
-    expect(LinkPatches.pendingIds(null).size).toBe(0);
+    // The fixtures were saved at `t0`.
+    const now = Date.parse(t0) + 60_000;
+    expect([...LinkPatches.pendingIds(answer, now)].sort()).toEqual(["a", "c"]);
+    expect(LinkPatches.pendingIds(null, now).size).toBe(0);
+  });
+
+  it("gives up on a link that has waited too long: its enrichment failed for good", () => {
+    const answer = { items: [decode("a"), decode("b", { createdAt: t2 })] };
+    const late = Date.parse(t0) + LinkPatches.pendingMaxAgeMillis + 1;
+    expect([...LinkPatches.pendingIds(answer, late)]).toEqual(["b"]);
   });
 });
 

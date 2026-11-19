@@ -79,7 +79,9 @@ const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(
       const patched = (result: AsyncResult.AsyncResult<any, any>) => {
         const patches = get.once(LinkPatches.state);
         const laid = overlay(result, patches);
-        const next = accepts === undefined ? laid : withNew(laid, patches, accepts);
+        // The list's age is read from the api's own answer: the overlay makes new objects.
+        const next =
+          accepts === undefined ? laid : withNew(laid, patches, accepts, listAnsweredAt(result));
         LinkPatches.track(get.registry, self, AsyncResult.isSuccess(next) ? next.value : null);
         return next;
       };
@@ -120,12 +122,22 @@ const overlay = (
 // When a list was answered, in epoch ms, by its first link (or, for an empty list, its failure).
 // A page appended later is a newer result with the same first link, and the list is as old as
 // its first page: that one is what a link saved since is missing from.
+//
+// It must be read from the answer as the api gave it, before the overlay: a patched first link
+// is a new object on every read, and would make the list look as young as its last page.
 const answered = new WeakMap<object, number>();
 const answeredAt = (key: object | undefined, seen: number): number => {
   if (key === undefined) return seen;
   const known = answered.get(key);
   if (known === undefined) answered.set(key, seen);
   return known ?? seen;
+};
+const listAnsweredAt = (source: AsyncResult.AsyncResult<any, any>): number => {
+  if (AsyncResult.isSuccess(source)) {
+    const { items } = source.value as { readonly items: ReadonlyArray<object> };
+    return answeredAt(items[0], source.timestamp);
+  }
+  return AsyncResult.isFailure(source) ? answeredAt(source.cause, Date.now()) : Date.now();
 };
 
 // A `pages` result with the links the stream brought that the list does not hold yet. A list
@@ -134,6 +146,7 @@ const withNew = (
   result: AsyncResult.AsyncResult<any, any>,
   patches: LinkPatches.Patches,
   accepts: (link: Link.Link) => boolean,
+  listedAt: number,
 ): AsyncResult.AsyncResult<any, any> => {
   if (patches.size === 0) return result;
   if (AsyncResult.isSuccess(result)) {
@@ -145,17 +158,12 @@ const withNew = (
       done: value.done,
       patches,
       accepts,
-      answeredAt: answeredAt(value.items[0], result.timestamp),
+      answeredAt: listedAt,
     });
     return items === value.items ? result : AsyncResult.map(result, () => ({ ...value, items }));
   }
   if (!AsyncResult.isFailure(result) || !isEmpty(result.cause)) return result;
-  const items = LinkPatches.insert([], {
-    done: true,
-    patches,
-    accepts,
-    answeredAt: answeredAt(result.cause, Date.now()),
-  });
+  const items = LinkPatches.insert([], { done: true, patches, accepts, answeredAt: listedAt });
   return items.length === 0
     ? result
     : AsyncResult.success({ done: true, items }, { waiting: result.waiting });

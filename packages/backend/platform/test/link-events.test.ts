@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@effect/vitest";
+import { describe, expect, it, vi } from "@effect/vitest";
 import * as Link from "@stash/contracts-domain/link";
 import * as LinkEvent from "@stash/contracts-domain/link-event";
 import * as DateTime from "effect/DateTime";
@@ -121,6 +121,35 @@ describe("LinkEventsObject", () => {
     const closed = socket(true);
     expect(LinkEventsObject.broadcast([open[0]!, closed, open[1]!], "event")).toBe(2);
     expect(open.map((s) => s.sent)).toEqual([["event"], ["event"]]);
+  });
+
+  it("refuses a stream past the cap, and tells a plain request to upgrade", async () => {
+    // The object registers its keep-alive when it is made; Node has no such class.
+    vi.stubGlobal("WebSocketRequestResponsePair", class {});
+    try {
+      const sockets = Array.from({ length: LinkEventsObject.maxStreams }, () => socket());
+      let accepted = 0;
+      const object = new LinkEventsObject.LinkEventsObject({
+        acceptWebSocket: () => void accepted++,
+        getWebSockets: () => sockets,
+        setWebSocketAutoResponse: () => {},
+      });
+      const upgrade = new Request("https://link-events/", { headers: { upgrade: "websocket" } });
+      expect((await object.fetch(upgrade)).status).toBe(503);
+      expect(accepted).toBe(0);
+      expect((await object.fetch(new Request("https://link-events/"))).status).toBe(426);
+      // Publishing still reaches the streams that are open.
+      const published = await object.fetch(
+        new Request(`https://link-events${LinkEvents.publishPath}`, {
+          method: "POST",
+          body: "one\ntwo",
+        }),
+      );
+      expect(await published.json()).toEqual({ sent: LinkEventsObject.maxStreams });
+      expect(sockets[0]!.sent).toEqual(["one", "two"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("opens every stream with the server's time", () => {

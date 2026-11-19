@@ -59,7 +59,9 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
 - `src/events-upgrade.ts`: the WebSocket upgrade of `GET /events`. Effect's router cannot return
   a Workers WebSocket response, so the Worker asks the router first without the upgrade headers
   (the same `Authorization` middleware answers 401, or 426 when the caller may connect) and then
-  hands the request to the user's `LinkEvents` Durable Object. `worker.ts` exports that class
+  hands the request to the user's `LinkEvents` Durable Object. A stream opened with the session
+  cookie must name `WEB_ORIGIN` as its `Origin` (403 otherwise; a dev page on another host
+  name then falls back to asking), and the object refuses streams past `maxStreams`. `worker.ts` exports that class
   (`LinkEvents`, a thin shell over `LinkEventsObject` from `@stash/backend-platform`); the
   binding `LINK_EVENTS` and its class migration are declared in `alchemy.run.ts`.
 - `src/worker-env.ts`: binding types. Keep it in sync with the `Api` Worker's `env` in the root

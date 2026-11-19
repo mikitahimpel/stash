@@ -264,6 +264,7 @@ describe("composed API", () => {
         app.handler,
         namespace,
         "example-user",
+        webOrigin,
       );
 
     // No credential, a bad one: the router's 401, and the object is never reached.
@@ -279,6 +280,20 @@ describe("composed API", () => {
     expect(opened.map(({ user }) => user)).toEqual(["example-user", "example-user"]);
     expect(opened[0]!.request.headers.get("upgrade")).toBe("websocket");
 
+    // The cookie opens a stream only from the web app's own origin (a browser always names it):
+    // a page of another site is refused before anything else. A token needs no origin.
+    const before = opened.length;
+    expect(
+      (await upgrade("/events", { ...cookie, origin: "https://evil.example.com" }))?.status,
+    ).toBe(403);
+    expect(opened.length).toBe(before);
+    expect(await (await upgrade("/events", { ...cookie, origin: webOrigin }))?.text()).toBe(
+      "socket",
+    );
+    expect(
+      await (await upgrade("/events", { ...bearer, origin: "https://other.example.com" }))?.text(),
+    ).toBe("socket");
+
     // Everything else stays with the router.
     expect(await upgrade("/links", bearer)).toBeUndefined();
     expect(await upgrade("/events", bearer, "POST")).toBeUndefined();
@@ -288,6 +303,7 @@ describe("composed API", () => {
         app.handler,
         namespace,
         "example-user",
+        webOrigin,
       ),
     ).toBeUndefined();
 
@@ -297,6 +313,7 @@ describe("composed API", () => {
       app.handler,
       undefined,
       "example-user",
+      webOrigin,
     );
     expect(unbound?.status).toBe(503);
   });

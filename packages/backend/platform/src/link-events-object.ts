@@ -11,6 +11,13 @@ import * as LinkEvents from "./link-events.ts";
 // The Worker authenticates a request before it gets here. A named object is reachable only
 // through the Worker's binding.
 
+/**
+ * The most streams one object holds. A tab holds one while it is visible, so one person's
+ * browsers stay far below it; past it a new stream is refused (503) and its client falls back to
+ * asking, until an older stream closes.
+ */
+export const maxStreams = 32;
+
 /** The part of `DurableObjectState` the object uses. */
 export interface State {
   acceptWebSocket(socket: WebSocket): void;
@@ -71,6 +78,9 @@ export class LinkEventsObject {
     }
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return new Response("Expected a WebSocket", { status: 426 });
+    }
+    if (this.state.getWebSockets().length >= maxStreams) {
+      return new Response("Too many open streams", { status: 503 });
     }
     const pair = new WebSocketPair();
     this.state.acceptWebSocket(pair[1]);

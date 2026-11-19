@@ -5,7 +5,7 @@ import * as LinkEvent from "@stash/contracts-domain/link-event";
 import * as WebPlatform from "@stash/web-platform/live";
 import * as LiveSocket from "@stash/web-platform/live-socket";
 import * as Visibility from "@stash/web-platform/visibility";
-import type * as DateTime from "effect/DateTime";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -13,6 +13,7 @@ import * as Atom from "effect/reactivity/Atom";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as ApiBaseUrl from "./api-base-url.ts";
 import * as LinkPatches from "./link-patches.ts";
 import { StashApiClient } from "./stash-api-client.ts";
@@ -28,7 +29,7 @@ import { StashApiClient } from "./stash-api-client.ts";
 // - A stream that drops is opened again, after 1 s, 2 s, 4 s … up to 30 s.
 // - While there is no stream, only the links on screen that are still being enriched are asked
 //   for (`GET /links?ids=`): after 3 s, 6 s … up to 30 s, from 3 s again when a new one shows
-//   up, and not at all when nothing is pending.
+//   up, and not at all when nothing is pending. While the stream is open nothing wakes for it.
 
 /** The keep-alive of the stream: a server that does not answer a ping is gone. */
 export const keepAlive: LiveSocket.KeepAlive = {
@@ -62,6 +63,13 @@ export const timings: Atom.Writable<Timings> = Atom.make(defaultTimings).pipe(At
 /** The most pages one catch-up reads. Past that the lists' own refresh brings the rest. */
 export const catchUpMaxPages = 5;
 
+/**
+ * How far before the last event seen a catch-up asks from, in ms. An event carries the time the
+ * api published it, a little after the write was committed (`updatedAt`); a write committed just
+ * before the last event but published after the stream dropped would be missed without it.
+ */
+export const catchUpOverlapMillis = 5000;
+
 /** The address of the stream: the api's `/events`, same-origin by default. */
 export const url = `${ApiBaseUrl.fromEnv.replace(/\/$/, "")}${Events.path}`;
 
@@ -89,6 +97,13 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
 
     // Whether the stream is open, and the server's time of the last thing it said.
     let connected = false;
+    // The same, for the polling to wait on.
+    const open = yield* SubscriptionRef.make(false);
+    const setConnected = (value: boolean) =>
+      Effect.suspend(() => {
+        connected = value;
+        return SubscriptionRef.set(open, value);
+      });
     let since: DateTime.Utc | undefined;
     let reconnectIn: number = reconnect.firstMillis;
 
@@ -104,7 +119,7 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
         for (let page = 0; page < catchUpMaxPages; page++) {
           const result = yield* client.links.list({
             query: {
-              updatedSince: from,
+              updatedSince: DateTime.subtract(from, { milliseconds: catchUpOverlapMillis }),
               limit: LinksGroup.maxPageSize,
               ...(cursor === undefined ? {} : { cursor }),
             },
@@ -138,7 +153,7 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
         const previous = since;
         since = event.at;
         if (event.type !== "stream.ready") return LinkPatches.record(registry, event);
-        connected = true;
+        yield* setConnected(true);
         reconnectIn = reconnect.firstMillis;
         // The gap before this stream: by time when an earlier one gave it, else by what waits.
         if (previous !== undefined) yield* catchUp(previous);
@@ -150,16 +165,26 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
         yield* socket
           .messages(url, { keepAlive })
           .pipe(Stream.runForEach(onMessage), Effect.ignore);
-        connected = false;
+        yield* setConnected(false);
         yield* Effect.sleep(reconnectIn);
         reconnectIn = next(reconnectIn, reconnect);
       }
-    }).pipe(Effect.ensuring(Effect.sync(() => (connected = false))));
+    }).pipe(Effect.ensuring(setConnected(false)));
 
     const polling = Effect.gen(function* () {
       let wait: number = poll.firstMillis;
       let asked: ReadonlySet<Link.LinkId> = new Set();
       while (true) {
+        // While the stream is open there is nothing to ask: sleep until it drops.
+        if (connected) {
+          yield* SubscriptionRef.changes(open).pipe(
+            Stream.filter((isOpen) => !isOpen),
+            Stream.take(1),
+            Stream.runDrain,
+          );
+          wait = poll.firstMillis;
+          asked = new Set();
+        }
         yield* Effect.sleep(wait);
         const ids = connected ? new Set<Link.LinkId>() : LinkPatches.pending(registry);
         // Nothing to ask, or a link that was not asked for yet: the waits start over.

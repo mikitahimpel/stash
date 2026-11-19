@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Link from "@stash/contracts-domain/link";
 import * as LinkEvent from "@stash/contracts-domain/link-event";
 import * as PlatformTesting from "@stash/web-platform/testing";
@@ -28,13 +28,19 @@ const t0 = "2026-01-01T00:00:00.000Z";
 const t1 = "2026-01-01T00:00:05.000Z";
 const t2 = "2026-01-01T00:00:09.000Z";
 
-const pendingLink = (id: string) => ({ ...Fixtures.link(id), updatedAt: t0 });
+// Saved a moment ago by the real clock: only a young link counts as pending.
+const savedAt = new Date(Date.now() - 5000).toISOString();
+const pendingLink = (id: string) => ({ ...Fixtures.link(id), createdAt: savedAt, updatedAt: t0 });
 const enrichedLink = (id: string, at: string) => ({
   ...Fixtures.link(id),
+  createdAt: savedAt,
   summary: `Summary of ${id}.`,
   enrichedAt: at,
   updatedAt: at,
 });
+/** Where a catch-up from `at` asks from: a little earlier. */
+const overlapped = (at: string) =>
+  new Date(Date.parse(at) - LiveLinks.catchUpOverlapMillis).toISOString();
 const ready = (at: string) => JSON.stringify({ type: "stream.ready", at });
 const updated = (id: string, at: string) =>
   JSON.stringify({ type: "link.updated", at, link: enrichedLink(id, at) });
@@ -204,7 +210,7 @@ describe("LiveLinks.connection", () => {
     await expect.poll(() => app.summaries()["b"]).toBe("Summary of b.");
     // One cheap request, from the server's time of the last event seen.
     expect(app.extra().filter((q) => q["updatedSince"] !== undefined)).toEqual([
-      { updatedSince: t1, limit: "100" },
+      { updatedSince: overlapped(t1), limit: "100" },
     ]);
     expect(app.reloads()).toBe(0);
   });
@@ -237,6 +243,19 @@ describe("LiveLinks.connection", () => {
     expect(app.extra().length).toBe(settled);
     expect(app.extra().every((q) => q["updatedSince"] === undefined)).toBe(true);
     expect(app.reloads()).toBe(0);
+  });
+
+  it("does not ask for a link that has waited too long", async () => {
+    const app = await setup({ reachable: false, connect: false });
+    // Both pending links are older than a failed enrichment can explain.
+    const now = Date.now();
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockImplementation(() => now + LinkPatches.pendingMaxAgeMillis + 1);
+    cleanups.push(() => clock.mockRestore());
+    cleanups.push(app.registry.mount(LiveLinks.connection));
+    await tick(150);
+    expect(app.extra()).toEqual([]);
   });
 
   it("backs off between asks for the same pending links", async () => {
@@ -281,7 +300,7 @@ describe("LiveLinks.connection", () => {
     await expect.poll(app.open).toBe(1);
     await app.run(app.server.send(ready(t2)));
     await expect.poll(() => app.summaries()["b"]).toBe("Summary of b.");
-    expect(app.extra().slice(before)).toEqual([{ updatedSince: t1, limit: "100" }]);
+    expect(app.extra().slice(before)).toEqual([{ updatedSince: overlapped(t1), limit: "100" }]);
   });
 
   it("catches up when the window gets the focus back", async () => {
@@ -292,7 +311,7 @@ describe("LiveLinks.connection", () => {
     app.stored.set("b", enrichedLink("b", t2));
     await app.run(app.visibility.focus);
     await expect.poll(() => app.summaries()["b"]).toBe("Summary of b.");
-    expect(app.extra().slice(before)).toEqual([{ updatedSince: t1, limit: "100" }]);
+    expect(app.extra().slice(before)).toEqual([{ updatedSince: overlapped(t1), limit: "100" }]);
     expect(app.reloads()).toBe(0);
   });
 });
@@ -393,6 +412,24 @@ describe("ApiAtoms.pages with accepts", () => {
     expect(app.ids()).toEqual(["c", "mid", "b"]);
     await tick(20);
     expect(app.asked.length).toBe(requests);
+  });
+
+  it("keeps the new link when the next page loads later, with a patched first row", async () => {
+    const app = await open();
+    // The top row was enriched over the stream: the overlay draws it as a new object each time.
+    LinkPatches.record(
+      app.registry,
+      event(on("c", 5, { summary: "Summary of c.", updatedAt: day(6) })),
+    );
+    LinkPatches.record(app.registry, event(on("new", 6)));
+    expect(app.ids()).toEqual(["new", "c", "b"]);
+    // The next page loads a minute later: the list is still as old as its first page.
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now + 60_000);
+    cleanups.push(() => clock.mockRestore());
+    app.registry.set(app.feed, undefined);
+    await expect.poll(() => app.ids()?.length).toBe(4);
+    expect(app.ids()).toEqual(["new", "c", "b", "a"]);
   });
 
   it("keeps the new link when the next page loads", async () => {

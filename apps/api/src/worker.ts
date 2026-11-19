@@ -152,7 +152,13 @@ export default {
     return (
       (await handleSmoke(request, env)) ??
       handleLoginNotConfigured(request, env) ??
-      (await handleEvents(request, app.handler, env.LINK_EVENTS, env.ALLOWED_GITHUB_LOGIN)) ??
+      (await handleEvents(
+        request,
+        app.handler,
+        env.LINK_EVENTS,
+        env.ALLOWED_GITHUB_LOGIN,
+        env.WEB_ORIGIN,
+      )) ??
       app.handler(request)
     );
   },
