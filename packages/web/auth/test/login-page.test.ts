@@ -1,9 +1,11 @@
 import * as AtomVue from "@effect/atom-vue";
 import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as ApiTesting from "@stash/web-api-client/testing";
+import type * as Invite from "@stash/contracts-domain/invite";
 import * as WebPlatform from "@stash/web-platform/live";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import * as Effect from "effect/Effect";
+import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,9 +66,14 @@ const mountPage = async (
     readonly start?: () => Response;
     readonly path?: string;
     readonly clipboard?: Layer.Layer<Clipboard.Clipboard>;
+    /** The invite of an invite link, and what the api says about it. */
+    readonly invite?: string | null;
+    readonly inviteCheck?: () => Response;
   } = {},
 ) => {
   const polls: Array<number> = [];
+  const pollBodies: Array<unknown> = [];
+  const checks: Array<unknown> = [];
   const copied: Array<string> = [];
   let startedAt = 0;
   let starts = 0;
@@ -77,7 +84,14 @@ const mountPage = async (
         startedAt = Date.now();
         return options.start?.() ?? ApiTesting.json({ ...started, flowId: `flow-${starts}` });
       },
-      "POST /auth/device/poll": () => {
+      "POST /invites/check": (request) => {
+        checks.push(bodyOf(request));
+        return (
+          options.inviteCheck?.() ?? ApiTesting.json({ expiresAt: "2026-02-01T00:00:00.000Z" })
+        );
+      },
+      "POST /auth/device/poll": (request) => {
+        pollBodies.push(bodyOf(request));
         polls.push((Date.now() - startedAt) / 1000);
         const answer = answers[Math.min(polls.length, answers.length) - 1]!;
         return answer();
@@ -110,11 +124,27 @@ const mountPage = async (
   });
   await router.push(options.path ?? "/login");
   const wrapper = mount(LoginPage, {
+    ...(options.invite === undefined
+      ? {}
+      : { props: { invite: options.invite as Invite.InviteToken | null } }),
     global: { plugins: [router], provide: { [AtomVue.registryKey]: registry } },
   });
   await settle();
-  return { wrapper, router, registry: registry!, polls, copied, starts: () => starts };
+  return {
+    wrapper,
+    router,
+    registry: registry!,
+    polls,
+    pollBodies,
+    checks,
+    copied,
+    starts: () => starts,
+  };
 };
+
+/** The JSON a stubbed request was sent with. */
+const bodyOf = (request: HttpClientRequest.HttpClientRequest): unknown =>
+  request.body._tag === "Uint8Array" ? JSON.parse(new TextDecoder().decode(request.body.body)) : {};
 
 const pending = () => ApiTesting.json({ status: "pending" });
 const slowDown = () => ApiTesting.json({ status: "slow_down" });
@@ -210,7 +240,7 @@ describe("login page", () => {
 
   it.each([
     ["DeviceFlowDenied", "declined", "Try again"],
-    ["LoginNotAllowed", "can't sign in", "Use another account"],
+    ["LoginNotAllowed", "Ask its owner for an invite", "Use another account"],
   ])("shows a clear state for %s", async (tag, message, action) => {
     const { wrapper, router } = await mountPage([error(tag, 403)]);
     await wrapper.find("[data-test=sign-in]").trigger("click");
@@ -313,5 +343,79 @@ describe("remaining", () => {
     expect(DeviceLoginAtoms.remaining(900_000, 0)).toBe("15:00");
     expect(DeviceLoginAtoms.remaining(65_000, 500)).toBe("1:05");
     expect(DeviceLoginAtoms.remaining(0, 1000)).toBe("0:00");
+  });
+});
+
+// An invite link (`/invite/<token>`) opens the login page with the invite (#177).
+describe("login page opened by an invite link", () => {
+  const token = "t".repeat(43);
+
+  it("is a public route that hands the token to the page, and only a well-formed one", () => {
+    const route = Routes.routes.find((candidate) => candidate.name === Routes.invite);
+    expect(route?.path).toBe("/invite/:token");
+    expect(route?.meta).toEqual({ public: true });
+    expect(Routes.inviteOf({ token })).toBe(token);
+    expect(Routes.inviteOf({ token: "short" })).toBeUndefined();
+    expect(Routes.inviteOf({ token: `${token}/../x` })).toBeUndefined();
+  });
+
+  it("says the visitor is invited and signs them up with the invite", async () => {
+    const { wrapper, router, checks, pollBodies } = await mountPage([pending, complete], {
+      invite: token,
+    });
+    expect(checks).toEqual([{ token }]);
+    const line = wrapper.find("[data-test=invite]");
+    expect(line.attributes("data-state")).toBe("open");
+    expect(line.text()).toContain("You're invited");
+
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(10);
+    // Every poll carries the invite: the api uses it when the account is new.
+    expect(pollBodies).toEqual([
+      { flowId: "flow-1", invite: token },
+      { flowId: "flow-1", invite: token },
+    ]);
+    expect(router.currentRoute.value.path).toBe("/");
+  });
+
+  it("says so when the invite no longer works, and still lets an existing account sign in", async () => {
+    const { wrapper, pollBodies } = await mountPage([error("LoginNotAllowed", 403)], {
+      invite: token,
+      inviteCheck: () => ApiTesting.json({ _tag: "NotFound", resource: "invite", id: "" }, 404),
+    });
+    const line = wrapper.find("[data-test=invite]");
+    expect(line.attributes("data-state")).toBe("closed");
+    expect(line.attributes("role")).toBe("alert");
+    expect(line.text()).toContain("no longer works");
+
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(5);
+    expect(pollBodies).toEqual([{ flowId: "flow-1", invite: token }]);
+    // An account without a Stash account is told the invite is the reason.
+    expect(wrapper.find("[data-test=ended] [role=alert]").text()).toContain(
+      "invite link no longer works",
+    );
+  });
+
+  it("treats a malformed link as an invite that does not work, without asking the api", async () => {
+    const { wrapper, checks, pollBodies } = await mountPage([pending], { invite: null });
+    expect(checks).toEqual([]);
+    expect(wrapper.find("[data-test=invite]").attributes("data-state")).toBe("closed");
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(5);
+    expect(pollBodies).toEqual([{ flowId: "flow-1" }]);
+  });
+
+  it("the plain login page shows no invite line and sends no invite", async () => {
+    const { wrapper, checks, pollBodies } = await mountPage([pending]);
+    expect(wrapper.find("[data-test=invite]").exists()).toBe(false);
+    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await settle();
+    await wait(5);
+    expect(checks).toEqual([]);
+    expect(pollBodies).toEqual([{ flowId: "flow-1" }]);
   });
 });

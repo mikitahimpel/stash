@@ -11,7 +11,8 @@
 //    to the api, so prod auth is unchanged. The cookie the api sets from `/api/auth/logout` carries
 //    the same attributes as the one `poll` sets (`cookieOptions` in `@stash/backend-auth`), so a
 //    small RFC 6265 cookie jar stores the session under them, as a browser would. The jar must then
-//    send it on `<web>/api/auth/me` (answered 200 with the user). Logging out ends the session,
+//    send it on `<web>/api/auth/me` (answered 200 with the user), and `<web>/api/members/me` must
+//    say it is the owner's (#177). Logging out ends the session,
 //    and the row is deleted in any case.
 // 4. The live stream works on the web origin: with that session, `<web>/api/events` upgrades to a
 //    WebSocket through the `Web` Worker and the api to the user's `LinkEvents` Durable Object,
@@ -250,11 +251,11 @@ const main = async () => {
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   try {
     for (const token of tokens) {
-      await query("INSERT INTO sessions (id, github_login, expires_at) VALUES (?, ?, ?)", [
-        hash(token),
-        login,
-        expiresAt,
-      ]);
+      // The owner's session (#177): the user `owner`, who signs in with the allowlisted login.
+      await query(
+        "INSERT INTO sessions (id, user_id, github_login, expires_at) VALUES (?, 'owner', ?, ?)",
+        [hash(token), login, expiresAt],
+      );
     }
     const [first = "", second = ""] = tokens;
 
@@ -290,6 +291,22 @@ const main = async () => {
     check(
       me.status === 200 && JSON.parse(me.body).kind === "user",
       `/api/auth/me: ${me.status} user`,
+    );
+    // The session is the owner's, and the owner still has their links after the migration to
+    // users (#177): Settings → Members counts them.
+    const account = await request("GET", at("/api/members/me").href, { headers: { cookie: sent } });
+    const role = account.status === 200 ? JSON.parse(account.body).role : undefined;
+    check(role === "owner", `/api/members/me: ${account.status} ${role}`);
+    const people = await request("GET", at("/api/members").href, { headers: { cookie: sent } });
+    const owner =
+      people.status === 200
+        ? (JSON.parse(people.body) as Array<{ role: string; links: number }>).find(
+            (member) => member.role === "owner",
+          )
+        : undefined;
+    check(
+      owner !== undefined,
+      `/api/members: ${people.status}, the owner has ${owner?.links} links`,
     );
 
     // 4. The live stream, with the same session.

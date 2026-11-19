@@ -1,16 +1,42 @@
 <script setup lang="ts">
-import { useAtom, useAtomSet } from "@effect/atom-vue";
+import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-vue";
+import type * as Invite from "@stash/contracts-domain/invite";
 import Button from "@stash/web-ui/button";
 import CenteredScreen from "@stash/web-ui/centered-screen";
 import DeviceCode from "@stash/web-ui/device-code";
 import Wordmark from "@stash/web-ui/wordmark";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as Atom from "effect/reactivity/Atom";
 import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import * as AuthAtoms from "./auth-atoms.ts";
 import * as DeviceLoginAtoms from "./device-login-atoms.ts";
 import * as Routes from "./routes.ts";
+
+// What the page reads when it has no invite to check.
+const noInvite = Atom.make(AsyncResult.initial<DeviceLoginAtoms.InviteState>());
+
+const props = defineProps<{
+  /**
+   * The token of the invite link the page was opened with (`/invite/<token>`); `null` for a link
+   * that has not the shape of one. Not set on the plain login page.
+   */
+  invite?: Invite.InviteToken | null;
+}>();
+
+// An invite link says what it is before anyone signs in: an open invite, or one that no longer
+// works. Signing in is offered either way: someone with an account needs no invite.
+const inviteCheck = useAtomValue(() =>
+  props.invite ? DeviceLoginAtoms.invite(props.invite) : noInvite,
+);
+const inviteState = computed(() => {
+  if (props.invite === undefined) return undefined;
+  if (props.invite === null) return "closed";
+  if (AsyncResult.isSuccess(inviteCheck.value)) return inviteCheck.value.value.state;
+  // Asking failed (no connection): say nothing wrong, the sign-in itself will tell.
+  return AsyncResult.isFailure(inviteCheck.value) ? "unknown" : "checking";
+});
 
 const route = useRoute();
 const router = useRouter();
@@ -54,7 +80,7 @@ const copyCode = async () => {
 
 const restart = () => {
   copyState.value = "idle";
-  start(undefined);
+  start(props.invite ?? undefined);
 };
 
 const ended = computed(() => {
@@ -65,7 +91,10 @@ const ended = computed(() => {
       return { message: "The sign-in was declined on GitHub.", action: "Try again" };
     case "notAllowed":
       return {
-        message: "This GitHub account can't sign in to this stash.",
+        message:
+          inviteState.value === undefined
+            ? "This GitHub account has no account in this stash. Ask its owner for an invite link."
+            : "This invite link no longer works. Ask for a new one.",
         action: "Use another account",
       };
     default:
@@ -147,6 +176,21 @@ const ended = computed(() => {
     </section>
 
     <template v-else-if="login?.step !== 'complete'">
+      <!-- The line keeps its place while the invite is checked, so the button does not move. -->
+      <p
+        v-if="inviteState !== undefined"
+        class="max-w-sm text-center text-body"
+        :class="inviteState === 'checking' || inviteState === 'unknown' ? 'invisible' : undefined"
+        :role="inviteState === 'closed' ? 'alert' : undefined"
+        data-test="invite"
+        :data-state="inviteState"
+      >
+        {{
+          inviteState === "closed"
+            ? "This invite link no longer works. If you already have an account, sign in."
+            : "You're invited to this stash. Sign in with GitHub to join."
+        }}
+      </p>
       <Button as-child variant="primary" size="lg">
         <button type="button" :disabled="starting" data-test="sign-in" @click="restart">
           Sign in with GitHub

@@ -21,6 +21,7 @@
     "@effect/platform-browser": "catalog:",
     "@lucide/vue": "catalog:",
     "@stash/contracts-api": "workspace:*",
+    "@stash/contracts-domain": "workspace:*",
     "@stash/web-api-client": "workspace:*",
     "@stash/web-platform": "workspace:*",
     "@stash/web-ui": "workspace:*",

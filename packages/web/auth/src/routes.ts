@@ -1,3 +1,6 @@
+import * as Invite from "@stash/contracts-domain/invite";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import type {
   LocationQuery,
   RouteLocationNormalized,
@@ -34,11 +37,27 @@ export const returnTo = (query: LocationQuery): string => {
 export const isPublic = (route: Pick<RouteLocationNormalized, "meta">): boolean =>
   route.meta["public"] === true;
 
+/** The name of the route an invite link opens. */
+export const invite = "invite";
+
+const decodeInvite = Schema.decodeUnknownOption(Invite.InviteToken);
+
+/** The invite token of an invite link's route, if it has the shape of one. */
+export const inviteOf = (
+  params: RouteLocationNormalized["params"],
+): Invite.InviteToken | undefined => Option.getOrUndefined(decodeInvite(params["token"]));
+
+const page = () => import("./login-page.vue");
+
 export const routes: ReadonlyArray<RouteRecordRaw> = [
+  { path: "/login", name: login, component: page, meta: { public: true } },
+  // An invite link (`Invite.invitePath`): the login page, which signs a new GitHub account up
+  // with the invite. Public, like the login page.
   {
-    path: "/login",
-    name: login,
-    component: () => import("./login-page.vue"),
+    path: `${Invite.invitePath}:token`,
+    name: invite,
+    component: page,
+    props: (route) => ({ invite: inviteOf(route.params) ?? null }),
     meta: { public: true },
   },
 ];
