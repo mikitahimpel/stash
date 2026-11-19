@@ -115,6 +115,8 @@ const LinkRow = Schema.Struct({
   ...Link.Link.fields,
   tags: Schema.fromJsonString(Schema.Array(Tag.TagName)),
   post: PostColumn,
+  // Always selected (`COALESCE(l.updated_at, l.created_at)`), so a row always has it.
+  updatedAt: Schema.DateTimeUtcFromString,
 });
 
 type LinkRow = typeof LinkRow.Type;

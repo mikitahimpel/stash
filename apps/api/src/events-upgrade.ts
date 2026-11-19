@@ -31,7 +31,10 @@ export const handleEvents = async (
   if (request.method !== "GET" || new URL(request.url).pathname !== Events.path) return undefined;
   if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return undefined;
   const headers = new Headers(request.headers);
-  for (const name of [...headers.keys()]) if (upgradeHeaders.test(name)) headers.delete(name);
+  // A copy of the names: the headers change while they are walked.
+  for (const name of Array.from(headers.keys())) {
+    if (upgradeHeaders.test(name)) headers.delete(name);
+  }
   const checked = await api(new Request(request.url, { method: "GET", headers }));
   if (checked.status !== 426) return checked;
   if (namespace === undefined) return new Response("Live updates are off", { status: 503 });

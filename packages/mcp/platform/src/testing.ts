@@ -313,7 +313,22 @@ const groups = (state: State) => {
     handlers.handle("info", () => unsupported("connect.info")),
   );
 
-  return Layer.mergeAll(links, search, tabs, devices, tokens, auth, digest, pairings, connect);
+  const events = HttpApiBuilder.group(Api.StashApi, "events", (handlers) =>
+    handlers.handle("stream", () => unsupported("events.stream")),
+  );
+
+  return Layer.mergeAll(
+    links,
+    search,
+    tabs,
+    devices,
+    tokens,
+    auth,
+    digest,
+    pairings,
+    connect,
+    events,
+  );
 };
 
 /** A Service Binding whose `fetch` is answered by `handler` in-process. */
