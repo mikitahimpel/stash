@@ -5,6 +5,7 @@ import * as Errors from "@stash/contracts-domain/errors";
 import * as Link from "@stash/contracts-domain/link";
 import * as Tab from "@stash/contracts-domain/tab";
 import * as Tag from "@stash/contracts-domain/tag";
+import * as User from "@stash/contracts-domain/user";
 import { DateTime, Effect, Layer, Option, Redacted, Schema } from "effect";
 import { HttpClientRequest, HttpServer } from "effect/http";
 import { HttpApiBuilder, HttpApiMiddleware, HttpApiTest } from "effect/http-api";
@@ -15,6 +16,7 @@ import * as Security from "../src/security.ts";
 // Synthetic placeholder, not a real token.
 const deviceToken = "synthetic-test-token";
 const deviceId = Device.DeviceId.make("device-1");
+const userId = User.UserId.make("owner");
 const economics = Tag.TagName.make("economics");
 const now = DateTime.makeUnsafe("2026-01-02T03:04:05.000Z");
 
@@ -25,7 +27,10 @@ const AuthorizationStub = Layer.succeed(
   Security.Authorization.of({
     bearer: (handler, { credential }) =>
       Redacted.value(credential) === deviceToken
-        ? Effect.provideService(handler, Security.CurrentPrincipal, { kind: "device", deviceId })
+        ? handler.pipe(
+            Effect.provideService(Security.CurrentPrincipal, { kind: "device", deviceId }),
+            Effect.provideService(Security.CurrentUser, { id: userId, role: "owner" }),
+          )
         : Effect.fail(new Errors.Unauthorized({ message: "Invalid token" })),
     session: () => Effect.fail(new Errors.Unauthorized({ message: "No session" })),
   }),

@@ -16,6 +16,8 @@
     "./pairings": "./src/pairings-group.ts",
     "./connect": "./src/connect-group.ts",
     "./events": "./src/events-group.ts",
+    "./members": "./src/members-group.ts",
+    "./invites": "./src/invites-group.ts",
     "./security": "./src/security.ts",
     "./internal-api": "./src/internal-api.ts"
   },
