@@ -7,8 +7,7 @@ import * as LinksRepo from "./links-repo.ts";
 
 // The events of the live stream (`GET /events`). Every write that changes a stored link sends
 // one: an edit or a delete from any client, the cron's auto-archive, enrichment and the metadata
-// backfill. A save sends none: a link nobody lists yet changes no row on anyone's screen, and the
-// lists pick it up when they load.
+// backfill, and a save: a link saved on the phone shows up in an Inbox that is open elsewhere.
 //
 // None of these can fail, so the write that calls them is safe (see `LinkEvents`).
 
@@ -17,6 +16,25 @@ export const updated = (link: Link.Link): Effect.Effect<void, never, LinkEvents.
   Effect.gen(function* () {
     const events = yield* LinkEvents.LinkEvents;
     yield* events.publish({ type: "link.updated", at: yield* DateTime.now, link });
+  });
+
+/** The most links of one batch save that are announced. An import past that is picked up by the lists. */
+export const maxSavedEvents = 100;
+
+/**
+ * These links were just saved: one `link.updated` each, in one call. Past `maxSavedEvents` only
+ * the first ones are sent.
+ */
+export const saved = (
+  links: ReadonlyArray<Link.Link>,
+): Effect.Effect<void, never, LinkEvents.LinkEvents> =>
+  Effect.gen(function* () {
+    if (links.length === 0) return;
+    const events = yield* LinkEvents.LinkEvents;
+    const at = yield* DateTime.now;
+    yield* events.publishAll(
+      links.slice(0, maxSavedEvents).map((link) => ({ type: "link.updated" as const, at, link })),
+    );
   });
 
 /** The link is gone. */

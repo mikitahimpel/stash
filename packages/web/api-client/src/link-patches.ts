@@ -9,13 +9,21 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 // details answer, and a deleted one leaves its lists. Nothing is asked for again, so nothing
 // reloads or moves.
 //
+// A link no list holds yet (one saved a moment ago on another device) is put into the lists that
+// ask for it (`pages` with `accepts`), at its place by the time it was saved (see `insert`).
+//
 // The overlay never goes stale. Of two copies of a link the one with the later `updatedAt` is
 // current, so an answer that is newer than a patch simply wins, and a patch that is newer than an
 // answer (a page cached a minute ago, read again) is applied to it.
 
 /** What is known about one link from the stream. */
 export type Patch =
-  | { readonly _tag: "Updated"; readonly link: Link.Link }
+  | {
+      readonly _tag: "Updated";
+      readonly link: Link.Link;
+      /** When this tab learned it, in epoch ms by its own clock. */
+      readonly at: number;
+    }
   | { readonly _tag: "Deleted" };
 
 export type Patches = ReadonlyMap<Link.LinkId, Patch>;
@@ -100,6 +108,58 @@ const walk = (value: unknown, patches: Patches): unknown => {
   return next ?? value;
 };
 
+/**
+ * How long before a list's answer arrived a patch may have come and still be inserted into it, in
+ * ms: a save that was committed while the list's request was on its way is not in that answer.
+ */
+export const insertGraceMillis = 10_000;
+
+const created = (link: Link.Link): number => DateTime.toEpochMillis(link.createdAt);
+
+/**
+ * `items` (a newest-first list of links, as far as it is loaded) with the links the stream
+ * brought that it does not hold: each one `accepts` takes, at its place by `createdAt`. Returns
+ * `items` itself when there is none.
+ *
+ * Only what is certain goes in. A link older than the last loaded one belongs to a page that is
+ * not loaded yet (unless the list is `done`). A patch that came well before the answer
+ * (`answeredAt`, epoch ms) is left out too: the api did not list that link then, so it was
+ * deleted or changed since, in a gap of the stream.
+ */
+export const insert = <A extends Link.Link>(
+  items: ReadonlyArray<A>,
+  options: {
+    readonly done: boolean;
+    readonly patches: Patches;
+    readonly accepts: (link: Link.Link) => boolean;
+    readonly answeredAt: number;
+  },
+): ReadonlyArray<A> => {
+  const { patches, accepts } = options;
+  if (patches.size === 0) return items;
+  const held = new Set<string>(items.map((item) => item.id));
+  const last = items.at(-1);
+  const oldest = options.done || last === undefined ? -Infinity : created(last);
+  const fresh: Array<Link.Link> = [];
+  for (const patch of patches.values()) {
+    if (patch._tag !== "Updated" || held.has(patch.link.id)) continue;
+    if (patch.at < options.answeredAt - insertGraceMillis) continue;
+    if (created(patch.link) < oldest || !accepts(patch.link)) continue;
+    fresh.push(patch.link);
+  }
+  if (fresh.length === 0) return items;
+  fresh.sort((a, b) => created(b) - created(a));
+  const next: Array<A> = [];
+  let i = 0;
+  for (const item of items) {
+    // A link saved at the same instant as a listed one goes after it: the list keeps its order.
+    while (i < fresh.length && created(fresh[i]!) > created(item)) next.push(fresh[i++] as A);
+    next.push(item);
+  }
+  while (i < fresh.length) next.push(fresh[i++] as A);
+  return next;
+};
+
 /** The ids of the links in `value` that enrichment has not reached yet, at any depth. */
 export const pendingIds = (
   value: unknown,
@@ -133,7 +193,7 @@ export const update = (registry: AtomRegistry.AtomRegistry, link: Link.Link): vo
   const known = registry.get(state).get(link.id);
   if (known?._tag === "Deleted") return;
   if (known?._tag === "Updated" && !isNewer(link, known.link)) return;
-  put(registry, link.id, { _tag: "Updated", link });
+  put(registry, link.id, { _tag: "Updated", link, at: Date.now() });
 };
 
 /** Takes the link out of every cached list. */

@@ -128,5 +128,12 @@ export const layer = Layer.mergeAll(
   LinksRepo.layer,
   SaveRateLimiter.layer(),
 ).pipe(
-  Layer.provideMerge(Layer.mergeAll(layerDatabase, Testing.layerEnrichmentQueue, Testing.layerKv)),
+  Layer.provideMerge(
+    Layer.mergeAll(
+      layerDatabase,
+      Testing.layerEnrichmentQueue,
+      Testing.layerKv,
+      Testing.layerLinkEvents,
+    ),
+  ),
 );

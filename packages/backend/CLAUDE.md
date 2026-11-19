@@ -49,8 +49,8 @@ services and never on `env` or `fetch` directly. Outbound HTTP goes through the 
 - Retries and timeouts use Effect `Schedule`, not hand-written loops.
 - **Every write that changes a link tells the live stream.** After the write, publish through
   `@stash/backend-links/publish-link-event` (`updated`, `deleted`, or `changed(id)` to read the
-  link first). It never fails and never waits long, so it cannot break the write. Saving a new link
-  publishes nothing. Change a link through `UpdateLink` / `DeleteLink`, not through the repo, so
+  link first, or `saved(links)` for new ones: `storeLinks` calls it, one call per batch). It never
+  fails and never waits long, so it cannot break the write. Change a link through `UpdateLink` / `DeleteLink`, not through the repo, so
   the event is not forgotten. The stream itself is `link-events.ts` (the `LinkEvents` service) and
   `link-events-object.ts` (the Durable Object's logic) in `@stash/backend-platform`.
 - SQL lives next to the feature that owns the table (`links-repo.ts`). Migrations live in one place:

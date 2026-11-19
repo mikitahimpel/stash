@@ -182,10 +182,9 @@ describe("link events", () => {
   it.effect("publishes the whole link once for an update", () =>
     Effect.gen(function* () {
       const saved = yield* save;
-      // A save changes no row on anyone's screen, so it sends nothing.
-      expect(yield* published).toEqual([]);
       const updated = yield* UpdateLink.updateLink(saved.id, { status: "done" });
-      expect(yield* published).toEqual([
+      // After the save's own event.
+      expect((yield* published).slice(1)).toEqual([
         { type: "link.updated", at: yield* DateTime.now, link: updated },
       ]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
@@ -197,7 +196,7 @@ describe("link events", () => {
       yield* DeleteLink.deleteLink(saved.id);
       yield* DeleteLink.deleteLink(saved.id).pipe(Effect.flip);
       yield* UpdateLink.updateLink(missing, { status: "seen" }).pipe(Effect.flip);
-      expect(yield* published).toEqual([
+      expect((yield* published).slice(1)).toEqual([
         { type: "link.deleted", at: yield* DateTime.now, id: saved.id },
       ]);
     }).pipe(Effect.provide(LinksTestLayer.layer())),
@@ -211,7 +210,7 @@ describe("link events", () => {
       );
       yield* PublishLinkEvent.changed(saved.id);
       yield* PublishLinkEvent.changed(missing);
-      const events = yield* published;
+      const events = (yield* published).slice(1);
       expect(events).toHaveLength(1);
       expect(events[0]).toMatchObject({ type: "link.updated", link: { summary: "A summary." } });
     }).pipe(Effect.provide(LinksTestLayer.layer())),

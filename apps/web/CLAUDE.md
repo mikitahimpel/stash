@@ -117,7 +117,10 @@ Feature behavior is tested in `packages/web/*`.
 - `scripts/live-updates.ts` (`pnpm --filter @stash/web check:live-updates`, after a build; the
   same CI job): plays the api's event stream to the built app and fails unless a pending Inbox
   row turns from `summarizing…` into its summary with no reload, no request, the same row height
-  and a Cumulative Layout Shift of at most 0.01, at desktop and phone width.
+  and a Cumulative Layout Shift of at most 0.01, and unless a link saved on another device then
+  appears on top of the Inbox under the same limits, at desktop and phone width. The browser
+  checks share `STASH_AUDIT_PORT` (default 4179) and reuse whatever answers there: set another
+  port when a second worktree may be serving its own build.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
   job runs it after the audit): walks each Connect guide (in Settings; the iPhone one through the old `/connect?guide=` address),
   the extension approve page, `/search?q=` and `/save`

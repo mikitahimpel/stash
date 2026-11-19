@@ -42,6 +42,16 @@ export const broadcast = (
   return sent;
 };
 
+/** Sends each line of a publish body (one event per line) to every socket, in order. */
+export const broadcastAll = (
+  sockets: ReadonlyArray<Pick<WebSocket, "send">>,
+  body: string,
+): number => {
+  let sent = 0;
+  for (const text of body.split("\n")) if (text !== "") sent = broadcast(sockets, text);
+  return sent;
+};
+
 /**
  * The object's handlers. The class the Worker exports extends `DurableObject` (from
  * `cloudflare:workers`, which only the Worker can import) and hands each call to this one.
@@ -56,7 +66,7 @@ export class LinkEventsObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === LinkEvents.publishPath) {
-      const sent = broadcast(this.state.getWebSockets(), await request.text());
+      const sent = broadcastAll(this.state.getWebSockets(), await request.text());
       return Response.json({ sent });
     }
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {

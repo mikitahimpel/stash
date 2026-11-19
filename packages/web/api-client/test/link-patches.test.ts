@@ -19,7 +19,7 @@ const enriched = (id: string, at: string) =>
   decode(id, { summary: `Summary of ${id}.`, enrichedAt: at, updatedAt: at, tags: ["economics"] });
 
 const updated = (link: Link.Link): LinkPatches.Patches =>
-  new Map([[link.id, { _tag: "Updated", link }]]);
+  new Map([[link.id, { _tag: "Updated", link, at: 1000 }]]);
 const deleted = (id: string): LinkPatches.Patches =>
   new Map([[Link.LinkId.make(id), { _tag: "Deleted" }]]);
 
@@ -94,6 +94,70 @@ describe("LinkPatches.apply", () => {
       ).hits,
     ).toEqual([{ link: b, score: 1 }]);
     expect(LinkPatches.apply(a, deleted("a"))).toBe(a);
+  });
+});
+
+describe("LinkPatches.insert", () => {
+  const at = (id: string, createdAt: string, fields: Record<string, unknown> = {}) =>
+    decode(id, { createdAt, ...fields });
+  const day = (n: number) => `2026-01-0${n}T00:00:00.000Z`;
+  const items = [at("c", day(5)), at("b", day(3)), at("a", day(1))];
+  const patchesOf = (...links: ReadonlyArray<Link.Link>): LinkPatches.Patches =>
+    new Map(links.map((link) => [link.id, { _tag: "Updated", link, at: 1000 }]));
+  const options = { done: false, accepts: () => true, answeredAt: 1000 };
+  const ids = (links: ReadonlyArray<Link.Link>) => links.map((link) => link.id);
+
+  it("puts a new link at its place by the time it was saved", () => {
+    const patches = patchesOf(at("new", day(6)), at("mid", day(4)), at("mid2", day(2)));
+    expect(ids(LinkPatches.insert(items, { ...options, patches }))).toEqual([
+      "new",
+      "c",
+      "mid",
+      "b",
+      "mid2",
+      "a",
+    ]);
+  });
+
+  it("returns the very same list when there is nothing to put in", () => {
+    expect(LinkPatches.insert(items, { ...options, patches: new Map() })).toBe(items);
+    // A link the list holds is only replaced (by `apply`), never added twice.
+    expect(LinkPatches.insert(items, { ...options, patches: patchesOf(items[1]!) })).toBe(items);
+    expect(LinkPatches.insert(items, { ...options, patches: deleted("gone") })).toBe(items);
+  });
+
+  it("leaves out a link the list's filters do not take", () => {
+    const patches = patchesOf(at("seen", day(6), { status: "seen" }), at("new", day(7)));
+    const accepts = (link: Link.Link) => link.status === "new";
+    expect(ids(LinkPatches.insert(items, { ...options, accepts, patches }))).toEqual([
+      "new",
+      "c",
+      "b",
+      "a",
+    ]);
+  });
+
+  it("leaves a link older than the last loaded one to its page, unless the list is done", () => {
+    const patches = patchesOf(at("old", "2025-12-01T00:00:00.000Z"));
+    expect(LinkPatches.insert(items, { ...options, patches })).toBe(items);
+    expect(ids(LinkPatches.insert(items, { ...options, done: true, patches }))).toEqual([
+      "c",
+      "b",
+      "a",
+      "old",
+    ]);
+    expect(ids(LinkPatches.insert([], { ...options, done: true, patches }))).toEqual(["old"]);
+  });
+
+  it("leaves out a link the api did not list in a later answer", () => {
+    const patches = patchesOf(at("new", day(6)));
+    // The answer came long after the patch and has no such link: it was deleted since.
+    const later = 1000 + LinkPatches.insertGraceMillis + 1;
+    expect(LinkPatches.insert(items, { ...options, answeredAt: later, patches })).toBe(items);
+    // An answer that was on its way while the link was saved may just have missed it.
+    expect(
+      ids(LinkPatches.insert(items, { ...options, answeredAt: later - 2, patches })),
+    ).toContain("new");
   });
 });
 

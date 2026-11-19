@@ -86,7 +86,12 @@ const keywordSearch = (q: string) =>
       WHERE links_fts MATCH ${q}`),
   ).pipe(Effect.map((rows) => rows.map((r) => r["id"])));
 
-const published = Effect.flatMap(Testing.TestLinkEvents, (events) => events.published);
+// What enrichment published: the events after the save's own (the link as saved, not enriched).
+const published = Effect.flatMap(Testing.TestLinkEvents, (events) => events.published).pipe(
+  Effect.map((events) =>
+    events.filter((event) => event.type !== "link.updated" || event.link.enrichedAt !== null),
+  ),
+);
 
 describe("enrichLink", () => {
   it.effect("stores the enrichment when the live stream cannot be reached", () =>

@@ -47,6 +47,29 @@ describe("LinkEvents", () => {
     }),
   );
 
+  it.effect("posts several events in one call, one per line, and nothing for none", () =>
+    Effect.gen(function* () {
+      const { namespace, calls } = fakeNamespace(async () => ({ status: 200 }));
+      const events = LinkEvents.make(namespace, "example-user");
+      yield* events.publishAll([]);
+      expect(calls).toHaveLength(0);
+      yield* events.publishAll([deleted, { ...deleted, id: Link.LinkId.make("link-2") }]);
+      expect(calls).toHaveLength(1);
+      const lines = calls[0]!.body.split("\n");
+      expect(lines.map((line) => (JSON.parse(line) as { id: string }).id)).toEqual([
+        "link-1",
+        "link-2",
+      ]);
+      // The object sends each line as its own message.
+      const sent: Array<string> = [];
+      LinkEventsObject.broadcastAll(
+        [{ send: (text) => void sent.push(String(text)) }],
+        calls[0]!.body,
+      );
+      expect(sent).toEqual(lines);
+    }),
+  );
+
   it.effect("never fails: an object that rejects or throws only loses the event", () =>
     Effect.gen(function* () {
       const rejecting = fakeNamespace(() => Promise.reject(new Error("object is overloaded")));

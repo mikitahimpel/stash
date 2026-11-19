@@ -17,10 +17,15 @@ export class LinkEvents extends Context.Service<
   {
     /** Sends the event to every open stream of the user. */
     readonly publish: (event: Published) => Effect.Effect<void>;
+    /** Sends several events in one call, in order: the links of one batch save. */
+    readonly publishAll: (events: ReadonlyArray<Published>) => Effect.Effect<void>;
   }
 >()("@stash/backend-platform/LinkEvents") {}
 
-/** The path of the object that takes an event to broadcast. Any other path opens a stream. */
+/**
+ * The path of the object that takes events to broadcast: one JSON text per line of the body (the
+ * JSON of an event has no line break in it). Any other path opens a stream.
+ */
 export const publishPath = "/publish";
 
 /** How long a publish may take before the write goes on without it. */
@@ -47,21 +52,27 @@ export const stub = <S>(namespace: Namespace<S>, user: string): S =>
 const encode = Schema.encodeSync(LinkEvent.LinkEventFromJson);
 
 /** Publishes to the user's object. */
-export const make = (namespace: Namespace, user: string): LinkEvents["Service"] => ({
-  publish: (event) =>
-    Effect.tryPromise(() =>
-      stub(namespace, user).fetch(`https://link-events${publishPath}`, {
-        method: "POST",
-        body: encode(event),
-      }),
-    ).pipe(
-      Effect.timeout(publishTimeoutMillis),
-      Effect.asVoid,
-      Effect.catchCause((cause) =>
-        Effect.logWarning(`link events: ${event.type} was not published`, cause),
-      ),
-    ),
-});
+export const make = (namespace: Namespace, user: string): LinkEvents["Service"] => {
+  const publishAll = (events: ReadonlyArray<Published>): Effect.Effect<void> =>
+    events.length === 0
+      ? Effect.void
+      : Effect.tryPromise(() =>
+          stub(namespace, user).fetch(`https://link-events${publishPath}`, {
+            method: "POST",
+            body: events.map((event) => encode(event)).join("\n"),
+          }),
+        ).pipe(
+          Effect.timeout(publishTimeoutMillis),
+          Effect.asVoid,
+          Effect.catchCause((cause) =>
+            Effect.logWarning(
+              `link events: ${events.map((event) => event.type).join(", ")} not published`,
+              cause,
+            ),
+          ),
+        );
+  return { publish: (event) => publishAll([event]), publishAll };
+};
 
 export const layer = (namespace: Namespace, user: string): Layer.Layer<LinkEvents> =>
   Layer.succeed(LinkEvents)(make(namespace, user));
@@ -69,4 +80,5 @@ export const layer = (namespace: Namespace, user: string): Layer.Layer<LinkEvent
 /** Publishes nowhere: for a Worker deployed without the binding. */
 export const layerNoop: Layer.Layer<LinkEvents> = Layer.succeed(LinkEvents)({
   publish: () => Effect.void,
+  publishAll: () => Effect.void,
 });

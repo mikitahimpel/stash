@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Link from "@stash/contracts-domain/link";
+import * as LinkEvent from "@stash/contracts-domain/link-event";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -7,6 +8,7 @@ import * as Layer from "effect/Layer";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 import * as Context from "effect/Context";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as ApiAtoms from "../src/api-atoms.ts";
 import * as LinkPatches from "../src/link-patches.ts";
@@ -331,5 +333,85 @@ describe("ApiAtoms with live patches", () => {
     expect([...LinkPatches.pending(app.registry)].sort()).toEqual(["a", "b"]);
     LinkPatches.record(app.registry, JSON.parse(updated("a", t1)) as never);
     await expect.poll(() => [...LinkPatches.pending(app.registry)]).toEqual(["b"]);
+  });
+});
+
+describe("ApiAtoms.pages with accepts", () => {
+  const day = (n: number) => `2026-01-0${n}T00:00:00.000Z`;
+  const on = (id: string, n: number, fields: Record<string, unknown> = {}) => ({
+    ...Fixtures.link(id),
+    createdAt: day(n),
+    updatedAt: day(n),
+    ...fields,
+  });
+  const event = (link: unknown) =>
+    Schema.decodeUnknownSync(LinkEvent.LinkEvent)({ type: "link.updated", at: day(9), link });
+
+  /** A feed of unseen links in two pages (`c`, `b`, then `a`), or an empty one. */
+  const open = async (options: { readonly empty?: boolean } = {}) => {
+    const asked: Array<string | undefined> = [];
+    const registry = Testing.makeRegistry({
+      "GET /links": (request) => {
+        const cursor = Object.fromEntries(request.urlParams)["cursor"];
+        asked.push(cursor === undefined ? undefined : String(cursor));
+        if (options.empty) return Testing.json({ items: [], nextCursor: null });
+        return cursor === undefined
+          ? Testing.json({ items: [on("c", 5), on("b", 3)], nextCursor: "next" })
+          : Testing.json({ items: [on("a", 1)], nextCursor: null });
+      },
+    });
+    const feed = ApiAtoms.pages(
+      ["links"],
+      (client, cursor) => client.links.list({ query: cursor === undefined ? {} : { cursor } }),
+      { accepts: (link) => link.status === "new" },
+    );
+    const leave = registry.mount(feed);
+    cleanups.push(() => {
+      leave();
+      registry.dispose();
+    });
+    await expect.poll(() => !AsyncResult.isInitial(registry.get(feed))).toBe(true);
+    await tick(10);
+    const ids = () => {
+      const result = registry.get(feed);
+      return AsyncResult.isSuccess(result) ? result.value.items.map((link) => link.id) : null;
+    };
+    return { registry, feed, asked, ids };
+  };
+
+  it("puts a link saved elsewhere at its place, with no request, and takes a deleted one out", async () => {
+    const app = await open();
+    const requests = app.asked.length;
+    LinkPatches.record(app.registry, event(on("new", 6)));
+    LinkPatches.record(app.registry, event(on("mid", 4)));
+    // Not this feed's: a seen link, and one older than what is loaded (its page will bring it).
+    LinkPatches.record(app.registry, event(on("seen", 7, { status: "seen" })));
+    LinkPatches.record(app.registry, event(on("old", 2)));
+    expect(app.ids()).toEqual(["new", "c", "mid", "b"]);
+
+    LinkPatches.remove(app.registry, Link.LinkId.make("new"));
+    expect(app.ids()).toEqual(["c", "mid", "b"]);
+    await tick(20);
+    expect(app.asked.length).toBe(requests);
+  });
+
+  it("keeps the new link when the next page loads", async () => {
+    const app = await open();
+    LinkPatches.record(app.registry, event(on("new", 6)));
+    app.registry.set(app.feed, undefined);
+    await expect.poll(() => app.ids()?.length).toBe(4);
+    expect(app.ids()).toEqual(["new", "c", "b", "a"]);
+    // The list is done: an old link belongs to it now.
+    LinkPatches.record(app.registry, event(on("old", 2)));
+    expect(app.ids()).toEqual(["new", "c", "b", "old", "a"]);
+  });
+
+  it("turns an empty list into one with the new link", async () => {
+    const app = await open({ empty: true });
+    expect(AsyncResult.isFailure(app.registry.get(app.feed))).toBe(true);
+    LinkPatches.record(app.registry, event(on("first", 6)));
+    expect(app.ids()).toEqual(["first"]);
+    const result = app.registry.get(app.feed);
+    expect(AsyncResult.isSuccess(result) && result.value.done).toBe(true);
   });
 });

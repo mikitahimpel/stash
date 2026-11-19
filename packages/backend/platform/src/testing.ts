@@ -232,6 +232,7 @@ export const layerLinkEvents: Layer.Layer<LinkEvents.LinkEvents | TestLinkEvents
       const events: Array<LinkEvents.Published> = [];
       return Context.make(LinkEvents.LinkEvents, {
         publish: (event) => Effect.sync(() => void events.push(event)),
+        publishAll: (all) => Effect.sync(() => void events.push(...all)),
       }).pipe(Context.add(TestLinkEvents, { published: Effect.sync(() => [...events]) }));
     }),
   );

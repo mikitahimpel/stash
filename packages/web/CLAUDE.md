@@ -75,6 +75,10 @@ layers.
   `ApiAtoms.pages` lay those patches over their answers when read: any link-shaped object in an
   answer is replaced by a later copy (`updatedAt` decides), and a deleted link leaves its lists. A
   patch is not a request and does not refresh anything, so a row keeps its place and its height.
+  A newest-first list of links that passes `accepts` to `ApiAtoms.pages` (its filters, as
+  `LinksAtoms.lists`) also gets the links it does not hold yet, such as one saved on another
+  device, at their place by `createdAt`; the Inbox then slides the rows under a new one down
+  from where they were (`list/keep-place.ts`), which the browser counts as no layout shift.
   Features need no code for this; keep api answers plain data with whole `Link`s in them. On
   reconnect and on window focus it catches up with `GET /links?updatedSince=`; without a stream it
   asks only for the pending links on screen (`?ids=`, 3 s backing off to 30 s, nothing when none

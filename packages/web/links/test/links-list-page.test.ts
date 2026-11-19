@@ -1,6 +1,9 @@
 import { DOMWrapper, enableAutoUnmount, type VueWrapper } from "@vue/test-utils";
+import * as LinkEvent from "@stash/contracts-domain/link-event";
+import * as LinkPatches from "@stash/web-api-client/link-patches";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as LinksAtoms from "../src/links-atoms.ts";
 import * as Fixtures from "./fixtures.ts";
@@ -707,5 +710,91 @@ describe("link actions", () => {
     await wrapper.find("[data-action=seen]").trigger("click");
     await settle();
     expect(wrapper.find("[role=alert]").text()).toContain("didn't work");
+  });
+});
+
+describe("inbox page, live", () => {
+  const event = (type: string, fields: Record<string, unknown>) =>
+    Schema.decodeUnknownSync(LinkEvent.LinkEvent)({
+      type,
+      at: "2026-01-02T00:00:00.000Z",
+      ...fields,
+    });
+  const fromPhone = Fixtures.link("phone", {
+    title: "Saved on the phone",
+    createdAt: "2026-01-01T09:00:00.000Z",
+    sourceDeviceId: "device-1",
+    summary: null,
+    type: null,
+    tags: [],
+    enrichedAt: null,
+  });
+
+  it("shows a link saved on another device at its place, with no request", async () => {
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.link("a", { createdAt: "2026-01-01T10:00:00.000Z" }),
+        Fixtures.link("b", { createdAt: "2026-01-01T08:00:00.000Z" }),
+      ]),
+    });
+    const { wrapper, registry } = await mountAt("/links", api.routes);
+    await vi.waitFor(() => expect(titles(wrapper)).toHaveLength(2));
+    await settle();
+    const requests = api.queries.length;
+
+    LinkPatches.record(registry, event("link.updated", { link: fromPhone }));
+    await vi.waitFor(() =>
+      expect(titles(wrapper)).toEqual([
+        "Example article a",
+        "Saved on the phone",
+        "Example article b",
+      ]),
+    );
+    expect(wrapper.find("[data-slot=link-summarizing]").exists()).toBe(true);
+    expect(wrapper.find("[data-slot=group-header-count]").text()).toContain("3");
+
+    // Enrichment finishes, then the link is deleted elsewhere: the same row, then none.
+    LinkPatches.record(
+      registry,
+      event("link.updated", {
+        link: {
+          ...fromPhone,
+          summary: "A summary from the stream.",
+          enrichedAt: "2026-01-01T09:01:00.000Z",
+          updatedAt: "2026-01-01T09:01:00.000Z",
+        },
+      }),
+    );
+    await vi.waitFor(() => expect(wrapper.text()).toContain("A summary from the stream."));
+    LinkPatches.record(registry, event("link.deleted", { id: "phone" }));
+    await vi.waitFor(() => expect(titles(wrapper)).toHaveLength(2));
+    await settle();
+    expect(api.queries.length).toBe(requests);
+  });
+
+  it("keeps a link out of a feed whose filters do not take it", async () => {
+    const api = listing({ first: Fixtures.page([Fixtures.link("a", { tags: ["go"] })]) });
+    const { wrapper, registry } = await mountAt("/links?tag=go", api.routes);
+    await vi.waitFor(() => expect(titles(wrapper)).toHaveLength(1));
+    LinkPatches.record(registry, event("link.updated", { link: fromPhone }));
+    await settle();
+    expect(titles(wrapper)).toEqual(["Example article a"]);
+    // Enrichment tags it: now it belongs here.
+    LinkPatches.record(
+      registry,
+      event("link.updated", {
+        link: { ...fromPhone, tags: ["go"], updatedAt: "2026-01-01T09:01:00.000Z" },
+      }),
+    );
+    await vi.waitFor(() => expect(titles(wrapper)).toHaveLength(2));
+  });
+
+  it("starts an empty Inbox with the first link saved elsewhere", async () => {
+    const api = listing({});
+    const { wrapper, registry } = await mountAt("/links", api.routes);
+    await settle();
+    expect(titles(wrapper)).toEqual([]);
+    LinkPatches.record(registry, event("link.updated", { link: fromPhone }));
+    await vi.waitFor(() => expect(titles(wrapper)).toEqual(["Saved on the phone"]));
   });
 });

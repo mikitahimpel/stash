@@ -4,6 +4,7 @@ import * as Link from "@stash/contracts-domain/link";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as LinksRepo from "../links-repo.ts";
+import * as PublishLinkEvent from "../publish-link-event.ts";
 import * as CanonicalizeUrl from "./canonicalize-url.ts";
 import * as SaveRateLimiter from "./save-rate-limiter.ts";
 
@@ -12,7 +13,8 @@ import * as SaveRateLimiter from "./save-rate-limiter.ts";
  * with whether this call created it (`created: false` for a link that was stored already). A
  * link whose canonical URL is already stored (or appears earlier in the same call) is not saved
  * again: the existing link is returned unchanged. Each newly stored link is enqueued for
- * enrichment. A save attributed to a device (its token, or an input `deviceId` from a caller
+ * enrichment and announced on the live stream (`link.updated`), so it appears in an Inbox that is
+ * open on another device. A save attributed to a device (its token, or an input `deviceId` from a caller
  * without one) also becomes that device's latest save.
  */
 export const storeLinks = Effect.fn("storeLinks")(function* (
@@ -35,6 +37,7 @@ export const storeLinks = Effect.fn("storeLinks")(function* (
   const stored = yield* repo.insertAll(newLinks);
   const inserted = stored.filter((link, i) => isCreated(link, newLinks[i]));
   yield* queue.sendBatch(inserted.map((link) => ({ linkId: link.id })));
+  yield* PublishLinkEvent.saved(inserted);
   return stored.map((link, i) => ({ link, created: isCreated(link, newLinks[i]) }));
 });
 

@@ -9,7 +9,10 @@
 // - the row does not say `summarizing…` before the event, or still does after it,
 // - the summary of the `link.updated` event does not show (desktop; a phone row has no summary
 //   line), or the Inbox was asked for again, or the page was loaded again,
-// - the row changes its height, or the Cumulative Layout Shift from the event on is over `maxCls`.
+// - the row changes its height, or the Cumulative Layout Shift from the event on is over `maxCls`,
+// - a link saved on another device (a `link.updated` for a link the page does not hold) does not
+//   appear on top of the Inbox with its device's name, or it takes a request, or the rows under it
+//   do not end one row lower, or the page shifts by more than `maxCls` while they make room.
 import { type Browser, chromium, type Page, type WebSocketRoute } from "playwright";
 import * as Fixtures from "./layout-fixtures.ts";
 import { boxes, record, shifts } from "./loading-states-probe.ts";
@@ -32,6 +35,9 @@ const viewports = [
 const pendingId = "seed-link-pending";
 const summary = "A synthetic summary that the live stream brought, with no reload of the page.";
 const row = `[data-slot=link-row]:has(a[href="/links/${pendingId}"])`;
+
+const phoneId = "seed-link-phone";
+const phoneRow = `[data-slot=link-row]:has(a[href="/links/${phoneId}"])`;
 
 const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
@@ -66,16 +72,34 @@ const enrichedLink = (now: number) => ({
   enrichedAt: new Date(now).toISOString(),
 });
 
+/** A link saved on another device a moment after the page loaded. */
+const phoneLink = (now: number, deviceId: string) => ({
+  ...pendingLink(now),
+  id: phoneId,
+  url: "https://example.com/live/from-the-phone",
+  title: "A link saved on the phone just now",
+  sourceDeviceId: deviceId,
+  createdAt: new Date(now + 1000).toISOString(),
+  updatedAt: new Date(now + 1000).toISOString(),
+});
+
 interface Api {
   /** The streams the page opened. */
   readonly streams: Array<WebSocketRoute>;
   /** How often the Inbox was asked for. */
   lists: number;
+  /** A device of the fixtures: its id and name. */
+  readonly device: { readonly id: string; readonly name: string };
 }
 
 const answer = async (page: Page, now: number): Promise<Api> => {
   const fixtures = Fixtures.seeded(now);
-  const api: Api = { streams: [], lists: 0 };
+  const [device] = fixtures.answer("GET", new URL(`${baseUrl}/api/devices`)) as ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+  }>;
+  if (device === undefined) throw new Error("the fixtures have no device");
+  const api: Api = { streams: [], lists: 0, device };
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -190,10 +214,66 @@ const main = async () => {
       }
       if (shift > maxCls) found.push(`CLS ${shift.toFixed(4)} > ${maxCls}: ${moved.join("; ")}`);
       if (api.lists !== listsBefore) found.push("the Inbox was asked for again");
+
+      // A link saved on another device: it appears on top, and the rows make room without a jump.
+      for (const stream of api.streams) {
+        stream.send(
+          JSON.stringify({
+            type: "link.updated",
+            at: new Date(now + 1000).toISOString(),
+            link: phoneLink(now, api.device.id),
+          }),
+        );
+      }
+      const appeared = await page
+        .locator(phoneRow)
+        .waitFor({ timeout: 5000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      if (!appeared) found.push("the link saved on another device did not appear");
+      // The rows slide to their place.
+      await page.waitForLoadState("networkidle");
+      await sleep(800);
+      const placed = await page.locator("body").evaluate(boxes, { row, phone: phoneRow });
+      const inserted = await page.locator("body").evaluate(shifts);
+      const insertShift = inserted.cls - cls;
+      if (appeared && placed["phone"] != null && after != null && placed["row"] != null) {
+        const first = await page.locator("[data-slot=link-row]").first().getAttribute("data-slot");
+        const top = await page
+          .locator("[data-slot=link-row] a[href^='/links/']")
+          .first()
+          .getAttribute("href");
+        if (first === null || top !== `/links/${phoneId}`) {
+          found.push(`the new link is not on top of the Inbox (${String(top)} is)`);
+        }
+        if (Math.abs(placed["phone"].y - after.y) > maxOff) {
+          found.push(
+            `the new row stands at ${placed["phone"].y.toFixed(1)}, not where the first row was (${after.y.toFixed(1)})`,
+          );
+        }
+        const moved = placed["row"].y - after.y;
+        if (Math.abs(moved - placed["phone"].height) > maxOff) {
+          found.push(
+            `the row under it moved ${moved.toFixed(1)}px, not one row (${placed["phone"].height.toFixed(1)}px)`,
+          );
+        }
+        if (viewport.summary) {
+          const text = (await page.locator(phoneRow).textContent()) ?? "";
+          if (!text.includes(api.device.name)) found.push("the new row does not name its device");
+        }
+      }
+      if (insertShift > maxCls) {
+        found.push(
+          `CLS ${insertShift.toFixed(4)} > ${maxCls} when a link arrived: ${inserted.moved.slice(moved.length).join("; ")}`,
+        );
+      }
+      if (api.lists !== listsBefore) found.push("the Inbox was asked for again for the new link");
       if (loads !== 1) found.push(`the page loaded ${loads} times`);
 
       console.log(
-        `${found.length === 0 ? "✓" : "✗"} inbox · ${viewport.name}  CLS ${shift.toFixed(4)}`,
+        `${found.length === 0 ? "✓" : "✗"} inbox · ${viewport.name}  CLS ${shift.toFixed(4)} enriched, ${insertShift.toFixed(4)} saved elsewhere`,
       );
       for (const problem of found) problems.push(`inbox · ${viewport.name}: ${problem}`);
       await context.close();

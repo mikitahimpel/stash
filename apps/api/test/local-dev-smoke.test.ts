@@ -230,7 +230,9 @@ describe("alchemy dev (local, no credentials)", () => {
     const second = await openStream("/events", { authorization });
     try {
       const events = (from: { readonly messages: Array<string> }) =>
-        from.messages.map((text) => JSON.parse(text) as { type: string; link?: { id: string } });
+        from.messages.map(
+          (text) => JSON.parse(text) as { type: string; link?: { id: string; status: string } },
+        );
       await waitFor(
         "stream.ready",
         async () => (events(stream)[0]?.type === "stream.ready" ? true : undefined),
@@ -248,17 +250,19 @@ describe("alchemy dev (local, no credentials)", () => {
       });
       expect(patched.status).toBe(200);
 
-      // Every open stream of the user gets the whole link, once.
+      // Every open stream of the user gets the whole link: once for the save (so it appears in
+      // an Inbox open on another device), once for the change.
       for (const open of [stream, second]) {
+        const mine = () =>
+          events(open).filter(
+            (event) => event.type === "link.updated" && event.link?.id === link.id,
+          ) as Array<{ link: { id: string; status: string } }>;
         await waitFor(
-          "link.updated",
-          async () =>
-            events(open).some((event) => event.type === "link.updated") ? true : undefined,
+          "link.updated twice",
+          async () => (mine().length >= 2 ? true : undefined),
           10_000,
         );
-        const updates = events(open).filter((event) => event.type === "link.updated");
-        expect(updates).toHaveLength(1);
-        expect(updates[0]).toMatchObject({ link: { id: link.id, status: "seen" } });
+        expect(mine().map((event) => event.link.status)).toEqual(["new", "seen"]);
       }
 
       // The catch-up call a client makes after a gap finds the same change.
