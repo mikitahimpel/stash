@@ -25,7 +25,7 @@ Never import `@stash/mcp-*`, `@stash/web-*` or `@stash/ext-*`. oxlint enforces t
 ## Platform
 
 `@stash/backend-platform`. The Worker entry builds the live layers from `env` (D1, Queue,
-Vectorize, R2, KV, Workers AI) and provides them to the feature layers. The entry may touch `env`
+Vectorize, R2, KV, Workers AI, the `LinkEvents` Durable Object) and provides them to the feature layers. The entry may touch `env`
 and the `fetch` / `queue` / `scheduled` handler arguments. Nothing else here should.
 
 ## Rules
@@ -56,11 +56,17 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
 - `src/smoke-routes.ts`: dev-only `/_smoke/*` routes (on only under `alchemy dev`), with the
   synthetic screenshot data in `src/smoke-seed.ts`.
 - `src/login-not-configured.ts`: 503 on the device flow routes while `GITHUB_CLIENT_ID` is unset.
+- `src/events-upgrade.ts`: the WebSocket upgrade of `GET /events`. Effect's router cannot return
+  a Workers WebSocket response, so the Worker asks the router first without the upgrade headers
+  (the same `Authorization` middleware answers 401, or 426 when the caller may connect) and then
+  hands the request to the user's `LinkEvents` Durable Object. `worker.ts` exports that class
+  (`LinkEvents`, a thin shell over `LinkEventsObject` from `@stash/backend-platform`); the
+  binding `LINK_EVENTS` and its class migration are declared in `alchemy.run.ts`.
 - `src/worker-env.ts`: binding types. Keep it in sync with the `Api` Worker's `env` in the root
   `alchemy.run.ts` (see [docs/alchemy.md](../../docs/alchemy.md)).
 - `migrations/NNNN-<name>.sql`: the D1 schema, one forward-only file per change (never edit an
   applied file). Alchemy applies them in numeric order on every `alchemy dev` / deploy.
   `test/d1-schema.test.ts` applies them to a fresh SQLite and checks tables, constraints and FTS5.
 - `test/worker.test.ts`
-- `test/local-dev-smoke.test.ts` boots `alchemy dev` and checks health, D1 and queue delivery. It is
+- `test/local-dev-smoke.test.ts` boots `alchemy dev` and checks health, D1, queue delivery and the live stream over the Durable Object. It is
   the only test that runs the real Worker in workerd.

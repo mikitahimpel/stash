@@ -7,6 +7,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import type * as KeyValueStore from "effect/persistence/KeyValueStore";
 import * as Keyboard from "./keyboard.ts";
+import * as LiveSocket from "./live-socket.ts";
 import * as Network from "./network.ts";
 import * as RecentSearches from "./recent-searches.ts";
 import * as Share from "./share.ts";
@@ -19,7 +20,8 @@ import * as Visibility from "./visibility.ts";
  * - `KeyValueStore` (`effect/persistence/KeyValueStore`): backed by `localStorage`.
  * - `IndexedDb`, `Clipboard`, `Permissions` (`@effect/platform-browser/*`).
  * - `HttpClient` (`effect/http/HttpClient`): backed by `fetch`.
- * - `Share`, `Network`, `Visibility`, `Theme`, `Keyboard`, `RecentSearches` (this package).
+ * - `Share`, `Network`, `Visibility`, `Theme`, `Keyboard`, `RecentSearches`, `LiveSocket` (this
+ *   package).
  *   `Theme` keeps its preference in `localStorage`, and `RecentSearches` its list.
  *
  * Use the individual layers below to swap one piece, for example
@@ -36,7 +38,8 @@ export type Services =
   | Visibility.Visibility
   | Theme.Theme
   | Keyboard.Keyboard
-  | RecentSearches.RecentSearches;
+  | RecentSearches.RecentSearches
+  | LiveSocket.LiveSocket;
 
 export const layerKeyValueStore: Layer.Layer<KeyValueStore.KeyValueStore> =
   BrowserKeyValueStore.layerLocalStorage;
@@ -69,6 +72,10 @@ export const layerNetwork: Layer.Layer<Network.Network> = Network.layer;
 
 export const layerKeyboard: Layer.Layer<Keyboard.Keyboard> = Keyboard.layer;
 
+export const layerVisibility: Layer.Layer<Visibility.Visibility> = Visibility.layer;
+
+export const layerLiveSocket: Layer.Layer<LiveSocket.LiveSocket> = LiveSocket.layer;
+
 export const layer: Layer.Layer<Services> = Layer.mergeAll(
   layerKeyValueStore,
   layerIndexedDb,
@@ -81,4 +88,5 @@ export const layer: Layer.Layer<Services> = Layer.mergeAll(
   layerTheme,
   Keyboard.layer,
   layerRecentSearches,
+  LiveSocket.layer,
 );

@@ -10,8 +10,8 @@ contracts. Contracts depend on no context.
 
 | Package | Name | Contents |
 |---|---|---|
-| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), tag, device, tab, command, token, digest, and tagged errors |
-| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect; plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
+| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), link events (`./link-event`), tag, device, tab, command, token, digest, and tagged errors |
+| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect, events (`GET /events`, the live stream: a WebSocket of `LinkEvent` JSON texts from `@stash/contracts-domain/link-event`, 426 for a plain request); plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
 
 ## May depend on
 

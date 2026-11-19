@@ -88,6 +88,12 @@ onMounted(async () => {
   recent.value = loaded.recent;
   void focusNext();
   if (loaded.saved !== null) void follow(loaded.saved);
+  // The recent links that are still being enriched get their tags and preview while the popup
+  // is open. The page's own link is followed above.
+  void props.actions.catchUp(
+    loaded.recent.filter((link) => link.id !== loaded.saved?.id),
+    replace,
+  );
 });
 
 const save = async () => {

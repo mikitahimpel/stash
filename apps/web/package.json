@@ -17,6 +17,7 @@
     "walk:connect": "node scripts/connect-walk.ts",
     "check:tab-switch": "node scripts/tab-switch.ts",
     "check:loading": "node scripts/loading-states.ts",
+    "check:live-updates": "node scripts/live-updates.ts",
     "check:live": "node scripts/live-session-check.ts",
     "lint": "oxlint .",
     "format:check": "oxfmt --check .",

@@ -44,7 +44,7 @@ vue-tsc can't run on TypeScript 7. See `packages/config/oxlint/README.md`. A pac
 `@stash/web-platform` is the only package that touches `window`, `document`, `localStorage`,
 `sessionStorage`, `indexedDB`, `navigator` or `fetch` (`.vue` templates are exempt). It reuses
 `@effect/platform-browser` (`BrowserKeyValueStore`, `IndexedDb`, `Clipboard`, `Permissions`,
-`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility`, `theme`, `keyboard`, `recent-searches`), the plain readers `page-origin`, `page-scroll` and `idle` (`whenIdle`), and exports
+`BrowserHttpClient`), adds its own services (`share`, `network`, `visibility` (with the window's focus), `theme`, `keyboard`, `live-socket`, `recent-searches`), the plain readers `page-origin`, `page-scroll` and `idle` (`whenIdle`), and exports
 in-memory layers as `./testing`. Features depend on the services, and `apps/web` provides the live
 layers.
 
@@ -69,6 +69,16 @@ layers.
   gets `subtitle=""` until the counts are there, and a section whose place depends on a list of
   unknown length appears with the data instead of moving. `pnpm --filter @stash/web
   check:loading` measures it (see "Loading states" in [docs/design.md](../../docs/design.md)).
+- **Links update live, in place.** `@stash/web-api-client/live-links` holds one WebSocket to the
+  api's `/events` while the tab is visible (the app mounts `LiveLinks.connection` for a signed-in
+  user) and records each event in `@stash/web-api-client/link-patches`. `ApiAtoms.query` and
+  `ApiAtoms.pages` lay those patches over their answers when read: any link-shaped object in an
+  answer is replaced by a later copy (`updatedAt` decides), and a deleted link leaves its lists. A
+  patch is not a request and does not refresh anything, so a row keeps its place and its height.
+  Features need no code for this; keep api answers plain data with whole `Link`s in them. On
+  reconnect and on window focus it catches up with `GET /links?updatedSince=`; without a stream it
+  asks only for the pending links on screen (`?ids=`, 3 s backing off to 30 s, nothing when none
+  is pending). `pnpm --filter @stash/web check:live-updates` checks it in a browser.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
 - Links and tabs are `<MediaRow>`s (preview, title, one meta line, one summary line, one

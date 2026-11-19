@@ -16,6 +16,11 @@ export interface Actions {
   readonly undo: (id: Link.LinkId) => Promise<SavePage.UndoResult>;
   /** Follows a link until it is enriched. Resolves when it stops. */
   readonly watch: (id: Link.LinkId, onUpdate: (link: PopupLink.PopupLink) => void) => Promise<void>;
+  /** Brings the pending ones of `links` up to date while the popup is open. Resolves when it stops. */
+  readonly catchUp: (
+    links: ReadonlyArray<PopupLink.PopupLink>,
+    onUpdate: (link: PopupLink.PopupLink) => void,
+  ) => Promise<void>;
   readonly openStash: (webOrigin: string) => Promise<void>;
   readonly search: (webOrigin: string, query: string) => Promise<void>;
   readonly openLink: (url: string) => Promise<void>;
@@ -30,6 +35,7 @@ export const make = (runtime: ManagedRuntime.ManagedRuntime<Live.Services, never
   save: () => runtime.runPromise(SavePage.save),
   undo: (id) => runtime.runPromise(SavePage.undo(id)),
   watch: (id, onUpdate) => runtime.runPromise(SavePage.watch(id, onUpdate)),
+  catchUp: (links, onUpdate) => runtime.runPromise(PopupView.catchUp(links, onUpdate)),
   openStash: (webOrigin) => runtime.runPromise(OpenStash.openStash(webOrigin)),
   search: (webOrigin, query) => runtime.runPromise(OpenStash.search(webOrigin, query)),
   openLink: (url) => runtime.runPromise(OpenStash.openLink(url)),

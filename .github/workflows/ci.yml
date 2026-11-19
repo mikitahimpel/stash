@@ -47,3 +47,6 @@ jobs:
       # The loading states on the same build, with a slow api: every skeleton has the box of what
       # replaces it, and no page shifts (CLS at most 0.01).
       - run: pnpm --filter @stash/web check:loading
+      # Live updates on the same build, with the event stream played by the check: a pending row
+      # turns into its summary with no reload, no request and no shift (CLS at most 0.01).
+      - run: pnpm --filter @stash/web check:live-updates

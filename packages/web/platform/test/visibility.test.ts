@@ -40,6 +40,24 @@ describe("Visibility (live)", () => {
   });
 });
 
+describe("Visibility focus (live)", () => {
+  it.effect("follows the window's focus event", () => {
+    const win = new EventTarget();
+    vi.stubGlobal("window", win);
+    return Effect.gen(function* () {
+      const visibility = yield* Visibility.Visibility;
+      const fiber = yield* visibility.focused.pipe(
+        Stream.take(1),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      yield* settle;
+      win.dispatchEvent(new Event("focus"));
+      expect(yield* Fiber.join(fiber)).toHaveLength(1);
+    }).pipe(Effect.provide(Visibility.layer));
+  });
+});
+
 describe("Visibility (in memory)", () => {
   it.effect("emits the current state and every change", () =>
     Effect.gen(function* () {
@@ -55,5 +73,21 @@ describe("Visibility (in memory)", () => {
       yield* test.setState("visible");
       expect(yield* Fiber.join(fiber)).toEqual(["hidden", "visible"]);
     }).pipe(Effect.provide(Testing.layerVisibility({ state: "hidden" }))),
+  );
+
+  it.effect("emits each time the window gains the focus", () =>
+    Effect.gen(function* () {
+      const visibility = yield* Visibility.Visibility;
+      const test = yield* Testing.TestVisibility;
+      const fiber = yield* visibility.focused.pipe(
+        Stream.take(2),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      yield* settle;
+      yield* test.focus;
+      yield* test.focus;
+      expect(yield* Fiber.join(fiber)).toHaveLength(2);
+    }).pipe(Effect.provide(Testing.layerVisibility())),
   );
 });

@@ -31,6 +31,7 @@ run it, and what to watch for.
 | `EnrichmentQueue` | `Cloudflare.Queues.Queue` | `ENRICHMENT_QUEUE` (`Queue`, producer) |
 | `Kv` | `Cloudflare.KV.Namespace` (save rate limits) | `KV` (`KVNamespace`) |
 | `Blobs` | `Cloudflare.R2.Bucket` (page text, transcripts) | `BLOBS` (`R2Bucket`) |
+| — | `Cloudflare.DurableObject("LinkEvents")`: the class `LinkEvents` exported by the `Api` Worker (SQLite storage; Alchemy writes the class migration). It holds each user's live streams | `LINK_EVENTS` (`DurableObjectNamespace`) |
 | `Vectors` | `Cloudflare.Vectorize.Index`, 1024-d, cosine. **Deploy only** (no local provider) | `VECTORS` (`Vectorize`) |
 | — | `Cloudflare.Workers.AI()`. **Deploy only** | `AI` (`Ai`) |
 | `Api` | `Cloudflare.Worker`, `main: ./apps/api/src/worker.ts`, deployed as `stash-api` | vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (when set; always on `prod`), `SMOKE_ROUTES`; secret `ANTHROPIC_API_KEY` (deploy only, when set) |

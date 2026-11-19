@@ -8,6 +8,7 @@
     "./idle": "./src/idle.ts",
     "./keyboard": "./src/keyboard.ts",
     "./live": "./src/live.ts",
+    "./live-socket": "./src/live-socket.ts",
     "./network": "./src/network.ts",
     "./page-origin": "./src/page-origin.ts",
     "./page-scroll": "./src/page-scroll.ts",

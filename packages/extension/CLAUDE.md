@@ -10,7 +10,7 @@ Features of the Zen / Firefox extension. Keep a later Safari Web Extension port 
 | Package | Name | Contents |
 |---|---|---|
 | `capture/` | `@stash/ext-capture` | Hotkey saves the current tab, "Save all & close" for a window or Zen workspace |
-| `popup/` | `@stash/ext-popup` | The toolbar popup's logic: the current page and whether it is saved, save and undo, following enrichment, recent links, the connection, opening Stash and its search |
+| `popup/` | `@stash/ext-popup` | The toolbar popup's logic: the current page and whether it is saved, save and undo, following enrichment, recent links (the pending ones catch up with `GET /links?ids=…` while the popup is open), the connection, opening Stash and its search |
 | `tab-sync/` | `@stash/ext-tab-sync` | Periodic open-tab snapshots to the API, and when they were last in sync |
 | `device-commands/` | `@stash/ext-device-commands` | Poll and execute remote commands (for example close a tab) |
 | `platform/` | `@stash/ext-platform` | `browser.*` services and the api client |

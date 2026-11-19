@@ -41,7 +41,7 @@ app shell doesn't use them either.
   the api through the `API` Service Binding with the prefix stripped. A Workers entry may export
   only handlers, so it exports nothing but `default` and types. The SPA's api base URL defaults to
   `/api` (`@stash/web-api-client/api-base-url`) and `VITE_API_BASE_URL` overrides it, never a
-  hardcoded URL. The Vite dev and preview servers proxy `/api` to `STASH_DEV_API_URL` (default
+  hardcoded URL. The Vite dev and preview servers proxy `/api` (WebSockets too, for the live stream) to `STASH_DEV_API_URL` (default
   `http://localhost:8787`, `alchemy dev`).
 - `scripts/live-session-check.ts` (`pnpm --filter @stash/web check:live`): the scripted check of a
   deployed web origin (same-origin api, no `stash-api.` in the bundle, session cookie round-trip),
@@ -114,6 +114,10 @@ Feature behavior is tested in `packages/web/*`.
   each page with a slow api, see "Loading states" in [docs/design.md](../../docs/design.md).
   `--screenshots` writes `docs/screenshots/loading-*.png`. Its in-page measuring is
   `scripts/loading-states-probe.ts`.
+- `scripts/live-updates.ts` (`pnpm --filter @stash/web check:live-updates`, after a build; the
+  same CI job): plays the api's event stream to the built app and fails unless a pending Inbox
+  row turns from `summarizing…` into its summary with no reload, no request, the same row height
+  and a Cumulative Layout Shift of at most 0.01, at desktop and phone width.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
   job runs it after the audit): walks each Connect guide (in Settings; the iPhone one through the old `/connect?guide=` address),
   the extension approve page, `/search?q=` and `/save`

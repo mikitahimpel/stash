@@ -10,6 +10,7 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as LinkPatches from "./link-patches.ts";
 import { StashApiClient } from "./stash-api-client.ts";
 
 /** The typed client: one object per api group, one method per endpoint. */
@@ -57,13 +58,25 @@ const markAsked = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<any>): v
 // opens again shows the cached success at once, and a refresh runs behind it. While that refresh
 // runs the result stays a `Success` (with `waiting`), so pages keep their rows instead of a
 // skeleton. A cached failure is not retried by itself: pages offer Retry for that.
+//
+// Live updates. Readers see the answer with what the live stream said since laid over it
+// (`LinkPatches`): a link that changed is replaced in place, with no request, so a patch never
+// counts as an ask and changes nothing about when a query refreshes. The cached answer itself
+// stays as the api gave it; the overlay is applied each time it is read.
 const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(atom: A) => {
   const source = Atom.setIdleTTL(atom, idleTTL);
   const self: Atom.Atom<any> = Atom.transform(
     source,
     (get) => {
+      const patched = (result: AsyncResult.AsyncResult<any, any>) => {
+        const next = overlay(result, get.once(LinkPatches.state));
+        LinkPatches.track(get.registry, self, AsyncResult.isSuccess(next) ? next.value : null);
+        return next;
+      };
+      get.addFinalizer(() => LinkPatches.track(get.registry, self, undefined));
       const current = get.once(source);
-      get.subscribe(source, (value) => get.setSelf(value));
+      get.subscribe(source, (value) => get.setSelf(patched(value)));
+      get.subscribe(LinkPatches.state, () => get.setSelf(patched(get.once(source))));
       if (AsyncResult.isInitial(current)) markAsked(get.registry, self);
       if (AsyncResult.isSuccess(current) && !current.waiting) {
         markAsked(get.registry, self);
@@ -73,11 +86,25 @@ const revalidated = <A extends Atom.Atom<AsyncResult.AsyncResult<any, any>>>(ato
           if (active) get.refresh(source);
         }, 0);
       }
-      return current;
+      return patched(current);
     },
     { initialValueTarget: source },
   );
   return self as unknown as A;
+};
+
+// The result with the patches applied to its value. An answer no patch touches is returned as it
+// is, so a patch for a link a query does not hold changes nothing for its readers.
+const overlay = (
+  result: AsyncResult.AsyncResult<any, any>,
+  patches: LinkPatches.Patches,
+): AsyncResult.AsyncResult<any, any> => {
+  if (patches.size === 0 || AsyncResult.isInitial(result)) return result;
+  if (AsyncResult.isSuccess(result)) {
+    const value: unknown = LinkPatches.apply(result.value, patches);
+    return value === result.value ? result : AsyncResult.map(result, () => value);
+  }
+  return AsyncResult.map(result, (value: unknown) => LinkPatches.apply(value, patches));
 };
 
 /**

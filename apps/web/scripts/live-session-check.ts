@@ -13,6 +13,10 @@
 //    small RFC 6265 cookie jar stores the session under them, as a browser would. The jar must then
 //    send it on `<web>/api/auth/me` (answered 200 with the user). Logging out ends the session,
 //    and the row is deleted in any case.
+// 4. The live stream works on the web origin: with that session, `<web>/api/events` upgrades to a
+//    WebSocket through the `Web` Worker and the api to the user's `LinkEvents` Durable Object,
+//    which says `stream.ready` and answers `ping` with `pong`. Without a session it answers 401.
+//    The check changes no link, so it reads no `link.updated` event.
 //
 // Env: `STASH_WEB_URL` (the deployed web origin), `STASH_D1_DATABASE` (the api's D1 database name,
 // `PROD_NAMES.Database` in `alchemy.run.ts` for stage `prod`), `STASH_ALLOWED_GITHUB_LOGIN` (the
@@ -45,6 +49,81 @@ const request = (
     );
     req.end(options.body);
   });
+
+/**
+ * Opens `url` as a WebSocket with `headers` (the global `WebSocket` takes none). It resolves with
+ * the status when the server does not upgrade, else with the text messages it sends, a way to send
+ * one, and a way to close. Server frames are not masked, and the ones read here are short text.
+ */
+const openStream = (
+  url: URL,
+  headers: Record<string, string>,
+): Promise<
+  | number
+  | {
+      readonly messages: Array<string>;
+      readonly send: (text: string) => void;
+      readonly close: () => void;
+    }
+> =>
+  new Promise((resolve, reject) => {
+    const req = Https.request(url, {
+      headers: {
+        ...headers,
+        connection: "Upgrade",
+        upgrade: "websocket",
+        "sec-websocket-version": "13",
+        "sec-websocket-key": Crypto.randomBytes(16).toString("base64"),
+      },
+    });
+    req.on("response", (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on("error", (error: NodeJS.ErrnoException) =>
+      reject(new Error(`stream failed: ${error.code ?? "unknown error"}`)),
+    );
+    req.on("upgrade", (_res, socket, head) => {
+      const messages: Array<string> = [];
+      let buffer = Buffer.from(head);
+      const read = () => {
+        while (buffer.length >= 2) {
+          const opcode = buffer[0]! & 0x0f;
+          const length = buffer[1]! & 0x7f;
+          // Longer frames are not expected here: stop reading rather than misread.
+          if (length > 125 || buffer.length < 2 + length) return;
+          if (opcode === 1) messages.push(buffer.toString("utf8", 2, 2 + length));
+          buffer = buffer.subarray(2 + length);
+        }
+      };
+      socket.on("data", (chunk: Buffer) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        read();
+      });
+      socket.on("error", () => {});
+      read();
+      resolve({
+        messages,
+        // A client frame is masked: one short text frame.
+        send: (text) => {
+          const payload = Buffer.from(text, "utf8");
+          const mask = Crypto.randomBytes(4);
+          const masked = Buffer.from(payload.map((byte, i) => byte ^ mask[i % 4]!));
+          socket.write(Buffer.concat([Buffer.from([0x81, 0x80 | payload.length]), mask, masked]));
+        },
+        close: () => socket.destroy(),
+      });
+    });
+    req.end();
+  });
+
+const until = async (what: string, done: () => boolean, timeoutMs = 10_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!done()) {
+    if (Date.now() > deadline) throw new Error(`FAIL ${what} (timed out)`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
 
 const required = (name: string): string => {
   const value = process.env[name];
@@ -203,6 +282,30 @@ const main = async () => {
       me.status === 200 && JSON.parse(me.body).kind === "user",
       `/api/auth/me: ${me.status} user`,
     );
+
+    // 4. The live stream, with the same session.
+    const eventsUrl = at("/api/events");
+    check((await openStream(eventsUrl, {})) === 401, "/api/events without a session: 401");
+    const stream = await openStream(eventsUrl, { cookie: sent });
+    if (typeof stream === "number") throw new Error(`FAIL /api/events did not upgrade: ${stream}`);
+    try {
+      const types = () =>
+        stream.messages.flatMap((text) => {
+          try {
+            return [(JSON.parse(text) as { type?: string }).type];
+          } catch {
+            return [];
+          }
+        });
+      await until("the stream says stream.ready", () => types().includes("stream.ready"));
+      check(true, "/api/events upgrades and says stream.ready");
+      stream.send("ping");
+      await until("the stream answers ping", () => stream.messages.includes("pong"));
+      check(true, "the stream answers ping with pong");
+    } finally {
+      stream.close();
+    }
+
     const out = await request("POST", logoutUrl.href, { headers: { cookie: sent } });
     const after = await request("GET", meUrl.href, { headers: { cookie: sent } });
     check(out.status === 204 && after.status === 401, "logout ends the session: /api/auth/me 401");

@@ -151,6 +151,7 @@ export const actions = (state: State): PopupActions.Actions => ({
   }),
   undo: async () => ({ _tag: "Removed" }),
   watch: async () => {},
+  catchUp: async () => {},
   openStash: async () => {},
   search: async () => {},
   openLink: async () => {},
