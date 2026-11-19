@@ -48,6 +48,8 @@ interface View {
    * in the browser: the seed has no YouTube link, and its ids are its own.
    */
   readonly fixtures?: boolean;
+  /** With `fixtures`: the open tabs come from the fixtures too, as this scene. */
+  readonly tabs?: Fixtures.TabsScene;
   /**
    * Captured at the window's own height, not the page's: the page's media are sized by the
    * window (`70vh`), so a taller window would show a layout no screen has.
@@ -70,11 +72,59 @@ const views: ReadonlyArray<View> = [
       await page.locator("[data-slot=media-row-actions]").waitFor();
     },
   },
+  // Open now (#181), with its tabs answered from the audit's fixtures so that some are saved
+  // links: the seeded account (three devices, a stale group, saved tabs), one browser with a long
+  // list, two devices, a row with its actions out, and tabs picked for a bulk save.
   {
     name: "open-now",
     path: "/open-now",
     signedIn: true,
+    fixtures: true,
+    tabs: "default",
     prepare: (page) => page.locator("[data-section]").first().waitFor(),
+  },
+  {
+    name: "open-now-many",
+    path: "/open-now",
+    signedIn: true,
+    fixtures: true,
+    tabs: "many",
+    prepare: (page) => page.locator("[data-section]").first().waitFor(),
+  },
+  {
+    name: "open-now-two-devices",
+    path: "/open-now",
+    signedIn: true,
+    fixtures: true,
+    tabs: "two",
+    prepare: (page) => page.locator("[data-section]").first().waitFor(),
+  },
+  {
+    name: "open-now-selected",
+    path: "/open-now",
+    signedIn: true,
+    fixtures: true,
+    tabs: "default",
+    prepare: async (page) => {
+      await page
+        .locator("[data-tab]")
+        .nth(1)
+        .click({ position: { x: 4, y: 4 } });
+      await page.locator("[data-state=selected] [data-action=copy]").waitFor();
+    },
+  },
+  {
+    name: "open-now-picking",
+    path: "/open-now",
+    signedIn: true,
+    fixtures: true,
+    tabs: "default",
+    prepare: async (page) => {
+      await page.locator("[data-action=pick]").click();
+      await page.locator("[data-tab] [role=checkbox]").nth(1).click();
+      await page.locator("[data-tab] [role=checkbox]").nth(3).click();
+      await page.locator("[data-action=save-picked]").waitFor();
+    },
   },
   // The app header alone: the compact search field at rest, and grown while it has the focus
   // (the nav and the account button stay where they are). On phones it is a full-width line.
@@ -357,13 +407,14 @@ const answerEmpty = (page: Page) =>
       : route.fallback();
   });
 
-const answerFixtures = (page: Page) => {
-  const fixtures = Fixtures.seeded(Date.now());
+const answerFixtures = (page: Page, tabs: Fixtures.TabsScene | undefined) => {
+  const fixtures = Fixtures.seeded(Date.now(), tabs === undefined ? {} : { tabs });
   return page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api/, "");
     const answer =
-      route.request().method() === "GET" && (path.startsWith("/links") || path === "/devices")
+      route.request().method() === "GET" &&
+      (path.startsWith("/links") || path === "/devices" || (path === "/tabs" && tabs !== undefined))
         ? fixtures.answer("GET", url)
         : undefined;
     return answer === undefined ? route.fallback() : route.fulfill({ json: answer });
@@ -404,7 +455,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
           }),
         );
         if (view.empty) await answerEmpty(page);
-        if (view.fixtures) await answerFixtures(page);
+        if (view.fixtures) await answerFixtures(page, view.tabs);
         // Recent searches live in the browser: a returning user has some, everyone else none.
         const [key, value] = Fixtures.recentSearches(Date.now());
         // As a string, so the script itself never names the DOM globals.

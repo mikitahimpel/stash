@@ -21,7 +21,10 @@ export interface KeyPress {
   readonly control: boolean;
   /** Whether an element under the page already handled the key (`event.defaultPrevented`). */
   readonly handled: boolean;
-  /** Whether a dialog is open over the page: the page's own shortcuts wait until it closes. */
+  /**
+   * Whether a dialog or a menu is open over the page: the page's own shortcuts wait until it
+   * closes (the keys belong to what is open, and a menu's items show key hints of their own).
+   */
   readonly modal: boolean;
 }
 
@@ -49,8 +52,9 @@ const textField =
 const control =
   "a[href], button, summary, [role=button], [role=link], [role=radio], [role=tab], [role=checkbox], [role=menuitem], [role=option]";
 
-// An open dialog, as the kit's `<Dialog>` (reka-ui) renders it.
-const openDialog = "[role=dialog][data-state=open], [role=alertdialog][data-state=open]";
+// An open dialog or menu, as the kit's `<Dialog>` and `<DropdownMenu>` (reka-ui) render them.
+const openDialog =
+  "[role=dialog][data-state=open], [role=alertdialog][data-state=open], [role=menu][data-state=open]";
 
 const matches = (target: EventTarget | null, selector: string): boolean =>
   target !== null &&

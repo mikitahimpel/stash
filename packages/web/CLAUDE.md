@@ -12,7 +12,7 @@ app can be installed to the iPhone home screen.
 |---|---|---|
 | `links/` | `@stash/web-links` | Inbox: Save a link field, feeds (not yet seen, recent, all), links as media rows grouped by day, 30-day counts in the subtitle, tag and type filters, status actions and keys; the same list as search results while the URL has `?q=`; a link's page (`/links/<id>`: preview or YouTube player, summary, tags, actions, details); a post on X as a row in a post's order and, on its page, as a post card (`post-display`); the `/save` result |
 | `search/` | `@stash/web-search` | Search without a page: the header's field (`search-box`, debounced into the Inbox's URL `/links?q=…`, recent searches under the focused empty field), the line over the results (`search-bar`: count, mode, type / device / date menus), the URL state (`search-route`), the results that keep the last answer while the next loads (`use-search-results`), term marking; `/search` redirects to the Inbox |
-| `open-tabs/` | `@stash/web-open-tabs` | "Open now" view across devices (open, archive, close on device) |
+| `open-tabs/` | `@stash/web-open-tabs` | "Open now": every device's open tabs as compact rows grouped by device (sticky headers that fold) with the stale ones (open over 7 days) in a group of their own, a filter, row actions (save, copy link, open, archive, close on device), bulk save of picked or stale tabs, and a Saved mark on tabs that are already links |
 | `settings/` | `@stash/web-settings` | One Settings page: Devices & connections (the section from `@stash/web-connect`, then the devices), API tokens, Appearance (theme atoms, also used by the app header); first-run onboarding card (used by Inbox and Open now) |
 | `connect/` | `@stash/web-connect` | The "Devices & connections" section of Settings (`connect-section`): one row per source (iPhone, Zen, Mac, Claude) with its status and a guide that creates the device and token, prefills every value and waits for the first save; `/connect[?guide=…]` redirects to it; extension pairing (`/connect/extension`) |
 | `auth/` | `@stash/web-auth` | Login page, `me` atom, auth guard, account menu (a slot for the app's entries, Sign out) |
@@ -63,7 +63,7 @@ layers.
   page shows the skeleton while it is true), and a failed load with nothing cached as
   `<ErrorState>` (`@stash/web-ui/error-state`) with a Retry that refreshes the atom.
 - **Nothing moves when data arrives.** A skeleton is the real layout with placeholder blocks:
-  `<MediaRowSkeleton>` and `<ListRowSkeleton>` for rows, `<GroupHeader placeholder>`, and
+  `<MediaRowSkeleton>`, `<CompactRowSkeleton>` and `<ListRowSkeleton>` for rows, `<GroupHeader placeholder>`, and
   `<Skeleton>` shapes for the rest, in the same containers and gaps as the loaded page. The frame
   of a page (header, filters) is the same while loading, loaded, empty and failed: `<PageHeader>`
   gets `subtitle=""` until the counts are there, and a section whose place depends on a list of
@@ -85,8 +85,9 @@ layers.
   is pending). `pnpm --filter @stash/web check:live-updates` checks it in a browser.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.
-- Links and tabs are `<MediaRow>`s (preview, title, one meta line, one summary line, one
-  `<TagLine>`) under `<GroupHeader>`s; other lists are `<ListRow>`s. Every media row of a list is
+- Links are `<MediaRow>`s (preview, title, one meta line, one summary line, one
+  `<TagLine>`) under `<GroupHeader>`s; open tabs are `<CompactRow>`s (48px: site icon, title, one
+  meta line, actions at the end; see "Open now" in [docs/design.md](../../docs/design.md)); other lists are `<ListRow>`s. Every media row of a list is
   one height: a row never wraps or grows, and a list with tags passes the `tags` slot on every row. See "Media rows" in
   [docs/design.md](../../docs/design.md). A post on X is a `<MediaRow meta-first>`: the author's
   line (`<PostByline size="row">`) first, then its words on two lines.
@@ -111,7 +112,7 @@ layers.
   `text-muted-foreground`, `text-signal`, …) and SVG `fill-*` / `stroke-*` in charts. No `h-*`,
   padding, margins (except `*-auto`), `rounded-*`, `border-*`, `bg-*`, `font-*`, `text-xs|sm|[..]`
   or `tactile-*`. Every control and row comes from `@stash/web-ui` at a kit size (`sm` 32, `md` 36,
-  `lg` 44); row actions are `ghost` `sm`, lists are `MediaRow` or `ListRow` with their slots. Need a look the kit
+  `lg` 44); row actions are `ghost` `sm`, lists are `MediaRow`, `CompactRow` or `ListRow` with their slots. Need a look the kit
   lacks? Add it to the kit. `apps/web/test/feature-classes.test.ts` enforces this, and the layout
   audit (`pnpm --filter @stash/web audit:layout`, see [docs/design.md](../../docs/design.md#layout-audit))
   checks the rendered pages.

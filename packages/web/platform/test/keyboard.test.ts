@@ -34,10 +34,13 @@ const keydown = (
 };
 
 // A page with no dialog open, unless `dialog` says so.
-const page = (dialog: () => boolean = () => false) =>
+const page = (dialog: () => boolean = () => false, menu: () => boolean = () => false) =>
   Object.assign(new EventTarget(), {
     querySelector: (selector: string) =>
-      selector.includes("[role=dialog][data-state=open]") && dialog() ? {} : null,
+      (selector.includes("[role=dialog][data-state=open]") && dialog()) ||
+      (selector.includes("[role=menu][data-state=open]") && menu())
+        ? {}
+        : null,
   });
 
 describe("Keyboard (live)", () => {
@@ -115,6 +118,26 @@ describe("Keyboard (live)", () => {
       keydown(doc, { key: "s" });
       open = true;
       keydown(doc, { key: "s" });
+      expect((yield* Fiber.join(fiber)).map((press) => press.modal)).toEqual([false, true]);
+    }).pipe(Effect.provide(Keyboard.layer));
+  });
+
+  it.effect("counts an open menu as open over the page too", () => {
+    let open = false;
+    const doc = page(
+      () => false,
+      () => open,
+    );
+    vi.stubGlobal("document", doc);
+    return Effect.gen(function* () {
+      const keyboard = yield* Keyboard.Keyboard;
+      const fiber = yield* keyboard
+        .presses((press) => press.key === "w")
+        .pipe(Stream.take(2), Stream.runCollect, Effect.forkChild);
+      yield* settle;
+      keydown(doc, { key: "w" });
+      open = true;
+      keydown(doc, { key: "w" });
       expect((yield* Fiber.join(fiber)).map((press) => press.modal)).toEqual([false, true]);
     }).pipe(Effect.provide(Keyboard.layer));
   });

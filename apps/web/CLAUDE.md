@@ -93,7 +93,8 @@ Feature behavior is tested in `packages/web/*`.
   and phone) against the control tokens, content edges and spacing scale; see "Layout audit" in
   [docs/design.md](../../docs/design.md#layout-audit). Its rules are `scripts/layout-audit-rules.ts`
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
-  `scripts/layout-fixtures.ts` (links, tabs, devices, one post on X of each kind:
+  `scripts/layout-fixtures.ts` (links, tabs, devices; `seeded(now, { tabs })` picks what Open now
+  shows: the seeded account with stale and saved tabs, `many` or `two`; one post on X of each kind:
   `postLinkIds`, and media that are not 16:9: a portrait video and photo, a square and a panorama
   among the posts, a YouTube Short and a portrait og:image in `shapeLinkIds`; their pictures are
   `…/previews/shapes/<name>.svg`). `scripts/preview-images.ts` draws the fixtures' preview images and people's

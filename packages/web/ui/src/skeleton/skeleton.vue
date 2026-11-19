@@ -11,7 +11,7 @@ import { cn } from "../cn";
  *   text (16px at 1.6).
  * - `thumb`: the preview of a media row (`<MediaThumb>`), `hero`: a `<MediaHero>`.
  * - `control`: a 36px field or button, `chip`: a 32px chip or `sm` button, `tag`: a `<TagChip>`.
- * - `chart`: the tab age chart with three devices (a lane each and the axis).
+ * - `icon`: a 20px mark before a row's text (`<SiteIcon>`).
  *
  * Rows have their own: `<MediaRowSkeleton>` and `<ListRowSkeleton>`, the real rows with these
  * blocks in their slots.
@@ -28,7 +28,7 @@ const props = withDefaults(
       | "control"
       | "chip"
       | "tag"
-      | "chart";
+      | "icon";
     class?: HTMLAttributes["class"];
   }>(),
   { shape: "line" },
@@ -48,7 +48,7 @@ const shapes = {
   control: ["h-control-md", "rounded-control"],
   chip: ["h-control-sm w-20", "rounded-control"],
   tag: ["h-6 w-14", "rounded-control"],
-  chart: ["h-[152px]", "rounded-control"],
+  icon: ["size-5", "rounded-[4px]"],
 } as const;
 </script>
 

@@ -15,21 +15,33 @@ export const layer: Atom.Writable<Layer.Layer<Keyboard.Keyboard>> = Atom.make(
 
 const runtime = Atom.runtime((get) => get(layer));
 
-/** `up` / `down` move the selection, `archive` (E) and `close` (W) act on the selected tab. */
-export type Command = "up" | "down" | "archive" | "close";
+/**
+ * `up` / `down` move the selection. `save` (S), `copy` (C), `archive` (E) and `close` (W) act on
+ * the selected tab, and `pick` (X) ticks it for the bulk actions.
+ */
+export type Command = "up" | "down" | "save" | "copy" | "archive" | "close" | "pick";
+
+const letters: Readonly<Record<string, Command>> = {
+  s: "save",
+  c: "copy",
+  e: "archive",
+  w: "close",
+  x: "pick",
+};
 
 /**
  * The page's shortcuts: plain keys outside text fields. Enter is left to the browser: the
  * selected row's link has the focus, so Enter opens it.
  */
 export const command = (press: Keyboard.KeyPress): Command | undefined => {
+  // A key something else already took, or pressed while a dialog or a menu is open, is not the
+  // page's: a row's menu shows E and W beside its items, and they must not act on another row.
+  if (press.handled || press.modal) return undefined;
   if (press.typing || press.metaKey || press.ctrlKey || press.altKey) return undefined;
   if (press.key === "ArrowUp") return "up";
   if (press.key === "ArrowDown") return "down";
   if (press.shiftKey) return undefined;
-  if (press.key.toLowerCase() === "e") return "archive";
-  if (press.key.toLowerCase() === "w") return "close";
-  return undefined;
+  return letters[press.key.toLowerCase()];
 };
 
 /**

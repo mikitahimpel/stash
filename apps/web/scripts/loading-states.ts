@@ -88,15 +88,19 @@ const views: ReadonlyArray<View> = [
     loaded: "[data-section] [data-tab]",
     parts: {
       "page header": [header, header],
-      field: [
-        "[data-state=loading] [data-shape=control]",
+      // On a phone the field takes what Select leaves it, and a label is as wide as its text.
+      filter: [
+        "[data-state=loading] [data-shape=chip]",
         "[data-slot=search-field]:not(header *)",
+        ["x", "y", "height"],
       ],
-      chips: ["[data-state=loading] [data-shape=chip]", "[data-device=all]", ["x", "y", "height"]],
-      chart: ["[data-state=loading] [data-shape=chart]", "[data-slot=tab-age-chart]"],
-      // The first group's header is taller when it has actions (the tabs older than 7 days).
-      row: ["[data-skeleton]", "[data-tab]", size],
-      preview: ["[data-skeleton] [data-shape=thumb]", "[data-tab] [data-slot=media-thumb]", size],
+      "group header": [
+        "[data-state=loading] [data-slot=group-header]",
+        "[data-section] [data-slot=group-header]",
+      ],
+      row: ["[data-skeleton]", "[data-tab]"],
+      icon: ["[data-skeleton] [data-shape=icon]", "[data-tab] [data-slot=site-icon]"],
+      "second row": ["[data-skeleton] + [data-skeleton]", "[data-tab] + [data-tab]"],
     },
   },
   {

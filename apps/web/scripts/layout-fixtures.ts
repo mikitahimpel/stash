@@ -426,29 +426,92 @@ type AnyLink =
 export const articleLinkId = "seed-link-2";
 export const coverLinkId = "seed-link-3";
 
-const tabAges: ReadonlyArray<ReadonlyArray<number>> = [
-  [0.05, 0.4, 1.5, 3, 9, 12],
-  [0.2, 2, 5, 8.5, 16],
-  [0.1, 0.8, 4, 10],
-];
+/**
+ * What Open now shows (#181). `default` is the seeded account: three devices, tabs of every age
+ * (some stale, some the browser gave no age for) and a few that are already saved links. `many`
+ * is one browser with a long list, `two` two devices and nothing stale.
+ */
+export type TabsScene = "default" | "many" | "two";
+
+type TabSeed = readonly [title: string | null, url: string, openDays: number | null];
 
 /** Tabs sit on several sites, so the rows show more than one favicon. */
-const tabHosts = ["example.org", "docs.example.com", "news.example.net", "example.com"];
+const tabSites = ["example.org", "docs.example.com", "news.example.net", "example.com"];
 
-const tabs = (now: number) => ({
-  devices: devices.map((device, d) => ({
-    device: { ...device, createdAt: iso(now - 40 * day) },
-    snapshot: {
-      deviceId: device.id,
-      takenAt: iso(now - (d + 1) * 60_000),
-      tabs: tabAges[d]!.map((age, t) => ({
-        url: `https://${tabHosts[(d + t) % tabHosts.length]!}/${device.kind}/${d}-${t}`,
-        title: `${["Reference", "Draft", "Article", "Docs", "Issue", "Video"][t % 6]} ${d + 1}.${t + 1}`,
-        openedAt: iso(now - age * day),
-        lastSeenAt: iso(now - 60_000),
-      })),
-    },
-  })),
+// Addresses of seeded links (`seeds`): these tabs are saved, one with a preview and one without.
+const savedTabs: ReadonlyArray<TabSeed> = [
+  ["How interest rates move housing prices", "https://example.com/economics/rates", 0.2],
+  ["Release notes for a typed effect library", "https://example.com/effect/v4#whats-new", 2],
+  ["Designing keyboard-first web apps", "https://example.com/ux/keyboard", 9],
+];
+
+const tabTitles = [
+  "Pull request: compact rows for open tabs",
+  "Sticky positioning and scroll containers, a reference with every edge case we could find",
+  "Weekly planning board",
+  "Pointer events on touch screens | Docs",
+  "Quarterly numbers, draft 3",
+  "A gentle introduction to queues",
+  "Flights to Lisbon in May",
+  "Changelog",
+  "How to season a cast iron pan",
+  "Design review notes",
+  "Issue: favicon falls back to the initial",
+  "Typography scale calculator",
+];
+
+const madeTabs = (count: number, offset: number, ages: ReadonlyArray<number | null>) =>
+  Array.from({ length: count }, (_, t): TabSeed => {
+    const site = tabSites[(offset + t) % tabSites.length]!;
+    return [
+      tabTitles[(offset * 5 + t) % tabTitles.length]!,
+      `https://${site}/tabs/${offset}-${t}`,
+      ages[t % ages.length]!,
+    ];
+  });
+
+const tabScenes: Readonly<Record<TabsScene, ReadonlyArray<ReadonlyArray<TabSeed>>>> = {
+  default: [
+    [
+      savedTabs[0]!,
+      ...madeTabs(4, 0, [0.02, 0.4, 1.5, 3]),
+      savedTabs[1]!,
+      ...madeTabs(2, 4, [9, 12]),
+    ],
+    [
+      ...madeTabs(3, 1, [0.2, null, 5]),
+      savedTabs[2]!,
+      ["Old spreadsheet", "https://example.org/sheets/2019", 16],
+    ],
+    // No title, and no age from the browser: the row shows the address and says nothing of time.
+    [
+      ...madeTabs(2, 2, [null]),
+      [null, "https://news.example.net/live/markets", null],
+      ...madeTabs(1, 7, [10]),
+    ],
+  ],
+  many: [[savedTabs[0]!, ...madeTabs(23, 3, [0.01, 0.1, 0.3, 0.9, 1.2, 2, 3.5, 5, 6.5])]],
+  two: [madeTabs(6, 0, [0.05, 0.5, 1, 2, 4, 6]), [savedTabs[1]!, ...madeTabs(3, 5, [0.1, 3, 6])]],
+};
+
+const tabs = (now: number, scene: TabsScene) => ({
+  devices: tabScenes[scene].map((seeded, d) => {
+    const device = devices[d]!;
+    return {
+      device: { ...device, createdAt: iso(now - 40 * day) },
+      snapshot: {
+        deviceId: device.id,
+        // The first device synced a moment ago, the others a while back.
+        takenAt: iso(now - [20_000, 7 * 60_000, 3 * 60 * 60_000][d]!),
+        tabs: seeded.map(([title, url, openDays]) => ({
+          url,
+          title,
+          openedAt: openDays === null ? null : iso(now - openDays * day),
+          lastSeenAt: iso(now - 60_000),
+        })),
+      },
+    };
+  }),
 });
 
 const tokens = (now: number) => [
@@ -546,13 +609,15 @@ const search = (all: ReadonlyArray<AnyLink>, url: URL) => {
   return { hits };
 };
 
-/** The api with the seeded data. */
-export const seeded = (now: number): Fixtures => {
+/** The api with the seeded data. `tabs` picks what Open now shows (see `TabsScene`). */
+export const seeded = (now: number, options: { readonly tabs?: TabsScene } = {}): Fixtures => {
   const all = [...links(now), ...shapeLinks(now), ...postLinks(now)];
   return {
     answer: (method, url) => {
       const path = url.pathname.replace(/^\/api/, "");
       if (method === "POST" && path === "/links") return saved(now);
+      // "Save all" on Open now: the audit and the screenshots only need an answer.
+      if (method === "POST" && path === "/links/batch") return { links: [] };
       if (method !== "GET") return undefined;
       if (path === "/auth/me") return me;
       if (path === "/devices/activity") return activity(now, all);
@@ -562,7 +627,7 @@ export const seeded = (now: number): Fixtures => {
       if (path.startsWith("/links/")) return all.find((link) => `/links/${link.id}` === path);
       if (path === "/devices")
         return devices.map((d) => ({ ...d, createdAt: iso(now - 40 * day) }));
-      if (path === "/tabs") return tabs(now);
+      if (path === "/tabs") return tabs(now, options.tabs ?? "default");
       if (path === "/tokens") return tokens(now);
       if (path === "/search") return search(all, url);
       return undefined;

@@ -20,8 +20,9 @@ export interface Snapshot {
     readonly edges: ReadonlyArray<{ readonly label: string; readonly left: number }>;
   }>;
   /**
-   * Every media row on the page that is not selected (a selected row adds its action bar), by its
-   * height. The rows of a list are all one height (#161).
+   * Every media row on the page that is not selected (a selected row adds its action bar) and
+   * every compact row (open tabs: 48px, selected or not, saved or not), by its height. The rows of
+   * a list are all one height (#161, #181).
    */
   readonly rows: ReadonlyArray<{ readonly label: string; readonly height: number }>;
   /** The window: its height, and the height of the app's header at its top. */
@@ -31,7 +32,7 @@ export interface Snapshot {
    * (`PostMedia`), by their height. None is taller than the window under the header (#176).
    */
   readonly heroes: ReadonlyArray<{ readonly label: string; readonly height: number }>;
-  /** Elements whose text renders in mono outside the allowlist (keys, device code, charts). */
+  /** Elements whose text renders in mono outside the allowlist (keys, device code). */
   readonly mono: ReadonlyArray<string>;
 }
 
@@ -220,7 +221,7 @@ const mono = (snapshot: Snapshot): Array<Violation> =>
   snapshot.mono.map((label) => ({
     rule: "mono",
     element: label,
-    detail: "mono outside keys, the device code and chart labels",
+    detail: "mono outside keys and the device code",
   }));
 
 /** Every rule broken on the page. Phones also need the 44px hit area. */

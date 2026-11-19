@@ -62,7 +62,7 @@ Each `.vue` file is its own export, so there is no barrel: `import Button from "
 | dialog | `dialog`, `dialog-trigger`, `dialog-content`, `dialog-header`, `dialog-footer`, `dialog-title`, `dialog-description`, `dialog-close` |
 | dropdown-menu | `dropdown-menu`, `dropdown-menu-trigger`, `dropdown-menu-content`, `dropdown-menu-item`, `dropdown-menu-label`, `dropdown-menu-separator`, `dropdown-menu-radio-group`, `dropdown-menu-radio-item` |
 | toast | `toaster`, `toast-message` (type) |
-| skeleton | `skeleton` (`shape`: `line`, `title`, `badge`, `prose`, `thumb`, `hero`, `control`, `chip`, `tag`, `chart`: blocks with the box of what they stand for), `media-row-skeleton` (`tags`) and `list-row-skeleton` (`leading`, `trailing`): the real rows with those blocks in their slots; `use-delayed-loading` (shown after 150 ms, kept at least 300 ms) |
+| skeleton | `skeleton` (`shape`: `line`, `title`, `badge`, `prose`, `thumb`, `hero`, `control`, `chip`, `tag`, `icon`: blocks with the box of what they stand for), `media-row-skeleton` (`tags`), `compact-row-skeleton` and `list-row-skeleton` (`leading`, `trailing`): the real rows with those blocks in their slots; `use-delayed-loading` (shown after 150 ms, kept at least 300 ms) |
 | empty-state / error-state | `empty-state` (`title`, `description`, `#icon`, `#action`), `error-state` |
 | app shell | `app-frame`, `app-bar`, `app-bar-search`, `app-main`, `nav-bar`, `nav-tab`, `wordmark` (the logo: mark and word), `logo-mark`, `centered-screen` |
 | logo | `stash-mark.svg` (full), `stash-mark-sm.svg` (for 32 and 16 px): see "Logo" in [docs/design.md](../../../docs/design.md#logo) |
