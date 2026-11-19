@@ -85,7 +85,7 @@ Radii and heights: see "Tokens" (keys stay 4px). Focus: 2px visible ring in fore
 **Layout:** max-width 1040px, 24px side padding (16px on phones), top nav = wordmark `stash` + SegmentedControl (Inbox · Open now · Search · Settings) + right side (mono sync status, Search ⌘K, theme toggle). Lists are rows, not cards: links and tabs are media rows (preview, title, one muted 13px meta line: host · author · age · device), see "Media rows". Footer shortcut hints use Kbd. Everything must work at 390px width (columns collapse; metadata wraps under the title).
 
 **Data graphics** (inline SVG Vue components, driven by real data, `role="img"` + an `aria-label` summarising the data; mono 12px labels; neutral marks, accent only for the highlighted category):
-- Open now: one lane per device; each tab is a 2×16 tick at x = age (0–14 days, older clamped to the end); region past 7 days hatched (45° pattern, hairline color) with a dashed 7d line; stale ticks in accent; the selected tab gets a taller tick and a `title · age` label.
+- Open now has no graphic either (#181 dropped its age chart: one tick per tab said nothing): its counts are the page's subtitle, see "Open now" under Layout rules.
 - Inbox and Search have no graphic (#148): links are media rows, see "Media rows" and "Search" under Layout rules.
 
 ## Light mode (derived)
@@ -176,13 +176,14 @@ A filter bar is one row of `sm` controls, all 32px on one centre line.
 
 ### Media rows (#148)
 
-Links and tabs (Inbox, Search, Open now, the `/save` result) are `MediaRow`s, so a list reads as
-content, not as a table of text:
+Links (Inbox, Search, the `/save` result) are `MediaRow`s, so a list reads as content, not as a
+table of text. Open tabs are not reading material and have a denser row of their own, see
+"Open now (#181)":
 
 - **Every row of a list is one height** (#161), whatever it holds: 114px from `sm` up, 120px on
-  phones (88px for open tabs, which have no tags line). Nothing wraps or grows; a line with nothing
+  phones (88px for a list without a tags line). Nothing wraps or grows; a line with nothing
   in it stays empty and keeps its place. Only the selected row is taller, by its action bar. A
-  list without a tags line (open tabs) keeps the height from `sm` up and centres its three lines
+  list without a tags line keeps the height from `sm` up and centres its three lines
   in it, 13px from the preview's top and bottom (#164).
 - **Preview** on the left, 16:9: 160×90 from `sm` up, 110×62 on phones, radius 8. From `sm` up it
   sets the row's height and the text column fills it exactly, so the two end on one line top and
@@ -197,25 +198,24 @@ content, not as a table of text:
   with a CSS blur, no canvas). The shape comes from the post's media when the link is a post
   (their width and height), and is otherwise measured when the picture has loaded; the box does
   not change either way.
-- **A link or tab with no image gets a generated cover** (#155), also when its image fails to
+- **A link with no image gets a generated cover** (#155), also when its image fails to
   load: a soft gradient in a hue of the site's own (a stable hash of the host; `.media-cover` in
   the kit's styles tones it light or deep per theme), the site's favicon in the centre (28px, 20px
   on phones; `/favicon.ico` on the page's origin, loaded like a preview: lazily, no referrer) and
-  the host in small type under it. When the favicon fails the site's initial takes its place. An
-  open tab has no image, so its tile is always the cover. `MediaThumb` builds it from `url`; a
+  the host in small type under it. When the favicon fails the site's initial takes its place.
+  `MediaThumb` builds it from `url`; a
   URL that is not a web page keeps the neutral tile with an initial.
 - **Title** 15/600 (`text-row-title`), one line with an ellipsis (two lines at most on phones),
   with an accent dot before it while the link is not yet seen. The whole title is in its `title`
   attribute. A row shows it without the site's own name before or after it (`GitHub - … · GitHub`,
   `… | Example`: `@stash/web-ui/site-title`, when the name equals the host's); the stored title and
   the link's page keep it whole. It is the row's target: its hit area covers the whole row, and
-  other links in the row (the host, a tag) sit above it. On Open now a click selects the row
-  instead, and only the title opens the tab.
+  other links in the row (the host, a tag) sit above it.
 - **One meta line**, muted 13: host · channel or author · age · device (the device is left out on
   phones). Only the author gives way when the line is too long: the host stays whole. A link
   still being enriched ends the line with `summarizing…` on phones, which have no summary line.
 - **Summary**, one line with an ellipsis, from `sm` up only. A link with no summary shows who
-  published it there, or nothing; an open tab shows its address.
+  published it there, or nothing.
 - **Tags** as 24px chips on one line (`TagLine`): as many as fit, three at most, then `+n`. On
   phones the line runs under the preview and the text, across the row.
 - **A post on X is the same row in a post's order** (#170, `MediaRow meta-first`): the meta line
@@ -232,10 +232,48 @@ content, not as a table of text:
   hover, focus and selected background ends on the edge and the preview sits 12px inside it. On
   phones there is no hover and the content uses the full width.
 
-**Levels:** page title 28/600 > `GroupHeader` (a day in the Inbox, `Results`, `Older than 7 days`:
+**Levels:** page title 28/600 > `GroupHeader` (a day in the Inbox, `Results`, a device on Open now:
 13/600 uppercase, a muted count, a hairline rule to the edge, optional `ghost` `sm` actions) > row
 title 15/600 > meta 13. Groups sit **32px** apart, a group header **8px** above its rows, and the
 lines of a media row **2px** apart (20 + 20 + 20 + 24 and three gaps make the preview's 90).
+
+### Open now (#181)
+
+Open tabs are scanned, not read, so the page is a compact list:
+
+- **`CompactRow`, 48px at every width.** The site's real favicon (`SiteIcon`, 20px, from
+  `/favicon.ico` on the page's origin, lazily and with no referrer; the site's initial on its hue
+  when there is none), the title on one line (14/500, without the site's own name), and under it
+  one muted line: `host · open 3 d`. No cover and no address line: the whole address is the
+  title's tooltip and what Copy copies. Every row is the same height, selected or not.
+- **A tab that is already saved** is the same row with more at its end: the link's preview
+  (`CompactRowThumb`, 64×36, from `sm` up) and a `Saved` mark that opens the link's page. The page
+  knows a tab is saved when its address (without fragment and trailing slash) is among the latest
+  100 links, or it was saved from this page.
+- **Time is the tab's own**: how long it has been open (`open 12 min`, `open 5 h`, `open 3 d`),
+  from the browser's `openedAt`. A tab without it says nothing; the time of the last sync is not
+  shown on rows.
+- **Groups**: one per device (`Zen on Work laptop · 11 tabs · synced just now`, the sync time once
+  per device), its tabs in the browser's own order, then **Stale**: the tabs of every device open
+  longer than 7 days, oldest first, each naming its device. The headers are `GroupHeader`s that
+  stick under the app header while their group scrolls by (`sticky`, at `--app-bar-height`) and
+  fold their group (`collapsible`: the title is a 32px button with a chevron). Stale has the bulk
+  actions `Save all` and `Archive all n` (the latter after a confirm).
+- **No chart.** The line under the title sums the page up: `23 tabs open · 6 older than a week`.
+- **Actions per row**, `ghost` `sm` at the row's end: Save (to Stash; the tab stays open), Copy
+  link, Open here, and a menu with Archive (save and close) and Close on the device. They show
+  under the pointer, with keyboard focus in the row and on the selected row (a click on the row,
+  or ↑/↓); the text gives way to them, the row keeps its height. On a phone a swipe to the left
+  brings them out (icons only, in the place of the Saved mark) and a swipe back hides them.
+- **Bulk**: `Select` (or X on the selected row, or a finger held on a row) turns the icons into
+  checkboxes (`CheckToggle`); the picked tabs are saved in one request from an `ActionBar` (at the
+  filter's end; a bar above the nav on phones).
+- **Filter**: a compact field (`sm`, 288px; the row's width on phones) over the list filters by
+  title, address and device. The header's search stays the Inbox's.
+- Keys: ↑/↓ select, ↵ open, S save, C copy link, X pick, E archive, W close on device.
+
+The api reports no windows or workspaces and no last-active time for a tab yet, so the groups
+stop at the device and the row's time is the time since it was opened.
 
 ### Link page (#159)
 
@@ -321,11 +359,11 @@ and selected background has room.
 
 ### Data graphics
 
-Open now is the only page with a chart (#148 dropped the Inbox's 30-day bars and the Search
-timeline, which read as decoration; the Inbox keeps its counts in the subtitle). A data graphic
-renders only with data: the Open now chart goes when no tab is left to draw. Legends sit directly
-under or beside their chart, never at the far edge. A chart's counts are in the page subtitle, not
-in a second line above the chart.
+No page has a chart: #148 dropped the Inbox's 30-day bars and the Search timeline, which read as
+decoration, and #181 the Open now age chart, whose one tick per tab said nothing. Counts are in
+the page subtitle (`6 unread · 30 saved in 30 days`, `23 tabs open · 6 older than a week`). A data
+graphic, if one comes back, renders only with data and real spread, with its legend directly
+under or beside it.
 
 ### Search
 
@@ -401,9 +439,10 @@ Nothing moves when data arrives.
 
 - **A skeleton is the real layout with placeholder blocks**, not a drawing of it: rows are
   `<MediaRowSkeleton>` (the real `<MediaRow>`: 114px from `sm` up, 120px on phones with a tags
-  line, 88px without) and `<ListRowSkeleton>` (the real `<ListRow>`), a group is
-  `<GroupHeader placeholder>`, and `<Skeleton>` has a shape with the box of everything else (a
-  line of text, the page title, a badge, a 16:9 hero, a field, a chip, the chart). They sit in the
+  line, 88px without), `<CompactRowSkeleton>` (the real `<CompactRow>`, 48px: open tabs) and
+  `<ListRowSkeleton>` (the real `<ListRow>`), a group is
+  `<GroupHeader placeholder>` (with `collapsible` where the group's header is), and `<Skeleton>` has a shape with the box of everything else (a
+  line of text, the page title, a badge, a 16:9 hero, a field, a chip, a row's icon). They sit in the
   same containers and gaps as the loaded page.
 - **It shows after 150 ms and then stays at least 300 ms** (`useDelayedLoading`), so a fast answer
   never shows one and a slow one never flashes it. Cached data shows at once.
@@ -416,8 +455,8 @@ Nothing moves when data arrives.
 - **Images are sized before they load**: a row's preview is 160×90 (110×62), a hero is 16:9 (or
   the shape its link tells) with its height capped. A picture whose shape is only known once it
   has loaded changes how it sits inside that box, never the box.
-- What the skeleton can't know is the data: how many devices the chart has lanes for (it assumes
-  three), whether the first group of open tabs has actions, how many lines a link's title takes.
+- What the skeleton can't know is the data: how many tabs the first device has (the next group
+  starts after them), how many lines a link's title takes.
   There the content replaces the skeleton in one frame; nothing that was on screen moves.
 
 `pnpm --filter @stash/web check:loading` (after a build; CI job `layout-audit`) opens the Inbox,
@@ -445,7 +484,9 @@ credentials), seeds synthetic data and a session through the dev-only `/_smoke/s
 `/_smoke/session` routes, runs Vite against it and captures every page (Inbox with a selected row, Inbox while searching
 (`inbox-search-*`), the focused empty search field with recent searches (`inbox-search-recent-*`),
 the app header alone with the search field at rest and focused (`header-*`, `header-focused-*`),
-Open now, the `/save` result, a link's page three times (`link-youtube`, `link-article`,
+Open now five times, with its tabs from the audit's fixtures (`open-now`: three devices, a stale group
+and saved tabs; `open-now-many`: one browser with a long list; `open-now-two-devices`;
+`open-now-selected`: a row with its actions; `open-now-picking`: tabs picked for a bulk save), the `/save` result, a link's page three times (`link-youtube`, `link-article`,
 `link-cover`, answered in the browser from the audit's fixtures), a post on X of each kind
 (`post-text`, `post-photo`, `post-photos`, `post-video`, `post-quote`, `post-unavailable`), a photo opened
 large (`post-lightbox`) and the Inbox with posts among its links (`inbox-posts`), from the same fixtures, Settings, Settings with each guide open (`settings-iphone-*` and so
@@ -485,7 +526,8 @@ both themes.
 
 `pnpm --filter @stash/web audit:layout` (CI job `layout-audit`) builds the app, serves it with
 `vite preview` and opens every page in headless Chromium, one at a time: Inbox, Open now and
-Settings, each seeded and as a first-run user, Inbox and Open now with a selected row, the Inbox
+Settings, each seeded and as a first-run user, Inbox and Open now with a selected row, Open now
+with tabs picked, with one long list and with two devices, the Inbox
 while searching, the search field's recent searches, Settings with each guide open, the
 extension's approve page, `/save`, a link's page (a YouTube video, an article with an image, a
 link with none, a YouTube Short, an article with a portrait image), a post of each kind (among
@@ -506,12 +548,12 @@ them a portrait video, a portrait photo, a square and a panorama), plus Login, i
   runs off both screen edges, is measured by its content box a `MediaHero` that spans the
   whole screen on a phone counts as on the edges;
 - every media row on a page is the same height (± 1px), except the selected one, which adds its
-  action bar; the seeded Inbox mixes a video with no summary, an article with one, a title too
+  action bar; so is every compact row (open tabs: 48px, selected, saved or neither); the seeded Inbox mixes a video with no summary, an article with one, a title too
   long for its line and links with no image or no tags;
 - a link page's preview (`MediaHero`) and a post's media (`PostMedia`) are never taller than the
   window minus the header (#176);
 - every vertical gap between page-level blocks is on the spacing scale;
-- text renders in mono only inside keys, the device code and charts.
+- text renders in mono only inside keys and the device code.
 
 It prints a table of violations and exits 1 on any. The rules are plain functions
 (`scripts/layout-audit-rules.ts`, tested in `test/layout-audit-rules.test.ts`), measured by
@@ -556,6 +598,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Input / SearchField | `input`, `search-field` (`size`; `shortcut` adds a trailing `Kbd`) |
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
+| CompactRow | `compact-row` (48px at every width; slots `leading`, `title`, `meta`, `trailing`, `actions`: out under the pointer, with keyboard focus, while `selected` or `revealed`; emits `update:revealed` on a touch swipe and `hold` on a held finger), `compact-row-title` (14/500, one line), `compact-row-thumb` (64×36 preview at the row's end), `compact-row-skeleton`, `site-icon` (a site's favicon at 20px, its initial without one), `check-toggle` (a 16px checkbox in a 32px target, `v-model:checked`, `label`) |
 | MediaRow | `media-row` (one fixed height; slots `thumb`, `title`, `meta`, `summary`, `tags`, `#actions` while `selected`; `unread`), `media-row-title` (15/600, one line, two on phones, the whole row's target unless `:stretch="false"`), `site-title` (a title without the site's own name), `tag-line` (the tags on one line: as many chips as fit, then `+n`), `media-thumb` (16:9, 160×90, 110×62 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
 | MediaHero | `media-hero` (`src`, `url`, `embed`, `title`, `aspect`): a link's preview on its own page, at most `min(70vh, 640px)` tall, with a play button that loads the player on demand |
 | MediaFit | `media-fit` (`src`, `aspect`, `box`, `fit`: a remote picture in a box of any shape, filling it from the upper third or whole over its blurred copy; the default slot is drawn in the picture's frame), `media-shape` (ratios, the 1.3–2.1 limits, the height cap); used by `media-thumb`, `media-hero` and `post-media`, never an `<img>` with `object-fit` of its own |
@@ -563,7 +606,7 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | MetaLine | `meta-line`: the dot-separated meta line outside a row |
 | ActionBar | `action-bar` (`label`): an item's actions, a bottom bar on phones |
 | ScrollRow | `scroll-row`: a row of controls that wraps from `sm` up and is one sideways-scrolling line on phones, running off both screen edges |
-| GroupHeader | `group-header` (`title`, `count`, `#actions`): 13/600 uppercase with a rule, above a group of rows |
+| GroupHeader | `group-header` (`title`, `count`, `meta`, `#actions`): 13/600 uppercase with a rule, above a group of rows; `collapsible` with `v-model:open` folds the group from its title, `sticky` keeps it under the app header |
 | MatchMark | `match-mark` (`tone`: `surface` on muted text, `signal` on full-contrast text) |
 | Card | `card`, `card-header`, `card-title`, … |
 | Avatar | `avatar-button` |

@@ -38,22 +38,34 @@ export const command = (deviceId: string, url: string) => ({
   completedAt: null,
 });
 
+/** A saved link in its wire form. */
+export const link = (
+  id: string,
+  url: string,
+  fields: { readonly title?: string | null; readonly imageUrl?: string | null } = {},
+) => ({
+  id,
+  url,
+  canonicalUrl: null,
+  title: fields.title ?? null,
+  status: "new",
+  type: null,
+  summary: null,
+  language: null,
+  tags: [],
+  sourceDeviceId: null,
+  createdAt: takenAt,
+  imageUrl: fields.imageUrl ?? null,
+  author: null,
+  enrichedAt: null,
+});
+
+export const linksPage = (...items: ReadonlyArray<ReturnType<typeof link>>) => ({
+  items,
+  nextCursor: null,
+});
+
 export const archived = (deviceId: string, url: string, title: string | null) => ({
-  link: {
-    id: "link-1",
-    url,
-    canonicalUrl: null,
-    title,
-    status: "archived",
-    type: null,
-    summary: null,
-    language: null,
-    tags: [],
-    sourceDeviceId: deviceId,
-    createdAt: takenAt,
-    imageUrl: null,
-    author: null,
-    enrichedAt: null,
-  },
+  link: { ...link("link-1", url, { title }), status: "archived", sourceDeviceId: deviceId },
   command: command(deviceId, url),
 });

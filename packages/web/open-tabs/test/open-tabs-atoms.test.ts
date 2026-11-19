@@ -1,7 +1,10 @@
+import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as ApiTesting from "@stash/web-api-client/testing";
+import * as PlatformTesting from "@stash/web-platform/testing";
 import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
@@ -286,6 +289,176 @@ describe("closeOnDevice", () => {
       yield* loaded(reg);
       expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/b"]]);
       unmount();
+    }),
+  );
+});
+
+const savedIds = (reg: AtomRegistry.AtomRegistry) => {
+  const view = reg.get(OpenTabsAtoms.view);
+  return AsyncResult.isSuccess(view)
+    ? view.value.flatMap((group) => group.tabs.map((tab) => tab.saved?.id ?? null))
+    : undefined;
+};
+
+describe("saved tabs", () => {
+  it.effect("marks the tabs whose page is among the latest links", () =>
+    Effect.gen(function* () {
+      let asked = "";
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "GET /links": (request) => {
+          asked = String(Object.fromEntries(request.urlParams)["limit"] ?? "");
+          return ApiTesting.json(
+            Fixtures.linksPage(Fixtures.link("link-b", "https://example.com/b/")),
+          );
+        },
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
+      expect(savedIds(reg)).toEqual([null, "link-b"]);
+      expect(asked).toBe("100");
+      unmount();
+    }),
+  );
+
+  it.effect("shows the tabs when the links can't be loaded", () =>
+    Effect.gen(function* () {
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "GET /links": () => new Response(null, { status: 500 }),
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      expect(savedIds(reg)).toEqual([null, null]);
+      unmount();
+    }),
+  );
+});
+
+describe("save", () => {
+  it.effect("saves one tab with its title and device, and marks it saved at once", () =>
+    Effect.gen(function* () {
+      const sent: Array<unknown> = [];
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "GET /links": () => ApiTesting.json(Fixtures.linksPage()),
+        "POST /links": (request) => {
+          sent.push(body(request));
+          return ApiTesting.json(
+            { ...Fixtures.link("link-a", "https://example.com/a"), created: true },
+            201,
+          );
+        },
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      reg.set(OpenTabsAtoms.save, [rowOf(reg, "a")]);
+      const count = yield* AtomRegistry.getResult(reg, OpenTabsAtoms.save, {
+        suspendOnWaiting: true,
+      });
+      expect(count).toBe(1);
+      expect(sent).toEqual([
+        { url: "https://example.com/a", title: "Example a", deviceId: "laptop" },
+      ]);
+      expect(savedIds(reg)).toEqual(["link-a", null]);
+      // The tab stays open: saving is not archiving.
+      expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/b"]]);
+      unmount();
+    }),
+  );
+
+  it.effect("saves several tabs in one request, without the saved ones and repeats", () =>
+    Effect.gen(function* () {
+      const sent: Array<unknown> = [];
+      const reg = use({
+        "GET /tabs": () =>
+          ApiTesting.json(
+            Fixtures.allTabs(
+              Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")]),
+              Fixtures.deviceTabs("phone", [Fixtures.tab("b"), Fixtures.tab("c")]),
+            ),
+          ),
+        "GET /links": () =>
+          ApiTesting.json(Fixtures.linksPage(Fixtures.link("link-a", "https://example.com/a"))),
+        "POST /links/batch": (request) => {
+          sent.push(body(request));
+          return ApiTesting.json(
+            {
+              links: [
+                Fixtures.link("link-b", "https://example.com/b"),
+                Fixtures.link("link-c", "https://example.com/c"),
+              ],
+            },
+            201,
+          );
+        },
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
+      const view = reg.get(OpenTabsAtoms.view);
+      const all = AsyncResult.isSuccess(view) ? view.value.flatMap((group) => group.tabs) : [];
+      reg.set(OpenTabsAtoms.save, all);
+      const count = yield* AtomRegistry.getResult(reg, OpenTabsAtoms.save, {
+        suspendOnWaiting: true,
+      });
+      expect(count).toBe(2);
+      expect(sent).toEqual([
+        {
+          links: [
+            { url: "https://example.com/b", title: "Example b", deviceId: "laptop" },
+            { url: "https://example.com/c", title: "Example c", deviceId: "phone" },
+          ],
+        },
+      ]);
+      expect(savedIds(reg)).toEqual(["link-a", "link-b", "link-b", "link-c"]);
+      expect(reg.get(OpenTabsAtoms.toasts).map((toast) => toast.title)).toEqual(["Saved 2 tabs"]);
+      unmount();
+    }),
+  );
+
+  it.effect("says so in a toast when saving fails, and changes nothing", () =>
+    Effect.gen(function* () {
+      const reg = use({
+        "GET /tabs": () => ApiTesting.json(laptop()),
+        "GET /links": () => ApiTesting.json(Fixtures.linksPage()),
+        "POST /links": () => ApiTesting.json({ _tag: "RateLimited" }, 429),
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      reg.set(OpenTabsAtoms.save, [rowOf(reg, "a")]);
+      const exit = yield* Effect.exit(
+        AtomRegistry.getResult(reg, OpenTabsAtoms.save, { suspendOnWaiting: true }),
+      );
+      expect(Exit.isFailure(exit)).toBe(true);
+      expect(reg.get(OpenTabsAtoms.toasts)).toMatchObject([
+        { title: "Couldn't save the tab", description: "Example a", variant: "destructive" },
+      ]);
+      expect(savedIds(reg)).toEqual([null, null]);
+      unmount();
+    }),
+  );
+});
+
+describe("copy", () => {
+  it.effect("copies the tab's address and says so", () =>
+    Effect.gen(function* () {
+      const clipboard = yield* Layer.build(PlatformTesting.layerClipboard);
+      registry = ApiTesting.makeRegistry(
+        {},
+        { initialValues: [[OpenTabsAtoms.clipboard, Layer.succeedContext(clipboard)]] },
+      );
+      registry.set(OpenTabsAtoms.copy, "https://example.com/a?x=1#top");
+      yield* AtomRegistry.getResult(registry, OpenTabsAtoms.copy, { suspendOnWaiting: true });
+      const text = yield* Effect.provide(
+        Effect.flatMap(Clipboard.Clipboard, (service) => service.readString),
+        clipboard,
+      );
+      expect(text).toBe("https://example.com/a?x=1#top");
+      expect(registry.get(OpenTabsAtoms.toasts).map((toast) => toast.title)).toEqual([
+        "Link copied",
+      ]);
     }),
   );
 });

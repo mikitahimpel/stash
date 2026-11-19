@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@effect/atom-vue": "catalog:",
+    "@effect/platform-browser": "catalog:",
     "@lucide/vue": "catalog:",
     "@stash/contracts-api": "workspace:*",
     "@stash/contracts-domain": "workspace:*",

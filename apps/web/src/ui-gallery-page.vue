@@ -54,6 +54,12 @@ import type * as PostMediaItems from "@stash/web-ui/post-media-items";
 import PostText from "@stash/web-ui/post-text";
 import TagChip from "@stash/web-ui/tag-chip";
 import TagLine from "@stash/web-ui/tag-line";
+import CheckToggle from "@stash/web-ui/check-toggle";
+import CompactRow from "@stash/web-ui/compact-row";
+import CompactRowSkeleton from "@stash/web-ui/compact-row-skeleton";
+import CompactRowThumb from "@stash/web-ui/compact-row-thumb";
+import CompactRowTitle from "@stash/web-ui/compact-row-title";
+import SiteIcon from "@stash/web-ui/site-icon";
 import ListRowSkeleton from "@stash/web-ui/list-row-skeleton";
 import MediaRowSkeleton from "@stash/web-ui/media-row-skeleton";
 import Skeleton from "@stash/web-ui/skeleton";
@@ -94,6 +100,23 @@ const themes: ReadonlyArray<SegmentedControlOption<Theme.Preference>> = [
 ];
 
 const view = ref<"inbox" | "open-now" | "search" | "settings">("inbox");
+const compactOpen = ref(true);
+const compactPicked = ref(true);
+const compactRows = [
+  {
+    title: "How interest rates move housing prices",
+    url: "https://example.com/a",
+    open: "open 4 h",
+    saved: true,
+  },
+  {
+    title: "Pull request: compact rows for open tabs",
+    url: "https://example.org/b",
+    open: "open 28 min",
+    saved: false,
+  },
+  { title: "Weekly planning board", url: "https://example.net/c", open: "open 3 d", saved: false },
+];
 const views: ReadonlyArray<SegmentedControlOption<typeof view.value>> = [
   { value: "inbox", label: "Inbox" },
   { value: "open-now", label: "Open now" },
@@ -364,6 +387,55 @@ const swatches = [
             <ListRow as="li">
               <template #title><ListRowTitle muted>No tokens yet</ListRowTitle></template>
             </ListRow>
+          </ul>
+        </section>
+
+        <section class="flex flex-col gap-2">
+          <GroupHeader
+            v-model:open="compactOpen"
+            collapsible
+            title="Compact rows"
+            :count="`${compactRows.length} tabs`"
+            meta="synced just now"
+          >
+            <template #actions>
+              <Button variant="ghost" size="sm">Save all</Button>
+            </template>
+          </GroupHeader>
+          <ul v-if="compactOpen" class="flex flex-col">
+            <CompactRow
+              v-for="(row, index) in compactRows"
+              :key="row.url"
+              as="li"
+              :selected="index === 1"
+            >
+              <template #leading>
+                <CheckToggle
+                  v-if="index === 2"
+                  v-model:checked="compactPicked"
+                  :label="`Select ${row.title}`"
+                />
+                <SiteIcon v-else :url="row.url" />
+              </template>
+              <template #title>
+                <CompactRowTitle as-child>
+                  <a :href="row.url" :title="row.url">{{ row.title }}</a>
+                </CompactRowTitle>
+              </template>
+              <template #meta>
+                <span>example.com</span>
+                <span>{{ row.open }}</span>
+              </template>
+              <template v-if="row.saved" #trailing>
+                <CompactRowThumb src="https://example.com/previews/economics/rates.svg" />
+                <Badge variant="outline">Saved</Badge>
+              </template>
+              <template #actions>
+                <Button variant="ghost" size="sm">Save</Button>
+                <Button variant="ghost" size="sm">Copy link</Button>
+              </template>
+            </CompactRow>
+            <CompactRowSkeleton as="li" />
           </ul>
         </section>
 

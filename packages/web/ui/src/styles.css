@@ -317,6 +317,20 @@
 }
 
 /*
+ * How far the sticky `<AppBar>` reaches down the screen: its 56px row and hairline, plus, on
+ * phones, the search field's line under the row (32px and 12px below it). What sticks under the
+ * header (`<GroupHeader sticky>`) stops there.
+ */
+:root {
+  --app-bar-height: calc(57px + env(safe-area-inset-top));
+}
+@media (width < 40rem) {
+  :root:has([data-slot="app-bar-search"]) {
+    --app-bar-height: calc(101px + env(safe-area-inset-top));
+  }
+}
+
+/*
  * Phones: a page with an `<ActionBar>` (fixed above the nav bar, 56px) ends that much lower, so
  * its last line clears the bar. `<AppMain>` adds `--action-bar-space` to its bottom padding.
  */

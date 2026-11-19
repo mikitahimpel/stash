@@ -19,7 +19,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
       <DialogHeader>
         <DialogTitle>Archive {{ count }} {{ count === 1 ? "tab" : "tabs" }}?</DialogTitle>
         <DialogDescription>
-          Open longer than {{ OpenTabsView.oldAfterDays }} days. Saved as links, closed on their
+          Open longer than {{ OpenTabsView.staleAfterDays }} days. Saved as links, closed on their
           devices.
         </DialogDescription>
       </DialogHeader>

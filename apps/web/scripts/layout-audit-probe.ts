@@ -110,14 +110,7 @@ export const probe = (body: HTMLElement): Snapshot => {
   };
 
   // Kit components that are one block, whatever their insides look like.
-  const leaves = new Set([
-    "page-header",
-    "section-header",
-    "card",
-    "empty-state",
-    "group-header",
-    "tab-age-chart",
-  ]);
+  const leaves = new Set(["page-header", "section-header", "card", "empty-state", "group-header"]);
   const stacks = (el: Element): boolean => {
     const s = css(el);
     if (s.display === "block") return true;
@@ -179,7 +172,10 @@ export const probe = (body: HTMLElement): Snapshot => {
   // A MediaRow (`data-media-row`). Its box sits on the content edges and its content is inset, so
   // it is measured by its box. Where the box reaches past an edge for its background only (a
   // selected row on a phone), its ink is what must sit on the edge.
-  const isMediaRow = (el: Element) => el.hasAttribute("data-media-row");
+  // A CompactRow (`data-compact-row`, open tabs) has the same box: on the content edges from
+  // `sm` up, its content inset.
+  const isMediaRow = (el: Element) =>
+    el.hasAttribute("data-media-row") || el.hasAttribute("data-compact-row");
   const mediaRowEdges = (row: Element) => {
     const b = box(row);
     const inked = ink(row);
@@ -225,7 +221,8 @@ export const probe = (body: HTMLElement): Snapshot => {
       centered: isCentered,
     });
     if (row) groups.push({ kind: "row", label: label(el), edges: rowLines(el) });
-    if (isMediaRow(el)) groups.push({ kind: "row", label: label(el), edges: mediaRowLines(el) });
+    if (el.hasAttribute("data-media-row"))
+      groups.push({ kind: "row", label: label(el), edges: mediaRowLines(el) });
     if (slot === "card") {
       const parts = [...el.querySelectorAll("[data-slot=card-title], [data-list-row]")];
       groups.push({
@@ -324,9 +321,15 @@ export const probe = (body: HTMLElement): Snapshot => {
     mono.push(label(el));
   }
 
-  // Every media row that is not selected, by its height: they are all one height.
-  const rows = [...main.querySelectorAll("[data-media-row]")]
-    .filter((row) => visible(row) && row.getAttribute("data-state") !== "selected")
+  // Every media row that is not selected, and every compact row, by its height: they are all one
+  // height.
+  // A compact row keeps its height while selected, so those are all compared.
+  const rows = [...main.querySelectorAll("[data-media-row], [data-compact-row]")]
+    .filter(
+      (row) =>
+        visible(row) &&
+        (row.hasAttribute("data-compact-row") || row.getAttribute("data-state") !== "selected"),
+    )
     .map((row) => ({ label: label(row), height: box(row).height }));
 
   // The big media, against the window under the header.

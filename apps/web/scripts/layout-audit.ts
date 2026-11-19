@@ -27,6 +27,8 @@ interface View {
   readonly prepare: (page: Page) => Promise<unknown>;
   /** A returning user: the browser already holds recent searches. */
   readonly recentSearches?: boolean;
+  /** What Open now shows, when not the seeded account's tabs. */
+  readonly tabs?: Fixtures.TabsScene;
 }
 
 const views: ReadonlyArray<View> = [
@@ -84,9 +86,28 @@ const views: ReadonlyArray<View> = [
         .locator("[data-tab]")
         .first()
         .click({ position: { x: 4, y: 4 } });
-      await page.locator("[data-slot=media-row-actions]").waitFor();
+      await page.locator("[data-state=selected] [data-action=copy]").waitFor();
     },
   },
+  {
+    // Picking tabs for a bulk action: checkboxes in the rows and the bar that acts on them.
+    name: "open-now-picking",
+    path: "/open-now",
+    data: "seeded",
+    prepare: async (page) => {
+      await page.locator("[data-action=pick]").click();
+      await page.locator("[data-tab] [role=checkbox]").nth(1).click();
+      await page.locator("[data-action=save-picked]").waitFor();
+    },
+  },
+  // One browser with a long list, and two devices with nothing stale.
+  ...(["many", "two"] as const).map((scene) => ({
+    name: `open-now-${scene}`,
+    path: "/open-now",
+    data: "seeded" as const,
+    tabs: scene,
+    prepare: (page: Page) => page.locator("[data-section]").first().waitFor(),
+  })),
   {
     name: "settings",
     path: "/settings",
@@ -182,8 +203,11 @@ const views: ReadonlyArray<View> = [
   },
 ];
 
-const answer = async (page: Page, data: View["data"]) => {
-  const fixtures = data === "seeded" ? Fixtures.seeded(Date.now()) : Fixtures.empty;
+const answer = async (page: Page, { data, tabs }: View) => {
+  const fixtures =
+    data === "seeded"
+      ? Fixtures.seeded(Date.now(), tabs === undefined ? {} : { tabs })
+      : Fixtures.empty;
   // The seeded links' preview images are drawn here; nothing is fetched from the network.
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
@@ -242,7 +266,7 @@ const main = async () => {
         page.on("console", (message) => {
           if (message.type() === "error") errors.push(message.text());
         });
-        await answer(page, view.data);
+        await answer(page, view);
         // Recent searches live in the browser: a returning user has some, everyone else none.
         const [key, value] = Fixtures.recentSearches(Date.now());
         // As a string, so the script itself never names the DOM globals.

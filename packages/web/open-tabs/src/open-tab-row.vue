@@ -1,77 +1,187 @@
 <script setup lang="ts">
+import { ArrowUpRight, Bookmark, BookmarkCheck, Copy, Ellipsis } from "@lucide/vue";
+import Badge from "@stash/web-ui/badge";
 import Button from "@stash/web-ui/button";
+import CheckToggle from "@stash/web-ui/check-toggle";
+import CompactRow from "@stash/web-ui/compact-row";
+import CompactRowThumb from "@stash/web-ui/compact-row-thumb";
+import CompactRowTitle from "@stash/web-ui/compact-row-title";
+import DropdownMenu from "@stash/web-ui/dropdown-menu";
+import DropdownMenuContent from "@stash/web-ui/dropdown-menu-content";
+import DropdownMenuItem from "@stash/web-ui/dropdown-menu-item";
+import DropdownMenuTrigger from "@stash/web-ui/dropdown-menu-trigger";
 import Kbd from "@stash/web-ui/kbd";
-import MediaRow from "@stash/web-ui/media-row";
-import MediaRowTitle from "@stash/web-ui/media-row-title";
-import MediaThumb from "@stash/web-ui/media-thumb";
+import SiteIcon from "@stash/web-ui/site-icon";
 import * as SiteTitle from "@stash/web-ui/site-title";
-import { useTemplateRef } from "vue";
+import { computed, useTemplateRef } from "vue";
+import { RouterLink } from "vue-router";
 import type * as OpenTabsView from "./open-tabs-view.ts";
 
-// An open tab as a media row, the Inbox's look and its one row height: title (without the site's
-// name) · host · device · age, then the tab's address where a link has its summary. A tab has no
-// preview image, so its tile is the generated cover: the site's hue, its favicon and its host. A
-// click anywhere on the row selects it (which shows its actions); only the title opens the tab.
-defineProps<{ tab: OpenTabsView.TabRow; selected: boolean }>();
-const emit = defineEmits<{ select: []; archive: []; close: [] }>();
+// An open tab as a compact row: the site's icon, the title on one line (without the site's name),
+// then host · how long it has been open. Open tabs are scanned, not read, so there is no cover
+// and no address line: the whole address is the title's tooltip and what Copy copies. A tab that
+// is already in Stash also shows its link's preview and a Saved mark, in the same height.
+//
+// A click on the row selects it (which shows its actions, as the pointer does); only the title
+// opens the tab. While tabs are being picked, the icon is a checkbox and a click picks the row.
+const props = defineProps<{
+  tab: OpenTabsView.TabRow;
+  selected: boolean;
+  /** Its actions are out after a swipe to the left. */
+  revealed: boolean;
+  /** Tabs are being picked for a bulk action. */
+  picking: boolean;
+  picked: boolean;
+  /** Among the tabs of every device (the stale ones): the row names its device. */
+  showDevice: boolean;
+}>();
+const emit = defineEmits<{
+  select: [];
+  reveal: [revealed: boolean];
+  hold: [];
+  pick: [];
+  save: [];
+  copy: [];
+  archive: [];
+  close: [];
+}>();
 
 const link = useTemplateRef<HTMLAnchorElement>("link");
 /** Puts the focus on the title link, so Enter opens the tab. */
 const focus = () => link.value?.focus();
 defineExpose({ focus });
+
+const title = computed(() =>
+  props.tab.title === null ? props.tab.url : SiteTitle.strip(props.tab.title, props.tab.url),
+);
+
+const onRowClick = () => (props.picking ? emit("pick") : emit("select"));
+// While tabs are picked the title picks its row like the rest of it.
+const onTitleClick = (event: MouseEvent) => {
+  if (props.picking) event.preventDefault();
+};
 </script>
 
 <template>
-  <MediaRow
+  <CompactRow
     as="li"
     :selected="selected"
+    :revealed="revealed"
     :data-tab="tab.key"
-    v-bind="{ onClick: () => emit('select') }"
+    :data-saved="tab.saved === null ? undefined : ''"
+    v-bind="{ onClick: onRowClick }"
+    @update:revealed="(next) => emit('reveal', next)"
+    @hold="emit('hold')"
   >
-    <template #thumb><MediaThumb :url="tab.url" :initial="tab.host" /></template>
+    <template #leading>
+      <CheckToggle
+        v-if="picking"
+        :checked="picked"
+        :label="`Select ${title}`"
+        @update:checked="emit('pick')"
+      />
+      <SiteIcon v-else :url="tab.url" />
+    </template>
     <template #title>
-      <MediaRowTitle as-child :stretch="false">
+      <CompactRowTitle as-child>
         <a
           ref="link"
           :href="tab.url"
           target="_blank"
           rel="noopener noreferrer"
-          :title="tab.title ?? tab.url"
+          :title="tab.url"
           data-slot="open-tab-title"
           @focus="emit('select')"
-          >{{ tab.title === null ? tab.url : SiteTitle.strip(tab.title, tab.url) }}</a
+          @click="onTitleClick"
+          >{{ title }}</a
         >
-      </MediaRowTitle>
+      </CompactRowTitle>
     </template>
     <template #meta>
-      <span>{{ tab.host }}</span>
-      <span data-shrink="">{{ tab.deviceName }}</span>
-      <span
-        :data-age="tab.age.tone"
-        :title="`Open ${tab.age.label}`"
-        :class="['tabular-nums', tab.age.tone === 'old' && 'text-signal']"
-        >{{ tab.age.tone === "unknown" ? "—" : tab.age.label }}</span
-      >
+      <span data-slot="open-tab-host">{{ tab.host }}</span>
+      <span v-if="showDevice" data-shrink="">{{ tab.deviceName }}</span>
+      <span v-if="tab.age.label !== null" data-slot="open-tab-age" class="tabular-nums">{{
+        tab.age.label
+      }}</span>
     </template>
-    <template #summary>
-      <span data-slot="open-tab-url">{{ tab.url }}</span>
+    <template v-if="tab.saved !== null" #trailing>
+      <CompactRowThumb
+        v-if="tab.saved.imageUrl !== null"
+        :src="tab.saved.imageUrl"
+        class="max-sm:hidden"
+      />
+      <Badge as-child variant="outline">
+        <RouterLink
+          :to="{ name: 'link-details', params: { id: tab.saved.id } }"
+          data-slot="open-tab-saved"
+          title="Saved in Stash: open the link"
+          v-bind="{ onClick: (event: MouseEvent) => event.stopPropagation() }"
+        >
+          <BookmarkCheck aria-hidden="true" />Saved
+        </RouterLink>
+      </Badge>
     </template>
-    <template #actions>
-      <Button as-child variant="ghost" size="sm">
-        <a :href="tab.url" target="_blank" rel="noopener noreferrer" data-action="open">
-          Open here <Kbd>↵</Kbd>
+    <template v-if="!picking" #actions>
+      <Button v-if="tab.saved === null" as-child variant="ghost" size="sm">
+        <button
+          type="button"
+          data-action="save"
+          aria-label="Save to Stash"
+          title="Save to Stash"
+          @click.stop="emit('save')"
+        >
+          <Bookmark aria-hidden="true" /><span class="max-sm:hidden">Save</span>
+          <Kbd class="max-sm:hidden">S</Kbd>
+        </button>
+      </Button>
+      <Button as-child variant="ghost" size="icon-sm">
+        <button
+          type="button"
+          data-action="copy"
+          aria-label="Copy link"
+          title="Copy link"
+          @click.stop="emit('copy')"
+        >
+          <Copy aria-hidden="true" />
+        </button>
+      </Button>
+      <Button as-child variant="ghost" size="icon-sm">
+        <a
+          :href="tab.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-action="open"
+          aria-label="Open here"
+          title="Open here"
+          v-bind="{ onClick: (event: MouseEvent) => event.stopPropagation() }"
+        >
+          <ArrowUpRight aria-hidden="true" />
         </a>
       </Button>
-      <Button as-child variant="ghost" size="sm">
-        <button type="button" data-action="archive" @click.stop="emit('archive')">
-          Archive <Kbd>E</Kbd>
-        </button>
-      </Button>
-      <Button as-child variant="ghost" size="sm">
-        <button type="button" data-action="close" @click.stop="emit('close')">
-          Close on {{ tab.deviceName }} <Kbd>W</Kbd>
-        </button>
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button as-child variant="ghost" size="icon-sm">
+            <button
+              type="button"
+              data-action="more"
+              aria-label="More actions"
+              title="More actions"
+              v-bind="{ onClick: (event: MouseEvent) => event.stopPropagation() }"
+            >
+              <Ellipsis aria-hidden="true" />
+            </button>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem data-action="archive" @select="emit('archive')">
+            <span class="flex-1">Archive: save and close</span><Kbd>E</Kbd>
+          </DropdownMenuItem>
+          <DropdownMenuItem data-action="close" @select="emit('close')">
+            <span class="flex-1">Close on {{ tab.deviceName }}</span
+            ><Kbd>W</Kbd>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </template>
-  </MediaRow>
+  </CompactRow>
 </template>
