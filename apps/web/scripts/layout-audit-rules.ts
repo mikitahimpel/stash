@@ -24,6 +24,13 @@ export interface Snapshot {
    * height. The rows of a list are all one height (#161).
    */
   readonly rows: ReadonlyArray<{ readonly label: string; readonly height: number }>;
+  /** The window: its height, and the height of the app's header at its top. */
+  readonly viewport: { readonly height: number; readonly header: number };
+  /**
+   * The big media of a page: a link page's preview (`MediaHero`) and a post's media
+   * (`PostMedia`), by their height. None is taller than the window under the header (#176).
+   */
+  readonly heroes: ReadonlyArray<{ readonly label: string; readonly height: number }>;
   /** Elements whose text renders in mono outside the allowlist (keys, device code, charts). */
   readonly mono: ReadonlyArray<string>;
 }
@@ -66,6 +73,7 @@ export interface Violation {
     | "card"
     | "row lines"
     | "row height"
+    | "hero height"
     | "gap"
     | "mono";
   readonly element: string;
@@ -186,6 +194,19 @@ const rowHeights = (snapshot: Snapshot): Array<Violation> => {
     }));
 };
 
+// A preview, a photo or a player fits on the screen whatever its shape: a portrait video is not a
+// tower to scroll past.
+const heroHeights = (snapshot: Snapshot): Array<Violation> => {
+  const room = snapshot.viewport.height - snapshot.viewport.header;
+  return snapshot.heroes
+    .filter((hero) => hero.height > room + tolerance)
+    .map((hero) => ({
+      rule: "hero height",
+      element: hero.label,
+      detail: `${px(hero.height)} tall, the window has ${px(room)} under the header`,
+    }));
+};
+
 const gaps = (snapshot: Snapshot): Array<Violation> =>
   snapshot.gaps
     .filter((gap) => !spacingScale.some((step) => near(gap.px, step)))
@@ -213,6 +234,7 @@ export const audit = (
   ...edges(snapshot),
   ...groups(snapshot),
   ...rowHeights(snapshot),
+  ...heroHeights(snapshot),
   ...gaps(snapshot),
   ...mono(snapshot),
 ];

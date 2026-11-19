@@ -121,12 +121,21 @@ const views: ReadonlyArray<View> = [
       ["link-youtube", Fixtures.youtubeLinkId],
       ["link-article", Fixtures.articleLinkId],
       ["link-cover", Fixtures.coverLinkId],
+      // Not 16:9 (#176): a YouTube Short, and an article whose og:image is a portrait.
+      ["link-short", Fixtures.shapeLinkIds.short],
+      ["link-tall-image", Fixtures.shapeLinkIds.tall],
     ] as const
   ).map(([name, id]) => ({
     name,
     path: `/links/${id}`,
     data: "seeded" as const,
-    prepare: (page: Page) => page.locator("[data-slot=link-details] h1").waitFor(),
+    prepare: async (page: Page) => {
+      await page.locator("[data-slot=link-details] h1").waitFor();
+      // The preview is in (and its shape measured) before the page is measured or captured.
+      await page.waitForFunction(
+        "[...document.querySelectorAll('[data-slot=link-details] img')].every((img) => img.complete)",
+      );
+    },
   })),
   // A post on X as a card (#170): words only, one photo, four photos, a video, a reply that
   // quotes a post, and a post that could not be read.

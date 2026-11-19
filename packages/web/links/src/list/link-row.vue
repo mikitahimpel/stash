@@ -68,6 +68,7 @@ const summary = computed(() =>
     <template #thumb>
       <MediaThumb
         :src="image"
+        :aspect="LinkDisplay.imageAspect(link)"
         :url="link.url"
         :initial="LinkDisplay.domain(link)"
         :video="

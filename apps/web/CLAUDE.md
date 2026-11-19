@@ -84,8 +84,10 @@ Feature behavior is tested in `packages/web/*`.
   and phone) against the control tokens, content edges and spacing scale; see "Layout audit" in
   [docs/design.md](../../docs/design.md#layout-audit). Its rules are `scripts/layout-audit-rules.ts`
   (unit tested), its in-page measuring `scripts/layout-audit-probe.ts`, and its synthetic api
-  `scripts/layout-fixtures.ts` (links, tabs, devices, and one post on X of each kind:
-  `postLinkIds`). `scripts/preview-images.ts` draws the fixtures' preview images and people's
+  `scripts/layout-fixtures.ts` (links, tabs, devices, one post on X of each kind:
+  `postLinkIds`, and media that are not 16:9: a portrait video and photo, a square and a panorama
+  among the posts, a YouTube Short and a portrait og:image in `shapeLinkIds`; their pictures are
+  `…/previews/shapes/<name>.svg`). `scripts/preview-images.ts` draws the fixtures' preview images and people's
   pictures (SVG); the audit and the screenshots answer `https://example.com/previews/*` with them in the
   browser, so no real thumbnail is in the repo and nothing is fetched. It also draws the favicons of the fixtures' tab sites
   (`faviconShim` explains why they are asked for as `/favicon.ico?drawn`). Both it and the Connect walk serve the build with

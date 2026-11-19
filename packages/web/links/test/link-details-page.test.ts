@@ -69,11 +69,17 @@ describe("link details page", () => {
           ? ApiTesting.json(video)
           : id === "v-bare"
             ? ApiTesting.json({ ...video, id: "v-bare", imageUrl: null })
-            : id === "bare"
-              ? ApiTesting.json(Fixtures.link("bare", { summary: null, tags: [], type: null }))
-              : id in posts
-                ? ApiTesting.json(posts[id])
-                : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
+            : id === "short"
+              ? ApiTesting.json({
+                  ...video,
+                  id: "short",
+                  url: "https://www.youtube.com/shorts/synthetic01",
+                })
+              : id === "bare"
+                ? ApiTesting.json(Fixtures.link("bare", { summary: null, tags: [], type: null }))
+                : id in posts
+                  ? ApiTesting.json(posts[id])
+                  : ApiTesting.json({ _tag: "NotFound", resource: "link", id }, 404),
     "GET /links": () => Fixtures.page([]),
     "GET /devices": () => ApiTesting.json(devices),
     "DELETE /links/:id": () => new Response(null, { status: 204 }),
@@ -137,6 +143,24 @@ describe("link details page", () => {
       "https://www.youtube-nocookie.com/embed/synthetic01?autoplay=1",
     );
     expect(wrapper.find("[data-slot=media-hero] img").exists()).toBe(false);
+  });
+
+  it("gives a YouTube Short a vertical player in a box no taller than the screen allows", async () => {
+    const { wrapper } = await mountAt("/links/short", routes);
+
+    const hero = wrapper.find("[data-slot=media-hero]");
+    expect(hero.attributes("style")).toContain("aspect-ratio: 0.5625");
+    expect(hero.attributes("style")).toContain("max-height: min(70vh, 640px)");
+    expect(hero.find("[data-slot=media-fit]").attributes("data-fit")).toBe("contain");
+    await hero.find("[data-slot=media-hero-play]").trigger("click");
+    expect(hero.find("[data-slot=media-fit-frame] [data-slot=media-hero-player]").exists()).toBe(
+      true,
+    );
+    // A video of the usual shape keeps the 16:9 box.
+    const usual = await mountAt("/links/v", routes);
+    expect(usual.wrapper.find("[data-slot=media-hero]").attributes("style")).toContain(
+      "aspect-ratio: 1.77",
+    );
   });
 
   it("leaves out what the link doesn't have", async () => {

@@ -41,7 +41,10 @@ const shapes = {
   badge: ["h-5 w-16", "rounded-sm"],
   prose: ["h-[25.6px] py-1.5", "rounded-sm"],
   thumb: ["h-[62px] w-[110px] sm:h-[90px] sm:w-[160px]", "rounded-control"],
-  hero: ["aspect-video max-sm:-mx-4", "rounded-surface max-sm:rounded-none"],
+  hero: [
+    "aspect-video max-h-[min(70vh,640px)] max-sm:-mx-4",
+    "rounded-surface max-sm:rounded-none",
+  ],
   control: ["h-control-md", "rounded-control"],
   chip: ["h-control-sm w-20", "rounded-control"],
   tag: ["h-6 w-14", "rounded-control"],

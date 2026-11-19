@@ -190,14 +190,39 @@ describe("inbox page", () => {
     );
 
     // Media: the first photo or the video's poster is the preview, a video with its mark.
-    expect(photos!.find("[data-slot=media-thumb] > img").attributes("src")).toBe(
-      "https://pbs.twimg.com/media/Synthetic1.jpg?name=small",
-    );
+    expect(
+      photos!.find("[data-slot=media-thumb] [data-slot=media-fit-image]").attributes("src"),
+    ).toBe("https://pbs.twimg.com/media/Synthetic1.jpg?name=small");
     expect(photos!.find("[data-slot=media-thumb-video]").exists()).toBe(false);
-    expect(video!.find("[data-slot=media-thumb] > img").attributes("src")).toBe(
-      Fixtures.video.posterUrl,
-    );
+    expect(
+      video!.find("[data-slot=media-thumb] [data-slot=media-fit-image]").attributes("src"),
+    ).toBe(Fixtures.video.posterUrl);
     expect(video!.find("[data-slot=media-thumb-video]").exists()).toBe(true);
+  });
+
+  it("shows a post's portrait video whole in the row's preview, from the size the post carries", async () => {
+    const tall = { ...Fixtures.video, width: 1080, height: 1920 };
+    const api = listing({
+      first: Fixtures.page([
+        Fixtures.postLink("tall", { media: [tall] }, { imageUrl: tall.posterUrl }),
+        Fixtures.postLink(
+          "wide",
+          { media: [Fixtures.video] },
+          { imageUrl: Fixtures.video.posterUrl },
+        ),
+      ]),
+    });
+    const { wrapper } = await mountAt("/links", api.routes);
+    const [portrait, wide] = wrapper.findAll("[data-slot=link-row]");
+
+    // Known before the poster loads: letterboxed over its blurred copy, not cropped to a chest.
+    const fit = portrait!.find("[data-slot=media-fit]");
+    expect(fit.attributes("data-fit")).toBe("contain");
+    expect(fit.find("[data-slot=media-fit-backdrop]").attributes("src")).toBe(tall.posterUrl);
+    expect(fit.find("[data-slot=media-fit-frame]").attributes("style")).toContain(
+      "aspect-ratio: 0.5625",
+    );
+    expect(wide!.find("[data-slot=media-fit]").attributes("data-fit")).toBe("cover");
   });
 
   it("says so when a post is unavailable, and keeps the row", async () => {

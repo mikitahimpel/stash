@@ -173,23 +173,51 @@ describe("PostText", () => {
 });
 
 describe("PostMedia", () => {
-  it("gives a single photo its own shape within limits, and several one 16:9 box", () => {
+  it("gives a single photo a box of its own shape with a capped height, and several one 16:9 box", () => {
     expect(PostMediaItems.ratio(photo(1, 1200, 800))).toBeCloseTo(1.5);
-    expect(PostMediaItems.ratio(photo(1, 800, 3200))).toBe(PostMediaItems.minRatio);
-    expect(PostMediaItems.ratio(photo(1, 4000, 500))).toBe(PostMediaItems.maxRatio);
-    expect(PostMediaItems.ratio({ ...photo(1), width: null })).toBeCloseTo(16 / 9);
+    expect(PostMediaItems.ratio({ ...photo(1), width: null })).toBeUndefined();
+    expect(PostMediaItems.boxRatio(photo(1, 900, 1600))).toBeCloseTo(9 / 16);
+    // A strip of a panorama is no wider than 3:1; an unknown size reserves 16:9.
+    expect(PostMediaItems.boxRatio(photo(1, 4000, 500))).toBe(3);
+    expect(PostMediaItems.boxRatio({ ...photo(1), width: null })).toBeCloseTo(16 / 9);
 
-    const one = mount(PostMedia, { props: { media: [photo(1, 800, 3200)] } });
+    // A portrait photo: a box of its shape, no taller than the cap, and the whole photo in it
+    // over the blurred copy.
+    const one = mount(PostMedia, { props: { media: [photo(1, 900, 1600)] } });
     expect(one.attributes("data-count")).toBe("1");
-    expect(one.attributes("style")).toContain("aspect-ratio: 0.75");
-    // A quoted post's media is never taller than 16:9.
-    const compact = mount(PostMedia, { props: { media: [photo(1, 800, 3200)], compact: true } });
+    expect(one.attributes("style")).toContain("aspect-ratio: 0.5625");
+    expect(one.attributes("style")).toContain("max-height: min(70vh, 640px)");
+    expect(one.find("[data-slot=media-fit]").attributes("data-fit")).toBe("contain");
+    expect(one.find("[data-slot=media-fit-backdrop]").exists()).toBe(true);
+    // A quoted post's media is never taller than 16:9: the photo is letterboxed inside.
+    const compact = mount(PostMedia, { props: { media: [photo(1, 900, 1600)], compact: true } });
     expect(compact.attributes("style")).toContain("aspect-ratio: 1.77");
+    expect(compact.find("[data-slot=media-fit]").attributes("data-fit")).toBe("contain");
 
-    const three = mount(PostMedia, { props: { media: [photo(1), photo(2), photo(3)] } });
+    // A grid's cells keep their shape and crop from the upper third, whatever the photos are.
+    const three = mount(PostMedia, {
+      props: { media: [photo(1, 900, 1600), photo(2), photo(3)] },
+    });
     expect(three.attributes("style")).toContain("aspect-ratio: 16 / 9");
+    expect(three.attributes("style")).not.toContain("max-height");
     expect(three.classes()).toEqual(expect.arrayContaining(["grid-cols-2", "grid-rows-2"]));
     expect(three.findAll(":scope > div")[0]!.classes()).toContain("row-span-2");
+    for (const cell of three.findAll("[data-slot=media-fit]")) {
+      expect(cell.attributes("data-fit")).toBe("cover");
+      expect(cell.find("[data-slot=media-fit-image]").classes()).toContain("object-[50%_30%]");
+    }
+  });
+
+  it("plays a portrait video in a centred frame of its shape, over the blurred poster", async () => {
+    const tall = { ...video, width: 1080, height: 1920 };
+    const media = mount(PostMedia, { props: { media: [tall] } });
+    expect(media.attributes("style")).toContain("aspect-ratio: 0.5625");
+    const frame = () => media.find("[data-slot=media-fit-frame]");
+    expect(frame().attributes("style")).toContain("aspect-ratio: 0.5625");
+    await media.find("[data-slot=post-video-play]").trigger("click");
+    // The player takes the frame's place, and the backdrop stays behind it.
+    expect(frame().find("[data-slot=post-video-player]").exists()).toBe(true);
+    expect(media.find("[data-slot=media-fit-backdrop]").exists()).toBe(true);
   });
 
   it("shows four at most, and nothing for a post without media", () => {

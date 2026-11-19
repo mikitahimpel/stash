@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { Play } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
+import MediaFit from "../media-fit/media-fit.vue";
+import * as MediaShape from "../media-fit/media-shape";
 import * as SiteCover from "../media-row/site-cover";
 
-// The preview at the top of a link's own page: 16:9, as wide as its column, radius 12 like a
-// surface. On phones it runs from one screen edge to the other, without the radius. It is the
+// The preview at the top of a link's own page: as wide as its column, radius 12 like a surface,
+// and never taller than `min(70vh, 640px)` (#176). Its box is 16:9, or the shape of the media when
+// the caller knows it (`aspect`: a vertical video is 9:16), reserved before anything loads. Media
+// of another shape than the box are shown whole in its middle over a blurred copy of the picture
+// (`<MediaFit>`): a portrait video is a centred 9:16 player at the box's height, and a tall
+// og:image, whose shape is only known once it has loaded, is letterboxed inside the 16:9 box. On phones it runs from one screen edge to the other, without the radius. It is the
 // `<MediaThumb>` of a row at full size: the remote image (lazy, no referrer), or the generated
 // cover when there is none or it fails to load (the site's hue, its favicon or initial, its host).
 //
@@ -15,6 +21,8 @@ const props = withDefaults(
   defineProps<{
     /** The image. Decorative: the page's title names the link. */
     src?: string | null | undefined;
+    /** The width over the height of the media, when known. The box is reserved in this shape. */
+    aspect?: number | undefined;
     /** The link's URL: the cover's host, favicon and hue come from it. */
     url?: string | undefined;
     /** Shown when there is no favicon: the first letter of this. Defaults to the url's host. */
@@ -24,7 +32,14 @@ const props = withDefaults(
     /** Names the player for screen readers: the link's title. */
     title?: string | undefined;
   }>(),
-  { src: undefined, url: undefined, initial: undefined, embed: undefined, title: undefined },
+  {
+    src: undefined,
+    aspect: undefined,
+    url: undefined,
+    initial: undefined,
+    embed: undefined,
+    title: undefined,
+  },
 );
 
 const failed = ref(false);
@@ -59,6 +74,15 @@ const play = () => {
   if (props.embed !== undefined) playing.value = true;
 };
 
+// The box's shape. Its height is capped, so with a known shape the media are always shown whole.
+const box = computed(() => MediaShape.box(props.aspect));
+const boxStyle = computed(() => ({
+  aspectRatio: String(box.value),
+  maxHeight: MediaShape.maxHeight,
+}));
+
+// While a player of the box's own shape plays, the picture under it is gone. Behind a player of
+// another shape (a vertical video) it stays, as the blurred backdrop.
 const cover = computed(() => image.value === undefined && player.value === undefined);
 const coverStyle = computed(() =>
   cover.value && host.value !== ""
@@ -73,42 +97,43 @@ const coverStyle = computed(() =>
     :data-empty="image === undefined ? '' : undefined"
     :data-cover="coverStyle === undefined ? undefined : ''"
     :data-playing="player === undefined ? undefined : ''"
-    :style="coverStyle"
+    :style="[boxStyle, coverStyle]"
     :class="[
-      'relative flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-surface after:pointer-events-none after:absolute after:inset-0 after:rounded-surface after:border after:border-foreground/10 max-sm:-mx-4 max-sm:rounded-none max-sm:after:hidden',
+      'relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-surface after:pointer-events-none after:absolute after:inset-0 after:rounded-surface after:border after:border-foreground/10 max-sm:-mx-4 max-sm:rounded-none max-sm:after:hidden',
       coverStyle === undefined ? 'bg-sunken text-muted-foreground' : 'media-cover',
       embed !== undefined && player === undefined && 'cursor-pointer',
     ]"
     @click="play"
   >
-    <iframe
-      v-if="player !== undefined"
-      data-slot="media-hero-player"
-      :src="player"
-      :title="title ?? 'Video player'"
-      allow="
-        accelerometer;
-        autoplay;
-        clipboard-write;
-        encrypted-media;
-        gyroscope;
-        picture-in-picture;
-        web-share;
-      "
-      allowfullscreen
-      referrerpolicy="strict-origin-when-cross-origin"
-      class="absolute inset-0 size-full border-0"
-    />
-    <template v-else>
-      <img
-        v-if="image !== undefined"
-        :src="image"
-        alt=""
-        decoding="async"
-        referrerpolicy="no-referrer"
-        class="absolute inset-0 size-full object-cover"
-        @error="failed = true"
+    <MediaFit
+      v-if="image !== undefined || player !== undefined"
+      :src="player !== undefined && aspect === undefined ? undefined : image"
+      :aspect="aspect"
+      :box="box"
+      :fit="aspect === undefined ? 'auto' : 'contain'"
+      :lazy="false"
+      @error="failed = true"
+    >
+      <iframe
+        v-if="player !== undefined"
+        data-slot="media-hero-player"
+        :src="player"
+        :title="title ?? 'Video player'"
+        allow="
+          accelerometer;
+          autoplay;
+          clipboard-write;
+          encrypted-media;
+          gyroscope;
+          picture-in-picture;
+          web-share;
+        "
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        class="absolute inset-0 size-full border-0"
       />
+    </MediaFit>
+    <template v-if="player === undefined">
       <button
         v-if="embed !== undefined"
         type="button"

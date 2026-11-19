@@ -35,6 +35,16 @@ export const id = (url: string): string | undefined => {
 };
 
 /**
+ * The shape of the video, when the URL says it: a Short (`/shorts/<id>`) is vertical, 9:16.
+ * `undefined` for the rest, which the player shows in its usual 16:9.
+ */
+export const aspect = (url: string): number | undefined => {
+  if (id(url) === undefined) return undefined;
+  const [first] = new URL(url).pathname.split("/").filter((part) => part !== "");
+  return first === "shorts" ? 9 / 16 : undefined;
+};
+
+/**
  * The player for a YouTube URL, on the cookie-less domain and starting at once (it is only loaded
  * on a press of play). `undefined` for any other URL.
  */

@@ -189,6 +189,14 @@ content, not as a table of text:
   bottom. It is the link's `imageUrl` (an `og:image`, a video thumbnail), loaded lazily and with
   `referrerpolicy="no-referrer"`. A video carries a small play mark. A YouTube link without an
   `imageUrl` shows the video's own thumbnail (`i.ytimg.com/vi/<id>/hqdefault.jpg`, from the URL).
+- **The preview's box is always 16:9; the picture in it keeps its shape** (#176, `MediaFit`). A
+  picture close to 16:9 (a ratio from 1.3 to 2.1) fills the box, and what is cropped comes off
+  the bottom first: it is anchored to its upper third (`object-position: 50% 30%`), where faces
+  usually are. A portrait, a square or a panorama is shown whole in the middle of the box, over
+  a blurred, darkened copy of itself that fills the rest (a second `<img>` of the same address
+  with a CSS blur, no canvas). The shape comes from the post's media when the link is a post
+  (their width and height), and is otherwise measured when the picture has loaded; the box does
+  not change either way.
 - **A link or tab with no image gets a generated cover** (#155), also when its image fails to
   load: a soft gradient in a hue of the site's own (a stable hash of the host; `.media-cover` in
   the kit's styles tones it light or deep per theme), the site's favicon in the centre (28px, 20px
@@ -237,8 +245,13 @@ lines of a media row **2px** apart (20 + 20 + 20 + 24 and three gaps make the pr
   it was searching), by stepping back in the history, so its filters or search (they are in its
   URL) and its scroll position return (the router restores the scroll on the way back). Opened
   directly, it links to the Inbox.
-- **Hero** (`MediaHero`): the preview image, 16:9, radius 12, or the generated cover of "Media
-  rows" at full size. A YouTube link carries a play button (44px tall); pressing it, or the
+- **Hero** (`MediaHero`): the preview image, radius 12, or the generated cover of "Media
+  rows" at full size. Its box is 16:9 and never taller than `min(70vh, 640px)` (#176), so with
+  the header it always fits the window. A picture of another shape (a portrait `og:image`) is
+  shown whole in the middle over its blurred copy, as in a row. A video whose shape the URL
+  tells (a YouTube Short is 9:16) reserves that shape: the box is as wide as the column and as
+  tall as the cap allows, and the player is a centred 9:16 frame at that height on the blurred
+  poster, with the play button in the middle. Fullscreen is the player's own. A YouTube link carries a play button (44px tall); pressing it, or the
   preview, swaps in the player from `youtube-nocookie.com/embed/<id>`. The `<iframe>` does not
   exist before that press, so opening the page tells YouTube nothing. The app sets no
   Content-Security-Policy, so there is nothing to allow.
@@ -269,9 +282,13 @@ The page of a link to a post on X shows the post in the hero's place, the way X 
 - **The words** (`PostText`) as reading text, 16/1.6, with their line breaks. Links (shown in
   their short form, opening the expanded address), mentions, hashtags and cashtags are accent
   links that open in a new tab. A long post says that this is its beginning.
-- **Media** (`PostMedia`) in one box with radius 12: one photo or video in its own shape (between
-  3:4 and 2.4:1), two side by side, three as one tall and two small, four as a 2×2 grid, 2px
-  apart in a 16:9 box. A photo opens the **lightbox** (`PostLightbox`): the photo as large as the
+- **Media** (`PostMedia`) in one box with radius 12: one photo or video, two side by side, three
+  as one tall and two small, four as a 2×2 grid, 2px apart in a 16:9 box. **A single photo or
+  video is shown whole** (#176): its box has its shape (16:9 when X gave no size, 3:1 at the
+  widest) and is never taller than `min(70vh, 640px)`, so a portrait stands in the middle of the
+  card's width over a blurred, darkened copy of itself, and a portrait video plays in that same
+  centred frame. In a grid the cells keep their shape and a photo is cropped from its upper
+  third. A photo opens the **lightbox** (`PostLightbox`): the photo as large as the
   screen allows on a 90% black backdrop, a counter, Previous / Next (36px, also ← →), and Close,
   Esc or a click beside the photo to leave. A **video** shows its poster and a play button (44px
   tall); the press puts the player in its place (an mp4 with the browser's controls; a GIF loops
@@ -396,7 +413,9 @@ Nothing moves when data arrives.
   does. In Settings the lists hold their rows' place before the skeleton shows, and the sections
   under the devices (API tokens, Appearance) come in with the data, at their place, because the
   number of devices decides where they start.
-- **Images are sized before they load**: a row's preview is 160×90 (110×62), a hero is 16:9.
+- **Images are sized before they load**: a row's preview is 160×90 (110×62), a hero is 16:9 (or
+  the shape its link tells) with its height capped. A picture whose shape is only known once it
+  has loaded changes how it sits inside that box, never the box.
 - What the skeleton can't know is the data: how many devices the chart has lanes for (it assumes
   three), whether the first group of open tabs has actions, how many lines a link's title takes.
   There the content replaces the skeleton in one frame; nothing that was on screen moves.
@@ -469,7 +488,8 @@ both themes.
 Settings, each seeded and as a first-run user, Inbox and Open now with a selected row, the Inbox
 while searching, the search field's recent searches, Settings with each guide open, the
 extension's approve page, `/save`, a link's page (a YouTube video, an article with an image, a
-link with none), plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
+link with none, a YouTube Short, an article with a portrait image), a post of each kind (among
+them a portrait video, a portrait photo, a square and a panorama), plus Login, in the light theme at 1440 and 390 wide. The api is answered in the browser from synthetic fixtures
 (`apps/web/scripts/layout-fixtures.ts`), and the fixtures' preview images are drawn in
 `scripts/preview-images.ts`, so nothing is fetched from the network. On each page it checks:
 
@@ -488,6 +508,8 @@ link with none), plus Login, in the light theme at 1440 and 390 wide. The api is
 - every media row on a page is the same height (± 1px), except the selected one, which adds its
   action bar; the seeded Inbox mixes a video with no summary, an article with one, a title too
   long for its line and links with no image or no tags;
+- a link page's preview (`MediaHero`) and a post's media (`PostMedia`) are never taller than the
+  window minus the header (#176);
 - every vertical gap between page-level blocks is on the spacing scale;
 - text renders in mono only inside keys, the device code and charts.
 
@@ -535,7 +557,8 @@ extracted locally and put on `LD_LIBRARY_PATH`).
 | Kbd | `kbd` |
 | ListRow | `list-row` (slots `leading`, `title`, `meta`, `trailing`, extra lines, `#actions` while `selected`), `list-row-title` |
 | MediaRow | `media-row` (one fixed height; slots `thumb`, `title`, `meta`, `summary`, `tags`, `#actions` while `selected`; `unread`), `media-row-title` (15/600, one line, two on phones, the whole row's target unless `:stretch="false"`), `site-title` (a title without the site's own name), `tag-line` (the tags on one line: as many chips as fit, then `+n`), `media-thumb` (16:9, 160×90, 110×62 on phones; a generated cover from `url` without an image or when it fails to load: host-hued gradient, favicon, host; `video`), `site-cover` (the cover's host, favicon URL and hue), `tag-chip` (24px); text role `text-row-title` |
-| MediaHero | `media-hero` (`src`, `url`, `embed`, `title`): a link's preview on its own page, with a play button that loads the player on demand |
+| MediaHero | `media-hero` (`src`, `url`, `embed`, `title`, `aspect`): a link's preview on its own page, at most `min(70vh, 640px)` tall, with a play button that loads the player on demand |
+| MediaFit | `media-fit` (`src`, `aspect`, `box`, `fit`: a remote picture in a box of any shape, filling it from the upper third or whole over its blurred copy; the default slot is drawn in the picture's frame), `media-shape` (ratios, the 1.3–2.1 limits, the height cap); used by `media-thumb`, `media-hero` and `post-media`, never an `<img>` with `object-fit` of its own |
 | Post | `post-card` (the surface; `nested` for a quoted post), `post-byline` (`row` / `card` / `quote`: picture, name, verified mark, @handle, a `meta` slot; `href`), `post-text` (words with their links; `prose` / `body`; `post-text-parts` cuts them), `post-media` (1–4 photos and videos in one box, a lightbox for photos, a video that plays in a `no-referrer` frame; `compact`; `post-media-items` has the types and the player's document), `avatar` (a round picture, 16 / 24 / 40 / 48, the initial without one); `media-row` `meta-first` and `media-row-title` `:lines="2"` for a post's row, `media-thumb` `avatar` for its cover |
 | MetaLine | `meta-line`: the dot-separated meta line outside a row |
 | ActionBar | `action-bar` (`label`): an item's actions, a bottom bar on phones |

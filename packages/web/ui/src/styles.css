@@ -307,6 +307,16 @@
 }
 
 /*
+ * The backdrop of media shown whole in a box of another shape (`<MediaFit>`, #176): the same
+ * picture filling the box, blurred and darkened. The blur follows the box's width (a row's thumb
+ * and a link page's preview look alike), and the copy is scaled up so its soft edges are outside.
+ */
+.media-backdrop {
+  filter: blur(max(8px, 5cqw)) brightness(0.55) saturate(1.15);
+  transform: scale(1.3);
+}
+
+/*
  * Phones: a page with an `<ActionBar>` (fixed above the nav bar, 56px) ends that much lower, so
  * its last line clears the bar. `<AppMain>` adds `--action-bar-space` to its bottom padding.
  */

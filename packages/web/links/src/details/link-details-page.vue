@@ -223,6 +223,7 @@ const leave = () => (back.history ? router.back() : void router.replace({ name: 
           :url="view.link.url"
           :initial="LinkDisplay.domain(view.link)"
           :embed="YoutubeEmbed.player(view.link.url)"
+          :aspect="YoutubeEmbed.aspect(view.link.url)"
           :title="LinkDisplay.title(view.link)"
         />
       </template>

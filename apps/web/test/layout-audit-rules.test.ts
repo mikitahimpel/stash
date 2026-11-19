@@ -9,6 +9,8 @@ const page = (patch: Partial<Snapshot>): Snapshot => ({
   gaps: [],
   groups: [],
   rows: [],
+  viewport: { height: 900, header: 56 },
+  heroes: [],
   mono: [],
   ...patch,
 });
@@ -150,5 +152,18 @@ describe("layout audit rules", () => {
       ["row height", "tall"],
     ]);
     expect(rules(page({ rows: [row("only", 120)] }))).toEqual([]);
+  });
+
+  it("flags a hero taller than the window under the header", () => {
+    const hero = (height: number) => page({ heroes: [{ label: "div[media-hero]", height }] });
+    expect(rules(hero(432))).toEqual([]);
+    expect(rules(hero(844))).toEqual([]);
+    expect(rules(hero(845))).toEqual(["hero height"]);
+    // A phone's window is shorter, and so is what fits.
+    const phone = page({
+      viewport: { height: 844, header: 104 },
+      heroes: [{ label: "div[post-media]", height: 760 }],
+    });
+    expect(rules(phone, true)).toEqual(["hero height"]);
   });
 });

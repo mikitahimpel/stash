@@ -80,6 +80,12 @@ layers.
   `<PostMedia>` (photo grid, lightbox, video); see "Post page" in
   [docs/design.md](../../docs/design.md). Remote pictures always load lazily with
   `referrerpolicy="no-referrer"`, and a video only inside `<PostMedia>`'s frame.
+- Media keep their shape (#176). Every preview, poster and photo is drawn by the kit's
+  `<MediaFit>` (inside `<MediaThumb>`, `<MediaHero>`, `<PostMedia>`): it fills a box of a close
+  shape from the picture's upper third, and shows any other shape whole over a blurred copy. Pass
+  `aspect` when the data has the size (`LinkDisplay.imageAspect`, a post's media, a YouTube
+  Short); otherwise it is measured on load, inside a box that never changes. Big media are at
+  most `min(70vh, 640px)` tall (`@stash/web-ui/media-shape`).
 - A page starts with `<PageHeader>` (title, one muted line, its primary action on the right) and
   uses the spacing scale and control hierarchy from [docs/design.md](../../docs/design.md) ("Layout
   rules"). At most one `primary` key per screen.

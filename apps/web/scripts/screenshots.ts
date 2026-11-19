@@ -48,6 +48,11 @@ interface View {
    * in the browser: the seed has no YouTube link, and its ids are its own.
    */
   readonly fixtures?: boolean;
+  /**
+   * Captured at the window's own height, not the page's: the page's media are sized by the
+   * window (`70vh`), so a taller window would show a layout no screen has.
+   */
+  readonly window?: boolean;
   /** Captures only this element (the app header) instead of the page. */
   readonly clip?: string;
 }
@@ -125,13 +130,23 @@ const views: ReadonlyArray<View> = [
       ["link-youtube", Fixtures.youtubeLinkId],
       ["link-article", Fixtures.articleLinkId],
       ["link-cover", Fixtures.coverLinkId],
+      // Not 16:9 (#176): a YouTube Short, and an article whose og:image is a portrait.
+      ["link-short", Fixtures.shapeLinkIds.short],
+      ["link-tall-image", Fixtures.shapeLinkIds.tall],
     ] as const
   ).map(([name, id]) => ({
     name,
     path: `/links/${id}`,
     signedIn: true,
     fixtures: true,
-    prepare: (page: Page) => page.locator("[data-slot=link-details] h1").waitFor(),
+    window: true,
+    prepare: async (page: Page) => {
+      await page.locator("[data-slot=link-details] h1").waitFor();
+      // The preview is in (and its shape measured) before the page is measured or captured.
+      await page.waitForFunction(
+        "[...document.querySelectorAll('[data-slot=link-details] img')].every((img) => img.complete)",
+      );
+    },
   })),
   // A post on X as a card (#170): words only, one photo, four photos, a video, a reply that
   // quotes a post, and a post that could not be read.
@@ -141,6 +156,7 @@ const views: ReadonlyArray<View> = [
       path: `/links/${id}`,
       signedIn: true,
       fixtures: true,
+      window: true,
       prepare: async (page: Page) => {
         await page.locator("[data-slot=post], [data-slot=post-unavailable]").waitFor();
         // Every picture of the post is in before the page is measured or captured.
@@ -158,6 +174,8 @@ const views: ReadonlyArray<View> = [
     fixtures: true,
     prepare: async (page) => {
       await page.locator("[data-slot=link-row][data-post]").first().waitFor();
+      // The previews of other shapes are in: letterboxed, each in the same 16:9 box (#176).
+      await page.locator("[data-slot=link-row] [data-fit=contain]").first().waitFor();
     },
   },
   {
@@ -418,10 +436,12 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         // The viewport grows to the page's height (long pages are cut: the top shows the layout,
         // and the rows below repeat it), so fixed parts such as the phone's bottom nav sit at the
         // bottom of the picture, as on a screen, instead of being stamped mid-page.
-        const height = Math.min(
-          (await page.evaluate(scrollHeight)) as number,
-          view.maxHeight ?? defaultMaxHeight,
-        );
+        const height = view.window
+          ? viewport.height
+          : Math.min(
+              (await page.evaluate(scrollHeight)) as number,
+              view.maxHeight ?? defaultMaxHeight,
+            );
         await page.setViewportSize({ width: viewport.width, height });
         if (view.clip === undefined) await page.screenshot({ path: Path.join(outDir, file) });
         else await page.locator(view.clip).screenshot({ path: Path.join(outDir, file) });
