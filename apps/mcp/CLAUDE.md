@@ -30,6 +30,11 @@ Never import `@stash/backend-*`, `@stash/web-*` or `@stash/ext-*`. oxlint enforc
 
 The client has no token of its own. Each sign-in mints an api token for its grant
 (`ApiClient.createMcpToken` over the binding's internal endpoint) and stores it in the grant props.
+On the site's own host (`MCP_ORIGIN` is `WEB_ORIGIN`, a custom domain) the consent page signs in
+through the web app instead (#178): `/authorize/session` reads the `stash_session` cookie, sends a
+browser without one to `/login?redirect=/authorize/session?state=…`, and mints the token for the
+session's user (`ApiClient.createMcpTokenForSession`) before it takes the upstream transaction.
+The Device Flow stays as a fallback link there, and is the only way on other origins.
 Every `/mcp` request first checks that token (`ApiClient.isTokenActive`; revoked → revoke the grant
 and answer 401 `invalid_token`), then provides it as `ApiClient.GrantApiToken` in the request
 context, which the client's auth middleware reads.
@@ -61,9 +66,9 @@ behavior is tested in `packages/mcp/*`.
 - `src/oauth-provider.ts` (`OAuthProvider` wiring), `src/oauth-handler.ts` (consent, device code
   page, poll endpoint, minting the api token), `src/authorize-pages.ts` (the server-rendered HTML), `src/stash-mark.ts` (the logo inline for
   those pages, a copy of the web kit's small mark),
-  `src/device-flow-store.ts` (pending device flows in KV), `src/github-identity.ts` (GitHub Device
+  `src/device-flow-store.ts` (pending device flows in KV; the web sign-in needs no store of its own), `src/github-identity.ts` (GitHub Device
   Flow over `HttpClient`), `src/login-not-configured.ts` (503 on `/authorize*` while
-  `GITHUB_CLIENT_ID` is unset)
+  `GITHUB_CLIENT_ID` is unset, except the web sign-in on the site's own host)
 - `src/mcp-server.ts` (Streamable HTTP transport from `effect/ai/McpServer`, tool registration)
 - `test/oauth-handler.test.ts`, `test/cloudflare-workers-stub.ts` (Node stand-in for
   `cloudflare:workers`)

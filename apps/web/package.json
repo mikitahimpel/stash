@@ -23,7 +23,8 @@
     "format:check": "oxfmt --check .",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "build:deploy": "pnpm run build && pnpm --dir ../extension run package:xpi ../web/dist/downloads/stash-extension.xpi && pnpm --dir ../mac-agent run bundle && cp ../mac-agent/dist/stash-mac-agent.mjs dist/downloads/stash-mac-agent.mjs && cp ../mac-agent/install-standalone.sh dist/downloads/install-mac-agent.sh"
+    "build:deploy": "pnpm run build && pnpm --dir ../extension run package:xpi ../web/dist/downloads/stash-extension.xpi && pnpm --dir ../mac-agent run bundle && cp ../mac-agent/dist/stash-mac-agent.mjs dist/downloads/stash-mac-agent.mjs && cp ../mac-agent/install-standalone.sh dist/downloads/install-mac-agent.sh",
+    "walk:sign-in": "node scripts/sign-in-walk.ts"
   },
   "dependencies": {
     "@effect/atom-vue": "catalog:",

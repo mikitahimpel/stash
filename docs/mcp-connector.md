@@ -7,7 +7,7 @@ button and turns to **Connected ✓** the first time Claude uses Stash. In short
    api answers it at `GET /api/connect/info`).
 2. In Claude, open **Settings → Connectors → Add custom connector** and paste it. Leave the
    OAuth client fields empty.
-3. Choose **Connect** and sign in with GitHub.
+3. Choose **Connect** and sign in with a passkey, Google or GitHub.
 
 There is no token to paste: signing in mints the token the connector uses, named **Claude (MCP)**
 in **Settings → API tokens**. Revoking it there makes Claude sign in again. The rest of this page is
@@ -48,13 +48,22 @@ GitHub never redirects back to it. Claude never sees a GitHub token, and the Wor
    create a client ID by hand. Client ID Metadata Documents are not enabled.
 4. Your browser opens `/authorize`, a consent page that shows the client's name and where access
    will be sent. **Deny** returns `access_denied` to Claude.
-5. **Continue with GitHub** starts a device flow (`POST github.com/login/device/code`, scope
+5. **On the site's domain** (`https://<domain>/mcp`, #178) the consent page says **Continue**: it
+   opens `/authorize/session`, which sends a browser without a web session to the web app's own
+   login page (`/login?redirect=/authorize/session?state=…`). Sign in there with a passkey, Google
+   or GitHub; the login page returns to `/authorize/session`, which asks the api to mint the
+   grant's token for that session's user (`POST /internal/mcp-tokens/session`) and returns you to
+   Claude with a code. It is all redirects in one browser, so it works inside the Claude iOS
+   in-app sheet with Face ID and no app switching. If you are already signed in to Stash in that
+   browser, it returns at once. **Sign in with a GitHub code instead** is the Device Flow below.
+6. **Elsewhere** (the old `workers.dev` address, other stages, local dev) and as that fallback,
+   **Continue with GitHub** starts a device flow (`POST github.com/login/device/code`, scope
    `read:user`) and opens `/authorize/device`, which shows a user code such as `WDJB-MJHT` and a
    link to `github.com/login/device`. Open the link, sign in to GitHub, enter the code and
    authorize. Keep the Stash tab open: it polls `/authorize/poll`, and the Worker polls GitHub at
    the interval GitHub asks for (5 seconds more after each `slow_down`). The approved request and
    the device code wait in `OAUTH_KV`, bound to your browser by a cookie, for at most 10 minutes.
-6. When GitHub returns a token, the Worker reads your login with it once, drops the token, and
+7. When GitHub returns a token, the Worker reads your login with it once, drops the token, and
    asks the api for a token for that account. An account that has a Stash account (the owner, or
    a member who joined with an invite) gets
    a grant, and the tab returns you to Claude with a code. Before granting, the Worker mints an
@@ -63,10 +72,10 @@ GitHub never redirects back to it. Claude never sees a GitHub token, and the Wor
    one, Claude gets `server_error` and no grant is made. Any other account sees "This GitHub
    account may not use this server", gets no grant, and Claude gets `access_denied`. An expired
    code or **Cancel** on GitHub ends the same way.
-7. Claude exchanges its code at `/token` for an access token (1 hour) and a refresh token
+8. Claude exchanges its code at `/token` for an access token (1 hour) and a refresh token
    (30 days from sign-in, the provider defaults). Claude refreshes silently. After 30 days you
    sign in again.
-8. Every `/mcp` request carries `Authorization: Bearer <access token>`. The Worker decrypts the
+9. Every `/mcp` request carries `Authorization: Bearer <access token>`. The Worker decrypts the
    grant's props and calls `apps/api` over the `API` Service Binding with the grant's api token,
    so the tools act as you. The MCP server owns no data.
 

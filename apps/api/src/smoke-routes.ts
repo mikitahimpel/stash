@@ -70,6 +70,36 @@ export const handleSmoke = async (
     return Response.json({ expiresAt }, { status: 201 });
   }
 
+  // Seeds an open invite from its token's SHA-256 hash, for the invite page (#178).
+  if (request.method === "POST" && url.pathname === "/_smoke/invite") {
+    const { hash } = await request.json<{ hash: string }>();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await env.DB.prepare(
+      "INSERT INTO invites (id, token_hash, created_by, expires_at) VALUES (?, ?, 'owner', ?)",
+    )
+      .bind(`smoke-invite-${crypto.randomUUID()}`, hash, expiresAt)
+      .run();
+    return Response.json({ expiresAt }, { status: 201 });
+  }
+
+  // Gives the owner two synthetic passkeys and a linked Google account, for the screenshots of
+  // Settings → Security. Their keys sign nothing: they are never used to sign in.
+  if (request.method === "POST" && url.pathname === "/_smoke/sign-in-methods") {
+    const day = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO passkeys (id, user_id, public_key, synced, name, created_at, last_used_at) VALUES ('c21va2UtcGFzc2tleS1waG9uZQ', 'owner', 'AA', 1, 'iCloud Keychain', ?, ?)",
+      ).bind(day(40), day(1)),
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO passkeys (id, user_id, public_key, synced, name, created_at) VALUES ('c21va2UtcGFzc2tleS1rZXk', 'owner', 'AA', 0, 'Security key', ?)",
+      ).bind(day(12)),
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO user_identities (provider, subject, user_id, label) VALUES ('google', 'smoke-google-sub', 'owner', 'owner@example.com')",
+      ),
+    ]);
+    return new Response(null, { status: 201 });
+  }
+
   if (request.method === "POST" && url.pathname === "/_smoke/queue") {
     const linkId = `smoke-link-${crypto.randomUUID()}`;
     await env.ENRICHMENT_QUEUE.send({ linkId });

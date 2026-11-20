@@ -25,6 +25,9 @@ const webPort = Number(process.env["STASH_SCREENSHOTS_WEB_PORT"] ?? 5179);
 const apiUrl = `http://localhost:${apiPort}`;
 const webUrl = `http://localhost:${webPort}`;
 
+/** The invite link the screenshots open: synthetic, and only in the local dev database. */
+const screenshotInvite = "screenshot-invite-".padEnd(43, "0");
+
 const viewports = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "phone", width: 390, height: 844 },
@@ -309,11 +312,26 @@ const views: ReadonlyArray<View> = [
       await page.locator("[data-test=no-devices]").waitFor();
     },
   },
+  // Signing in (#178): passkey first, then Google (on: the run binds a synthetic client) and
+  // GitHub; the invite link's page; and Settings → Security with passkeys and linked accounts.
   {
     name: "login",
     path: "/login",
     signedIn: false,
-    prepare: (page) => page.getByRole("button", { name: /sign in/i }).waitFor(),
+    prepare: (page) => page.getByRole("button", { name: "Continue with Google" }).waitFor(),
+  },
+  {
+    name: "invite",
+    path: `/invite/${screenshotInvite}`,
+    signedIn: false,
+    prepare: (page) => page.locator("[data-test=invite][data-state=open]").waitFor(),
+  },
+  {
+    name: "settings-security",
+    path: "/settings#security",
+    signedIn: true,
+    clip: "[data-test=security]",
+    prepare: (page) => page.locator("[data-test=security] [data-test=passkey]").first().waitFor(),
   },
   {
     name: "ui",
@@ -519,6 +537,9 @@ const main = async () => {
     STASH_MCP_PORT: String(apiPort + 1),
     STASH_WEB_PORT: String(apiPort + 2),
     STASH_WEB_ORIGIN: webUrl,
+    // A synthetic Google client, so the login page shows its button. Nobody signs in with it here.
+    GOOGLE_CLIENT_ID: "synthetic-google-client-id",
+    GOOGLE_CLIENT_SECRET: "synthetic-google-client-secret",
   };
   // Never deploy anything: the stack runs locally without Cloudflare credentials.
   for (const key of Object.keys(process.env)) {
@@ -557,6 +578,14 @@ const main = async () => {
   const hash = Crypto.createHash("sha256").update(sessionToken).digest("hex");
   if ((await call("POST", `${apiUrl}/_smoke/session`, { hash })) !== 201) {
     throw new Error("seeding the session failed");
+  }
+
+  const inviteHash = Crypto.createHash("sha256").update(screenshotInvite).digest("hex");
+  if ((await call("POST", `${apiUrl}/_smoke/invite`, { hash: inviteHash })) !== 201) {
+    throw new Error("seeding the invite failed");
+  }
+  if ((await call("POST", `${apiUrl}/_smoke/sign-in-methods`)) !== 201) {
+    throw new Error("seeding the sign-in methods failed");
   }
 
   Fs.mkdirSync(outDir, { recursive: true });

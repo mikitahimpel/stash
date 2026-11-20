@@ -57,8 +57,12 @@ Wiring tests only: the composed layer builds, routes respond, and auth is requir
   that user (`ForEachUser`).  A user whose run fails does not stop the others. Keep them in sync
   with `crons` on the `Api` Worker in the root `alchemy.run.ts`.
 - `src/smoke-routes.ts`: dev-only `/_smoke/*` routes (on only under `alchemy dev`), with the
-  synthetic screenshot data in `src/smoke-seed.ts`.
-- `src/login-not-configured.ts`: 503 on the device flow routes while `GITHUB_CLIENT_ID` is unset.
+  synthetic screenshot data in `src/smoke-seed.ts`; `/_smoke/invite` and
+  `/_smoke/sign-in-methods` seed an invite and the owner's passkeys for the screenshots and the
+  sign-in walk.
+- `src/login-not-configured.ts`: 503 on the device flow routes (and linking GitHub) while
+  `GITHUB_CLIENT_ID` is unset, and on `/auth/google/*` until both `GOOGLE_CLIENT_ID` and
+  `GOOGLE_CLIENT_SECRET` are set. Passkeys always work.
 - `src/events-upgrade.ts`: the WebSocket upgrade of `GET /events`. Effect's router cannot return
   a Workers WebSocket response, so the Worker asks the router first without the upgrade headers
   (the same `Authorization` middleware answers 401, or 426 when the caller may connect) and then

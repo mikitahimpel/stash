@@ -168,6 +168,8 @@ behind services.
   | `SESSION_SECRET` | `pass://Stash/app/session_secret` | planned |
   | `STASH_API_URL` | `pass://Stash/migrate/api_url` | planned |
   | `STASH_API_TOKEN` | `pass://Stash/migrate/api_token` | planned |
+  | `GOOGLE_CLIENT_ID` | `pass://Stash/Google/client_id` | planned (Sign in with Google) |
+  | `GOOGLE_CLIENT_SECRET` | `pass://Stash/Google/client_secret` | planned (Sign in with Google) |
   | `WEB_EXT_API_KEY` | `pass://Stash/AMO/jwt_issuer` | planned (extension signing) |
   | `WEB_EXT_API_SECRET` | `pass://Stash/AMO/jwt_secret` | planned (extension signing) |
 
@@ -178,7 +180,7 @@ behind services.
   is public. The project's OAuth App exists. Its client id is committed in `alchemy.run.ts` as
   the default for stage `prod`. Env overrides it, and other stages without it answer 503 on the
   login routes. Never create a client secret.
-- **Planned items (`app`, `migrate`, `AMO`) are not created in the vault
+- **Planned items (`app`, `migrate`, `AMO`, `Google`) are not created in the vault
   yet.** Their item titles above are placeholders. They stay commented out in `.env.example`. When
   an item is created, uncomment its lines and change the reference to match the real item title
   exactly (case-sensitive), then update this table.
