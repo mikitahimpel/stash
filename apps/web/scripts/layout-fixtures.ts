@@ -747,8 +747,8 @@ interface Created {
 export const connectable = (now: number) => {
   const base = seeded(now);
   // `now` moves on as the walk does: a first save or use comes after the page has opened.
-  const startedAt = Date.now();
-  const later = () => iso(now + (Date.now() - startedAt) + 1000);
+  const startedAt = performance.now();
+  const later = () => iso(now + Math.round(performance.now() - startedAt) + 1000);
   const created: Array<Created> = [];
   const contact = new Map<string, { lastSeenAt: string; lastSave: unknown }>();
   const tokens: Array<Record<string, unknown>> = [];

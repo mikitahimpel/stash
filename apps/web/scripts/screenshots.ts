@@ -13,6 +13,7 @@ import * as Http from "node:http";
 import * as Os from "node:os";
 import * as Path from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import * as PreviewImages from "./preview-images.ts";
 
@@ -426,7 +427,7 @@ const answerEmpty = (page: Page) =>
   });
 
 const answerFixtures = (page: Page, tabs: Fixtures.TabsScene | undefined) => {
-  const fixtures = Fixtures.seeded(Date.now(), tabs === undefined ? {} : { tabs });
+  const fixtures = Fixtures.seeded(CheckClock.now(), tabs === undefined ? {} : { tabs });
   return page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^\/api/, "");
@@ -443,13 +444,20 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
   const problems: Array<string> = [];
   for (const theme of themes) {
     for (const viewport of viewports) {
-      const context = await browser.newContext({
+      const options = {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: theme,
         deviceScaleFactor: 1,
         reducedMotion: "reduce",
-      });
+      } as const;
+      // The pages on the audit's fixtures (or none) run on the checks' clock, so their day groups
+      // and ages are the same at every hour (#188). The seeded api's pages keep the wall clock:
+      // the api dates its seed by its own.
+      const synthetic = await CheckClock.newContext(browser, options);
+      const seeded = await browser.newContext(options);
       for (const view of views.filter(wanted)) {
+        const onChecksClock = view.fixtures === true || view.empty === true;
+        const context = onChecksClock ? synthetic : seeded;
         await context.clearCookies();
         if (view.signedIn) {
           await context.addCookies([
@@ -475,7 +483,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         if (view.empty) await answerEmpty(page);
         if (view.fixtures) await answerFixtures(page, view.tabs);
         // Recent searches live in the browser: a returning user has some, everyone else none.
-        const [key, value] = Fixtures.recentSearches(Date.now());
+        const [key, value] = Fixtures.recentSearches(onChecksClock ? CheckClock.now() : Date.now());
         // As a string, so the script itself never names the DOM globals.
         await page.addInitScript(
           view.recentSearches
@@ -518,7 +526,8 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         console.log(`✓ ${file}`);
         await page.close();
       }
-      await context.close();
+      await synthetic.close();
+      await seeded.close();
     }
   }
   return problems;

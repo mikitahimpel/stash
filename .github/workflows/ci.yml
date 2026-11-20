@@ -27,16 +27,8 @@ jobs:
 
   # The layout audit (docs/design.md, "Layout audit"): the built web app in headless Chromium,
   # every page against the control and spacing tokens. One browser, one page at a time.
-  # The browser checks run on their own clock (apps/web/scripts/check-clock.ts, #188), so they
-  # pass at any hour: the job runs them with the machine's clock as it is, and again with it at
-  # 00:30 and at 23:30 (a time zone where it reads that, from scripts/at-wall-clock.ts).
   layout-audit:
-    name: layout-audit (clock ${{ matrix.clock }})
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        clock: [now, "00:30", "23:30"]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -44,8 +36,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - if: matrix.clock != 'now'
-        run: echo "TZ=$(node apps/web/scripts/at-wall-clock.ts '${{ matrix.clock }}')" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @stash/web exec playwright install --with-deps chromium
       - run: pnpm --filter @stash/web audit:layout

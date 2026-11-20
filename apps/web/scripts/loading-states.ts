@@ -176,6 +176,23 @@ const answer = async (page: Page, data: "seeded" | "empty") => {
   });
 };
 
+/**
+ * The Inbox opens on Today with two rows or more, as its skeleton draws it. On the wall clock an
+ * early-morning run opened on one row of Today, or on Yesterday (#188); on the checks' clock it
+ * never does.
+ */
+const todayFirst = async (page: Page): Promise<Array<string>> => {
+  const day = page.locator("[data-slot=link-day]").first();
+  // Its first line, the day; the header also counts the day's links (and is set in capitals).
+  const label = (await day.locator("[data-slot=group-header]").innerText()).trim().split("\n")[0];
+  const rows = await day.locator("[data-slot=link-row]").count();
+  return /^today$/i.test(label ?? "") && rows >= 2
+    ? []
+    : [
+        `day groups: the Inbox opens on "${label}" with ${rows} row(s), not on Today with 2 or more`,
+      ];
+};
+
 const differences = (
   name: string,
   skeleton: Box | null,
@@ -265,6 +282,7 @@ const main = async () => {
             );
           }
         }
+        if (view.name === "inbox") found.push(...(await todayFirst(page)));
         if (cls > maxCls) found.push(`CLS ${cls.toFixed(4)} > ${maxCls}: ${moved.join("; ")}`);
         report(view.name, cls, found);
         await page.close();
