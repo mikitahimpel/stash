@@ -199,7 +199,7 @@ const views: ReadonlyArray<View> = [
     name: "login",
     path: "/login",
     data: "none",
-    prepare: (page) => page.getByRole("button", { name: /sign in/i }).waitFor(),
+    prepare: (page) => page.getByRole("button", { name: "Continue with passkey" }).waitFor(),
   },
 ];
 
