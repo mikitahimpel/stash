@@ -1,7 +1,8 @@
 // `pnpm --filter @stash/extension screenshots`: renders the toolbar popup (the real
 // `popup-page.vue` over the made-up states in `preview/popup/`, so no browser extension, no api
 // and no session) and captures it with headless Chromium in both themes into `docs/screenshots/`
-// as `extension-popup-<state>-<theme>.png`. It exits 1 if the popup scrolls sideways.
+// as `extension-popup-<state>-<theme>.png`. It exits 1 if the popup or its recent list scrolls
+// sideways, or the popup is taller than Firefox's 600px.
 import * as Fs from "node:fs";
 import * as Path from "node:path";
 import vue from "@vitejs/plugin-vue";
@@ -49,8 +50,16 @@ try {
       const popup = page.locator(".popup");
       const height = (await popup.boundingBox())?.height ?? 0;
       if (height > 600) problems.push(`${file}: ${height}px tall, a popup is 600 at most`);
+      // Past 600px the recent list scrolls inside the popup: up and down only.
+      const list = (await page.evaluate(
+        `(() => { const it = document.querySelector(".recent"); return it && { sw: it.scrollWidth, cw: it.clientWidth, sh: it.scrollHeight, ch: it.clientHeight }; })()`,
+      )) as { sw: number; cw: number; sh: number; ch: number } | null;
+      if (list !== null && list.sw > list.cw)
+        problems.push(`${file}: the recent list scrolls sideways (${list.sw} > ${list.cw})`);
+      const scrolls =
+        list !== null && list.sh > list.ch ? `, recent list scrolls ${list.sh - list.ch}px` : "";
       await popup.screenshot({ path: Path.join(outDir, file) });
-      console.log(`✓ ${file}`);
+      console.log(`✓ ${file} (${Math.round(height)}px${scrolls})`);
       await page.close();
     }
     await context.close();

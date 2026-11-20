@@ -8,7 +8,10 @@ import type * as PopupActions from "./popup-actions.ts";
 // The toolbar popup: this page with Save (or Saved and Undo), a search field and Open Stash, the
 // latest saved links and the connection. It only shows state and calls `actions`; the logic is in
 // `@stash/ext-popup`. The rows follow the media rows of the web app: a thumb, a title and one
-// muted line.
+// muted line. A post on X is the same row in a post's order: the author's line first (picture,
+// name, verified mark, @handle, age), then the post's words on two lines. The popup is at most
+// 600px tall (Firefox's limit), and the recent list scrolls inside it. Remote pictures load
+// lazily and send no referrer.
 const props = defineProps<{ actions: PopupActions.Actions }>();
 
 const page = ref<PopupView.Page | null>(null);
@@ -183,6 +186,7 @@ const openStash = () => {
             class="thumb-image"
             :src="usable(saved?.imageUrl) ?? undefined"
             alt=""
+            referrerpolicy="no-referrer"
             @error="broken.add(saved?.imageUrl ?? '')"
           />
           <img
@@ -190,6 +194,7 @@ const openStash = () => {
             class="thumb-icon"
             :src="usable(page.favIconUrl) ?? undefined"
             alt=""
+            referrerpolicy="no-referrer"
             @error="broken.add(page.favIconUrl ?? '')"
           />
           <span v-else aria-hidden="true">{{ initial(page.host) }}</span>
@@ -288,20 +293,91 @@ const openStash = () => {
       <button class="button tactile-raised" type="button" @click="openStash">Open Stash</button>
     </form>
 
-    <section v-if="recent.length > 0" aria-labelledby="recent-title">
+    <section v-if="recent.length > 0" class="recent-section" aria-labelledby="recent-title">
       <div class="group-header">
         <h2 id="recent-title">Recent</h2>
         <span class="rule" aria-hidden="true" />
       </div>
       <ul class="recent">
         <li v-for="link in recent" :key="link.id">
-          <a class="row link" :href="link.url" @click.prevent="props.actions.openLink(link.url)">
+          <a
+            v-if="link.post?.state === 'available'"
+            class="row link post"
+            :href="link.url"
+            @click.prevent="props.actions.openLink(link.url)"
+          >
+            <span class="thumb small">
+              <img
+                v-if="usable(link.post.previewUrl)"
+                class="thumb-image"
+                :src="usable(link.post.previewUrl) ?? undefined"
+                alt=""
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                @error="broken.add(link.post.previewUrl ?? '')"
+              />
+              <span v-else aria-hidden="true">{{ initial(link.host) }}</span>
+              <span
+                v-if="link.post.video && usable(link.post.previewUrl)"
+                class="play"
+                aria-hidden="true"
+              />
+            </span>
+            <span class="row-text">
+              <span class="meta byline">
+                <span class="author">
+                  <img
+                    v-if="usable(link.post.avatarUrl)"
+                    class="avatar"
+                    :src="usable(link.post.avatarUrl) ?? undefined"
+                    alt=""
+                    width="16"
+                    height="16"
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                    @error="broken.add(link.post.avatarUrl ?? '')"
+                  />
+                  <span class="name">{{ link.post.name }}</span>
+                  <svg
+                    v-if="link.post.verified"
+                    class="verified"
+                    viewBox="0 0 16 16"
+                    width="14"
+                    height="14"
+                    role="img"
+                    aria-label="Verified"
+                  >
+                    <circle cx="8" cy="8" r="7" fill="currentColor" />
+                    <path
+                      d="M5 8.2l2 2 4-4.2"
+                      fill="none"
+                      stroke="var(--background)"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span class="handle">@{{ link.post.handle }}</span>
+                </span>
+                <span>{{ PopupLink.age(link.savedAt, now) }}</span>
+              </span>
+              <span class="post-text">{{ link.post.text }}</span>
+            </span>
+          </a>
+          <a
+            v-else
+            class="row link"
+            :href="link.url"
+            @click.prevent="props.actions.openLink(link.url)"
+          >
             <span class="thumb small">
               <img
                 v-if="usable(link.imageUrl)"
                 class="thumb-image"
                 :src="usable(link.imageUrl) ?? undefined"
                 alt=""
+                loading="lazy"
+                referrerpolicy="no-referrer"
                 @error="broken.add(link.imageUrl ?? '')"
               />
               <span v-else aria-hidden="true">{{ initial(link.host) }}</span>
@@ -310,6 +386,13 @@ const openStash = () => {
               <span class="row-title one-line">{{ link.title }}</span>
               <span class="meta">
                 <span class="host">{{ link.host }}</span>
+                <span
+                  v-if="
+                    link.post?.state === 'unavailable' && link.title !== PopupLink.unavailableTitle
+                  "
+                  class="unavailable"
+                  >{{ PopupLink.unavailableTitle }}</span
+                >
                 <span>{{ PopupLink.age(link.savedAt, now) }}</span>
               </span>
             </span>
@@ -325,8 +408,11 @@ const openStash = () => {
 <style src="../../assets/tokens.css"></style>
 
 <style scoped>
+/* Firefox gives a popup at most 600px of height; past that, the recent list scrolls inside. */
 .popup {
+  box-sizing: border-box;
   display: flex;
+  max-height: 600px;
   flex-direction: column;
   gap: 12px;
   width: 380px;
@@ -477,6 +563,74 @@ const openStash = () => {
   height: 20px;
 }
 
+/* A video's poster carries a small play mark. */
+.play {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+}
+.play::before {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  border-block: 4px solid transparent;
+  border-left: 6px solid #fff;
+  content: "";
+}
+
+/* A post's row: the author's line, then the words on two lines. */
+.link.post {
+  align-items: flex-start;
+}
+.byline > .author {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.avatar {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.name {
+  flex-shrink: 0;
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--foreground);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.verified {
+  flex-shrink: 0;
+  color: var(--foreground);
+}
+/* The handle gives way first on a narrow row. */
+.handle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.post-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.meta > .unavailable {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -580,11 +734,20 @@ const openStash = () => {
   flex: 1;
   background: var(--hairline);
 }
+.recent-section {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+/* Only up and down: a scrollbar narrows the rows, it never scrolls them sideways. */
 .recent {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   margin: 4px 0 0;
   padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   list-style: none;
 }
 .link {
