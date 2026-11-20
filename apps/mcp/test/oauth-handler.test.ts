@@ -140,7 +140,7 @@ let clock = 0;
 
 const makeProvider = (mintApiToken: OAuthProvider.Options["mintApiToken"]) =>
   OAuthProvider.make({
-    env: { MCP_ORIGIN: origin },
+    env: { MCP_ORIGIN: origin, GITHUB_CLIENT_ID: clientId },
     mcp: (request, apiToken) =>
       mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
     github: githubLayer,
@@ -224,7 +224,7 @@ const consent = async (oauthClientId: string) => {
   expect(html).toContain("client.example.com");
   const handle = /name="handle" value="([^"]+)"/.exec(html)?.[1];
   expect(handle).toBeDefined();
-  return { page, handle: handle! };
+  return { page, handle: handle!, html };
 };
 
 /** Approves the consent page and opens the device code page. Returns the poll `state` + cookie. */
@@ -564,30 +564,30 @@ describe("MCP with an issued token", () => {
   });
 });
 
-describe("api token per grant", () => {
-  /** A tools/call of `get_latest_digest` without a session (2026-07-28). */
-  const callDigest = (token: string) =>
-    rpc(
-      token,
-      {
-        id: 1,
-        method: "tools/call",
-        params: {
-          name: "get_latest_digest",
-          arguments: {},
-          _meta: {
-            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
-            "io.modelcontextprotocol/clientCapabilities": {},
-          },
+/** A tools/call of `get_latest_digest` without a session (2026-07-28). */
+const callDigest = (token: string) =>
+  rpc(
+    token,
+    {
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "get_latest_digest",
+        arguments: {},
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          "io.modelcontextprotocol/clientCapabilities": {},
         },
       },
-      {
-        "mcp-protocol-version": "2026-07-28",
-        "mcp-method": "tools/call",
-        "mcp-name": "get_latest_digest",
-      },
-    );
+    },
+    {
+      "mcp-protocol-version": "2026-07-28",
+      "mcp-method": "tools/call",
+      "mcp-name": "get_latest_digest",
+    },
+  );
 
+describe("api token per grant", () => {
   it("mints one api token per grant and keeps it only encrypted in the grant", async () => {
     const before = (await Effect.runPromise(testApi.mintedTokens)).length;
     const token = await issueToken();
@@ -684,5 +684,108 @@ describe("a server that moved to another host", () => {
         `resource_metadata="${at}/.well-known/oauth-protected-resource/mcp"`,
       );
     }
+  });
+});
+
+// On a custom domain the MCP server shares the web app's host: it signs in with the web app's own
+// sign-in (passkey, Google or GitHub) through the session cookie, by redirects alone, as the
+// Claude iOS in-app sheet needs. The Device Flow stays as a fallback link.
+describe("web sign-in on the site's host", () => {
+  const webProvider = (options: { readonly github?: boolean } = {}) =>
+    OAuthProvider.make({
+      env: {
+        MCP_ORIGIN: origin,
+        WEB_ORIGIN: origin,
+        ...(options.github === false ? {} : { GITHUB_CLIENT_ID: clientId }),
+      },
+      mcp: (request, apiToken) =>
+        mcp.handler(request, Context.make(ApiClient.GrantApiToken, Redacted.make(apiToken))),
+      github: githubLayer,
+      mintApiToken: mintFromFakeApi,
+      mintForSession: (session) =>
+        Effect.runPromise(
+          ApiClient.createMcpTokenForSession(apiEnv, Redacted.make(session)).pipe(
+            Effect.map(({ token, userId }) => ({ token: Redacted.value(token), userId })),
+            Effect.catchTag("Unauthorized", () => Effect.succeed(null)),
+          ),
+        ),
+      isApiTokenActive: (apiToken) =>
+        Effect.runPromise(ApiClient.isTokenActive(apiEnv, Redacted.make(apiToken))),
+      now: () => clock,
+    });
+
+  /** Consent on the web provider, approved: returns where it sends the browser and its cookie. */
+  const approveOnWeb = async (decision = "approve", github = true) => {
+    provider = webProvider({ github });
+    const oauthClientId = await registerClient();
+    const { page, handle, html } = await consent(oauthClientId);
+    expect(html).toContain("passkey, Google or GitHub");
+    if (github) expect(html).toContain('value="approve-device"');
+    else expect(html).not.toContain('value="approve-device"');
+    const approve = await send("/authorize", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookies(page) },
+      body: new URLSearchParams({ handle, decision }),
+    });
+    expect(approve.status).toBe(303);
+    return {
+      oauthClientId,
+      location: new URL(approve.headers.get("location")!),
+      cookie: cookies(approve),
+    };
+  };
+
+  it("sends a browser without a session to the web login, which returns to grant", async () => {
+    const { oauthClientId, location, cookie } = await approveOnWeb();
+    expect(location.pathname).toBe(OAuthHandler.sessionPath);
+    const back = `${location.pathname}${location.search}`;
+
+    // Not signed in yet: the web app's login page, which comes back here.
+    const toLogin = await send(back, { headers: { cookie } });
+    expect(toLogin.status).toBe(302);
+    const login = new URL(toLogin.headers.get("location")!);
+    expect(login.pathname).toBe("/login");
+    expect(login.searchParams.get("redirect")).toBe(back);
+    // An unknown or expired session goes there too, and the request still waits.
+    const stale = await send(back, { headers: { cookie: `${cookie}; stash_session=expired` } });
+    expect(new URL(stale.headers.get("location")!).pathname).toBe("/login");
+
+    // Signed in on the web app (a passkey, say): the session cookie rides along to this host.
+    const granted = await send(back, {
+      headers: { cookie: `${cookie}; stash_session=${Testing.webSession}` },
+    });
+    expect(granted.status).toBe(302);
+    const redirect = new URL(granted.headers.get("location")!);
+    expect(`${redirect.origin}${redirect.pathname}`).toBe(clientRedirectUri);
+    expect(redirect.searchParams.get("state")).toBe("client-state");
+    const token = await exchange(oauthClientId, redirect.searchParams.get("code")!);
+    expect((await callDigest(token)).response.status).toBe(200);
+    expect(grants()).toHaveLength(1);
+
+    // The transaction works once.
+    const again = await send(back, {
+      headers: { cookie: `${cookie}; stash_session=${Testing.webSession}` },
+    });
+    expect(again.status).toBeGreaterThanOrEqual(400);
+    expect(grants()).toHaveLength(1);
+  });
+
+  it("gives no grant without the browser that approved, even with a session", async () => {
+    const { location } = await approveOnWeb();
+    const response = await send(`${location.pathname}${location.search}`, {
+      headers: { cookie: `stash_session=${Testing.webSession}` },
+    });
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(grants()).toEqual([]);
+  });
+
+  it("keeps the GitHub device code as a fallback link", async () => {
+    const { location } = await approveOnWeb("approve-device");
+    expect(location.pathname).toBe(OAuthHandler.devicePath);
+  });
+
+  it("works without a GitHub app, and offers no device code then", async () => {
+    const { location } = await approveOnWeb("approve", false);
+    expect(location.pathname).toBe(OAuthHandler.sessionPath);
   });
 });

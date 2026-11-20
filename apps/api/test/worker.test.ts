@@ -76,6 +76,7 @@ const makeApp = (layer: typeof ApiLayer.layer) =>
       Layer.provide(Testing.layerVectors),
       Layer.provide(Testing.layerBlobs),
       Layer.provide(Testing.layerGithubConfig),
+      Layer.provide(Testing.layerGoogleNotConfigured),
       Layer.provide(layerNoNetwork),
       Layer.provide(Testing.layerEnrichmentQueue),
       Layer.provide(Testing.layerKv),
@@ -474,6 +475,12 @@ describe("composed API", () => {
     }
   });
 
+  it("tells the web app which sign-in buttons to show, without a session", async () => {
+    const response = await request("GET", "/auth/providers");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ google: false, github: true });
+  });
+
   it("allows CORS with credentials from the web origin only", async () => {
     const preflight = (origin: string) =>
       request("OPTIONS", "/links", {
@@ -557,6 +564,38 @@ describe("InternalApi entrypoint", () => {
       expect(response.status).toBe(403);
       expect(await response.json()).toMatchObject({ _tag: "LoginNotAllowed" });
     }
+  });
+
+  it("mints the token of a web session's user for the MCP sign-in on the site's host", async () => {
+    const minted = await internalRequest(
+      "POST",
+      "/internal/mcp-tokens/session",
+      {},
+      {
+        session: memberSession,
+      },
+    );
+    expect(minted.status).toBe(201);
+    const body = (await minted.json()) as { token: string; userId: string };
+    expect(body.userId).toBe(Testing.member.id);
+    const asMcp = { authorization: `Bearer ${body.token}` };
+    expect(await (await internalRequest("GET", "/members/me", asMcp)).json()).toMatchObject({
+      id: Testing.member.id,
+    });
+    const unknown = await internalRequest(
+      "POST",
+      "/internal/mcp-tokens/session",
+      {},
+      {
+        session: "synthetic-unknown-session",
+      },
+    );
+    expect(unknown.status).toBe(401);
+    // Not on the public fetch.
+    expect(
+      (await request("POST", "/internal/mcp-tokens/session", {}, { session: memberSession }))
+        .status,
+    ).toBe(404);
   });
 
   it("still serves the public StashApi", async () => {

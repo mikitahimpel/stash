@@ -35,6 +35,14 @@ const provider = OAuthProvider.make({
         Effect.catchTag("LoginNotAllowed", () => Effect.succeed(null)),
       ),
     ),
+  mintForSession: (session) =>
+    Effect.runPromise(
+      ApiClient.createMcpTokenForSession(workerEnv, Redacted.make(session)).pipe(
+        Effect.map(({ token, userId }) => ({ token: Redacted.value(token), userId })),
+        // The session is unknown or expired: sign in again.
+        Effect.catchTag("Unauthorized", () => Effect.succeed(null)),
+      ),
+    ),
   isApiTokenActive: (apiToken) =>
     Effect.runPromise(ApiClient.isTokenActive(workerEnv, Redacted.make(apiToken))),
 });

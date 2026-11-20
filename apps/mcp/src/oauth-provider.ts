@@ -9,17 +9,37 @@ import type { WorkerEnv } from "./worker-env.ts";
 export type ProviderEnv = WorkerEnv & { readonly OAUTH_PROVIDER: OAuthHelpers };
 
 export interface Options {
-  readonly env: Pick<WorkerEnv, "MCP_ORIGIN" | "MCP_LEGACY_ORIGIN">;
+  readonly env: Pick<
+    WorkerEnv,
+    "MCP_ORIGIN" | "MCP_LEGACY_ORIGIN" | "WEB_ORIGIN" | "GITHUB_CLIENT_ID"
+  >;
   /** Serves an authenticated MCP request, calling the api with the grant's `apiToken`. */
   readonly mcp: (request: Request, apiToken: string) => Promise<Response>;
   readonly github: Layer.Layer<GitHub.GitHubIdentity>;
   /** Mints the api token for a new grant (see `OAuthHandler.Options`). */
   readonly mintApiToken: OAuthHandler.Options["mintApiToken"];
+  /**
+   * Mints a grant's api token for a web session's user (see `OAuthHandler.Options.webSignIn`).
+   * Used only by the provider of the origin that is also `WEB_ORIGIN`.
+   */
+  readonly mintForSession?: NonNullable<OAuthHandler.Options["webSignIn"]>["mintForSession"];
   /** Whether the api still accepts a grant's token: `false` once it is revoked in Settings. */
   readonly isApiTokenActive: (apiToken: string) => Promise<boolean>;
   /** Epoch milliseconds, for the device flow's poll interval. Tests pass their own clock. */
   readonly now?: () => number;
 }
+
+/** Whether `origin` is the web app's too, so its sign-in pages see the web session cookie. */
+export const sharesWebOrigin = (
+  origin: string,
+  env: { readonly WEB_ORIGIN?: string | undefined },
+) =>
+  env.WEB_ORIGIN !== undefined &&
+  env.WEB_ORIGIN !== "" &&
+  new URL(env.WEB_ORIGIN).origin === origin;
+
+const isGithubConfigured = (env: Pick<WorkerEnv, "GITHUB_CLIENT_ID">) =>
+  env.GITHUB_CLIENT_ID !== undefined && env.GITHUB_CLIENT_ID !== "";
 
 /**
  * The Worker's `fetch`. A deploy that moved the server to another host keeps answering on the old
@@ -50,11 +70,16 @@ export const make = (options: Options) => {
  * The provider of one origin: OAuth 2.1 metadata, dynamic client registration and tokens from
  * `@cloudflare/workers-oauth-provider`, the bearer check on `/mcp`, and the GitHub Device Flow sign-in pages.
  */
-const makeFor = (origin: string, { mcp, github, mintApiToken, isApiTokenActive, now }: Options) => {
+const makeFor = (origin: string, options: Options) => {
+  const { mcp, github, mintApiToken, isApiTokenActive, now, mintForSession } = options;
   const handleOAuth = OAuthHandler.make({
     origin,
     github,
     mintApiToken,
+    githubConfigured: isGithubConfigured(options.env),
+    ...(mintForSession !== undefined && sharesWebOrigin(origin, options.env)
+      ? { webSignIn: { mintForSession } }
+      : {}),
     ...(now === undefined ? {} : { now }),
   });
 

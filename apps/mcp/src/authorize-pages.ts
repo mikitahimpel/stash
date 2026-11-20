@@ -30,7 +30,9 @@ p{margin:0 0 16px}
 .button:focus-visible,a:focus-visible{outline:2px solid color-mix(in srgb,var(--fg) 40%,transparent);outline-offset:2px}
 a{color:inherit;text-decoration-color:var(--line);text-underline-offset:4px}
 a:hover{text-decoration-color:currentColor}
-.error{color:var(--danger)}`;
+.error{color:var(--danger)}
+.link{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+.link:hover{text-decoration-color:currentColor}`;
 
 const page = (title: string, body: string, nonce?: string) => {
   const attr = nonce === undefined ? "" : ` nonce="${nonce}"`;
@@ -48,7 +50,19 @@ ${body}
 </html>`;
 };
 
-export const consent = (details: ConsentDescription, handle: string) => {
+/** Which ways to sign in the consent page offers. */
+export interface SignIn {
+  /** The web app's sign-in (passkey, Google, GitHub) on this host. */
+  readonly web: boolean;
+  /** The GitHub Device Flow: the only way without `web`, else a fallback link. */
+  readonly github: boolean;
+}
+
+export const consent = (
+  details: ConsentDescription,
+  handle: string,
+  signIn: SignIn = { web: false, github: true },
+) => {
   const name = escape(details.clientName);
   const origin = details.clientDomain
     ? `Published by <strong>${escape(details.clientDomain)}</strong>.`
@@ -61,10 +75,25 @@ export const consent = (details: ConsentDescription, handle: string) => {
     `<h1>Allow ${name} to use your Stash?</h1>
 <p class="muted">${origin} Access goes to <span class="mono">${escape(details.redirectHost)}</span>.</p>
 ${loopback}
-<form method="post" class="actions">
+<form method="post">
   <input type="hidden" name="handle" value="${escape(handle)}">
-  <button class="button primary" name="decision" value="approve">Continue with GitHub</button>
-  <button class="button" name="decision" value="deny">Deny</button>
+  ${
+    signIn.web
+      ? `<p class="muted">Next, sign in with a passkey, Google or GitHub.</p>
+  <p class="actions">
+    <button class="button primary" name="decision" value="approve">Continue</button>
+    <button class="button" name="decision" value="deny">Deny</button>
+  </p>${
+    signIn.github
+      ? `
+  <p class="muted"><button class="link" name="decision" value="approve-device">Sign in with a GitHub code instead</button></p>`
+      : ""
+  }`
+      : `<p class="actions">
+    <button class="button primary" name="decision" value="approve">Continue with GitHub</button>
+    <button class="button" name="decision" value="deny">Deny</button>
+  </p>`
+  }
 </form>`,
   );
 };

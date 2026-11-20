@@ -545,6 +545,9 @@ importers:
       '@cloudflare/workers-oauth-provider':
         specifier: 'catalog:'
         version: 1.2.3
+      '@stash/contracts-api':
+        specifier: workspace:*
+        version: link:../../packages/contracts/api
       '@stash/mcp-platform':
         specifier: workspace:*
         version: link:../../packages/mcp/platform

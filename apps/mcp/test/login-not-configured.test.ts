@@ -22,3 +22,15 @@ describe("handleLoginNotConfigured", () => {
     expect(handleLoginNotConfigured(get("/authorize"), env)).toBeUndefined();
   });
 });
+
+describe("handleLoginNotConfigured on the web app's own host", () => {
+  const env = { WEB_ORIGIN: "https://mcp.example.com" };
+
+  it("keeps the web sign-in, which needs no GitHub app, and closes the device flow", () => {
+    expect(handleLoginNotConfigured(get("/authorize"), env)).toBeUndefined();
+    expect(handleLoginNotConfigured(get("/authorize/session?state=x"), env)).toBeUndefined();
+    for (const path of ["/authorize/device", "/authorize/poll"]) {
+      expect(handleLoginNotConfigured(get(path), env)?.status).toBe(503);
+    }
+  });
+});

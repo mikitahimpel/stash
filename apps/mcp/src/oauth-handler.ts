@@ -6,25 +6,37 @@ import {
   type OAuthHelpers,
 } from "@cloudflare/workers-oauth-provider";
 import { Effect, Layer } from "effect";
+import * as Security from "@stash/contracts-api/security";
 import * as Pages from "./authorize-pages.ts";
 import * as DeviceFlowStore from "./device-flow-store.ts";
 import * as GitHub from "./github-identity.ts";
 
-// The interactive part of OAuth 2.1, served by the provider's `defaultHandler`. The owner signs in
-// with the GitHub Device Flow, so there is no GitHub redirect and no client secret:
+// The interactive part of OAuth 2.1, served by the provider's `defaultHandler`:
 //
-//   GET  /authorize         consent page for the client (name, redirect host)
-//   POST /authorize         Allow → start a device flow, Deny → access_denied to the client
-//   GET  /authorize/device  the user code and the GitHub link; the page polls the endpoint below
-//   POST /authorize/poll    one poll of GitHub; on success grant if it is the allowlisted login
+//   GET  /authorize          consent page for the client (name, redirect host)
+//   POST /authorize          Allow → sign in (below), Deny → access_denied to the client
+//   GET  /authorize/session  the web sign-in: grant for the user of the web session cookie, or
+//                            send the browser to the web app's login page, which returns here
+//   GET  /authorize/device   the GitHub user code and link; the page polls the endpoint below
+//   POST /authorize/poll     one poll of GitHub; on success grant if the account has a user
+//
+// On a custom domain the MCP server shares the web app's host, so it sees the web session cookie
+// (`webSignIn`): the user signs in there with a passkey, Google or GitHub, in the same browser
+// (the Claude iOS sheet included) by redirects alone, and the api mints the grant's token for that
+// session's user. Everywhere else (the old `workers.dev` origin, other stages, local dev) and as a
+// fallback link, the GitHub Device Flow signs in, with no GitHub redirect and no client secret.
 //
 // The approved request waits in the provider's upstream transaction (bound to the browser by a
-// cookie), and the device code in `device-flow-store`, both keyed by the upstream `state`.
+// cookie), and a device code in `device-flow-store`, both keyed by the upstream `state`.
 // The provider itself serves metadata, `/register`, `/token` and the bearer check on `/mcp`.
 
 export const authorizePath = "/authorize";
 export const devicePath = "/authorize/device";
 export const pollPath = "/authorize/poll";
+export const sessionPath = "/authorize/session";
+
+/** The web app's login page; it opens `redirect` (a path on this host) once signed in. */
+export const loginPath = "/login";
 
 /** GitHub's `slow_down` adds this many seconds to the interval. */
 const slowDownSeconds = 5;
@@ -51,9 +63,30 @@ export interface Options {
     readonly login: string;
     readonly id: string;
   }) => Promise<string | null>;
+  /**
+   * The web sign-in, when this origin is the web app's (a custom domain): mints the grant's api
+   * token for the user of a web session cookie, with that user's id. `null` when the session is
+   * unknown or expired (the browser is sent to sign in). Rejects if the api is unreachable.
+   */
+  readonly webSignIn?: {
+    readonly mintForSession: (
+      session: string,
+    ) => Promise<{ readonly token: string; readonly userId: string } | null>;
+  };
+  /** Whether the GitHub Device Flow can run (`GITHUB_CLIENT_ID` is set). Defaults to `true`. */
+  readonly githubConfigured?: boolean;
   /** Epoch milliseconds. Tests pass a clock they control. */
   readonly now?: () => number;
 }
+
+/** A cookie's value from a request's `Cookie` header. */
+const cookieOf = (request: Request, name: string): string | undefined => {
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
+    const at = part.indexOf("=");
+    if (at > 0 && part.slice(0, at).trim() === name) return part.slice(at + 1).trim();
+  }
+  return undefined;
+};
 
 /** What `POST /authorize/poll` answers. The device page acts on `status`. */
 export type PollResponse =
@@ -87,6 +120,7 @@ const makeNonce = () => btoa(String.fromCharCode(...crypto.getRandomValues(new U
 
 export const make = (options: Options) => {
   const now = options.now ?? Date.now;
+  const githubConfigured = options.githubConfigured ?? true;
   const github = <A, E>(effect: Effect.Effect<A, E, GitHub.GitHubIdentity>) =>
     Effect.runPromise(Effect.provide(effect, options.github));
 
@@ -95,17 +129,44 @@ export const make = (options: Options) => {
     // Describe first: a failed client lookup leaves nothing in KV.
     const details = await oauth.describeConsent(authRequest);
     const consent = await oauth.beginConsent(authRequest);
-    return html(Pages.consent(details, consent.handle), consent.headers);
+    return html(
+      Pages.consent(details, consent.handle, {
+        web: options.webSignIn !== undefined,
+        github: githubConfigured,
+      }),
+      consent.headers,
+    );
+  };
+
+  // Sends the approved request on to the web sign-in, which comes back to `sessionPath`.
+  const toWebSignIn = async (
+    oauth: OAuthHelpers,
+    approved: { request: AuthRequest; headers: Headers },
+  ) => {
+    const upstream = await oauth.beginUpstream(approved.request, { headers: approved.headers });
+    const location = new URL(sessionPath, options.origin);
+    location.searchParams.set("state", upstream.state);
+    return redirect(location.toString(), upstream.headers, 303);
   };
 
   const decide = async (request: Request, oauth: OAuthHelpers, kv: KVNamespace) => {
     const form = await request.formData();
     const handle = String(form.get("handle") ?? "");
-    if (form.get("decision") !== "approve") {
+    if (form.get("decision") !== "approve" && form.get("decision") !== "approve-device") {
       const denied = await oauth.denyConsent(request, handle);
       return new Response(null, { status: 302, headers: denied.headers });
     }
     const approved = await oauth.approveConsent(request, handle);
+    const decision = form.get("decision");
+    if (options.webSignIn !== undefined && decision !== "approve-device") {
+      return toWebSignIn(oauth, approved);
+    }
+    if (!githubConfigured) {
+      return redirect(
+        authorizationErrorRedirect(approved.request, "server_error", "Sign-in is not configured"),
+        approved.headers,
+      );
+    }
     const started = await github(GitHub.GitHubIdentity.use((identity) => identity.start)).then(
       (flow) => ({ ok: true as const, flow }),
       () => ({ ok: false as const }),
@@ -177,6 +238,40 @@ export const make = (options: Options) => {
       props: { login, apiToken } satisfies Props,
     });
     return redirectTo;
+  };
+
+  // The web sign-in's return: grant for the session's user, or sign in first. The session is
+  // checked (by minting) before the upstream transaction is taken, which works only once.
+  const finishSession = async (request: Request, oauth: OAuthHelpers) => {
+    const webSignIn = options.webSignIn;
+    if (webSignIn === undefined) return text("Not found", 404);
+    const state = new URL(request.url).searchParams.get("state") ?? "";
+    const here = `${sessionPath}?${new URLSearchParams({ state })}`;
+    const login = new URL(loginPath, options.origin);
+    login.searchParams.set("redirect", here);
+    const session = cookieOf(request, Security.sessionCookieName);
+    if (session === undefined || session === "") return redirect(login.toString());
+    const minted = await webSignIn.mintForSession(session).catch(() => undefined);
+    if (minted === null) return redirect(login.toString());
+    const resumed = await oauth.finishUpstream(
+      new Request(new URL(here, options.origin), {
+        headers: { cookie: request.headers.get("cookie") ?? "" },
+      }),
+    );
+    if (minted === undefined) {
+      return redirect(
+        authorizationErrorRedirect(
+          resumed.request,
+          "server_error",
+          "Stash could not issue a token",
+        ),
+        resumed.headers,
+      );
+    }
+    return redirect(
+      await grant(oauth, resumed.request, minted.userId, minted.token),
+      resumed.headers,
+    );
   };
 
   const poll = async (request: Request, oauth: OAuthHelpers, kv: KVNamespace) => {
@@ -256,6 +351,9 @@ export const make = (options: Options) => {
       }
       if (pathname === authorizePath && request.method === "POST") {
         return await decide(request, oauth, kv);
+      }
+      if (pathname === sessionPath && request.method === "GET") {
+        return await finishSession(request, oauth);
       }
       if (pathname === devicePath && request.method === "GET") {
         return await showDevice(request, kv);

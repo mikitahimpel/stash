@@ -94,6 +94,22 @@ export const createMcpToken = (
   );
 
 /**
+ * Mints the api token of a grant for whoever the web session `session` (the `stash_session`
+ * cookie the browser sent to the MCP sign-in on the site's own host) signs in. Fails with
+ * `Unauthorized` for a session that is unknown or expired.
+ */
+export const createMcpTokenForSession = (env: ApiEnv, session: Redacted.Redacted<string>) =>
+  HttpApiClient.make(InternalApi.InternalApi, { baseUrl }).pipe(
+    Effect.flatMap((client) =>
+      client.internal.createMcpTokenForSession({
+        payload: { session: Redacted.value(session) },
+      }),
+    ),
+    Effect.map((created) => ({ token: created.token, userId: created.userId })),
+    Effect.provide(layerHttpClient(env.API)),
+  );
+
+/**
  * Whether the api still accepts `token`. `false` only when the api answers 401 (revoked or
  * unknown). Any other failure counts as active, so an api outage surfaces as tool errors instead
  * of a sign-in loop.
