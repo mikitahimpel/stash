@@ -8,6 +8,11 @@ interface Props extends PrimitiveProps {
   selected?: boolean;
   /** Its `actions` are out: a finger swiped the row to the left (`v-model:revealed`). */
   revealed?: boolean;
+  /**
+   * The row is going away by itself (a tab closed on its device): it fades out in its place and
+   * takes no input. The list removes it once `leaveMillis` have passed.
+   */
+  leaving?: boolean;
   class?: HTMLAttributes["class"];
 }
 
@@ -15,6 +20,7 @@ const props = withDefaults(defineProps<Props>(), {
   as: "div",
   selected: false,
   revealed: false,
+  leaving: false,
 });
 
 const emit = defineEmits<{
@@ -126,12 +132,14 @@ const metaLine =
     data-compact-row=""
     :data-state="selected ? 'selected' : undefined"
     :data-revealed="revealed ? '' : undefined"
+    :data-leaving="leaving ? '' : undefined"
     :as="as"
     :as-child="asChild"
     :class="
       cn(
         'group/row relative flex h-12 touch-pan-y items-center gap-3 rounded-control border border-transparent transition-colors [-webkit-touch-callout:none] before:absolute before:inset-x-0 before:-bottom-px before:h-px before:bg-hairline-row last:before:hidden has-[[data-slot=compact-row-title]:focus-visible]:outline-2 has-[[data-slot=compact-row-title]:focus-visible]:outline-offset-0 has-[[data-slot=compact-row-title]:focus-visible]:outline-ring/40 sm:px-[11px] sm:before:inset-x-3 sm:hover:bg-surface',
         selected && 'tactile-row-selected before:hidden max-sm:-mx-2 max-sm:px-[7px]',
+        leaving && 'pointer-events-none opacity-0 transition-opacity duration-300 ease-out',
         props.class,
       )
     "

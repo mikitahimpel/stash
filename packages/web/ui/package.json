@@ -62,6 +62,8 @@
     "./compact-row-skeleton": "./src/compact-row/compact-row-skeleton.vue",
     "./compact-row-title": "./src/compact-row/compact-row-title.vue",
     "./compact-row-thumb": "./src/compact-row/compact-row-thumb.vue",
+    "./compact-row-label": "./src/compact-row/compact-row-label.vue",
+    "./compact-row-leave": "./src/compact-row/compact-row-leave.ts",
     "./site-icon": "./src/site-icon/site-icon.vue",
     "./check-toggle": "./src/check-toggle/check-toggle.vue",
     "./media-row": "./src/media-row/media-row.vue",

@@ -34,6 +34,7 @@ export const tab = (fields: Partial<Tab> & { readonly id: number }): Tab => ({
   active: false,
   pinned: false,
   hidden: false,
+  incognito: false,
   lastAccessed: null,
   ...fields,
 });

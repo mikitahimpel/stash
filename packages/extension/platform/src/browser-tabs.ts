@@ -22,6 +22,8 @@ export interface Tab {
   readonly active: boolean;
   readonly pinned: boolean;
   readonly hidden: boolean;
+  /** The tab is in a private window. */
+  readonly incognito: boolean;
   /** When the tab was last active, in epoch milliseconds, if the browser reports it. */
   readonly lastAccessed: number | null;
 }
@@ -56,7 +58,8 @@ export class Tabs extends Context.Service<
     readonly createBlank: (windowId: number) => Effect.Effect<Tab, BrowserError>;
     /**
      * Emits whenever the set of open tabs may have changed: a tab was opened, closed, moved,
-     * shown or hidden, or its URL or title changed. Bursts are not coalesced. Run it when the
+     * attached to another window, activated, shown or hidden, its URL, title or icon changed or
+     * it finished loading, or a window was closed. Bursts are not coalesced. Run it when the
      * background page starts, like `Alarms.fired`.
      */
     readonly changed: Stream.Stream<void>;
@@ -75,6 +78,7 @@ const fromBrowser = (tab: browser.tabs.Tab): Option.Option<Tab> =>
         active: tab.active,
         pinned: tab.pinned,
         hidden: tab.hidden ?? false,
+        incognito: tab.incognito === true,
         lastAccessed: tab.lastAccessed ?? null,
       });
 
@@ -93,7 +97,9 @@ const relevantUpdate = (change: browser.tabs._OnUpdatedChangeInfo) =>
   change.url !== undefined ||
   change.title !== undefined ||
   change.hidden !== undefined ||
-  change.pinned !== undefined;
+  change.pinned !== undefined ||
+  change.favIconUrl !== undefined ||
+  change.status === "complete";
 
 const changed = Stream.callback<void>((queue) => {
   const notify = () => Queue.offerUnsafe(queue, undefined);
@@ -106,6 +112,8 @@ const changed = Stream.callback<void>((queue) => {
     browser.tabs.onMoved,
     browser.tabs.onAttached,
     browser.tabs.onReplaced,
+    browser.tabs.onActivated,
+    browser.windows.onRemoved,
   ] as ReadonlyArray<WebExtEvent<() => void>>;
   return Effect.acquireRelease(
     Effect.sync(() => {

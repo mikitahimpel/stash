@@ -13,6 +13,7 @@ import * as Scope from "effect/Scope";
 import * as ApiAtoms from "../src/api-atoms.ts";
 import * as LinkPatches from "../src/link-patches.ts";
 import * as LiveLinks from "../src/live-links.ts";
+import * as TabPatches from "../src/tab-patches.ts";
 import * as Testing from "../src/testing.ts";
 import * as Fixtures from "./fixtures.ts";
 
@@ -313,6 +314,38 @@ describe("LiveLinks.connection", () => {
     await expect.poll(() => app.summaries()["b"]).toBe("Summary of b.");
     expect(app.extra().slice(before)).toEqual([{ updatedSince: overlapped(t1), limit: "100" }]);
     expect(app.reloads()).toBe(0);
+    // The tabs have nothing to catch up with: their readers are told to ask again.
+    expect(app.registry.get(TabPatches.gaps)).toBe(1);
+  });
+
+  it("keeps a device's tabs from tabs.updated, the newest set of each device", async () => {
+    const app = await setup();
+    await app.run(app.server.send(ready(t0)));
+    const tabsUpdated = (takenAt: string, url: string) =>
+      JSON.stringify({
+        type: "tabs.updated",
+        at: takenAt,
+        device: {
+          id: "device-1",
+          name: "Synthetic Zen",
+          kind: "zen",
+          createdAt: t0,
+        },
+        snapshot: {
+          deviceId: "device-1",
+          takenAt,
+          tabs: [{ url, title: null, openedAt: null, lastSeenAt: takenAt }],
+        },
+        saved: [],
+      });
+    await app.run(app.server.send(tabsUpdated(t2, "https://example.com/newer")));
+    await app.run(app.server.send(tabsUpdated(t1, "https://example.com/older")));
+    await expect.poll(() => app.registry.get(TabPatches.state).size).toBe(1);
+    await tick(10);
+    const patch = [...app.registry.get(TabPatches.state).values()][0];
+    expect(patch?.snapshot.tabs.map((tab) => tab.url)).toEqual(["https://example.com/newer"]);
+    expect(app.reloads()).toBe(0);
+    expect(app.registry.get(TabPatches.gaps)).toBe(0);
   });
 });
 

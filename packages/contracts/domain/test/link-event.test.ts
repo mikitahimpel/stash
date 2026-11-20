@@ -21,11 +21,38 @@ const link = {
 };
 const at = "2026-01-02T03:04:09.200Z";
 
+const tabsUpdated = {
+  type: "tabs.updated",
+  at,
+  device: {
+    id: "device-1",
+    name: "Synthetic Zen",
+    kind: "zen",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  snapshot: {
+    deviceId: "device-1",
+    takenAt: at,
+    tabs: [
+      {
+        url: "https://example.com/articles/one",
+        title: "An invented article",
+        openedAt: "2026-01-02T03:00:00.000Z",
+        lastSeenAt: at,
+        lastActiveAt: "2026-01-02T03:04:00.000Z",
+        window: { id: "1", name: "Work" },
+      },
+    ],
+  },
+  saved: [{ url: "https://example.com/articles/one", linkId: "link-1", imageUrl: null }],
+};
+
 describe("LinkEvent", () => {
   it("round-trips every event as the text of one message", () => {
     for (const event of [
       { type: "link.updated", at, link },
       { type: "link.deleted", at, id: "link-1" },
+      tabsUpdated,
       { type: "stream.ready", at },
     ]) {
       const decoded = Schema.decodeUnknownSync(LinkEvent.LinkEventFromJson)(JSON.stringify(event));
@@ -52,5 +79,11 @@ describe("LinkEvent", () => {
       "None",
     );
     expect(decode(LinkEvent.pong)._tag).toBe("None");
+  });
+
+  it("carries a device's whole tab set and its saved tabs", () => {
+    const decoded = Schema.decodeUnknownSync(LinkEvent.LinkEvent)(tabsUpdated);
+    expect(decoded.type === "tabs.updated" && decoded.snapshot.tabs[0]?.window?.name).toBe("Work");
+    expect(decoded.type === "tabs.updated" && decoded.saved[0]?.linkId).toBe("link-1");
   });
 });

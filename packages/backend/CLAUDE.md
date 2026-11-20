@@ -13,7 +13,7 @@ packages implement it.
 | `links/` | `@stash/backend-links` | Save, list and filter, get, patch, delete, batch import, rate limit |
 | `enrichment/` | `@stash/backend-enrichment` | Content fetcher (page text, preview image and author, YouTube oEmbed metadata and transcripts, posts on X from the public syndication endpoint with oEmbed as the fallback and never from x.com's HTML, text to R2), classifier (Claude via `@effect/ai`) with a junk filter, embedder, queue consumer, hourly requeue of pending links and metadata backfill (image and author of links enriched earlier, once per `metadataVersion`) |
 | `search/` | `@stash/backend-search` | FTS5 keyword search and Vectorize semantic search behind one `SearchService` (hybrid) |
-| `tabs/` | `@stash/backend-tabs` | Open-tab snapshots, devices, remote commands |
+| `tabs/` | `@stash/backend-tabs` | Open-tab snapshots (with window, last active time and icon per tab; a per-device report limit kept on the device row; `tabs.updated` on the live stream after each write), which tabs are saved (by canonical url), devices, remote commands |
 | `auth/` | `@stash/backend-auth` | Sign-in (#178): passkeys (`passkeys/`: `@simplewebauthn/server`, challenges in D1, taken once with `DELETE … RETURNING`), Sign in with Google (`google/`: OIDC code flow with PKCE, ID token checked against the JWKS), linking and unlinking (`methods/`), the `signIn` handlers with their rate limit (`sign-in/`); GitHub Device Flow login and sessions (each with its `method`), API tokens (per device, or a user token such as the MCP connector's `Claude (MCP)`; only hashes stored), the internal mint endpoint, auth middleware |
 | `users/` | `@stash/backend-users` | The users of a Stash (#177): `UsersRepo` (owner, members, sign-in identities), invites (create, accept once, revoke; only hashes stored), the members and invites handlers (owner only: `require-owner`), removing a member with everything they stored (`remove-member`), the daily AI quota (`ai-quota`), and `for-each-user` for cron jobs |
 | `digest/` | `@stash/backend-digest` | Cron jobs: auto-archive old Zen tabs, weekly digest |
@@ -65,7 +65,8 @@ services and never on `env` or `fetch` directly. Outbound HTTP goes through the 
 - **Every write that changes a link tells the live stream.** After the write, publish through
   `@stash/backend-links/publish-link-event` (`updated`, `deleted`, or `changed(id)` to read the
   link first, or `saved(links)` for new ones: `storeLinks` calls it, one call per batch). It never
-  fails and never waits long, so it cannot break the write. Change a link through `UpdateLink` / `DeleteLink`, not through the repo, so
+  fails and never waits long, so it cannot break the write. A tabs report publishes
+  `tabs.updated` the same way (`replace-tabs-snapshot.ts`). Change a link through `UpdateLink` / `DeleteLink`, not through the repo, so
   the event is not forgotten. The stream itself is `link-events.ts` (the `LinkEvents` service) and
   `link-events-object.ts` (the Durable Object's logic) in `@stash/backend-platform`.
 - SQL lives next to the feature that owns the table (`links-repo.ts`). Migrations live in one place:

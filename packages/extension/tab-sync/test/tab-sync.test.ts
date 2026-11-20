@@ -63,7 +63,12 @@ describe("tab sync", () => {
       yield* run();
       expect(api.reports).toHaveLength(1);
       expect(urls(api.reports[0])).toEqual(["https://example.com/a", "https://example.com/b"]);
-      expect(api.reports[0]?.body.tabs[0]).toMatchObject({ title: "A", openedAt: null });
+      // First seen now (the test clock starts at 0), in window 1.
+      expect(api.reports[0]?.body.tabs[0]).toMatchObject({
+        title: "A",
+        openedAt: "1970-01-01T00:00:00.000Z",
+        window: { id: "1" },
+      });
       expect(yield* (yield* Alarms.Alarms).list).toMatchObject([
         { name: TabSync.alarmName, periodInMinutes: 5 },
       ]);
@@ -139,11 +144,61 @@ describe("tab sync", () => {
         yield* settle;
       }
       expect(api.reports).toHaveLength(1);
-      yield* TestClock.adjust("2 seconds");
+      yield* TestClock.adjust("1500 millis");
       yield* settle;
       expect(api.reports).toHaveLength(2);
       expect(urls(api.reports[1])?.at(-1)).toBe("https://example.com/8");
     }).pipe(Effect.scoped, Effect.provide(platform));
+  });
+
+  it.effect(
+    "coalesces a burst into one snapshot 1.5 s after it, and sends nothing unchanged",
+    () => {
+      const api = fakeApi();
+      const platform = Testing.make({ tabs, config, handler: api.handler });
+      return Effect.gen(function* () {
+        yield* run();
+        const testTabs = yield* Testing.TestTabs;
+        const opened = [...tabs, Testing.tab({ id: 9, url: "https://example.com/opened" })];
+        // Opened, its title arrives, it loads: three events, one snapshot.
+        for (let i = 0; i < 3; i++) yield* testTabs.set(opened);
+        yield* settle;
+        yield* TestClock.adjust("1499 millis");
+        yield* settle;
+        expect(api.reports).toHaveLength(1);
+        yield* TestClock.adjust("1 millis");
+        yield* settle;
+        expect(api.reports).toHaveLength(2);
+        expect(urls(api.reports[1])).toContain("https://example.com/opened");
+
+        // An event that changes nothing a snapshot holds sends nothing.
+        yield* testTabs.set(opened);
+        yield* settle;
+        yield* TestClock.adjust("2 seconds");
+        yield* settle;
+        expect(api.reports).toHaveLength(2);
+      }).pipe(Effect.scoped, Effect.provide(platform));
+    },
+  );
+
+  it.effect("keeps when a tab was first seen across syncs", () => {
+    const api = fakeApi();
+    const platform = Testing.make({ tabs, config, handler: api.handler });
+    return Effect.gen(function* () {
+      yield* TabSync.sync;
+      yield* TestClock.adjust("10 minutes");
+      yield* (yield* Testing.TestTabs).set([
+        ...tabs,
+        Testing.tab({ id: 9, url: "https://example.com/later" }),
+      ]);
+      yield* TabSync.sync;
+      const second = api.reports[1]?.body.tabs as ReadonlyArray<{ url: string; openedAt: string }>;
+      expect(second.map((tab) => [tab.url, tab.openedAt])).toEqual([
+        ["https://example.com/a", "1970-01-01T00:00:00.000Z"],
+        ["https://example.com/b", "1970-01-01T00:00:00.000Z"],
+        ["https://example.com/later", "1970-01-01T00:10:00.000Z"],
+      ]);
+    }).pipe(Effect.provide(platform));
   });
 
   it.effect("skips on start when the stored hash matches", () => {
@@ -195,8 +250,12 @@ describe("tab sync", () => {
       yield* run();
       expect(api.reports).toHaveLength(0);
       expect(yield* (yield* Storage.Storage).get(TabSync.lastHashKey)).toEqual(Option.none());
+      // The failure set a one-shot retry, which takes the tabs as they are then.
+      expect(yield* (yield* Alarms.Alarms).list).toContainEqual(
+        expect.objectContaining({ name: TabSync.retryAlarmName }),
+      );
       status = 204;
-      yield* (yield* Testing.TestAlarms).fire(TabSync.alarmName);
+      yield* (yield* Testing.TestAlarms).fire(TabSync.retryAlarmName);
       yield* settle;
       expect(api.reports).toHaveLength(1);
     }).pipe(Effect.scoped, Effect.provide(platform));

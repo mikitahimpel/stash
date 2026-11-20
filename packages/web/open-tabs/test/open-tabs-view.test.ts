@@ -13,10 +13,11 @@ const decode = Schema.decodeUnknownSync(TabsGroup.AllTabs);
 
 const opts = (
   hidden: ReadonlyArray<OpenTabsView.Hidden> = [],
-  saved: OpenTabsView.SavedIndex = new Map(),
+  index: OpenTabsView.SavedIndex = new Map(),
+  deleted: ReadonlySet<string> = new Set(),
 ) => ({
   hidden,
-  saved,
+  saved: { index, deleted },
   now,
 });
 
@@ -34,6 +35,15 @@ describe("age", () => {
 
   it("says nothing without openedAt: the sync time is not the tab's", () => {
     expect(OpenTabsView.age(null, now)).toEqual({ label: null, ms: null, stale: false });
+  });
+});
+
+describe("active", () => {
+  it("says when a tab was last the active one, when the device knows", () => {
+    expect(OpenTabsView.active(at("2026-01-10T11:59:30.000Z"), now)).toBe("active now");
+    expect(OpenTabsView.active(at("2026-01-10T11:48:00.000Z"), now)).toBe("active 12 min ago");
+    expect(OpenTabsView.active(at("2026-01-08T12:00:00.000Z"), now)).toBe("active 2 d ago");
+    expect(OpenTabsView.active(undefined, now)).toBeNull();
   });
 });
 
@@ -96,27 +106,69 @@ describe("group", () => {
     expect(groups.map((group) => group.device.id)).toEqual(["laptop", "phone"]);
     expect(groups[0]?.tabs).toEqual([
       {
-        key: "laptop#0#https://example.com/a",
+        key: "laptop#https://example.com/a#0",
         deviceId: "laptop",
         deviceName: "Device laptop",
         url: "https://example.com/a",
         host: "example.com",
         title: "Example a",
         age: { label: "open 1 h", stale: false, ms: 3_600_000 },
+        active: null,
+        windowId: null,
         saved: null,
       },
       {
-        key: "laptop#1#https://example.com/b",
+        key: "laptop#https://example.com/b#0",
         deviceId: "laptop",
         deviceName: "Device laptop",
         url: "https://example.com/b",
         host: "example.com",
         title: null,
         age: { label: "open 1 h", stale: false, ms: 3_600_000 },
+        active: null,
+        windowId: null,
         saved: null,
       },
     ]);
     expect(groups[1]).toMatchObject({ reportedAt: null, tabs: [] });
+  });
+
+  it("marks a tab saved as the api says, exactly by url, unless the link was deleted since", () => {
+    const withSaved = decode(
+      Fixtures.allTabs(
+        Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")], Fixtures.takenAt, [
+          { url: "https://example.com/a", linkId: "link-a", imageUrl: "https://example.com/a.png" },
+        ]),
+      ),
+    );
+    const tabs = OpenTabsView.group(withSaved, opts())[0]?.tabs;
+    expect(tabs?.map((tab) => tab.saved)).toEqual([
+      { id: "link-a", imageUrl: "https://example.com/a.png" },
+      null,
+    ]);
+    const deleted = OpenTabsView.group(withSaved, opts([], new Map(), new Set(["link-a"])));
+    expect(deleted[0]?.tabs.map((tab) => tab.saved)).toEqual([null, null]);
+  });
+
+  it("keeps row keys when a tab opens before them, and tells two tabs of one page apart", () => {
+    const keys = (paths: ReadonlyArray<string>) =>
+      OpenTabsView.group(
+        decode(
+          Fixtures.allTabs(
+            Fixtures.deviceTabs(
+              "laptop",
+              paths.map((p) => Fixtures.tab(p)),
+            ),
+          ),
+        ),
+        opts(),
+      )[0]?.tabs.map((tab) => tab.key);
+    expect(keys(["b"])).toEqual(["laptop#https://example.com/b#0"]);
+    expect(keys(["a", "b", "a"])).toEqual([
+      "laptop#https://example.com/a#0",
+      "laptop#https://example.com/b#0",
+      "laptop#https://example.com/a#1",
+    ]);
   });
 
   it("gives a tab the link its page is saved as", () => {
@@ -211,5 +263,37 @@ describe("search, sections and summary", () => {
     expect(OpenTabsView.summary(groups)).toBe("5 tabs open · 2 older than a week");
     expect(OpenTabsView.summary(OpenTabsView.search(groups, "www"))).toBe("1 tab open");
     expect(OpenTabsView.summary(OpenTabsView.search(groups, "zzz"))).toBe("");
+  });
+});
+
+describe("windows", () => {
+  const all = decode(
+    Fixtures.allTabs(
+      Fixtures.deviceTabs("laptop", [
+        Fixtures.windowTab("a", { id: "1", name: "Work" }, "2026-01-10T11:55:00.000Z"),
+        Fixtures.windowTab("b", { id: "2" }),
+        Fixtures.windowTab("c", { id: "1", name: "Work" }),
+      ]),
+      Fixtures.deviceTabs("phone", [Fixtures.tab("x"), Fixtures.tab("y")]),
+    ),
+  );
+  const sections = OpenTabsView.sections(OpenTabsView.group(all, opts()), now);
+
+  it("splits a device with several windows, named by the space or numbered, in the device's order", () => {
+    expect(
+      sections[0]?.windows.map((part) => [
+        part.title,
+        part.count,
+        part.tabs.map((tab) => tab.title),
+      ]),
+    ).toEqual([
+      ["Work", "2 tabs", ["Example a", "Example c"]],
+      ["Window 2", "1 tab", ["Example b"]],
+    ]);
+    expect(sections[0]?.tabs[0]?.active).toBe("active 5 min ago");
+  });
+
+  it("keeps a device with one window or none as one part, without a title", () => {
+    expect(sections[1]?.windows.map((part) => [part.title, part.tabs.length])).toEqual([["", 2]]);
   });
 });

@@ -9,6 +9,17 @@ export const tab = (path: string, openedAt: string | null = "2026-01-10T11:00:00
   lastSeenAt: takenAt,
 });
 
+/** A tab in a window (or Zen space), last active at `lastActiveAt`. */
+export const windowTab = (
+  path: string,
+  window: { readonly id: string; readonly name?: string },
+  lastActiveAt?: string,
+) => ({
+  ...tab(path),
+  window,
+  ...(lastActiveAt === undefined ? {} : { lastActiveAt }),
+});
+
 export const device = (id: string, name = `Device ${id}`) => ({
   id,
   name,
@@ -18,12 +29,24 @@ export const device = (id: string, name = `Device ${id}`) => ({
 
 export const deviceTabs = (
   id: string,
-  tabs: ReadonlyArray<ReturnType<typeof tab>> | null,
+  tabs: ReadonlyArray<ReturnType<typeof tab> | ReturnType<typeof windowTab>> | null,
   at = takenAt,
+  saved: ReadonlyArray<{ url: string; linkId: string; imageUrl: string | null }> = [],
 ) => ({
   device: device(id),
   snapshot: tabs === null ? null : { deviceId: id, takenAt: at, tabs },
+  saved,
 });
+
+/** A `tabs.updated` event of the live stream, as its JSON text. */
+export const tabsUpdated = (entry: ReturnType<typeof deviceTabs>, at = takenAt) =>
+  JSON.stringify({
+    type: "tabs.updated",
+    at,
+    device: entry.device,
+    snapshot: entry.snapshot,
+    saved: entry.saved,
+  });
 
 export const allTabs = (...devices: ReadonlyArray<ReturnType<typeof deviceTabs>>) => ({
   devices,

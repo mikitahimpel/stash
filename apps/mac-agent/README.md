@@ -1,7 +1,9 @@
 # mac-agent
 
 Reads the open iPhone Safari tabs from the iCloud Tabs database on a Mac and posts them to the
-Stash API on a schedule. It runs at login as a launchd user agent.
+Stash API as soon as Safari writes them: it watches the database's directory (FSEvents) and posts
+a change about 2 seconds after the writes settle, with a slow poll (every 15 minutes) as the
+fallback. It runs at login as a launchd user agent.
 
 ## Install from the web app (no checkout)
 
@@ -50,7 +52,7 @@ The rest of this page is the developer install from a checkout, with the token i
    STASH_API_URL=https://stash.example.com
    STASH_DEVICE_TOKEN=pass://<vault>/<item>/<field>
    # Optional:
-   # STASH_POLL_INTERVAL=5 minutes
+   # STASH_POLL_INTERVAL=15 minutes
    # STASH_CLOUD_TABS_DB=/path/to/CloudTabs.db
    # STASH_STATE_FILE=/path/to/state.json
    ```

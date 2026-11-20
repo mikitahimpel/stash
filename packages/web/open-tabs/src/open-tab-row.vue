@@ -18,7 +18,7 @@ import { RouterLink } from "vue-router";
 import type * as OpenTabsView from "./open-tabs-view.ts";
 
 // An open tab as a compact row: the site's icon, the title on one line (without the site's name),
-// then host · how long it has been open. Open tabs are scanned, not read, so there is no cover
+// then host · how long it has been open · when it was last active (when the device says). Open tabs are scanned, not read, so there is no cover
 // and no address line: the whole address is the title's tooltip and what Copy copies. A tab that
 // is already in Stash also shows its link's preview and a Saved mark, in the same height.
 //
@@ -34,6 +34,8 @@ const props = defineProps<{
   picked: boolean;
   /** Among the tabs of every device (the stale ones): the row names its device. */
   showDevice: boolean;
+  /** The tab closed on its device: the row fades out at its place. */
+  leaving?: boolean;
 }>();
 const emit = defineEmits<{
   select: [];
@@ -67,6 +69,7 @@ const onTitleClick = (event: MouseEvent) => {
     as="li"
     :selected="selected"
     :revealed="revealed"
+    :leaving="leaving"
     :data-tab="tab.key"
     :data-saved="tab.saved === null ? undefined : ''"
     v-bind="{ onClick: onRowClick }"
@@ -102,6 +105,9 @@ const onTitleClick = (event: MouseEvent) => {
       <span v-if="showDevice" data-shrink="">{{ tab.deviceName }}</span>
       <span v-if="tab.age.label !== null" data-slot="open-tab-age" class="tabular-nums">{{
         tab.age.label
+      }}</span>
+      <span v-if="tab.active !== null" data-slot="open-tab-active" class="tabular-nums">{{
+        tab.active
       }}</span>
     </template>
     <template v-if="tab.saved !== null" #trailing>

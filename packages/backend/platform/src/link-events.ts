@@ -5,10 +5,10 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 /** An event a write publishes. `stream.ready` is the stream's own. */
-export type Published = LinkEvent.LinkUpdated | LinkEvent.LinkDeleted;
+export type Published = LinkEvent.LinkUpdated | LinkEvent.LinkDeleted | LinkEvent.TabsUpdated;
 
 /**
- * The live stream of link changes (`GET /events`), from the side that writes. Publishing is fire
+ * The live stream of link changes and open-tab reports (`GET /events`), from the side that writes. Publishing is fire
  * and forget: it never fails and never takes long, so a write that publishes cannot fail or hang
  * because of it. A lost event only delays a client, which catches up by itself.
  */

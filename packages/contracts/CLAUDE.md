@@ -10,7 +10,7 @@ contracts. Contracts depend on no context.
 
 | Package | Name | Contents |
 |---|---|---|
-| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), link events (`./link-event`), tag, device, tab, command, token, digest, user and account (`./user`: role, daily AI quota, today's AI use), invite (`./invite`), sign-in methods (`./sign-in`: passkeys, linked Google and GitHub accounts, WebAuthn ceremony JSON), and tagged errors |
+| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), stream events (`./link-event`: link changes and `tabs.updated`, a device's new tab set), tag, device, tab (with the optional window, last active time and icon of a tab, and `SavedTab`), command, token, digest, user and account (`./user`: role, daily AI quota, today's AI use), invite (`./invite`), sign-in methods (`./sign-in`: passkeys, linked Google and GitHub accounts, WebAuthn ceremony JSON), and tagged errors |
 | `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect, members (`./members`: the caller's account, and for the owner the list and removing a member), invites (`./invites`: owner-only create / list / revoke, and the open `check`), events (`GET /events`, the live stream: a WebSocket of `LinkEvent` JSON texts from `@stash/contracts-domain/link-event`, 426 for a plain request), signIn (`./sign-in`: passkeys, Google, linking); plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
 
 ## May depend on

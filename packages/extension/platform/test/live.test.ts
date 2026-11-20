@@ -44,7 +44,9 @@ const fakeBrowser = () => {
     onAttached: event<[number, unknown]>(),
     onReplaced: event<[number, number]>(),
     onUpdated: event<[number, Record<string, unknown>, unknown]>(),
+    onActivated: event<[unknown]>(),
   };
+  const windowEvents = { onRemoved: event<[number]>() };
   const onClicked = event<[unknown]>();
   const onInstalled = event<[{ reason: string }]>();
   const calls: Array<{ readonly api: string; readonly args: ReadonlyArray<unknown> }> = [];
@@ -90,6 +92,7 @@ const fakeBrowser = () => {
       remove: async (id: number) => {
         if (id !== 1) throw new Error("No window with id");
       },
+      ...windowEvents,
     },
     storage: {
       local: {
@@ -130,7 +133,17 @@ const fakeBrowser = () => {
       onClicked,
     },
   };
-  return { api, calls, local, onChanged, onAlarm, onCommand, tabEvents, onClicked };
+  return {
+    api,
+    calls,
+    local,
+    onChanged,
+    onAlarm,
+    onCommand,
+    tabEvents,
+    windowEvents,
+    onClicked,
+  };
 };
 
 afterEach(() => {
@@ -153,6 +166,7 @@ describe("live layer", () => {
           active: true,
           pinned: false,
           hidden: false,
+          incognito: false,
           lastAccessed: null,
         },
         {
@@ -164,6 +178,7 @@ describe("live layer", () => {
           active: false,
           pinned: true,
           hidden: true,
+          incognito: false,
           lastAccessed: 5,
         },
       ]);
@@ -249,9 +264,10 @@ describe("live layer", () => {
     vi.stubGlobal("browser", fake.api);
     return Effect.gen(function* () {
       const tabs = yield* Tabs.Tabs;
-      const fiber = yield* tabs.changed.pipe(Stream.take(7), Stream.runCollect, Effect.forkChild);
+      const fiber = yield* tabs.changed.pipe(Stream.take(11), Stream.runCollect, Effect.forkChild);
       yield* settle;
-      const { onCreated, onRemoved, onMoved, onAttached, onReplaced, onUpdated } = fake.tabEvents;
+      const { onCreated, onRemoved, onMoved, onAttached, onReplaced, onUpdated, onActivated } =
+        fake.tabEvents;
       onCreated.emit({});
       onRemoved.emit(1, {});
       onMoved.emit(1, {});
@@ -262,8 +278,16 @@ describe("live layer", () => {
       onUpdated.emit(1, { audible: true }, {});
       onUpdated.emit(1, { url: "https://example.com/b" }, {});
       onUpdated.emit(1, { title: "B" }, {});
-      expect(yield* Fiber.join(fiber)).toHaveLength(7);
-      const listeners = Object.values(fake.tabEvents).reduce((sum, e) => sum + e.size, 0);
+      // A finished load, a new icon, a switch of tabs and a closed window do.
+      onUpdated.emit(1, { status: "complete" }, {});
+      onUpdated.emit(1, { favIconUrl: "https://example.com/favicon.ico" }, {});
+      onActivated.emit({ tabId: 1, windowId: 1 });
+      fake.windowEvents.onRemoved.emit(1);
+      expect(yield* Fiber.join(fiber)).toHaveLength(11);
+      const listeners = [...Object.values(fake.tabEvents), fake.windowEvents.onRemoved].reduce(
+        (sum, e) => sum + e.size,
+        0,
+      );
       expect(listeners).toBe(0);
     }).pipe(Effect.provide(Live.layer));
   });
