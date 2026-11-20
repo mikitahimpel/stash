@@ -27,7 +27,8 @@ const apiUrl = `http://localhost:${apiPort}`;
 const webUrl = `http://localhost:${webPort}`;
 
 /** The invite link the screenshots open: synthetic, and only in the local dev database. */
-const screenshotInvite = "screenshot-invite-".padEnd(43, "0");
+// Per run: the api keeps the invite's hash, so a fixed token fails to seed on a second run.
+const screenshotInvite = Crypto.randomBytes(32).toString("base64url");
 
 const viewports = [
   { name: "desktop", width: 1440, height: 900 },
@@ -49,7 +50,8 @@ interface View {
   readonly recentSearches?: boolean;
   /**
    * The page's links and devices come from the audit's fixtures (`layout-fixtures.ts`), answered
-   * in the browser: the seed has no YouTube link, and its ids are its own.
+   * in the browser on the checks' clock (`check-clock.ts`), so the page is the same at any hour;
+   * also, the seed has no YouTube link, and its ids are its own.
    */
   readonly fixtures?: boolean;
   /** With `fixtures`: the open tabs come from the fixtures too, as this scene. */
@@ -65,9 +67,12 @@ interface View {
 
 const views: ReadonlyArray<View> = [
   {
+    // On the audit's fixtures, like every page that groups links by day: the seeded api dates its
+    // links by its own clock, so its Inbox would show other day groups in the early morning (#188).
     name: "inbox",
     path: "/links",
     signedIn: true,
+    fixtures: true,
     prepare: async (page) => {
       await page.locator("[data-slot=link-day]").first().waitFor();
       // The keyboard's row, with its action bar.
@@ -164,6 +169,7 @@ const views: ReadonlyArray<View> = [
     name: "inbox-search-recent",
     path: "/links",
     signedIn: true,
+    fixtures: true,
     recentSearches: true,
     prepare: async (page) => {
       await page.locator("[data-slot=link-day]").first().waitFor();
@@ -451,8 +457,8 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         reducedMotion: "reduce",
       } as const;
       // The pages on the audit's fixtures (or none) run on the checks' clock, so their day groups
-      // and ages are the same at every hour (#188). The seeded api's pages keep the wall clock:
-      // the api dates its seed by its own.
+      // and ages are the same at every hour (#188). The rest show the seeded api, which dates its
+      // data by its own clock, so they keep the wall clock; none of them groups links by day.
       const synthetic = await CheckClock.newContext(browser, options);
       const seeded = await browser.newContext(options);
       for (const view of views.filter(wanted)) {
@@ -483,7 +489,7 @@ const capture = async (browser: Browser, sessionToken: string): Promise<Array<st
         if (view.empty) await answerEmpty(page);
         if (view.fixtures) await answerFixtures(page, view.tabs);
         // Recent searches live in the browser: a returning user has some, everyone else none.
-        const [key, value] = Fixtures.recentSearches(onChecksClock ? CheckClock.now() : Date.now());
+        const [key, value] = Fixtures.recentSearches(CheckClock.now());
         // As a string, so the script itself never names the DOM globals.
         await page.addInitScript(
           view.recentSearches

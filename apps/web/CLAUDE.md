@@ -138,13 +138,14 @@ Feature behavior is tested in `packages/web/*`.
   port when a second worktree may be serving its own build.
 - `scripts/check-clock.ts`: the clock of the browser checks on synthetic data (layout audit,
   Connect walk, tab switch, loading states, live updates, and the screenshots' pages on the
-  fixtures or on no data), so they pass at any hour (#188). Each opens its browser contexts with
-  `CheckClock.newContext` (Wednesday 17 June 2026, 12:00 UTC, time flowing from there, real
-  timers) and dates its fixtures with `CheckClock.now()`; never `Date.now()` for data or
-  `browser.newContext` in a check. `test/check-clock.test.ts` enforces it and checks the Inbox's
-  day groups with the machine's clock at 03:30 against midday; `check:loading` fails unless the
-  Inbox opens on Today with two rows or more. `sign-in-walk.ts`, `live-session-check.ts` and the
-  screenshots of the seeded api's pages keep the wall clock: the api dates its data by its own.
+  fixtures or on no data, among them every Inbox view), so they and the PNGs are the same at any
+  hour (#188). Each opens its browser contexts with `CheckClock.newContext` (Wednesday 17 June
+  2026, 12:00 UTC, time flowing from there, real timers) and dates its fixtures with
+  `CheckClock.now()`; never `Date.now()` for data or `browser.newContext` in a check.
+  `test/check-clock.test.ts` enforces it; `check:loading` fails unless the Inbox opens on Today
+  with two rows or more. Only views without day groups stay on the wall clock and the real api
+  (the screenshots of Settings, the search results, the header, the invite and the login;
+  `sign-in-walk.ts`, `live-session-check.ts`).
 - `scripts/sign-in-walk.ts` (`pnpm --filter @stash/web walk:sign-in`): boots `alchemy dev`
   (stage `sign-in-walk`), Vite and a fake OpenID provider of its own (`GOOGLE_FAKE_IDP`, RS256
   ID tokens from a key made per run), and walks #178 in headless Chromium against the real api:

@@ -11,10 +11,12 @@
 // answer is) works as it does for a user. `now()` counts that time on the monotonic clock, so the
 // wall clock never enters it.
 //
-// What a real api answers is dated by the api's own clock, so `sign-in-walk.ts`,
-// `live-session-check.ts` and the screenshots of the seeded api's pages keep the wall clock.
-// `test/check-clock.test.ts` checks that every browser check uses this clock, and that the Inbox's
-// day groups at the checks' clock are the same with the machine's clock at 03:30 as at midday.
+// The screenshots show every view with day groups (the Inbox's) on the fixtures and this clock
+// too. The views without them (Settings, the search results, the header, the invite, the login)
+// read the real api, which dates its data by its own clock, so they keep the wall clock, as do
+// `sign-in-walk.ts` and `live-session-check.ts`.
+// `test/check-clock.test.ts` checks that every browser check uses this clock, and that the
+// Inbox's day groups come from `now()`, which the wall clock doesn't move.
 import type { Browser, BrowserContext, BrowserContextOptions } from "playwright";
 
 /** Wednesday 17 June 2026, 12:00: midday, mid-week, mid-month, far from any edge of a day. */

@@ -24,19 +24,56 @@ describe("the browser checks' clock", () => {
     );
   });
 
+  /** The only reads of the wall clock a check may make: timing and deadlines, never data. */
+  const timing = [
+    "const started = Date.now()",
+    "Date.now() - started",
+    "Date.now() + timeoutMs",
+    "Date.now() < deadline",
+  ];
+
   for (const name of browserScripts.filter((n) => ![...onTheWallClock, ...noApp].includes(n))) {
     it(`${name} runs its synthetic pages and fixtures on the checks' clock`, () => {
       const source = read(name);
       expect(source).toContain("CheckClock.newContext(browser");
-      // The fixtures are dated by the checks' clock.
-      expect(source).not.toMatch(/Fixtures\.(seeded|empty|connectable)\(Date\.now\(\)/);
-      expect(source).not.toMatch(/const now = Date\.now\(\)/);
-      // Only the screenshots open a context on the wall clock too, for the seeded api's pages.
+      // Whatever dates its data, it is not the wall clock: `Date.now()` is for timing only.
+      let rest = source;
+      for (const use of timing) rest = rest.replaceAll(use, "");
+      expect(rest).not.toContain("Date.now()");
+      expect(rest).not.toMatch(/new Date\(\)/);
+      // Only the screenshots open a context on the wall clock too, for the real api's pages.
       if (name !== "screenshots.ts") {
         expect(source).not.toMatch(/browser\.newContext\(|browser\.newPage\(/);
       }
     });
   }
+
+  it("screenshots.ts sends every view on the fixtures, on no data or with day groups to the checks' clock", () => {
+    const source = read("screenshots.ts");
+    expect(source).toContain(
+      "const onChecksClock = view.fixtures === true || view.empty === true;",
+    );
+    expect(source).toContain("const context = onChecksClock ? synthetic : seeded;");
+    expect(source).toContain("const synthetic = await CheckClock.newContext(browser, options);");
+    // The fixtures are answered on the checks' context only.
+    expect(source).toContain("if (view.fixtures) await answerFixtures(page, view.tabs);");
+    // Every view of the Inbox (it groups links by day) is on the fixtures, but the search
+    // results, which are not grouped.
+    const inboxViews = [
+      ...source.matchAll(/name: "(inbox[\w-]*)",\n\s+path: "\/links",\n([^}]*)/g),
+    ];
+    expect(inboxViews.map(([, view]) => view)).toEqual(
+      expect.arrayContaining(["inbox", "inbox-search-recent", "inbox-empty"]),
+    );
+    for (const [, view, rest] of inboxViews) {
+      if (view === "inbox-search") continue;
+      expect(rest, view).toMatch(/fixtures: true|empty: true/);
+    }
+  });
+
+  it("the fixtures never read the wall clock", () => {
+    expect(read("layout-fixtures.ts")).not.toMatch(/Date\.now\(\)|new Date\(\)/);
+  });
 
   it("starts at midday in its own time zone, mid-week", () => {
     expect(CheckClock.timezoneId).toBe("UTC");
@@ -78,7 +115,10 @@ describe("the Inbox's day groups on the checks' clock", () => {
     return { today: today(now), groups: dayGroups(now) };
   };
 
-  it("are the same with the machine's clock at 03:30 as at midday", () => {
+  // `now()` counts on the monotonic clock: setting `Date` to 03:30 doesn't move it, so a check
+  // started in the early morning sees the day groups of midday. (A `now()` on `Date.now()` again
+  // would fail here.)
+  it("come from CheckClock.now(), which a Date set to 03:30 doesn't move", () => {
     const midday = withWallClockAt("2026-11-20T12:00:00Z");
     vi.useRealTimers();
     const early = withWallClockAt("2026-11-20T03:30:00Z");
