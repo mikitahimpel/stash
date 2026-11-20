@@ -10,6 +10,7 @@
     "./link-patches": "./src/link-patches.ts",
     "./live-links": "./src/live-links.ts",
     "./stash-api-client": "./src/stash-api-client.ts",
+    "./tab-patches": "./src/tab-patches.ts",
     "./testing": "./src/testing.ts",
     "./unauthenticated": "./src/unauthenticated.ts"
   },

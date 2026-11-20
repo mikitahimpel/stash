@@ -1,9 +1,12 @@
 /**
- * Reports the open tabs to the API, so they show in "Open now".
+ * Reports the open tabs to the API, so they show in "Open now" live.
  *
- * A snapshot is sent with `PUT /devices/:id/tabs` when the background page starts, on every
- * firing of a repeating alarm, after tab events settle (debounced), and when the config changes
- * on the options page. A snapshot whose hash equals the last one sent is skipped. The hash is
+ * A snapshot is sent with `PUT /devices/:id/tabs` after tab events settle (debounced about 1.5 s,
+ * so a burst of events is one snapshot), when the background page starts (the browser started),
+ * on every firing of a slow repeating alarm (a safety net), and when the config changes on the
+ * options page. A snapshot whose hash equals the last one sent is skipped, so nothing is sent
+ * while nothing changed. A snapshot that fails (offline, a 429) is not queued: a one-shot retry
+ * alarm takes a fresh one later, so only the latest state is ever sent. The hash is
  * kept in extension storage, so a suspended event page that wakes up again doesn't resend the
  * same tabs. When and how many tabs were last in step is kept there too (`lastSyncKey`), for the
  * options page.
@@ -31,6 +34,18 @@ export const alarmName = "stash/tab-sync";
 /** The `browser.storage.local` key that holds the hash of the last snapshot sent. */
 export const lastHashKey = "stash/tab-sync/last-hash";
 
+/** The one-shot alarm that retries after a failed sync. */
+export const retryAlarmName = "stash/tab-sync/retry";
+
+/** How long after a failed sync the retry alarm fires. Firefox clamps it to about 30 s. */
+export const retryDelayInMinutes = 0.5;
+
+/** The `browser.storage.local` key that holds when each open tab was first seen (`openedAtKey`). */
+export const openedAtKey = "stash/tab-sync/opened-at";
+
+const OpenedAtEntries = Schema.Array(Schema.Tuple([Schema.Number, Schema.Number]));
+const decodeOpenedAt = Schema.decodeUnknownOption(OpenedAtEntries);
+
 /** The `browser.storage.local` key that holds the `LastSync`. */
 export const lastSyncKey = "stash/tab-sync/last-sync";
 
@@ -53,7 +68,7 @@ export const lastSync: Effect.Effect<
 export interface Options {
   /** How often a snapshot is taken without tab events. Default 5 minutes. */
   readonly periodInMinutes?: number;
-  /** How long tab events must pause before a snapshot is taken. Default 2 seconds. */
+  /** How long tab events must pause before a snapshot is taken. Default 1.5 seconds. */
   readonly debounce?: Duration.Input;
 }
 
@@ -67,7 +82,23 @@ export const sync = Effect.gen(function* () {
   const client = yield* StashApiClient.StashApiClient;
 
   const now = yield* DateTime.now;
-  const openTabs = TabsSnapshot.fromTabs(yield* tabs.query(), now);
+  const open = yield* tabs.query();
+  // When each tab was first seen open, kept across event-page restarts. The api keeps the
+  // earliest time of a url itself, so a lost record only makes a tab look younger once.
+  const known: TabsSnapshot.OpenedAt = new Map(
+    Option.getOrElse(
+      Option.flatMap(
+        yield* storage.get(openedAtKey).pipe(Effect.orElseSucceed(Option.none)),
+        decodeOpenedAt,
+      ),
+      () => [],
+    ),
+  );
+  const openedAt = TabsSnapshot.trackOpened(known, open, DateTime.toEpochMillis(now));
+  if (openedAt.size !== known.size || [...openedAt].some(([id, at]) => known.get(id) !== at)) {
+    yield* storage.set(openedAtKey, [...openedAt]);
+  }
+  const openTabs = TabsSnapshot.fromTabs(open, now, openedAt);
   const hash = TabsSnapshot.hash(openTabs);
   // Stash has these tabs, whether this run sent them or an earlier one did.
   const inStep = storage.set(lastSyncKey, {
@@ -131,11 +162,11 @@ const run = (options: Options) =>
       [
         Stream.make("start" as const),
         alarms.fired.pipe(
-          Stream.filter((alarm) => alarm.name === alarmName),
+          Stream.filter((alarm) => alarm.name === alarmName || alarm.name === retryAlarmName),
           Stream.as("alarm" as const),
         ),
         tabs.changed.pipe(
-          Stream.debounce(options.debounce ?? "2 seconds"),
+          Stream.debounce(options.debounce ?? "1500 millis"),
           Stream.as("tabs" as const),
         ),
         storage.changes.pipe(
@@ -146,12 +177,20 @@ const run = (options: Options) =>
       { concurrency: "unbounded" },
     );
 
+    // A failed sync (not a missing config) tries again on the retry alarm, with fresh tabs.
+    const retryLater = (cause: Cause.Cause<unknown>) =>
+      Cause.squash(cause) instanceof ExtensionConfig.ConfigError
+        ? Effect.void
+        : alarms
+            .create(retryAlarmName, { delayInMinutes: retryDelayInMinutes })
+            .pipe(Effect.ignore);
+
     // One sync at a time, in trigger order. A new token may belong to another device, so a
     // config change always sends.
     yield* Stream.runForEach(triggers, (trigger) =>
       (trigger === "config" ? storage.remove(lastHashKey) : Effect.void).pipe(
         Effect.andThen(sync),
-        Effect.catchCause(logFailure),
+        Effect.catchCause((cause) => Effect.andThen(logFailure(cause), retryLater(cause))),
       ),
     );
   });

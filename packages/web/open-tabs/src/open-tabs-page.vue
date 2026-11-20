@@ -3,6 +3,8 @@ import * as AtomVue from "@effect/atom-vue";
 import StartSavingCard from "@stash/web-settings/start-saving-card";
 import ActionBar from "@stash/web-ui/action-bar";
 import Button from "@stash/web-ui/button";
+import CompactRowLabel from "@stash/web-ui/compact-row-label";
+import * as CompactRowLeave from "@stash/web-ui/compact-row-leave";
 import CompactRowSkeleton from "@stash/web-ui/compact-row-skeleton";
 import EmptyState from "@stash/web-ui/empty-state";
 import ErrorState from "@stash/web-ui/error-state";
@@ -14,9 +16,10 @@ import Skeleton from "@stash/web-ui/skeleton";
 import Toaster from "@stash/web-ui/toaster";
 import { useDelayedLoading } from "@stash/web-ui/use-delayed-loading";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue";
 import { RouterLink } from "vue-router";
 import ArchiveAllDialog from "./archive-all-dialog.vue";
+import * as LiveRows from "./live-rows.ts";
 import OpenTabRow from "./open-tab-row.vue";
 import * as OpenTabsAtoms from "./open-tabs-atoms.ts";
 import * as OpenTabsKeys from "./open-tabs-keys.ts";
@@ -28,13 +31,12 @@ const shown = AtomVue.useAtomValue(() => OpenTabsAtoms.sections);
 const [query, setQuery] = AtomVue.useAtom(() => OpenTabsAtoms.query);
 const [folded, setFolded] = AtomVue.useAtom(() => OpenTabsAtoms.folded);
 const toasts = AtomVue.useAtomValue(() => OpenTabsAtoms.toasts);
+const hiddenTabs = AtomVue.useAtomValue(() => OpenTabsAtoms.hidden);
 const archive = AtomVue.useAtomSet(() => OpenTabsAtoms.archive);
 const closeOnDevice = AtomVue.useAtomSet(() => OpenTabsAtoms.closeOnDevice);
 const save = AtomVue.useAtomSet(() => OpenTabsAtoms.save);
 const copy = AtomVue.useAtomSet(() => OpenTabsAtoms.copy);
 const listen = AtomVue.useAtomSet(() => OpenTabsKeys.listen);
-// The saved marks come from the latest links; reading them here keeps that query alive and fresh.
-AtomVue.useAtomValue(() => OpenTabsAtoms.recentLinks);
 const retry = () => registry.refresh(OpenTabsAtoms.tabs);
 
 const dismiss = (id: string) => OpenTabsAtoms.dismissToast(registry, id);
@@ -54,6 +56,49 @@ const skeleton = useDelayedLoading(
 /** How many rows the skeleton has: about a screen of them. */
 const skeletonRows = 10;
 const sections = computed(() => success(shown.value) ?? []);
+
+// Live changes (#182). A row that left the data (its tab closed on the device) fades out at its place for `leaveMillis`, then the rows under it slide up; a new
+// row makes room the same way. A change of the filter is not a change of the tabs: rows just
+// show or hide. `drawn` is what the template draws; everything else works on `sections`.
+const leaving = ref<ReadonlyArray<LiveRows.Leaving>>([]);
+const leavingKeys = computed(() => new Set(leaving.value.map((row) => row.tab.key)));
+const drawn = computed(() => LiveRows.withLeaving(sections.value, leaving.value));
+const list = useTemplateRef<HTMLElement>("list");
+const timers = new Set<ReturnType<typeof setTimeout>>();
+let filtering = false;
+watch(query, () => (filtering = true), { flush: "sync" });
+watch(sections, (now, before) => {
+  if (filtering || before === undefined || before.length === 0) {
+    filtering = false;
+    return;
+  }
+  // A tab this page archived or closed goes at once: the user saw why.
+  const mine = (tab: OpenTabsView.TabRow) =>
+    hiddenTabs.value.some((entry) => entry.deviceId === tab.deviceId && entry.url === tab.url);
+  const gone = LiveRows.left(before, now).filter(
+    (row) => !leavingKeys.value.has(row.tab.key) && !mine(row.tab),
+  );
+  if (gone.length === 0) return;
+  leaving.value = [...leaving.value, ...gone];
+  const timer = setTimeout(() => {
+    timers.delete(timer);
+    const keys = new Set(gone.map((row) => row.tab.key));
+    leaving.value = leaving.value.filter((row) => !keys.has(row.tab.key));
+  }, CompactRowLeave.leaveMillis);
+  timers.add(timer);
+});
+onBeforeUnmount(() => timers.forEach(clearTimeout));
+// Before the rows change on screen, where everything stands; after, the slide from there.
+watch(
+  drawn,
+  () => {
+    const root = list.value;
+    if (root === null) return;
+    const before = LiveRows.measure(root);
+    void nextTick(() => LiveRows.slide(root, before));
+  },
+  { flush: "pre" },
+);
 const total = computed(() => (all.value ?? []).reduce((sum, group) => sum + group.tabs.length, 0));
 const isOpen = (id: string) => !folded.value.has(id);
 const setOpen = (id: string, open: boolean) => {
@@ -266,9 +311,9 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
         </template>
       </EmptyState>
       <!-- Groups of rows sit 32px apart, wider than the page's 24px rhythm. -->
-      <div v-else class="flex flex-col gap-8">
+      <div v-else ref="list" class="flex flex-col gap-8">
         <section
-          v-for="section in sections"
+          v-for="section in drawn"
           :key="section.id"
           :data-section="section.id"
           :data-kind="section.kind"
@@ -297,25 +342,38 @@ onMounted(() => listen({ enabled: () => !confirming.value, run }));
             </template>
           </GroupHeader>
           <ul v-if="isOpen(section.id)" class="flex flex-col">
-            <OpenTabRow
-              v-for="tab in section.tabs"
-              :key="tab.key"
-              :ref="(row) => setRowRef(tab.key, row)"
-              :tab="tab"
-              :selected="tab.key === selected"
-              :revealed="tab.key === revealed"
-              :picking="picking"
-              :picked="picked.has(tab.key)"
-              :show-device="section.kind === 'stale'"
-              @select="selected = tab.key"
-              @reveal="(out) => (revealed = out ? tab.key : null)"
-              @hold="hold(tab.key)"
-              @pick="pick(tab.key)"
-              @save="save([tab])"
-              @copy="copy(tab.url)"
-              @archive="act(tab, archive)"
-              @close="act(tab, closeOnDevice)"
-            />
+            <template v-for="(part, index) in section.windows" :key="part.id">
+              <!-- A device with several windows (or Zen spaces) labels each one after the first:
+                   the first window's rows start under the group's header, where the skeleton's
+                   rows are, so nothing moves when the tabs arrive. -->
+              <CompactRowLabel
+                v-if="index > 0"
+                as="li"
+                :title="part.title"
+                :count="part.count"
+                :data-window="part.id"
+              />
+              <OpenTabRow
+                v-for="tab in part.tabs"
+                :key="tab.key"
+                :ref="(row) => setRowRef(tab.key, row)"
+                :tab="tab"
+                :leaving="leavingKeys.has(tab.key)"
+                :selected="tab.key === selected"
+                :revealed="tab.key === revealed"
+                :picking="picking"
+                :picked="picked.has(tab.key)"
+                :show-device="section.kind === 'stale'"
+                @select="selected = tab.key"
+                @reveal="(out) => (revealed = out ? tab.key : null)"
+                @hold="hold(tab.key)"
+                @pick="pick(tab.key)"
+                @save="save([tab])"
+                @copy="copy(tab.url)"
+                @archive="act(tab, archive)"
+                @close="act(tab, closeOnDevice)"
+              />
+            </template>
           </ul>
         </section>
       </div>

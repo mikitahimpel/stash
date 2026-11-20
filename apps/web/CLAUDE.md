@@ -130,7 +130,10 @@ Feature behavior is tested in `packages/web/*`.
   same CI job): plays the api's event stream to the built app and fails unless a pending Inbox
   row turns from `summarizing…` into its summary with no reload, no request, the same row height
   and a Cumulative Layout Shift of at most 0.01, and unless a link saved on another device then
-  appears on top of the Inbox under the same limits, at desktop and phone width. The browser
+  appears on top of the Inbox under the same limits, at desktop and phone width; then, on Open
+  now, that a tab opened in a fake extension client (the fake api sends the `tabs.updated` the
+  real one would) shows within 3 s and a closed one fades out and leaves, with no reload, no new
+  `GET /tabs` and CLS ≤ 0.01. The browser
   checks share `STASH_AUDIT_PORT` (default 4179) and reuse whatever answers there: set another
   port when a second worktree may be serving its own build.
 - `scripts/sign-in-walk.ts` (`pnpm --filter @stash/web walk:sign-in`): boots `alchemy dev`

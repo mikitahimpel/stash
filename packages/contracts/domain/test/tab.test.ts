@@ -42,3 +42,33 @@ describe("TabsSnapshot", () => {
     expect(() => Schema.decodeUnknownSync(Tab.TabsSnapshot)(rest)).toThrow();
   });
 });
+
+describe("OpenTab", () => {
+  const tab = {
+    url: "https://example.com/one",
+    title: "Tab one",
+    openedAt: null,
+    lastSeenAt: "2026-01-02T03:04:05.000Z",
+  };
+
+  it("round-trips the optional active time, window and icon", () => {
+    const full = {
+      ...tab,
+      lastActiveAt: "2026-01-02T03:00:00.000Z",
+      window: { id: "7", name: "Research" },
+      faviconUrl: "https://example.com/favicon.ico",
+    };
+    const decoded = Schema.decodeUnknownSync(Tab.OpenTab)(full);
+    expect(Schema.encodeSync(Tab.OpenTab)(decoded)).toEqual(full);
+  });
+
+  it("accepts a tab without them, as older clients send it", () => {
+    expect(Schema.encodeSync(Tab.OpenTab)(Schema.decodeUnknownSync(Tab.OpenTab)(tab))).toEqual(tab);
+  });
+
+  it("rejects a data: icon and an empty window id", () => {
+    const decode = Schema.decodeUnknownOption(Tab.OpenTab);
+    expect(decode({ ...tab, faviconUrl: "data:image/png;base64,AAAA" })._tag).toBe("None");
+    expect(decode({ ...tab, window: { id: "" } })._tag).toBe("None");
+  });
+});

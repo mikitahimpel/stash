@@ -2,6 +2,7 @@ import { mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CheckToggle from "../src/check-toggle/check-toggle.vue";
 import CompactRow from "../src/compact-row/compact-row.vue";
+import CompactRowLabel from "../src/compact-row/compact-row-label.vue";
 import CompactRowSkeleton from "../src/compact-row/compact-row-skeleton.vue";
 import CompactRowThumb from "../src/compact-row/compact-row-thumb.vue";
 import GroupHeader from "../src/group-header/group-header.vue";
@@ -19,6 +20,21 @@ const actions = (wrapper: ReturnType<typeof mount>) =>
 const touch = (clientX: number, clientY = 100) => ({ pointerType: "touch", clientX, clientY });
 
 describe("CompactRow", () => {
+  it("fades out in its place while leaving, in the same height and taking no input", () => {
+    const wrapper = mount(CompactRow, { props: { leaving: true }, slots });
+    expect(wrapper.attributes("data-leaving")).toBe("");
+    expect(wrapper.classes()).toEqual(
+      expect.arrayContaining(["h-12", "opacity-0", "transition-opacity", "pointer-events-none"]),
+    );
+  });
+
+  it("labels a part of a list with its name and count", () => {
+    const wrapper = mount(CompactRowLabel, { props: { title: "Window 2", count: "4 tabs" } });
+    expect(wrapper.attributes("data-slot")).toBe("compact-row-label");
+    expect(wrapper.text()).toBe("Window 24 tabs");
+    expect(wrapper.classes()).toContain("h-7");
+  });
+
   it("is one 48px row whatever it holds, with its actions hidden until asked for", () => {
     const wrapper = mount(CompactRow, { slots });
     expect(wrapper.classes()).toContain("h-12");

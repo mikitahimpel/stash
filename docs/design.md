@@ -247,18 +247,27 @@ Open tabs are scanned, not read, so the page is a compact list:
   one muted line: `host · open 3 d`. No cover and no address line: the whole address is the
   title's tooltip and what Copy copies. Every row is the same height, selected or not.
 - **A tab that is already saved** is the same row with more at its end: the link's preview
-  (`CompactRowThumb`, 64×36, from `sm` up) and a `Saved` mark that opens the link's page. The page
-  knows a tab is saved when its address (without fragment and trailing slash) is among the latest
-  100 links, or it was saved from this page.
+  (`CompactRowThumb`, 64×36, from `sm` up) and a `Saved` mark that opens the link's page. The api
+  says which tabs are saved (by canonical url, however old the link), and the page adds the links
+  it saved and those the live stream brings, and drops the ones the stream says were deleted.
 - **Time is the tab's own**: how long it has been open (`open 12 min`, `open 5 h`, `open 3 d`),
-  from the browser's `openedAt`. A tab without it says nothing; the time of the last sync is not
-  shown on rows.
+  from the browser's `openedAt`, then when it was last the active tab (`active 5 min ago`, from
+  Firefox's `lastAccessed`). A tab without them says nothing; the time of the last sync is not
+  shown on rows. The times count on by themselves, once a minute.
 - **Groups**: one per device (`Zen on Work laptop · 11 tabs · synced just now`, the sync time once
   per device), its tabs in the browser's own order, then **Stale**: the tabs of every device open
-  longer than 7 days, oldest first, each naming its device. The headers are `GroupHeader`s that
+  longer than 7 days, oldest first, each naming its device. A device with several windows (or Zen
+  spaces) shows them in the device's order and labels each one after the first with a
+  `CompactRowLabel` (`Window 2 · 4 tabs`, or the space's name). The first window has none, so its
+  rows start under the header where the skeleton's rows were. The headers are `GroupHeader`s that
   stick under the app header while their group scrolls by (`sticky`, at `--app-bar-height`) and
   fold their group (`collapsible`: the title is a 32px button with a chevron). Stale has the bulk
   actions `Save all` and `Archive all n` (the latter after a confirm).
+- **Live (#182).** Devices report on every tab change and the stream brings it (`tabs.updated`):
+  a new tab appears, a closed one fades out at its place (`CompactRow leaving`, 300 ms), titles
+  and counts change, with no request. When rows come or go, the rows, labels and headers under
+  them slide from where they were to their place (a transform), so nothing jumps (CLS ≤ 0.01,
+  `check:live-updates`). A tab closed or archived from this page goes at once.
 - **No chart.** The line under the title sums the page up: `23 tabs open · 6 older than a week`.
 - **Actions per row**, `ghost` `sm` at the row's end: Save (to Stash; the tab stays open), Copy
   link, Open here, and a menu with Archive (save and close) and Close on the device. They show

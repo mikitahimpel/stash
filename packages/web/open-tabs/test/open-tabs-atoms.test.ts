@@ -1,4 +1,8 @@
 import * as Clipboard from "@effect/platform-browser/Clipboard";
+import * as Link from "@stash/contracts-domain/link";
+import * as LinkEvent from "@stash/contracts-domain/link-event";
+import * as LinkPatches from "@stash/web-api-client/link-patches";
+import * as TabPatches from "@stash/web-api-client/tab-patches";
 import * as ApiTesting from "@stash/web-api-client/testing";
 import * as PlatformTesting from "@stash/web-platform/testing";
 import { afterEach, describe, expect, it } from "@effect/vitest";
@@ -9,6 +13,7 @@ import * as Layer from "effect/Layer";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as AtomRegistry from "effect/reactivity/AtomRegistry";
+import * as Schema from "effect/Schema";
 import * as OpenTabsAtoms from "../src/open-tabs-atoms.ts";
 import type * as OpenTabsView from "../src/open-tabs-view.ts";
 import * as Fixtures from "./fixtures.ts";
@@ -374,7 +379,6 @@ describe("save, more tabs than one request carries", () => {
       });
       const unmount = reg.mount(OpenTabsAtoms.view);
       yield* loaded(reg);
-      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
       const view = reg.get(OpenTabsAtoms.view);
       const all = AsyncResult.isSuccess(view) ? view.value.flatMap((group) => group.tabs) : [];
       reg.set(OpenTabsAtoms.save, all);
@@ -397,36 +401,103 @@ const savedIds = (reg: AtomRegistry.AtomRegistry) => {
 };
 
 describe("saved tabs", () => {
-  it.effect("marks the tabs whose page is among the latest links", () =>
+  it.effect("marks the tabs the api says are saved, with no request for links", () =>
     Effect.gen(function* () {
-      let asked = "";
+      let askedLinks = 0;
       const reg = use({
-        "GET /tabs": () => ApiTesting.json(laptop()),
-        "GET /links": (request) => {
-          asked = String(Object.fromEntries(request.urlParams)["limit"] ?? "");
-          return ApiTesting.json(
-            Fixtures.linksPage(Fixtures.link("link-b", "https://example.com/b/")),
-          );
+        "GET /tabs": () =>
+          ApiTesting.json(
+            Fixtures.allTabs(
+              Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")], undefined, [
+                { url: "https://example.com/b", linkId: "link-b", imageUrl: null },
+              ]),
+            ),
+          ),
+        "GET /links": () => {
+          askedLinks++;
+          return ApiTesting.json(Fixtures.linksPage());
         },
       });
       const unmount = reg.mount(OpenTabsAtoms.view);
       yield* loaded(reg);
-      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
       expect(savedIds(reg)).toEqual([null, "link-b"]);
-      expect(asked).toBe("100");
+      expect(askedLinks).toBe(0);
       unmount();
     }),
   );
 
-  it.effect("shows the tabs when the links can't be loaded", () =>
+  it.effect(
+    "follows the live stream: a link saved elsewhere marks its tab, a deleted one unmarks",
+    () =>
+      Effect.gen(function* () {
+        const reg = use({
+          "GET /tabs": () =>
+            ApiTesting.json(
+              Fixtures.allTabs(
+                Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")], undefined, [
+                  { url: "https://example.com/b", linkId: "link-b", imageUrl: null },
+                ]),
+              ),
+            ),
+        });
+        const unmount = reg.mount(OpenTabsAtoms.view);
+        yield* loaded(reg);
+        const link = Schema.decodeUnknownSync(Link.Link)(
+          Fixtures.link("link-a", "https://example.com/a/"),
+        );
+        LinkPatches.update(reg, link);
+        LinkPatches.remove(reg, Link.LinkId.make("link-b"));
+        expect(savedIds(reg)).toEqual(["link-a", null]);
+        unmount();
+      }),
+  );
+});
+
+describe("live tabs", () => {
+  it.effect("shows a device's new tabs from tabs.updated at once, with no request", () =>
     Effect.gen(function* () {
+      let asked = 0;
       const reg = use({
-        "GET /tabs": () => ApiTesting.json(laptop()),
-        "GET /links": () => new Response(null, { status: 500 }),
+        "GET /tabs": () => {
+          asked++;
+          return ApiTesting.json(laptop());
+        },
       });
       const unmount = reg.mount(OpenTabsAtoms.view);
       yield* loaded(reg);
-      expect(savedIds(reg)).toEqual([null, null]);
+      expect(asked).toBe(1);
+      const event = Schema.decodeUnknownSync(LinkEvent.LinkEventFromJson)(
+        Fixtures.tabsUpdated(
+          Fixtures.deviceTabs(
+            "laptop",
+            [Fixtures.tab("a"), Fixtures.tab("new")],
+            "2026-01-10T12:01:00.000Z",
+          ),
+        ),
+      );
+      if (event.type !== "tabs.updated") throw new Error("expected tabs.updated");
+      TabPatches.record(reg, event);
+      expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/new"]]);
+      expect(asked).toBe(1);
+      unmount();
+    }),
+  );
+
+  it.effect("asks for the tabs again after a gap of the stream, keeping the rows meanwhile", () =>
+    Effect.gen(function* () {
+      let asked = 0;
+      const reg = use({
+        "GET /tabs": () => {
+          asked++;
+          return ApiTesting.json(laptop());
+        },
+      });
+      const unmount = reg.mount(OpenTabsAtoms.view);
+      yield* loaded(reg);
+      TabPatches.markGap(reg);
+      yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+      expect(asked).toBe(2);
+      expect(shown(reg)).toEqual([["https://example.com/a", "https://example.com/b"]]);
       unmount();
     }),
   );
@@ -471,12 +542,12 @@ describe("save", () => {
         "GET /tabs": () =>
           ApiTesting.json(
             Fixtures.allTabs(
-              Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")]),
+              Fixtures.deviceTabs("laptop", [Fixtures.tab("a"), Fixtures.tab("b")], undefined, [
+                { url: "https://example.com/a", linkId: "link-a", imageUrl: null },
+              ]),
               Fixtures.deviceTabs("phone", [Fixtures.tab("b"), Fixtures.tab("c")]),
             ),
           ),
-        "GET /links": () =>
-          ApiTesting.json(Fixtures.linksPage(Fixtures.link("link-a", "https://example.com/a"))),
         "POST /links/batch": (request) => {
           sent.push(body(request));
           return ApiTesting.json(
@@ -492,7 +563,6 @@ describe("save", () => {
       });
       const unmount = reg.mount(OpenTabsAtoms.view);
       yield* loaded(reg);
-      yield* AtomRegistry.getResult(reg, OpenTabsAtoms.recentLinks, { suspendOnWaiting: true });
       const view = reg.get(OpenTabsAtoms.view);
       const all = AsyncResult.isSuccess(view) ? view.value.flatMap((group) => group.tabs) : [];
       reg.set(OpenTabsAtoms.save, all);

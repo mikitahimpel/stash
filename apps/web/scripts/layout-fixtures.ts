@@ -494,22 +494,49 @@ const tabScenes: Readonly<Record<TabsScene, ReadonlyArray<ReadonlyArray<TabSeed>
   two: [madeTabs(6, 0, [0.05, 0.5, 1, 2, 4, 6]), [savedTabs[1]!, ...madeTabs(3, 5, [0.1, 3, 6])]],
 };
 
-const tabs = (now: number, scene: TabsScene) => ({
+// The address the api matches a tab's page by, near enough for the fixtures: no fragment.
+const pageOf = (url: string) => url.replace(/#.*$/, "");
+
+/**
+ * Every device's tabs, and which are saved (the api's `saved`, by the seeded links' addresses).
+ * In the default scene the first device (a browser) has two windows and says when each tab was
+ * last active; the others report neither, as Safari's iCloud Tabs don't.
+ */
+export const tabs = (
+  now: number,
+  scene: TabsScene,
+  stored: ReadonlyArray<{
+    readonly id: string;
+    readonly url: string;
+    readonly imageUrl: string | null;
+  }> = [],
+) => ({
   devices: tabScenes[scene].map((seeded, d) => {
     const device = devices[d]!;
+    const windows = scene === "default" && d === 0;
+    const openTabs = seeded.map(([title, url, openDays], t) => ({
+      url,
+      title,
+      openedAt: openDays === null ? null : iso(now - openDays * day),
+      lastSeenAt: iso(now - 60_000),
+      ...(windows
+        ? { window: { id: t < 5 ? "1" : "2" }, lastActiveAt: iso(now - (t * 7 + 1) * 60_000) }
+        : {}),
+    }));
     return {
       device: { ...device, createdAt: iso(now - 40 * day) },
       snapshot: {
         deviceId: device.id,
         // The first device synced a moment ago, the others a while back.
         takenAt: iso(now - [20_000, 7 * 60_000, 3 * 60 * 60_000][d]!),
-        tabs: seeded.map(([title, url, openDays]) => ({
-          url,
-          title,
-          openedAt: openDays === null ? null : iso(now - openDays * day),
-          lastSeenAt: iso(now - 60_000),
-        })),
+        tabs: openTabs,
       },
+      saved: openTabs.flatMap((tab) => {
+        const link = stored.find((l) => pageOf(l.url) === pageOf(tab.url));
+        return link === undefined
+          ? []
+          : [{ url: tab.url, linkId: link.id, imageUrl: link.imageUrl }];
+      }),
     };
   }),
 });
@@ -661,7 +688,7 @@ export const seeded = (now: number, options: { readonly tabs?: TabsScene } = {})
       if (path.startsWith("/links/")) return all.find((link) => `/links/${link.id}` === path);
       if (path === "/devices")
         return devices.map((d) => ({ ...d, createdAt: iso(now - 40 * day) }));
-      if (path === "/tabs") return tabs(now, options.tabs ?? "default");
+      if (path === "/tabs") return tabs(now, options.tabs ?? "default", all);
       if (path === "/tokens") return tokens(now);
       if (path === "/search") return search(all, url);
       if (path === "/members/me") return account(now);

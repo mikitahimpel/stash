@@ -10,7 +10,7 @@ CREATE TABLE devices (
   name TEXT NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('zen', 'ios', 'mac-agent')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-, tabs_taken_at TEXT, last_save_at TEXT, last_save_link_id TEXT, user_id TEXT REFERENCES users (id) ON DELETE CASCADE);
+, tabs_taken_at TEXT, last_save_at TEXT, last_save_link_id TEXT, user_id TEXT REFERENCES users (id) ON DELETE CASCADE, tabs_window_start INTEGER, tabs_window_count INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE links (
   seq INTEGER PRIMARY KEY,
@@ -51,7 +51,7 @@ CREATE TABLE open_tabs (
   title TEXT,
   opened_at TEXT,
   last_seen_at TEXT NOT NULL
-, user_id TEXT REFERENCES users (id) ON DELETE CASCADE);
+, user_id TEXT REFERENCES users (id) ON DELETE CASCADE, last_active_at TEXT, window_id TEXT, window_name TEXT, favicon_url TEXT);
 
 CREATE INDEX open_tabs_device_id_idx ON open_tabs (device_id);
 

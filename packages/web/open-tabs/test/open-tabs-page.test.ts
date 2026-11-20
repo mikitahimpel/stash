@@ -9,6 +9,10 @@ import * as Effect from "effect/Effect";
 import type * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as LinkEvent from "@stash/contracts-domain/link-event";
+import * as TabPatches from "@stash/web-api-client/tab-patches";
+import * as CompactRowLeave from "@stash/web-ui/compact-row-leave";
+import * as Schema from "effect/Schema";
 import * as OpenTabsAtoms from "../src/open-tabs-atoms.ts";
 import * as OpenTabsKeys from "../src/open-tabs-keys.ts";
 import OpenTabsPage from "../src/open-tabs-page.vue";
@@ -57,7 +61,7 @@ const mountPage = async (routes: ApiTesting.Routes, closeDelay = Duration.zero) 
         clipboard,
       ),
     );
-  return { wrapper, press, copied };
+  return { wrapper, press, copied, registry };
 };
 
 /** Retries `check` until it passes: the stub api answers asynchronously. */
@@ -177,16 +181,25 @@ describe("open-tabs-page", () => {
 
   it("marks the tabs that are saved, with the link's preview, and offers no Save for them", async () => {
     const { wrapper } = await mountPage({
-      "GET /tabs": () => ApiTesting.json(laptopAndPhone()),
-      "GET /links": () =>
-        ApiTesting.json(
-          Fixtures.linksPage(
-            Fixtures.link("link-a", "https://example.com/a", {
-              imageUrl: "https://example.com/previews/a.svg",
-            }),
-            Fixtures.link("link-c", "https://example.com/c"),
-          ),
-        ),
+      "GET /tabs": () => {
+        const all = laptopAndPhone();
+        return ApiTesting.json({
+          devices: [
+            {
+              ...all.devices[0]!,
+              saved: [
+                {
+                  url: "https://example.com/a",
+                  linkId: "link-a",
+                  imageUrl: "https://example.com/previews/a.svg",
+                },
+                { url: "https://example.com/c", linkId: "link-c", imageUrl: null },
+              ],
+            },
+            all.devices[1]!,
+          ],
+        });
+      },
     });
     await eventually(() => expect(wrapper.findAll("[data-saved]")).toHaveLength(2));
     const saved = row(wrapper, "Example a");
@@ -203,6 +216,57 @@ describe("open-tabs-page", () => {
     expect(row(wrapper, "Example c").find("[data-slot=compact-row-thumb]").exists()).toBe(false);
     expect(row(wrapper, "Example b").find("[data-slot=open-tab-saved]").exists()).toBe(false);
     expect(row(wrapper, "Example b").find("[data-action=save]").exists()).toBe(true);
+  });
+
+  it("applies a device's report from the stream in place: new rows, closed ones fade out", async () => {
+    // Opened a moment ago by the real clock, so not stale.
+    const fresh = (...args: Parameters<typeof Fixtures.windowTab>) => ({
+      ...Fixtures.windowTab(...args),
+      openedAt: daysAgo(0),
+    });
+    let asked = 0;
+    const { wrapper, registry } = await mountPage({
+      "GET /tabs": () => {
+        asked++;
+        return ApiTesting.json(
+          Fixtures.allTabs(
+            Fixtures.deviceTabs("laptop", [fresh("a", { id: "1" }), fresh("b", { id: "1" })]),
+          ),
+        );
+      },
+    });
+    await eventually(() => expect(titles(wrapper)).toEqual(["Example a", "Example b"]));
+    const event = Schema.decodeUnknownSync(LinkEvent.TabsUpdated)(
+      JSON.parse(
+        Fixtures.tabsUpdated(
+          Fixtures.deviceTabs(
+            "laptop",
+            [
+              fresh("a", { id: "1" }, new Date().toISOString()),
+              fresh("new", { id: "2", name: "Research" }),
+            ],
+            new Date(Date.now() + 1000).toISOString(),
+          ),
+        ),
+      ),
+    );
+    TabPatches.record(registry, event);
+    await flushPromises();
+    // `b` closed: it stays at its place, fading; `new` is there at once, in its window.
+    expect(titles(wrapper)).toEqual(["Example a", "Example b", "Example new"]);
+    expect(row(wrapper, "Example b").attributes("data-leaving")).toBe("");
+    expect(row(wrapper, "Example a").attributes("data-leaving")).toBeUndefined();
+    expect(row(wrapper, "Example a").find("[data-slot=open-tab-active]").text()).toBe("active now");
+    // The second window is labelled; the first one's rows sit right under the header.
+    expect(wrapper.findAll("[data-slot=compact-row-label]").map((label) => label.text())).toEqual([
+      "Research1 tab",
+    ]);
+    // The counts are the new ones at once.
+    expect(wrapper.find("[data-slot=group-header-count]").text()).toBe("2 tabs");
+    await new Promise((resolve) => setTimeout(resolve, CompactRowLeave.leaveMillis + 50));
+    await flushPromises();
+    expect(titles(wrapper)).toEqual(["Example a", "Example new"]);
+    expect(asked).toBe(1);
   });
 
   it("filters by the text in the filter field", async () => {

@@ -16,10 +16,12 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as ApiBaseUrl from "./api-base-url.ts";
 import * as LinkPatches from "./link-patches.ts";
+import * as TabPatches from "./tab-patches.ts";
 import { StashApiClient } from "./stash-api-client.ts";
 
 // Live link updates: the page learns that a link changed (enrichment finished, another device
-// marked it read) without a reload and without asking again.
+// marked it read) without a reload and without asking again. The same stream brings the open tabs
+// a device reported (`tabs.updated`), kept in `TabPatches`.
 //
 // - One connection per tab, to the stream `GET /events`, open only while the tab is visible.
 //   Each event is laid over the cached answers (`LinkPatches`), so rows change in place.
@@ -152,12 +154,16 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
         if (event === undefined) return;
         const previous = since;
         since = event.at;
+        if (event.type === "tabs.updated") return TabPatches.record(registry, event);
         if (event.type !== "stream.ready") return LinkPatches.record(registry, event);
         yield* setConnected(true);
         reconnectIn = reconnect.firstMillis;
         // The gap before this stream: by time when an earlier one gave it, else by what waits.
-        if (previous !== undefined) yield* catchUp(previous);
-        else yield* askPending(LinkPatches.pending(registry));
+        // Tabs have no `updatedSince`: their readers ask again.
+        if (previous !== undefined) {
+          TabPatches.markGap(registry);
+          yield* catchUp(previous);
+        } else yield* askPending(LinkPatches.pending(registry));
       });
 
     const connection = Effect.gen(function* () {
@@ -197,7 +203,14 @@ const run = (registry: AtomRegistry.AtomRegistry) =>
     });
 
     const focus = visibility.focused.pipe(
-      Stream.runForEach(() => (connected && since !== undefined ? catchUp(since) : Effect.void)),
+      Stream.runForEach(() =>
+        connected && since !== undefined
+          ? Effect.andThen(
+              Effect.sync(() => TabPatches.markGap(registry)),
+              catchUp(since),
+            )
+          : Effect.void,
+      ),
     );
 
     const session = Effect.all([connection, polling, focus], {

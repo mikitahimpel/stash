@@ -1,7 +1,10 @@
 import { Schema } from "effect";
+import * as Device from "./device.ts";
 import * as Link from "./link.ts";
+import * as Tab from "./tab.ts";
 
-// What the live stream (`GET /events`, a WebSocket) carries. The server sends each event as one
+// What the live stream (`GET /events`, a WebSocket) carries: changes of links, and the open tabs
+// that a device reported. The server sends each event as one
 // text message holding its JSON. `at` is the server's clock, so a client that keeps the `at` of the
 // last event it saw can ask for what it missed (`GET /links?updatedSince=<at>`) whatever its own
 // clock says.
@@ -23,6 +26,21 @@ export const LinkDeleted = Schema.Struct({
 });
 export type LinkDeleted = typeof LinkDeleted.Type;
 
+/**
+ * A device reported its open tabs (`PUT /devices/:id/tabs`): the whole new set, which replaces the
+ * device's previous one, and which of its tabs are saved. Devices report on every tab change
+ * (debounced), so Open now shows what is open without asking again.
+ */
+export const TabsUpdated = Schema.Struct({
+  type: Schema.Literal("tabs.updated"),
+  at: Schema.DateTimeUtcFromString,
+  device: Device.Device,
+  snapshot: Tab.TabsSnapshot,
+  /** The tabs of `snapshot` whose page is a stored link. */
+  saved: Schema.Array(Tab.SavedTab),
+});
+export type TabsUpdated = typeof TabsUpdated.Type;
+
 /** The first message of every stream: it is open, and this is the server's time. */
 export const StreamReady = Schema.Struct({
   type: Schema.Literal("stream.ready"),
@@ -31,7 +49,7 @@ export const StreamReady = Schema.Struct({
 export type StreamReady = typeof StreamReady.Type;
 
 /** One message of the live stream, discriminated by `type`. */
-export const LinkEvent = Schema.Union([LinkUpdated, LinkDeleted, StreamReady]);
+export const LinkEvent = Schema.Union([LinkUpdated, LinkDeleted, TabsUpdated, StreamReady]);
 export type LinkEvent = typeof LinkEvent.Type;
 
 /** A `LinkEvent` as the text of one stream message. */

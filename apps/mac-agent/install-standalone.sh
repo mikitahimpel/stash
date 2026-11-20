@@ -136,7 +136,7 @@ launchctl bootstrap "gui/$(id -u)" "$TARGET"
 
 node_real="$(realpath "$NODE_BIN" 2>/dev/null || echo "$NODE_BIN")"
 cat <<DONE
-The Stash mac-agent is running. It posts your iPhone's Safari tabs every 5 minutes.
+The Stash mac-agent is running. It posts your iPhone's Safari tabs whenever they change.
 
 One more step: give Node Full Disk Access, so it can read Safari's iCloud Tabs.
   1. Open System Settings → Privacy & Security → Full Disk Access.

@@ -1,8 +1,11 @@
 import * as Clipboard from "@effect/platform-browser/Clipboard";
 import * as LinksGroup from "@stash/contracts-api/links";
+import type * as TabsGroup from "@stash/contracts-api/tabs";
 import type * as Link from "@stash/contracts-domain/link";
 import * as ApiAtoms from "@stash/web-api-client/api-atoms";
+import * as LinkPatches from "@stash/web-api-client/link-patches";
 import { StashApiClient } from "@stash/web-api-client/stash-api-client";
+import * as TabPatches from "@stash/web-api-client/tab-patches";
 import * as WebPlatform from "@stash/web-platform/live";
 import type { ToastMessage } from "@stash/web-ui/toast-message";
 import * as DateTime from "effect/DateTime";
@@ -17,26 +20,40 @@ import * as Reactivity from "effect/reactivity/Reactivity";
 import * as OpenTabsView from "./open-tabs-view.ts";
 
 /**
- * Every device with its latest tabs snapshot: the api's own answer, cached (it outlives the page
- * and is revalidated when the page opens again). Refreshes when a `tabs` mutation succeeds.
- * Everything the page shows is derived from it, so a change to this answer (a refresh, or a patch
- * laid over it) changes the rows in place.
+ * Every device with its latest tabs snapshot and which of its tabs are saved: the api's own
+ * answer, cached (it outlives the page and is revalidated when the page opens again). Refreshes
+ * when a `tabs` mutation succeeds.
  */
 export const tabs = ApiAtoms.query(["tabs"], (client) => client.tabs.list());
 
+// The gap count each registry has asked again for, so one gap is one request.
+const gapsAsked = new WeakMap<AtomRegistry.AtomRegistry, number>();
+
+/** Asks for `tabs` again once per gap of the stream that happens while Open now is read. */
+const askAfterGap: Atom.Atom<number> = Atom.make((get) => {
+  const count = get(TabPatches.gaps);
+  const asked = gapsAsked.get(get.registry);
+  gapsAsked.set(get.registry, count);
+  if (asked !== undefined && asked !== count) get.registry.refresh(tabs);
+  return count;
+});
+
 /**
- * The latest saved links (one page, the most the api gives at once), to tell which open tabs are
- * already in Stash. A tab saved longer ago than that shows as not saved; saving it again is
- * harmless (the api answers the stored link). Live link updates are laid over it like over any
- * query, and it refreshes when a `links` mutation succeeds.
+ * `tabs` with what the live stream said since laid over it (`TabPatches`): a device that reported
+ * new tabs shows them at once, with no request. Everything the page shows is derived from it, so
+ * a change (a refresh, or a patch) changes the rows in place. After a gap of the stream it asks
+ * the api again, in the background.
  */
-export const recentLinks = ApiAtoms.query(["links"], (client) =>
-  client.links.list({ query: { limit: LinksGroup.maxPageSize } }),
+export const live: Atom.Atom<AsyncResult.AsyncResult<TabsGroup.AllTabs, unknown>> = Atom.make(
+  (get) => {
+    get(askAfterGap);
+    return AsyncResult.map(get(tabs), (all) => TabPatches.apply(all, get(TabPatches.state)));
+  },
 );
 
 /**
  * Links this page saved a moment ago, by their tab's address: the row says Saved as soon as the
- * api answers, before `recentLinks` has refreshed.
+ * api answers, before the device reports its tabs again.
  */
 export const justSaved: Atom.Writable<OpenTabsView.SavedIndex> = Atom.make<OpenTabsView.SavedIndex>(
   new Map(),
@@ -65,17 +82,34 @@ const toast = (registry: AtomRegistry.AtomRegistry, message: Omit<ToastMessage, 
   return id;
 };
 
-/** The saved links the page knows, by page address. Empty until `recentLinks` has answered. */
-const saved: Atom.Atom<OpenTabsView.SavedIndex> = Atom.make((get) => {
-  const recent = get(recentLinks);
-  const links = AsyncResult.isSuccess(recent) ? recent.value.items : [];
-  // What this page saved wins: it is the newest copy until the list has refreshed.
-  return new Map([...OpenTabsView.savedIndex(links), ...get(justSaved)]);
+/**
+ * What the page knows about saved links besides the api's `saved`: the links the live stream
+ * reported (saved on any device since) and what this page saved, by page address, and the links
+ * it reported deleted.
+ */
+const saved: Atom.Atom<OpenTabsView.SavedOverlay> = Atom.make((get) => {
+  const streamed: Array<Link.Link> = [];
+  const deleted = new Set<string>();
+  for (const [id, patch] of get(LinkPatches.state)) {
+    if (patch._tag === "Updated") streamed.push(patch.link);
+    else deleted.add(id);
+  }
+  // Newest first, as `savedIndex` keeps the first link of a page; what this page saved wins.
+  const index = new Map([...OpenTabsView.savedIndex(streamed.reverse()), ...get(justSaved)]);
+  return { index, deleted };
 });
 
-/** The moment the page's ages count from: when the tabs' answer was last read. */
+/** How often the ages on the page are counted again. */
+export const tickMillis = 60_000;
+
+/**
+ * The moment the page's ages count from: now, again every minute and whenever the tabs change,
+ * so `open 5 min`, `active 2 min ago` and `synced …` move on by themselves.
+ */
 const now: Atom.Atom<DateTime.Utc> = Atom.make((get) => {
-  get(tabs);
+  get(live);
+  const timer = setInterval(() => get.setSelf(DateTime.nowUnsafe()), tickMillis);
+  get.addFinalizer(() => clearInterval(timer));
   return DateTime.nowUnsafe();
 });
 
@@ -83,7 +117,7 @@ const now: Atom.Atom<DateTime.Utc> = Atom.make((get) => {
 export const view: Atom.Atom<
   AsyncResult.AsyncResult<ReadonlyArray<OpenTabsView.DeviceGroup>, unknown>
 > = Atom.make((get) =>
-  AsyncResult.map(get(tabs), (all) =>
+  AsyncResult.map(get(live), (all) =>
     OpenTabsView.group(all, { hidden: get(hidden), saved: get(saved), now: get(now) }),
   ),
 );
@@ -290,7 +324,9 @@ export const save = StashApiClient.runtime.fn<ReadonlyArray<OpenTabsView.TabRow>
         const next = new Map(all);
         wanted.forEach((tab, index) => {
           const link = links[index];
-          if (link !== undefined) next.set(OpenTabsView.pageKey(tab.url), link);
+          if (link !== undefined) {
+            next.set(OpenTabsView.pageKey(tab.url), { id: link.id, imageUrl: link.imageUrl });
+          }
         });
         return next;
       });
