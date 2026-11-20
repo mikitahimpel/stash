@@ -6,6 +6,7 @@
 // text. It prints a table of violations and exits 1 if there is any. One browser, one page at a
 // time.
 import { chromium, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import { probe } from "./layout-audit-probe.ts";
 import { audit, type Violation } from "./layout-audit-rules.ts";
 import * as Fixtures from "./layout-fixtures.ts";
@@ -206,8 +207,8 @@ const views: ReadonlyArray<View> = [
 const answer = async (page: Page, { data, tabs }: View) => {
   const fixtures =
     data === "seeded"
-      ? Fixtures.seeded(Date.now(), tabs === undefined ? {} : { tabs })
-      : Fixtures.empty;
+      ? Fixtures.seeded(CheckClock.now(), tabs === undefined ? {} : { tabs })
+      : Fixtures.empty(CheckClock.now());
   // The seeded links' preview images are drawn here; nothing is fetched from the network.
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
@@ -253,7 +254,7 @@ const main = async () => {
   const found: Array<readonly [string, Violation | LoadFailure]> = [];
   try {
     for (const viewport of viewports) {
-      const context = await browser.newContext({
+      const context = await CheckClock.newContext(browser, {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: "light",
         deviceScaleFactor: 1,
@@ -268,7 +269,7 @@ const main = async () => {
         });
         await answer(page, view);
         // Recent searches live in the browser: a returning user has some, everyone else none.
-        const [key, value] = Fixtures.recentSearches(Date.now());
+        const [key, value] = Fixtures.recentSearches(CheckClock.now());
         // As a string, so the script itself never names the DOM globals.
         await page.addInitScript(
           view.recentSearches

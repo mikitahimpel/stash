@@ -15,6 +15,7 @@
 // (`loading-<page>-<width>-skeleton.png` and `-loaded.png`).
 import * as Path from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import { type Box, boxes, record, shifts } from "./loading-states-probe.ts";
 import * as PreviewImages from "./preview-images.ts";
@@ -148,7 +149,8 @@ const emptyViews = [
 const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
 const answer = async (page: Page, data: "seeded" | "empty") => {
-  const fixtures = data === "seeded" ? Fixtures.seeded(Date.now()) : Fixtures.empty;
+  const fixtures =
+    data === "seeded" ? Fixtures.seeded(CheckClock.now()) : Fixtures.empty(CheckClock.now());
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -197,7 +199,7 @@ const main = async () => {
   try {
     browser = await chromium.launch();
     for (const viewport of viewports) {
-      const context = await browser.newContext({
+      const context = await CheckClock.newContext(browser, {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: "light",
         deviceScaleFactor: shots ? 2 : 1,

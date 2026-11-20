@@ -18,6 +18,7 @@
 //   within `tabWithinMillis`, or a tab closed there does not fade out and leave, or either asks
 //   the api for the tabs again, reloads the page, or shifts it by more than `maxCls`.
 import { type Browser, chromium, type Page, type WebSocketRoute } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import { boxes, record, shifts } from "./loading-states-probe.ts";
 import * as PreviewImages from "./preview-images.ts";
@@ -242,12 +243,12 @@ const fakeExtension = async (page: Page, now: number) => {
 
 const openNow = async (browser: Browser, viewport: (typeof viewports)[number]) => {
   const found: Array<string> = [];
-  const context = await browser.newContext({
+  const context = await CheckClock.newContext(browser, {
     viewport: { width: viewport.width, height: viewport.height },
     colorScheme: "light",
   });
   const page = await context.newPage();
-  const now = Date.now();
+  const now = CheckClock.now();
   const extension = await fakeExtension(page, now);
   await page.addInitScript(record);
   let loads = 0;
@@ -330,12 +331,12 @@ const main = async () => {
   try {
     browser = await chromium.launch();
     for (const viewport of viewports) {
-      const context = await browser.newContext({
+      const context = await CheckClock.newContext(browser, {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: "light",
       });
       const page = await context.newPage();
-      const now = Date.now();
+      const now = CheckClock.now();
       const api = await answer(page, now);
       await page.addInitScript(record);
       let loads = 0;
