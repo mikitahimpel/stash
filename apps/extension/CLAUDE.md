@@ -49,9 +49,11 @@ platform services. WXT-generated code is the only exception.
 - A post on X (`link.post`) is a recent row in a post's order, as in the web Inbox ("Media rows"
   in [docs/design.md](../../docs/design.md)): the author's line (16px picture, name, verified
   mark, @handle, age) first, then the post's words on two lines; the preview is its first photo or
-  video poster (with a play mark), else the author's picture. A post that could not be read is an
+  video poster (with a play mark), else the site's initial (the author's picture is on the line
+  beside it). A post that could not be read is an
   ordinary row that says `Post unavailable`. Remote pictures load lazily with
-  `referrerpolicy="no-referrer"`.
+  `referrerpolicy="no-referrer"`. The popup is at most 600px tall (Firefox's limit): past it the
+  recent list scrolls up and down inside, never sideways.
 - Removing a link is a hard delete. The popup never puts the focus on Undo or Remove, offers the
   one-click Undo only for a link its own Save just created (`created: true`), and asks before
   removing any other.

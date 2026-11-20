@@ -176,8 +176,14 @@ describe("popup page", () => {
       host: "x.com",
       post: { state: "unavailable" },
     };
-    const { wrapper } = await mountPopup({ saved: null, recent: [post, gone] });
-    const [row, other] = wrapper.findAll(".recent a");
+    // Enrichment found nothing to title it by: the title says it, once.
+    const untitled: PopupLink.PopupLink = {
+      ...gone,
+      id: Link.LinkId.make("untitled"),
+      title: "Post unavailable",
+    };
+    const { wrapper } = await mountPopup({ saved: null, recent: [post, gone, untitled] });
+    const [row, other, last] = wrapper.findAll(".recent a");
     expect(row!.find(".byline").text()).toContain("Ada Example");
     expect(row!.find(".byline").text()).toContain("@ada_example");
     expect(row!.find(".post-text").text()).toBe("Words of the post");
@@ -191,5 +197,7 @@ describe("popup page", () => {
     }
     expect(other!.text()).toContain("Ben Example: an old post");
     expect(other!.text()).toContain("Post unavailable");
+    expect(last!.find(".row-title").text()).toBe("Post unavailable");
+    expect(last!.text().match(/Post unavailable/g)).toHaveLength(1);
   });
 });

@@ -142,9 +142,6 @@ const recent = [
     60 * 5,
     chart("#3b1d60", "#f0abfc"),
   ),
-  link("post-gone", "Post unavailable", "x.com", 60 * 24 * 6, null, [], {
-    state: "unavailable",
-  }),
   link(
     "post-video",
     "Example Studio: A minute on how the coast walk was filmed",
@@ -161,6 +158,9 @@ const recent = [
       true,
     ),
   ),
+  link("post-gone", "Post unavailable", "x.com", 60 * 24 * 6, null, [], {
+    state: "unavailable",
+  }),
 ];
 
 const savedPage = link("small-tools", page.title, page.host, 0, hills("#3b5bdb", "#1e2a78"), [
@@ -178,7 +178,7 @@ const connected: PopupView.Connection = {
 const views = {
   "not-paired": { connection: { _tag: "NotPaired" }, saved: null, recent: [] },
   paired: { connection: connected, saved: null, recent },
-  saved: { connection: connected, saved: savedPage, recent: [savedPage, ...recent.slice(0, 3)] },
+  saved: { connection: connected, saved: savedPage, recent: [savedPage, ...recent.slice(0, 4)] },
 } satisfies Record<string, PopupView.View>;
 
 export type State = keyof typeof views;

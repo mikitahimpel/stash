@@ -9,7 +9,8 @@ import type * as PopupActions from "./popup-actions.ts";
 // latest saved links and the connection. It only shows state and calls `actions`; the logic is in
 // `@stash/ext-popup`. The rows follow the media rows of the web app: a thumb, a title and one
 // muted line. A post on X is the same row in a post's order: the author's line first (picture,
-// name, verified mark, @handle, age), then the post's words on two lines. Remote pictures load
+// name, verified mark, @handle, age), then the post's words on two lines. The popup is at most
+// 600px tall (Firefox's limit), and the recent list scrolls inside it. Remote pictures load
 // lazily and send no referrer.
 const props = defineProps<{ actions: PopupActions.Actions }>();
 
@@ -292,7 +293,7 @@ const openStash = () => {
       <button class="button tactile-raised" type="button" @click="openStash">Open Stash</button>
     </form>
 
-    <section v-if="recent.length > 0" aria-labelledby="recent-title">
+    <section v-if="recent.length > 0" class="recent-section" aria-labelledby="recent-title">
       <div class="group-header">
         <h2 id="recent-title">Recent</h2>
         <span class="rule" aria-hidden="true" />
@@ -315,16 +316,7 @@ const openStash = () => {
                 referrerpolicy="no-referrer"
                 @error="broken.add(link.post.previewUrl ?? '')"
               />
-              <img
-                v-else-if="usable(link.post.avatarUrl)"
-                class="thumb-avatar"
-                :src="usable(link.post.avatarUrl) ?? undefined"
-                alt=""
-                loading="lazy"
-                referrerpolicy="no-referrer"
-                @error="broken.add(link.post.avatarUrl ?? '')"
-              />
-              <span v-else aria-hidden="true">{{ initial(link.post.name) }}</span>
+              <span v-else aria-hidden="true">{{ initial(link.host) }}</span>
               <span
                 v-if="link.post.video && usable(link.post.previewUrl)"
                 class="play"
@@ -416,8 +408,11 @@ const openStash = () => {
 <style src="../../assets/tokens.css"></style>
 
 <style scoped>
+/* Firefox gives a popup at most 600px of height; past that, the recent list scrolls inside. */
 .popup {
+  box-sizing: border-box;
   display: flex;
+  max-height: 600px;
   flex-direction: column;
   gap: 12px;
   width: 380px;
@@ -568,12 +563,6 @@ const openStash = () => {
   height: 20px;
 }
 
-.thumb-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-}
 /* A video's poster carries a small play mark. */
 .play {
   position: absolute;
@@ -745,11 +734,20 @@ const openStash = () => {
   flex: 1;
   background: var(--hairline);
 }
+.recent-section {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+/* Only up and down: a scrollbar narrows the rows, it never scrolls them sideways. */
 .recent {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   margin: 4px 0 0;
   padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   list-style: none;
 }
 .link {
