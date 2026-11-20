@@ -14,13 +14,19 @@ import * as ApiTokensRepo from "../src/api-tokens/api-tokens-repo.ts";
 import * as ListApiTokens from "../src/api-tokens/list-api-tokens.ts";
 import * as CreateMcpToken from "../src/mcp-tokens/create-mcp-token.ts";
 import * as InternalHandlers from "../src/mcp-tokens/internal-handlers.ts";
+import * as SessionVerifierLive from "../src/sessions/session-verifier-live.ts";
+import * as SessionsRepo from "../src/sessions/sessions-repo.ts";
+import * as StartSession from "../src/sessions/start-session.ts";
 import * as AuthTestLayer from "./auth-test-layer.ts";
 
 const allowedLogin = "synthetic-owner";
 
-const TestLayer = ApiTokensRepo.layer.pipe(
+const TestLayer = Layer.mergeAll(
+  ApiTokensRepo.layer,
+  SessionVerifierLive.layer.pipe(Layer.provideMerge(SessionsRepo.layer)),
+).pipe(
   Layer.provideMerge(AuthTestLayer.layerDatabase),
-  Layer.merge(Testing.layerStashConfig({ allowedGithubLogin: allowedLogin })),
+  Layer.provideMerge(Testing.layerStashConfig({ allowedGithubLogin: allowedLogin })),
 );
 
 describe("createMcpToken", () => {
@@ -114,6 +120,27 @@ describe("internal handlers", () => {
         .createMcpToken({ payload: { login: "synthetic-stranger", githubId: "2002" } })
         .pipe(Effect.flip);
       expect(error).toBeInstanceOf(Errors.LoginNotAllowed);
+    }).pipe(Effect.provide(server)),
+  );
+
+  it.effect("mints the token of a web session's user, and refuses an unknown session", () =>
+    Effect.gen(function* () {
+      const session = yield* StartSession.startSession(Testing.member.id, { method: "passkey" });
+      const client = yield* HttpApiTest.groups(InternalApi.InternalApi, ["internal"]);
+      const created = yield* client.internal.createMcpTokenForSession({
+        payload: { session: Redacted.value(session.token) },
+      });
+      expect(created.userId).toBe(Testing.member.id);
+      expect(created.name).toBe(ApiToken.mcpTokenName);
+      expect(
+        (yield* ListApiTokens.listApiTokens.pipe(Testing.as(Testing.member))).map((t) => t.id),
+      ).toEqual([created.id]);
+      expect(yield* ListApiTokens.listApiTokens).toEqual([]);
+
+      const error = yield* client.internal
+        .createMcpTokenForSession({ payload: { session: "synthetic-unknown-session" } })
+        .pipe(Effect.flip);
+      expect(error).toBeInstanceOf(Errors.Unauthorized);
     }).pipe(Effect.provide(server)),
   );
 });

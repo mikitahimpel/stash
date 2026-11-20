@@ -74,7 +74,8 @@ CREATE TABLE sessions (
   github_login TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   expires_at TEXT NOT NULL
-, user_id TEXT REFERENCES users (id) ON DELETE CASCADE);
+, user_id TEXT REFERENCES users (id) ON DELETE CASCADE, method TEXT NOT NULL DEFAULT 'github'
+  CHECK (method IN ('github', 'passkey', 'google')));
 
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
@@ -293,4 +294,21 @@ AFTER UPDATE OF seq, title, summary, text, user_id ON links BEGIN
 END;
 
 CREATE INDEX links_vector_version_idx ON links (vector_version, enriched_at);
+
+CREATE TABLE passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- The COSE public key, base64url.
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0 CHECK (counter >= 0),
+  -- JSON array of the transports the browser reported (internal, hybrid, ...), or NULL.
+  transports TEXT,
+  -- Whether it syncs to other devices (a multi-device credential that is backed up).
+  synced INTEGER NOT NULL DEFAULT 0 CHECK (synced IN (0, 1)),
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  last_used_at TEXT
+) WITHOUT ROWID;
+
+CREATE INDEX passkeys_user_id_idx ON passkeys (user_id);
 `;

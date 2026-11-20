@@ -14,6 +14,7 @@ import * as Blobs from "./blobs.ts";
 import * as D1Database from "./d1-database.ts";
 import * as EnrichmentQueue from "./enrichment-queue.ts";
 import * as GithubConfig from "./github-config.ts";
+import * as GoogleConfig from "./google-config.ts";
 import * as Kv from "./kv.ts";
 import * as LinkEvents from "./link-events.ts";
 import type * as Live from "./live.ts";
@@ -272,6 +273,22 @@ export const layerStashConfig = (
 export const layerGithubConfig: Layer.Layer<GithubConfig.GithubConfig> = Layer.succeed(
   GithubConfig.GithubConfig,
 )({ clientId: "synthetic-client-id" });
+
+/** A synthetic Google client against a fake provider at `https://idp.example.com`. */
+export const layerGoogleConfig = (
+  endpoints: GoogleConfig.Endpoints = GoogleConfig.fakeEndpoints("https://idp.example.com"),
+): Layer.Layer<GoogleConfig.GoogleConfig> =>
+  Layer.succeed(GoogleConfig.GoogleConfig)({
+    configured: true,
+    clientId: "synthetic-google-client-id",
+    clientSecret: Redacted.make("synthetic-google-client-secret"),
+    endpoints,
+  });
+
+/** A deployment without Google sign-in. */
+export const layerGoogleNotConfigured: Layer.Layer<GoogleConfig.GoogleConfig> = Layer.succeed(
+  GoogleConfig.GoogleConfig,
+)({ configured: false });
 
 /** A synthetic Anthropic key. It is a placeholder, not a real secret. */
 export const layerAnthropicConfig: Layer.Layer<AnthropicConfig.AnthropicConfig> = Layer.succeed(

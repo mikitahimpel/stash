@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@effect/platform-browser": "catalog:",
+    "@simplewebauthn/browser": "catalog:",
     "effect": "catalog:",
     "fake-indexeddb": "catalog:"
   },

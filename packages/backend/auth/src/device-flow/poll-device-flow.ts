@@ -24,13 +24,11 @@ const expired = () => new Errors.DeviceFlowExpired({ message: "The device flow h
 
 /**
  * Polls GitHub for a started flow, at most once per `interval`; a poll that comes earlier answers
- * `slow_down` without reaching GitHub. Once GitHub authorizes, the flow is deleted, the access
- * token reads the account and is dropped, and a session starts if the account has a Stash user
- * (`SignIn.resolveUser`: the owner, a member, or a new member when `invite` can be accepted).
+ * `slow_down` without reaching GitHub. Once GitHub authorizes, the flow is deleted and the access
+ * token reads the account and is dropped: `authorized` carries the account.
  */
-export const pollDeviceFlow = Effect.fn("pollDeviceFlow")(function* (
+export const pollAccount = Effect.fn("pollGithubAccount")(function* (
   flowId: AuthGroup.DeviceFlowId,
-  invite?: Invite.InviteToken,
 ) {
   const github = yield* GithubClient.GithubClient;
   const store = yield* DeviceFlowsStore.DeviceFlowsStore;
@@ -38,9 +36,7 @@ export const pollDeviceFlow = Effect.fn("pollDeviceFlow")(function* (
   const flow = yield* store.find(flowId);
   if (Option.isNone(flow)) return yield* expired();
   const now = yield* DateTime.now;
-  if (DateTime.isLessThan(now, flow.value.nextPollAt)) {
-    return { status: "slow_down" } satisfies PollOutcome;
-  }
+  if (DateTime.isLessThan(now, flow.value.nextPollAt)) return { status: "slow_down" } as const;
 
   const reschedule = (interval: number) =>
     store.put(flowId, {
@@ -53,12 +49,12 @@ export const pollDeviceFlow = Effect.fn("pollDeviceFlow")(function* (
   switch (result._tag) {
     case "Pending":
       yield* reschedule(flow.value.interval);
-      return { status: "pending" } satisfies PollOutcome;
+      return { status: "pending" } as const;
     case "SlowDown":
       yield* reschedule(
         Math.max(result.interval ?? 0, flow.value.interval + GithubClient.slowDownSeconds),
       );
-      return { status: "slow_down" } satisfies PollOutcome;
+      return { status: "slow_down" } as const;
     case "Expired":
       yield* store.remove(flowId);
       return yield* expired();
@@ -69,16 +65,32 @@ export const pollDeviceFlow = Effect.fn("pollDeviceFlow")(function* (
       yield* store.remove(flowId);
       // A token GitHub just issued and rejects at once is not the client's fault.
       const account = yield* github.fetchUser(result.accessToken).pipe(Effect.orDie);
-      const user = yield* SignIn.resolveUser(account, invite).pipe(Effect.orDie);
-      if (Option.isNone(user)) {
-        return yield* new Errors.LoginNotAllowed({
-          message: "This GitHub account has no Stash account. Ask the owner for an invite.",
-        });
-      }
-      const session = yield* StartSession.startSession(user.value.id, account.login).pipe(
-        Effect.orDie,
-      );
-      return { status: "complete", session } satisfies PollOutcome;
+      return { status: "authorized", account } as const;
     }
   }
+});
+
+/**
+ * Polls a started flow (`pollAccount`), and once GitHub authorizes, starts a session if the
+ * account has a Stash user (`SignIn.resolveUser`: the owner, a member, or a new member when
+ * `invite` can be accepted).
+ */
+export const pollDeviceFlow = Effect.fn("pollDeviceFlow")(function* (
+  flowId: AuthGroup.DeviceFlowId,
+  invite?: Invite.InviteToken,
+) {
+  const polled = yield* pollAccount(flowId);
+  if (polled.status !== "authorized") return polled satisfies PollOutcome;
+  const { account } = polled;
+  const user = yield* SignIn.resolveUser(account, invite).pipe(Effect.orDie);
+  if (Option.isNone(user)) {
+    return yield* new Errors.LoginNotAllowed({
+      message: "This GitHub account has no Stash account. Ask the owner for an invite.",
+    });
+  }
+  const session = yield* StartSession.startSession(user.value.id, {
+    method: "github",
+    githubLogin: account.login,
+  }).pipe(Effect.orDie);
+  return { status: "complete", session } satisfies PollOutcome;
 });

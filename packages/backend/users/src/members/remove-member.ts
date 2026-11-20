@@ -12,7 +12,7 @@ import * as RequireOwner from "./require-owner.ts";
 
 // Removing a member deletes everything they stored, in every store:
 //
-// 1. Their ways in go first (sessions, API tokens, sign-in accounts), and their open streams are
+// 1. Their ways in go first (sessions, API tokens, sign-in accounts, passkeys), and their open streams are
 //    closed, so nothing of theirs is written while the rest goes.
 // 2. Their links go in chunks: the vectors (Vectorize) and page texts (R2) of a chunk, then its
 //    rows. D1 is last in each chunk because it is what says which vectors and texts exist.
@@ -44,6 +44,7 @@ export const purgeUser = Effect.fn("purgeUser")(function* (id: User.UserId) {
     D1Database.sql`DELETE FROM sessions WHERE user_id = ${id}`,
     D1Database.sql`DELETE FROM api_tokens WHERE user_id = ${id}`,
     D1Database.sql`DELETE FROM user_identities WHERE user_id = ${id}`,
+    D1Database.sql`DELETE FROM passkeys WHERE user_id = ${id}`,
   ]);
   yield* events.close(id);
 

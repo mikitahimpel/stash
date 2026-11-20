@@ -18,6 +18,8 @@ catalog:
   alchemy: 2.0.0-beta.84
   "@alchemy.run/cloudflare": 2.0.0-beta.84
   "@cloudflare/workers-oauth-provider": 1.2.3
+  "@simplewebauthn/browser": 14.0.0
+  "@simplewebauthn/server": 14.0.3
   "@cloudflare/workers-types": 5.20261023.1
   "@types/firefox-webext-browser": 143.0.1
   "@lucide/vue": 1.61.0

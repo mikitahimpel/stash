@@ -1,4 +1,5 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
+import * as SignIn from "@stash/contracts-domain/sign-in";
 import * as User from "@stash/contracts-domain/user";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -8,12 +9,14 @@ import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 /**
- * A session row. `id` is the hash of the session token, never the token. `githubLogin` is the
- * GitHub login that signed in, to show and, for the owner, to check against the allowlist.
+ * A session row. `id` is the hash of the session token, never the token. `method` is how it
+ * started. `githubLogin` is the GitHub login that signed in (empty for a passkey or Google), to
+ * show and, for the owner, to check against the allowlist.
  */
 export const StoredSession = Schema.Struct({
   id: Schema.String,
   userId: User.UserId,
+  method: SignIn.SignInMethod,
   githubLogin: Schema.String,
   createdAt: Schema.DateTimeUtcFromString,
   expiresAt: Schema.DateTimeUtcFromString,
@@ -48,16 +51,17 @@ export const make = Effect.gen(function* () {
       const expiresAt = DateTime.formatIso(session.expiresAt);
       return db
         .run(
-          D1Database.sql`INSERT INTO sessions (id, user_id, github_login, created_at, expires_at)
-            VALUES (${session.id}, ${session.userId}, ${session.githubLogin}, ${createdAt},
-              ${expiresAt})`,
+          D1Database.sql`INSERT INTO sessions
+              (id, user_id, method, github_login, created_at, expires_at)
+            VALUES (${session.id}, ${session.userId}, ${session.method}, ${session.githubLogin},
+              ${createdAt}, ${expiresAt})`,
         )
         .pipe(Effect.asVoid);
     },
     find: (id) =>
       D1Database.queryFirst(SessionWithRole)(
         D1Database.statement(
-          `SELECT s.id, s.user_id AS userId, u.role, s.github_login AS githubLogin,
+          `SELECT s.id, s.user_id AS userId, u.role, s.method, s.github_login AS githubLogin,
               s.created_at AS createdAt, s.expires_at AS expiresAt
             FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
           id,

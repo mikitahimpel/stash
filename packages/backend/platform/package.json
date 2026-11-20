@@ -11,6 +11,7 @@
     "./d1-database": "./src/d1-database.ts",
     "./enrichment-queue": "./src/enrichment-queue.ts",
     "./github-config": "./src/github-config.ts",
+    "./google-config": "./src/google-config.ts",
     "./http-client": "./src/http-client.ts",
     "./kv": "./src/kv.ts",
     "./link-events": "./src/link-events.ts",
