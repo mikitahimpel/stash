@@ -16,18 +16,20 @@ const groups = InternalApi.InternalApi.groups as unknown as Record<
 >;
 
 describe("InternalApi", () => {
-  it("has only internal.createMcpToken at POST /internal/mcp-tokens", () => {
+  it("has only the two MCP token endpoints", () => {
     expect(Object.keys(groups)).toEqual(["internal"]);
     const endpoints = groups["internal"]!.endpoints;
-    expect(Object.keys(endpoints)).toEqual(["createMcpToken"]);
+    expect(Object.keys(endpoints)).toEqual(["createMcpToken", "createMcpTokenForSession"]);
     expect(endpoints["createMcpToken"]!.method).toBe("POST");
     expect(endpoints["createMcpToken"]!.path).toBe("/internal/mcp-tokens");
+    expect(endpoints["createMcpTokenForSession"]!.method).toBe("POST");
+    expect(endpoints["createMcpTokenForSession"]!.path).toBe("/internal/mcp-tokens/session");
   });
 
   it("has no Authorization middleware: only the binding entrypoint serves it", () => {
-    expect(
-      groups["internal"]!.endpoints["createMcpToken"]!.middlewares.has(Security.Authorization),
-    ).toBe(false);
+    for (const endpoint of Object.values(groups["internal"]!.endpoints)) {
+      expect(endpoint.middlewares.has(Security.Authorization)).toBe(false);
+    }
   });
 
   it("responds with 201 or 403", () => {

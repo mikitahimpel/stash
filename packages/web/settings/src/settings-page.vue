@@ -20,6 +20,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Atom from "effect/reactivity/Atom";
 import { computed, ref } from "vue";
 import MembersSection from "./members/members-section.vue";
+import SecuritySection from "./security/security-section.vue";
 import NewTokenDialog from "./new-token-dialog.vue";
 import RevokeTokenDialog from "./revoke-token-dialog.vue";
 import * as SettingsAtoms from "./settings-atoms.ts";
@@ -240,6 +241,8 @@ const confirmRevoke = async () => {
         </ListRow>
       </ul>
     </section>
+
+    <SecuritySection v-if="settled" />
 
     <MembersSection v-if="settled" />
 

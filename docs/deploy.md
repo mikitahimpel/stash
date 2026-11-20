@@ -24,6 +24,7 @@ Nothing else is needed for stage `prod`. Everything else is optional there:
 |---|---|
 | `STASH_ALLOWED_GITHUB_LOGIN` | stage `prod` uses the committed owner login (`PROD_ALLOWED_GITHUB_LOGIN` in [`alchemy.run.ts`](../alchemy.run.ts), public and committed at the owner's request). Any other deployed stage fails without it |
 | `GITHUB_CLIENT_ID` | stage `prod` uses the committed id of the project's OAuth App (see [below](#github-oauth-app)). Any other stage: the login routes answer **503** `NotConfigured` (`POST /auth/device/start` and `/auth/device/poll` on the api, `/authorize*` on mcp), and everything else works |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (secret) | no Sign in with Google: the button is hidden and `/api/auth/google/*` answers **503** `NotConfigured`. Passkeys and GitHub work. See [below](#google-sign-in) |
 | `ANTHROPIC_API_KEY` (secret) | the enrichment consumer fails each message and the queue retries it |
 | `STASH_DOMAIN` | stage `prod` uses the committed hostname (`PROD_DOMAIN` in [`alchemy.run.ts`](../alchemy.run.ts), committed at the owner's request). Any other stage has no custom domain. Set it empty to keep a stage on `workers.dev` |
 | `STASH_WEB_ORIGIN`, `STASH_MCP_ORIGIN` | read only without a domain, then derived: `https://stash-web.<subdomain>.workers.dev`, `https://stash-mcp.<subdomain>.workers.dev`. With a domain both origins are `https://<domain>` |
@@ -110,9 +111,10 @@ Path=/`, no `Domain`) is first-party on the web origin. The build needs no api U
 same way. The api's CORS for `WEB_ORIGIN` stays only for a SPA built with a cross-origin
 `VITE_API_BASE_URL`.
 
-`Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`)
-and `SMOKE_ROUTES=off`, and the secret `ANTHROPIC_API_KEY`. `Mcp` gets
-`MCP_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`), and its `API` binding targets the `Api`
+`Api` also gets the plain vars `ALLOWED_GITHUB_LOGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`),
+`GOOGLE_CLIENT_ID` (when set) and `SMOKE_ROUTES=off`, and the secrets `ANTHROPIC_API_KEY` and
+`GOOGLE_CLIENT_SECRET` (when set). `Mcp` gets
+`MCP_ORIGIN`, `WEB_ORIGIN`, `GITHUB_CLIENT_ID` (always on `prod`), and its `API` binding targets the `Api`
 Worker's `InternalApi` entrypoint. It has no secrets: each Claude sign-in mints its own api token
 (see [mcp-connector.md](mcp-connector.md#the-connectors-api-token)).
 
@@ -310,6 +312,26 @@ settings → OAuth Apps:
 GitHub's form requires a callback URL even though the Device Flow never uses one. Then change
 `PROD_GITHUB_CLIENT_ID`, or deploy with `GITHUB_CLIENT_ID=<client id>` in `.env`.
 
+## Google sign-in
+
+Sign in with Google (#178) is an OAuth **web application** client in Google Cloud (APIs & Services
+→ Credentials), with the scopes `openid` and `email`:
+
+| Field | Value |
+|---|---|
+| Authorized JavaScript origins | `https://stash.mikitahimpel.com` |
+| Authorized redirect URIs | `https://stash.mikitahimpel.com/api/auth/google/callback` |
+
+That one redirect URI also serves Claude (MCP): on the domain, the MCP sign-in goes through the web
+app's own login page on the same host and returns to `/authorize/session`, so Google never
+redirects to an MCP path. Another stage or domain registers
+`https://<domain>/api/auth/google/callback`. Store the client's id and secret in Proton Pass as the
+item `Google` (fields `client_id`, `client_secret`), uncomment the two lines in `.env.example`'s
+copy, and deploy. Until then the Google button stays hidden.
+
+Passkeys need no setup: their RP id is the host of `WEB_ORIGIN` (`stash.mikitahimpel.com` on
+`prod`), so a passkey made there works only there.
+
 ### Check the MCP login
 
 The MCP `/authorize` page needs a registered client. Register a throwaway one (Dynamic Client
@@ -324,23 +346,28 @@ CID=$(curl -s -X POST $M/register -H 'content-type: application/json' \
 CH=$(node -pe 'require("crypto").createHash("sha256").update("x".repeat(43)).digest("base64url")')
 Q="response_type=code&client_id=$CID&redirect_uri=$R&code_challenge=$CH&code_challenge_method=S256&state=check"
 H=$(curl -s -c $J -b $J "$M/authorize?$Q" | grep -o 'name="handle" value="[^"]*"' | cut -d'"' -f4)
-curl -s -c $J -b $J -L "$M/authorize?$Q" --data-urlencode "handle=$H" -d decision=approve \
+curl -s -c $J -b $J -L "$M/authorize?$Q" --data-urlencode "handle=$H" -d decision=approve-device \
   | grep -o -E '[A-Z0-9]{4}-[A-Z0-9]{4}|https://github.com/login/device' | sort -u   # user code + GitHub link
 ```
 
 Don't pass `-X POST`: curl would keep POST on the 303 to `/authorize/device` and get a 404.
+`approve-device` is the consent page's fallback link (a GitHub code); its main button,
+`approve`, goes to the web sign-in on the domain instead.
 
 ### Sign in end to end (manual)
 
 A full sign-in needs a person to enter the code on github.com, signed in as
 `STASH_ALLOWED_GITHUB_LOGIN`. Any other account is refused after GitHub approves.
 
-1. **Web.** Open the web URL (`https://<domain>`). The login gate shows a code and a
-   link to `https://github.com/login/device`. Open it, enter the code, authorize the app. The
-   page signs in by itself within a few seconds (it polls `/api/auth/device/poll`) and shows your links.
+1. **Web.** Open the web URL (`https://<domain>`) and press **Continue with GitHub**. The page
+   shows a code and a link to `https://github.com/login/device`. Open it, enter the code,
+   authorize the app. The page signs in by itself within a few seconds (it polls
+   `/api/auth/device/poll`) and shows your links. Then add a passkey in Settings → Security, sign
+   out, and sign in again with **Continue with passkey**.
 2. **MCP.** Add `https://<domain>/mcp` as a custom connector in Claude
-   ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue with
-   GitHub**, enter the code shown on github.com, keep the tab open, and it returns you to Claude.
+   ([mcp-connector.md](mcp-connector.md)). Claude opens `/authorize`: press **Continue**, sign in
+   on the web login page (a passkey, Google or GitHub), and it returns you to Claude. **Sign in
+   with a GitHub code instead** is the old Device Flow.
 3. **MCP tools.** Nothing to set up: the sign-in minted a **Claude (MCP)** token, listed in the web
    app under Settings → API tokens. Ask Claude to search or save a link to check.
 

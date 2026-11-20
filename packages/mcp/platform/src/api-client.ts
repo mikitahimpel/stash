@@ -1,3 +1,4 @@
+import * as ApiToken from "@stash/contracts-domain/api-token";
 import * as Api from "@stash/contracts-api/api";
 import * as InternalApi from "@stash/contracts-api/internal-api";
 import * as Security from "@stash/contracts-api/security";
@@ -92,6 +93,36 @@ export const createMcpToken = (
     Effect.map((created) => created.token),
     Effect.provide(layerHttpClient(env.API)),
   );
+
+/**
+ * Mints the api token of a grant for whoever the web session `session` (the `stash_session`
+ * cookie the browser sent to the MCP sign-in on the site's own host) signs in. Fails with
+ * `Unauthorized` for a session that is unknown or expired.
+ */
+export const createMcpTokenForSession = (env: ApiEnv, session: Redacted.Redacted<string>) =>
+  HttpApiClient.make(InternalApi.InternalApi, { baseUrl }).pipe(
+    Effect.flatMap((client) =>
+      client.internal.createMcpTokenForSession({
+        payload: { session: Redacted.value(session) },
+      }),
+    ),
+    Effect.map((created) => ({ id: created.id, token: created.token, userId: created.userId })),
+    Effect.provide(layerHttpClient(env.API)),
+  );
+
+/**
+ * Revokes the token `id` with the token itself, as Settings would: for a token minted for a
+ * sign-in that then could not finish, so no unused `Claude (MCP)` token stays behind.
+ */
+export const revokeOwnToken = (
+  env: ApiEnv,
+  token: Redacted.Redacted<string>,
+  id: ApiToken.ApiTokenId,
+) =>
+  Effect.gen(function* () {
+    const client = yield* StashApiClient;
+    yield* client.tokens.revoke({ params: { id } });
+  }).pipe(Effect.provide(layer(env, { token })));
 
 /**
  * Whether the api still accepts `token`. `false` only when the api answers 401 (revoked or

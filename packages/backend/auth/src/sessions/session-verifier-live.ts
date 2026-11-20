@@ -12,9 +12,10 @@ import * as SessionsRepo from "./sessions-repo.ts";
 const unauthorized = (message: string) => new Errors.Unauthorized({ message });
 
 /**
- * Accepts a session cookie whose session exists, has not expired and whose user still exists. The
- * owner's session must also still belong to the allowlisted login, so changing
- * `ALLOWED_GITHUB_LOGIN` signs the old owner out. Expired sessions are deleted on sight. Database
+ * Accepts a session cookie whose session exists, has not expired and whose user still exists. An
+ * owner's GitHub session must also still belong to the allowlisted login, so changing
+ * `ALLOWED_GITHUB_LOGIN` signs the old owner out (a passkey or Google session of the owner is
+ * theirs whatever the login is). Expired sessions are deleted on sight. Database
  * failures are defects.
  */
 export const layer: Layer.Layer<
@@ -34,12 +35,16 @@ export const layer: Layer.Layer<
           yield* repo.remove(id).pipe(Effect.orDie);
           return yield* unauthorized("Session expired");
         }
-        const { userId, role, githubLogin } = stored.value;
-        if (role === "owner" && !GithubClient.sameLogin(githubLogin, config.allowedGithubLogin)) {
+        const { userId, role, method, githubLogin } = stored.value;
+        if (
+          role === "owner" &&
+          method === "github" &&
+          !GithubClient.sameLogin(githubLogin, config.allowedGithubLogin)
+        ) {
           return yield* unauthorized("Login no longer allowed");
         }
         return {
-          principal: { kind: "user", login: githubLogin },
+          principal: githubLogin === "" ? { kind: "user" } : { kind: "user", login: githubLogin },
           user: { id: userId, role },
         } satisfies SessionVerifier.Verified;
       }),

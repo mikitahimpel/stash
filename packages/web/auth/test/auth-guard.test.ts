@@ -68,7 +68,7 @@ describe("auth guard", () => {
     const wrapper = mountApp(registry, router);
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
-    expect(wrapper.find("[data-test=sign-in]").text()).toBe("Sign in with GitHub");
+    expect(wrapper.find("[data-test=passkey]").text()).toBe("Continue with passkey");
     registry.dispose();
   });
 

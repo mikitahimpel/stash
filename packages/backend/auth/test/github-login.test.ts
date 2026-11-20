@@ -219,7 +219,10 @@ const started = (send: Send) =>
 const tokenPolls = () => githubRequests.filter((r) => r.url === GithubClient.accessTokenEndpoint);
 
 /** Signs in the allowlisted login directly and returns the session cookie value. */
-const signIn = StartSession.startSession(Testing.owner.id, allowedLogin).pipe(
+const signIn = StartSession.startSession(Testing.owner.id, {
+  method: "github",
+  githubLogin: allowedLogin,
+}).pipe(
   Effect.map((session) => Redacted.value(session.token)),
   Effect.provide(SessionsRepo.layer),
 );

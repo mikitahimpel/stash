@@ -9,6 +9,7 @@ import type * as KeyValueStore from "effect/persistence/KeyValueStore";
 import * as Keyboard from "./keyboard.ts";
 import * as LiveSocket from "./live-socket.ts";
 import * as Network from "./network.ts";
+import * as Passkeys from "./passkeys.ts";
 import * as RecentSearches from "./recent-searches.ts";
 import * as Share from "./share.ts";
 import * as Theme from "./theme.ts";
@@ -75,6 +76,9 @@ export const layerKeyboard: Layer.Layer<Keyboard.Keyboard> = Keyboard.layer;
 export const layerVisibility: Layer.Layer<Visibility.Visibility> = Visibility.layer;
 
 export const layerLiveSocket: Layer.Layer<LiveSocket.LiveSocket> = LiveSocket.layer;
+
+/** Passkeys through `navigator.credentials`. Not in `layer`: only the sign-in pages use it. */
+export const layerPasskeys: Layer.Layer<Passkeys.Passkeys> = Passkeys.layer;
 
 export const layer: Layer.Layer<Services> = Layer.mergeAll(
   layerKeyValueStore,

@@ -3,6 +3,11 @@ import * as AuthorizationLive from "@stash/backend-auth/authorization-live";
 import * as DeviceFlowsStore from "@stash/backend-auth/device-flows-store";
 import * as DeviceStartRateLimiter from "@stash/backend-auth/device-start-rate-limiter";
 import * as GithubClient from "@stash/backend-auth/github-client";
+import * as GoogleClient from "@stash/backend-auth/google-client";
+import * as GoogleFlowsStore from "@stash/backend-auth/google-flows-store";
+import * as PasskeyChallenges from "@stash/backend-auth/passkey-challenges";
+import * as PasskeysRepo from "@stash/backend-auth/passkeys-repo";
+import * as SignInRateLimiter from "@stash/backend-auth/sign-in-rate-limiter";
 import * as InternalHandlers from "@stash/backend-auth/internal-handlers";
 import * as SessionVerifierLive from "@stash/backend-auth/session-verifier-live";
 import * as PairingsRepo from "@stash/backend-auth/pairings-repo";
@@ -15,6 +20,7 @@ import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
 import type * as D1Database from "@stash/backend-platform/d1-database";
 import type * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import type * as GithubConfig from "@stash/backend-platform/github-config";
+import type * as GoogleConfig from "@stash/backend-platform/google-config";
 import type * as Kv from "@stash/backend-platform/kv";
 import type * as LinkEvents from "@stash/backend-platform/link-events";
 import * as StashConfig from "@stash/backend-platform/stash-config";
@@ -45,6 +51,7 @@ export type Requirements =
   | Kv.Kv
   | StashConfig.StashConfig
   | GithubConfig.GithubConfig
+  | GoogleConfig.GoogleConfig
   | HttpClient.HttpClient
   | Ai.Ai
   | Vectors.Vectors
@@ -69,8 +76,8 @@ const cors = Layer.unwrap(
 );
 
 /**
- * `GET /health` and the `StashApi`, guarded by `Authorization` (API tokens, then GitHub Device Flow
- * sessions), with CORS for the web origin. Needs an `HttpRouter` and the platform services.
+ * `GET /health` and the `StashApi`, guarded by `Authorization` (API tokens, then web sessions from
+ * a passkey, Google or the GitHub Device Flow), with CORS for the web origin. Needs an `HttpRouter` and the platform services.
  */
 export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requirements> =
   Layer.mergeAll(
@@ -78,7 +85,7 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
       Layer.provide(Handlers.layer),
       Layer.provide(AuthorizationLive.layer),
       Layer.provide(SessionVerifierLive.layer),
-      Layer.provide(GithubClient.layer),
+      Layer.provide(Layer.mergeAll(GithubClient.layer, GoogleClient.layer)),
       Layer.provide(
         Layer.mergeAll(
           ApiTokensRepo.layer,
@@ -86,6 +93,10 @@ export const layer: Layer.Layer<never, never, HttpRouter.HttpRouter | Requiremen
           SessionsRepo.layer,
           DeviceFlowsStore.layer,
           DeviceStartRateLimiter.layer(),
+          PasskeysRepo.layer,
+          PasskeyChallenges.layer,
+          GoogleFlowsStore.layer,
+          SignInRateLimiter.layer(),
         ),
       ),
       Layer.provide(SearchService.layer),
@@ -111,7 +122,10 @@ export const internalLayer: Layer.Layer<never, never, HttpRouter.HttpRouter | Re
     layer,
     HttpApiBuilder.layer(InternalApi.InternalApi).pipe(
       Layer.provide(InternalHandlers.layer),
-      Layer.provide(Layer.mergeAll(ApiTokensRepo.layer, UsersRepo.layer, InvitesRepo.layer)),
+      Layer.provide(SessionVerifierLive.layer),
+      Layer.provide(
+        Layer.mergeAll(ApiTokensRepo.layer, UsersRepo.layer, InvitesRepo.layer, SessionsRepo.layer),
+      ),
       Layer.provide(HttpServer.layerServices),
     ),
   );

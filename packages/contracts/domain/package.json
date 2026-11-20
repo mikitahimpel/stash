@@ -16,6 +16,7 @@
     "./pairing": "./src/pairing.ts",
     "./user": "./src/user.ts",
     "./invite": "./src/invite.ts",
+    "./sign-in": "./src/sign-in.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

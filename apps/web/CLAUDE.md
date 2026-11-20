@@ -133,6 +133,12 @@ Feature behavior is tested in `packages/web/*`.
   appears on top of the Inbox under the same limits, at desktop and phone width. The browser
   checks share `STASH_AUDIT_PORT` (default 4179) and reuse whatever answers there: set another
   port when a second worktree may be serving its own build.
+- `scripts/sign-in-walk.ts` (`pnpm --filter @stash/web walk:sign-in`): boots `alchemy dev`
+  (stage `sign-in-walk`), Vite and a fake OpenID provider of its own (`GOOGLE_FAKE_IDP`, RS256
+  ID tokens from a key made per run), and walks #178 in headless Chromium against the real api:
+  passkey sign-up from an invite and sign-in with a CDP virtual authenticator, Settings →
+  Security, Google sign-up from an invite, sign-in by `sub`, and a refused account. Every server
+  stops at the end.
 - `scripts/connect-walk.ts` (`pnpm --filter @stash/web walk:connect`, after a build; the same CI
   job runs it after the audit): walks each Connect guide (in Settings; the iPhone one through the old `/connect?guide=` address),
   the extension approve page, `/search?q=` and `/save`

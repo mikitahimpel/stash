@@ -41,6 +41,20 @@ const routes = [
   ["invites", "create", "POST", "/invites"],
   ["invites", "revoke", "DELETE", "/invites/:id"],
   ["invites", "check", "POST", "/invites/check"],
+  ["signIn", "providers", "GET", "/auth/providers"],
+  ["signIn", "passkeyOptions", "POST", "/auth/passkey/options"],
+  ["signIn", "passkeySignIn", "POST", "/auth/passkey/sign-in"],
+  ["signIn", "passkeySignUpOptions", "POST", "/auth/passkey/sign-up/options"],
+  ["signIn", "passkeySignUp", "POST", "/auth/passkey/sign-up"],
+  ["signIn", "googleStart", "GET", "/auth/google/start"],
+  ["signIn", "googleCallback", "GET", "/auth/google/callback"],
+  ["signIn", "methods", "GET", "/auth/methods"],
+  ["signIn", "passkeyAddOptions", "POST", "/auth/passkeys/options"],
+  ["signIn", "passkeyAdd", "POST", "/auth/passkeys"],
+  ["signIn", "passkeyRemove", "DELETE", "/auth/passkeys/:id"],
+  ["signIn", "googleLink", "POST", "/auth/google/link"],
+  ["signIn", "githubLink", "POST", "/auth/github/link"],
+  ["signIn", "accountRemove", "DELETE", "/auth/accounts/:id"],
 ] as const;
 
 // Loosely typed view of the definition, for reflection only.
@@ -91,6 +105,7 @@ describe("StashApi", () => {
         "members",
         "pairings",
         "search",
+        "signIn",
         "tabs",
         "tokens",
       ].sort(),
@@ -109,7 +124,7 @@ describe("StashApi", () => {
     expect(all.sort()).toEqual(routes.map(([group, name]) => `${group}.${name}`).sort());
   });
 
-  it("guards every endpoint except the device login flow, the pairing claim and the invite check", () => {
+  it("guards every endpoint except the sign-in flows, the pairing claim and the invite check", () => {
     const open = routes
       .filter(([group, name]) => !isGuarded(group, name))
       .map(([group, name]) => `${group}.${name}`);
@@ -118,6 +133,13 @@ describe("StashApi", () => {
       "auth.devicePoll",
       "pairings.claim",
       "invites.check",
+      "signIn.providers",
+      "signIn.passkeyOptions",
+      "signIn.passkeySignIn",
+      "signIn.passkeySignUpOptions",
+      "signIn.passkeySignUp",
+      "signIn.googleStart",
+      "signIn.googleCallback",
     ]);
   });
 
@@ -147,6 +169,13 @@ describe("StashApi", () => {
     ["invites", "create", ["201", "401", "403"]],
     ["invites", "revoke", ["204", "401", "403", "404", "409"]],
     ["invites", "check", ["200", "404"]],
+    ["signIn", "passkeySignIn", ["200", "403", "429"]],
+    ["signIn", "passkeySignUp", ["200", "403", "404", "429"]],
+    ["signIn", "googleStart", ["302", "429"]],
+    ["signIn", "googleCallback", ["302"]],
+    ["signIn", "passkeyAdd", ["201", "401", "403", "409"]],
+    ["signIn", "passkeyRemove", ["204", "401", "403", "404", "409"]],
+    ["signIn", "accountRemove", ["204", "401", "403", "404", "409"]],
   ] as const)("%s.%s responds with %j", (group, name, expected) => {
     expect(statuses(group, name)).toEqual(expected);
   });
@@ -203,6 +232,7 @@ describe("HttpApiClient", () => {
           "members",
           "pairings",
           "search",
+          "signIn",
           "tabs",
           "tokens",
         ].sort(),

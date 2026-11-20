@@ -10,8 +10,10 @@
     "./live": "./src/live.ts",
     "./live-socket": "./src/live-socket.ts",
     "./network": "./src/network.ts",
+    "./page-navigation": "./src/page-navigation.ts",
     "./page-origin": "./src/page-origin.ts",
     "./page-scroll": "./src/page-scroll.ts",
+    "./passkeys": "./src/passkeys.ts",
     "./recent-searches": "./src/recent-searches.ts",
     "./share": "./src/share.ts",
     "./testing": "./src/testing.ts",
@@ -26,6 +28,7 @@
   },
   "dependencies": {
     "@effect/platform-browser": "catalog:",
+    "@simplewebauthn/browser": "catalog:",
     "effect": "catalog:",
     "fake-indexeddb": "catalog:"
   },

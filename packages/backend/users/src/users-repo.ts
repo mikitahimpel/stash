@@ -1,6 +1,7 @@
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Members from "@stash/contracts-api/members";
 import type * as Invite from "@stash/contracts-domain/invite";
+import * as SignIn from "@stash/contracts-domain/sign-in";
 import * as User from "@stash/contracts-domain/user";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -16,9 +17,12 @@ import * as Schema from "effect/Schema";
 /** The id of the owner, fixed by `0011-users.sql`. */
 export const ownerId = User.UserId.make("owner");
 
-/** An account at a sign-in provider. For GitHub the subject is the account's numeric id. */
+/**
+ * An account at a sign-in provider. For GitHub the subject is the account's numeric id, for
+ * Google the ID token's `sub`.
+ */
 export interface Identity {
-  readonly provider: "github";
+  readonly provider: SignIn.AccountProvider;
   readonly subject: string;
   /** What the provider calls the account, to show. */
   readonly label: string;
@@ -29,10 +33,25 @@ export interface NewMember {
   readonly id: User.UserId;
   readonly displayName: string;
   readonly dailyAiQuota: User.DailyAiQuota;
-  readonly identity: Identity;
+  /** The account they signed up with. A passkey sign-up has none: it writes its passkey in `also`. */
+  readonly identity?: Identity;
   readonly inviteId: Invite.InviteId;
   readonly now: DateTime.Utc;
+  /**
+   * More rows to write in the same transaction, after the user (a passkey). Each must write only
+   * when the user row exists, so a lost race writes nothing.
+   */
+  readonly also?: ReadonlyArray<D1Database.Statement>;
 }
+
+/** A linked account as stored. */
+export const StoredIdentity = Schema.Struct({
+  provider: SignIn.AccountProvider,
+  subject: Schema.String,
+  label: Schema.NullOr(Schema.String),
+  createdAt: Schema.DateTimeUtcFromString,
+});
+export type StoredIdentity = typeof StoredIdentity.Type;
 
 export class UsersRepo extends Context.Service<
   UsersRepo,
@@ -58,6 +77,25 @@ export class UsersRepo extends Context.Service<
      * moment ago, revoked, expired) or the account already belongs to a user.
      */
     readonly createMember: (member: NewMember) => Effect.Effect<boolean, D1Database.DatabaseError>;
+    /** The accounts that sign `userId` in, oldest first. */
+    readonly listIdentities: (
+      userId: User.UserId,
+    ) => Effect.Effect<ReadonlyArray<StoredIdentity>, D1Database.DatabaseError>;
+    /**
+     * Links an account to `userId`. `false`, with nothing written, if the account already signs
+     * someone in (this user too).
+     */
+    readonly linkIdentity: (
+      userId: User.UserId,
+      identity: Identity,
+      now: DateTime.Utc,
+    ) => Effect.Effect<boolean, D1Database.DatabaseError>;
+    /** Unlinks an account of `userId`. `false` if it has no such account. */
+    readonly unlinkIdentity: (
+      userId: User.UserId,
+      provider: SignIn.AccountProvider,
+      subject: string,
+    ) => Effect.Effect<boolean, D1Database.DatabaseError>;
   }
 >()("@stash/backend-users/UsersRepo") {}
 
@@ -107,16 +145,46 @@ export const make = Effect.gen(function* () {
           WHERE EXISTS (SELECT 1 FROM invites WHERE id = ${member.inviteId}
               AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ${now})
             AND NOT EXISTS (SELECT 1 FROM user_identities
-              WHERE provider = ${identity.provider} AND subject = ${identity.subject})`,
+              WHERE provider = ${identity?.provider ?? ""} AND subject = ${identity?.subject ?? ""})`,
         D1Database.sql`UPDATE invites SET accepted_at = ${now}, accepted_by = ${member.id}
           WHERE id = ${member.inviteId} AND accepted_at IS NULL
             AND EXISTS (SELECT 1 FROM users WHERE id = ${member.id})`,
-        D1Database.sql`INSERT INTO user_identities (provider, subject, user_id, label, created_at)
-          SELECT ${identity.provider}, ${identity.subject}, ${member.id}, ${identity.label}, ${now}
-          WHERE EXISTS (SELECT 1 FROM users WHERE id = ${member.id})`,
+        ...(identity === undefined
+          ? []
+          : [
+              D1Database.sql`INSERT INTO user_identities (provider, subject, user_id, label, created_at)
+                SELECT ${identity.provider}, ${identity.subject}, ${member.id}, ${identity.label},
+                  ${now}
+                WHERE EXISTS (SELECT 1 FROM users WHERE id = ${member.id})`,
+            ]),
+        ...(member.also ?? []),
       ]);
       return Option.isSome(yield* findById(member.id));
     }),
+    listIdentities: (userId) =>
+      D1Database.query(StoredIdentity)(
+        D1Database.statement(
+          `SELECT provider, subject, label, created_at AS createdAt FROM user_identities
+            WHERE user_id = ? ORDER BY created_at, provider, subject`,
+          userId,
+        ),
+      ).pipe(provide),
+    linkIdentity: (userId, identity, now) =>
+      db
+        .run(
+          D1Database.sql`INSERT OR IGNORE INTO user_identities
+              (provider, subject, user_id, label, created_at)
+            VALUES (${identity.provider}, ${identity.subject}, ${userId}, ${identity.label},
+              ${DateTime.formatIso(now)})`,
+        )
+        .pipe(Effect.map((result) => result.changes > 0)),
+    unlinkIdentity: (userId, provider, subject) =>
+      db
+        .run(
+          D1Database.sql`DELETE FROM user_identities
+            WHERE user_id = ${userId} AND provider = ${provider} AND subject = ${subject}`,
+        )
+        .pipe(Effect.map((result) => result.changes > 0)),
   });
 });
 

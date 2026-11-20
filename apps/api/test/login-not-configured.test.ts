@@ -27,3 +27,40 @@ describe("handleLoginNotConfigured", () => {
     expect(handleLoginNotConfigured(post("/auth/device/start"), env)).toBeUndefined();
   });
 });
+
+describe("handleLoginNotConfigured for Google", () => {
+  const get = (path: string) => new Request(`https://api.example.com${path}`);
+
+  it("answers 503 on the Google routes without a client id and secret", () => {
+    for (const request of [
+      get("/auth/google/start"),
+      get("/auth/google/callback?code=x&state=y"),
+      post("/auth/google/link"),
+    ]) {
+      expect(
+        handleLoginNotConfigured(request, { WEB_ORIGIN: webOrigin, GITHUB_CLIENT_ID: "x" })?.status,
+      ).toBe(503);
+      // A client id without its secret is not enough.
+      expect(
+        handleLoginNotConfigured(request, {
+          WEB_ORIGIN: webOrigin,
+          GITHUB_CLIENT_ID: "x",
+          GOOGLE_CLIENT_ID: "synthetic-google-client-id",
+        })?.status,
+      ).toBe(503);
+    }
+  });
+
+  it("passes the Google routes through once both are set, and never blocks passkeys", () => {
+    const env = {
+      WEB_ORIGIN: webOrigin,
+      GITHUB_CLIENT_ID: "x",
+      GOOGLE_CLIENT_ID: "synthetic-google-client-id",
+      GOOGLE_CLIENT_SECRET: "synthetic-google-client-secret",
+    };
+    expect(handleLoginNotConfigured(get("/auth/google/start"), env)).toBeUndefined();
+    expect(
+      handleLoginNotConfigured(post("/auth/passkey/options"), { WEB_ORIGIN: webOrigin }),
+    ).toBeUndefined();
+  });
+});

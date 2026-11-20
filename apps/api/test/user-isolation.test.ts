@@ -48,6 +48,8 @@ const world = (user: User) => {
     pairingCode: `${mark}PairingCode`.padEnd(43, "x"),
     bearer: `stash_${mark}-synthetic-secret`,
     session: `${mark}-synthetic-session`,
+    passkey: `${mark}Passkey0000`,
+    googleAccount: `google:${mark}-google`,
     /** One page both users saved: the same URL is a separate link for each. */
     sharedUrl: "https://example.com/shared-page",
   };
@@ -100,6 +102,11 @@ const seed = (w: World) =>
         VALUES (${yield* SecretHash.hash(w.pairingCode)}, ${u}, ${w.device},
           '2999-01-01T00:00:00.000Z')`,
       D1Database.sql`INSERT INTO ai_usage (user_id, day, links) VALUES (${u}, '2026-01-01', 7)`,
+      // A passkey and a linked Google account: their ways to sign in.
+      D1Database.sql`INSERT INTO passkeys (id, user_id, public_key, name)
+        VALUES (${w.passkey}, ${u}, ${`${w.mark}PublicKey`}, ${`${w.mark} passkey`})`,
+      D1Database.sql`INSERT INTO user_identities (provider, subject, user_id, label)
+        VALUES ('google', ${`${w.mark}-google`}, ${u}, ${`${w.mark}@example.com`})`,
     ]);
     if (w.user.role === "owner") {
       yield* db.run(
@@ -136,6 +143,7 @@ const snapshot = (w: World) =>
       "digests",
       "user_identities",
       "ai_usage",
+      "passkeys",
     ];
     const rows: Record<string, unknown> = {};
     for (const table of tables) {
@@ -177,6 +185,7 @@ const layerPlatform = Layer.mergeAll(
   Testing.layerVectors,
   Testing.layerBlobs,
   Testing.layerGithubConfig,
+  Testing.layerGoogleConfig(),
   layerNoGithub,
   Testing.layerEnrichmentQueue,
   Testing.layerKv,
@@ -388,6 +397,92 @@ const cases: Record<string, Case> = {
     // A token that is not an invite. Knowing a real one is being invited.
     input: (_, attacker) => ({ body: { token: `${attacker.mark}NotAnInvite`.padEnd(43, "y") } }),
     status: [404],
+  },
+
+  // signIn: the open ceremonies know no user until a credential names one; the methods are the
+  // caller's own, and only from a web session (403 for a device token).
+  "signIn.providers": { kind: "open", input: () => ({}), status: [200] },
+  "signIn.passkeyOptions": { kind: "open", input: () => ({}), status: [200] },
+  "signIn.passkeySignIn": {
+    kind: "open",
+    // The victim's credential id with a challenge nobody issued: no session for anyone.
+    input: (v) => ({
+      body: {
+        challengeId: "AAAAAAAAAAAAAAAAAAAAAAAA",
+        credential: {
+          id: v.passkey,
+          rawId: v.passkey,
+          type: "public-key",
+          response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+          clientExtensionResults: {},
+        },
+      },
+    }),
+    status: [403],
+  },
+  "signIn.passkeySignUpOptions": {
+    kind: "open",
+    input: (_, attacker) => ({ body: { invite: `${attacker.mark}NotAnInvite`.padEnd(43, "y") } }),
+    status: [404],
+  },
+  "signIn.passkeySignUp": {
+    kind: "open",
+    input: (v, attacker) => ({
+      body: {
+        challengeId: "AAAAAAAAAAAAAAAAAAAAAAAA",
+        invite: `${attacker.mark}NotAnInvite`.padEnd(43, "y"),
+        credential: {
+          id: v.passkey,
+          rawId: v.passkey,
+          type: "public-key",
+          response: { clientDataJSON: "e30", attestationObject: "AA" },
+          clientExtensionResults: {},
+        },
+      },
+    }),
+    status: [403],
+  },
+  "signIn.googleStart": { kind: "open", input: () => ({}), status: [302] },
+  "signIn.googleCallback": {
+    kind: "open",
+    input: (_, attacker) => ({ query: { code: "synthetic-code", state: `${attacker.mark}State` } }),
+    status: [302],
+  },
+  "signIn.methods": { kind: "own", status: [200, 403] },
+  "signIn.passkeyAddOptions": { kind: "own", status: [200, 403] },
+  "signIn.passkeyAdd": {
+    kind: "own",
+    input: (v) => ({
+      body: {
+        challengeId: "AAAAAAAAAAAAAAAAAAAAAAAA",
+        credential: {
+          id: v.passkey,
+          rawId: v.passkey,
+          type: "public-key",
+          response: { clientDataJSON: "e30", attestationObject: "AA" },
+          clientExtensionResults: {},
+        },
+      },
+    }),
+    status: [400, 403],
+  },
+  "signIn.passkeyRemove": {
+    kind: "resource",
+    input: (v) => ({ params: { id: v.passkey } }),
+    status: 404,
+    also: [403],
+  },
+  "signIn.googleLink": { kind: "own", input: () => ({ body: {} }), status: [200, 403] },
+  "signIn.githubLink": {
+    kind: "own",
+    input: (v) => ({ body: { flowId: `${v.mark}-flow` } }),
+    status: [410, 403],
+  },
+  "signIn.accountRemove": {
+    kind: "resource",
+    input: (v) => ({ params: { id: v.googleAccount } }),
+    status: 404,
+    also: [403],
   },
 };
 

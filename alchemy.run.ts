@@ -105,6 +105,16 @@ export default Alchemy.Stack(
         : Config.String("GITHUB_CLIENT_ID"),
       "dev_only",
     );
+    // Sign in with Google (#178): an OAuth web client whose id is a plain var and whose secret is
+    // bound as `secret_text`, both from env (`pass://Stash/Google/...`, see .env.example). Without
+    // both, the Google button is hidden and its routes answer 503, so a stage deploys without
+    // them. `alchemy dev` binds them only when set, and may point them at a fake OpenID provider
+    // (`GOOGLE_FAKE_IDP`, the sign-in walk's): never on a deploy.
+    const googleClientId = yield* Config.option(Config.String("GOOGLE_CLIENT_ID"));
+    const googleClientSecret = yield* Config.option(Config.Redacted("GOOGLE_CLIENT_SECRET"));
+    const googleFakeIdp = dev
+      ? yield* Config.option(Config.String("GOOGLE_FAKE_IDP"))
+      : Option.none<string>();
     const mcpPort = yield* Config.Port("STASH_MCP_PORT").pipe(Config.withDefault(8790));
     // The classifier's key, bound as `secret_text`. `alchemy dev` never reads it, so local dev stays
     // credential-free (the enrichment consumer then retries each message, see apps/api/src/worker.ts).
@@ -248,6 +258,9 @@ export default Alchemy.Stack(
         // For the Connect page's Claude guide (`GET /connect/info` answers `<MCP_ORIGIN>/mcp`).
         MCP_ORIGIN: origins.mcp,
         ...optional("GITHUB_CLIENT_ID", githubClientId),
+        ...optional("GOOGLE_CLIENT_ID", googleClientId),
+        ...optional("GOOGLE_CLIENT_SECRET", googleClientSecret),
+        ...optional("GOOGLE_FAKE_IDP", googleFakeIdp),
         ...optional("ANTHROPIC_API_KEY", anthropicApiKey),
         SMOKE_ROUTES: dev ? "on" : "off",
       },
@@ -275,6 +288,9 @@ export default Alchemy.Stack(
         API: Cloudflare.WorkerEntrypoint(api, "InternalApi"),
         OAUTH_KV: oauthState,
         MCP_ORIGIN: origins.mcp,
+        // On a custom domain the two origins are one: the sign-in pages then use the web app's
+        // own sign-in (passkey, Google, GitHub) through its session cookie.
+        WEB_ORIGIN: origins.web,
         ...optional("MCP_LEGACY_ORIGIN", Option.fromNullishOr(origins.mcpLegacy)),
         ...optional("GITHUB_CLIENT_ID", githubClientId),
       },

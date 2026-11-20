@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "catalog:",
+    "@stash/contracts-api": "workspace:*",
     "@stash/mcp-platform": "workspace:*",
     "@stash/mcp-tools-digest": "workspace:*",
     "@stash/mcp-tools-links": "workspace:*",

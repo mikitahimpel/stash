@@ -31,7 +31,20 @@
     "./start-session": "./src/sessions/start-session.ts",
     "./sign-in": "./src/sessions/sign-in.ts",
     "./end-session": "./src/sessions/end-session.ts",
-    "./session-verifier-live": "./src/sessions/session-verifier-live.ts"
+    "./session-verifier-live": "./src/sessions/session-verifier-live.ts",
+    "./passkeys-repo": "./src/passkeys/passkeys-repo.ts",
+    "./passkey-challenges": "./src/passkeys/passkey-challenges.ts",
+    "./passkey-ceremonies": "./src/passkeys/passkey-ceremonies.ts",
+    "./relying-party": "./src/passkeys/relying-party.ts",
+    "./google-client": "./src/google/google-client.ts",
+    "./google-flows-store": "./src/google/google-flows-store.ts",
+    "./google-sign-in": "./src/google/google-sign-in.ts",
+    "./sign-in-methods": "./src/methods/sign-in-methods.ts",
+    "./link-github": "./src/methods/link-github.ts",
+    "./sign-in-handlers": "./src/sign-in/sign-in-handlers.ts",
+    "./sign-in-rate-limiter": "./src/sign-in/sign-in-rate-limiter.ts",
+    "./require-session": "./src/sign-in/require-session.ts",
+    "./return-path": "./src/sign-in/return-path.ts"
   },
   "scripts": {
     "lint": "oxlint .",
@@ -40,6 +53,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@simplewebauthn/server": "catalog:",
     "@stash/backend-platform": "workspace:*",
     "@stash/backend-users": "workspace:*",
     "@stash/contracts-api": "workspace:*",

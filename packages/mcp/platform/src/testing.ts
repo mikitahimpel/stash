@@ -56,6 +56,8 @@ export class TestApi extends Context.Service<
     readonly mintedTokens: Effect.Effect<
       ReadonlyArray<{ readonly token: string; readonly login: string }>
     >;
+    /** The tokens the fake api accepts now. */
+    readonly activeTokens: Effect.Effect<ReadonlyArray<string>>;
     /** Revokes a token, as Settings does: the fake api then answers it with 401. */
     readonly revokeToken: (token: string) => Effect.Effect<void>;
   }
@@ -128,27 +130,50 @@ const authorizationStub = (state: State) =>
 /** `POST /internal/mcp-tokens`, served on the same fake binding as the `StashApi`. */
 const internalGroup = (state: State) =>
   HttpApiBuilder.group(InternalApi.InternalApi, "internal", (handlers) =>
-    handlers.handle("createMcpToken", ({ payload }) => {
-      if (payload.login.toLowerCase() !== allowedLogin) {
-        return Effect.fail(
-          new Errors.LoginNotAllowed({ message: "This GitHub login is not allowed" }),
-        );
-      }
-      return Effect.sync(() => {
-        const token = `synthetic-minted-token-${state.minted.length + 1}`;
-        state.minted.push({ token, login: payload.login });
-        state.activeTokens.add(token);
-        return {
-          id: ApiToken.ApiTokenId.make(`token-${state.minted.length}`),
-          deviceId: null,
-          name: ApiToken.mcpTokenName,
-          createdAt: now,
-          revokedAt: null,
-          token: Redacted.make(token),
-        };
-      });
-    }),
+    handlers
+      .handle("createMcpToken", ({ payload }) => {
+        if (payload.login.toLowerCase() !== allowedLogin) {
+          return Effect.fail(
+            new Errors.LoginNotAllowed({ message: "This GitHub login is not allowed" }),
+          );
+        }
+        return Effect.sync(() => {
+          const token = `synthetic-minted-token-${state.minted.length + 1}`;
+          state.minted.push({ token, login: payload.login });
+          state.activeTokens.add(token);
+          return {
+            id: ApiToken.ApiTokenId.make(`token-${state.minted.length}`),
+            deviceId: null,
+            name: ApiToken.mcpTokenName,
+            createdAt: now,
+            revokedAt: null,
+            token: Redacted.make(token),
+          };
+        });
+      })
+      .handle("createMcpTokenForSession", ({ payload }) => {
+        if (payload.session !== webSession) {
+          return Effect.fail(new Errors.Unauthorized({ message: "Unknown session" }));
+        }
+        return Effect.sync(() => {
+          const token = `synthetic-minted-token-${state.minted.length + 1}`;
+          state.minted.push({ token, login: "" });
+          state.activeTokens.add(token);
+          return {
+            id: ApiToken.ApiTokenId.make(`token-${state.minted.length}`),
+            deviceId: null,
+            name: ApiToken.mcpTokenName,
+            createdAt: now,
+            revokedAt: null,
+            token: Redacted.make(token),
+            userId,
+          };
+        });
+      }),
   );
+
+/** The `stash_session` cookie of the fake api's one web session (the owner's). */
+export const webSession = "synthetic-web-session";
 
 // Endpoints the MCP server has no use for. Calling one is a bug in the test or the tool.
 const unsupported = (endpoint: string) =>
@@ -290,7 +315,15 @@ const groups = (state: State) => {
     handlers
       .handle("list", () => unsupported("tokens.list"))
       .handle("create", () => unsupported("tokens.create"))
-      .handle("revoke", () => unsupported("tokens.revoke")),
+      .handle("revoke", ({ params }) =>
+        Effect.gen(function* () {
+          const minted = state.minted[Number(params.id.replace(/^token-/, "")) - 1];
+          if (minted === undefined || !state.activeTokens.has(minted.token)) {
+            return yield* new Errors.NotFound({ resource: "token", id: params.id });
+          }
+          state.activeTokens.delete(minted.token);
+        }),
+      ),
   );
 
   const auth = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
@@ -343,6 +376,25 @@ const groups = (state: State) => {
       .handle("check", () => unsupported("invites.check")),
   );
 
+  // Signing in happens in the web app; the MCP server only reads the session it leaves.
+  const signIn = HttpApiBuilder.group(Api.StashApi, "signIn", (handlers) =>
+    handlers
+      .handle("providers", () => unsupported("signIn.providers"))
+      .handle("passkeyOptions", () => unsupported("signIn.passkeyOptions"))
+      .handle("passkeySignIn", () => unsupported("signIn.passkeySignIn"))
+      .handle("passkeySignUpOptions", () => unsupported("signIn.passkeySignUpOptions"))
+      .handle("passkeySignUp", () => unsupported("signIn.passkeySignUp"))
+      .handle("googleStart", () => unsupported("signIn.googleStart"))
+      .handle("googleCallback", () => unsupported("signIn.googleCallback"))
+      .handle("methods", () => unsupported("signIn.methods"))
+      .handle("passkeyAddOptions", () => unsupported("signIn.passkeyAddOptions"))
+      .handle("passkeyAdd", () => unsupported("signIn.passkeyAdd"))
+      .handle("passkeyRemove", () => unsupported("signIn.passkeyRemove"))
+      .handle("googleLink", () => unsupported("signIn.googleLink"))
+      .handle("githubLink", () => unsupported("signIn.githubLink"))
+      .handle("accountRemove", () => unsupported("signIn.accountRemove")),
+  );
+
   return Layer.mergeAll(
     links,
     search,
@@ -356,6 +408,7 @@ const groups = (state: State) => {
     events,
     members,
     invites,
+    signIn,
   );
 };
 
@@ -388,6 +441,7 @@ export const layerFetcher = (seed: Seed = {}): Layer.Layer<FetcherService | Test
           links: Effect.sync(() => [...state.links.values()]),
           commands: Effect.sync(() => [...state.commands.values()]),
           mintedTokens: Effect.sync(() => [...state.minted]),
+          activeTokens: Effect.sync(() => [...state.activeTokens]),
           revokeToken: (token) =>
             Effect.sync(() => {
               state.activeTokens.delete(token);

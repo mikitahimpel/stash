@@ -9,6 +9,7 @@ import * as Links from "./links-group.ts";
 import * as Members from "./members-group.ts";
 import * as Pairings from "./pairings-group.ts";
 import * as Search from "./search-group.ts";
+import * as SignIn from "./sign-in-group.ts";
 import * as Tabs from "./tabs-group.ts";
 import * as Tokens from "./tokens-group.ts";
 
@@ -26,4 +27,5 @@ export class StashApi extends HttpApi.make("stash")
   .add(Events.EventsGroup)
   .add(Members.MembersGroup)
   .add(Invites.InvitesGroup)
+  .add(SignIn.SignInGroup)
   .annotateMerge(OpenApi.annotations({ title: "Stash API" })) {}

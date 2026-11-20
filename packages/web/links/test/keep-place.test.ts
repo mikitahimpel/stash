@@ -94,4 +94,29 @@ describe("measure and slide", () => {
     expect(rows["a"]!.style.transition).toBe("");
     expect(rows["a"]!.style.transform).toBe("");
   });
+
+  it("slides a day group below the new row as a whole, so its own box does not jump", () => {
+    const { root, place, add } = list({});
+    const doc = root.ownerDocument;
+    const day = doc.createElement("section");
+    day.dataset["slot"] = "link-day";
+    day.getBoundingClientRect = () => ({ top: place.get(day) ?? 0 }) as DOMRect;
+    const row = add("old");
+    day.append(row);
+    root.append(day);
+    place.set(day, 300);
+    place.set(row, 340);
+    const before = KeepPlace.measure(root);
+    // A new row above the group: the group and its row stand 90px lower.
+    place.set(day, 390);
+    place.set(row, 430);
+    const starts: Array<string> = [];
+    root.getBoundingClientRect = () => {
+      starts.push(day.style.transform, row.style.transform);
+      return {} as DOMRect;
+    };
+    KeepPlace.slide(root, before);
+    // The group carries its row: the row is not moved a second time.
+    expect(starts).toEqual(["translateY(-90px)", ""]);
+  });
 });

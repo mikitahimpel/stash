@@ -1,5 +1,6 @@
 import type * as AnthropicConfig from "@stash/backend-platform/anthropic-config";
 import type * as GithubConfig from "@stash/backend-platform/github-config";
+import type * as GoogleConfig from "@stash/backend-platform/google-config";
 import type * as Live from "@stash/backend-platform/live";
 import type * as StashConfig from "@stash/backend-platform/stash-config";
 
@@ -9,13 +10,16 @@ import type * as StashConfig from "@stash/backend-platform/stash-config";
 // them, semantic search fails and hybrid search answers with keyword results only. The Anthropic
 // key is bound only on deploy too: without it, the enrichment consumer fails each message and the
 // queue retries it. `GITHUB_CLIENT_ID` is missing until the GitHub OAuth app exists: the login
-// routes then answer 503 (`login-not-configured.ts`). `LINK_EVENTS` is the Worker's own Durable
+// routes then answer 503 (`login-not-configured.ts`), and so do the Google routes without
+// `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (a secret; `GOOGLE_FAKE_IDP` only under
+// `alchemy dev`, for the sign-in walk). `LINK_EVENTS` is the Worker's own Durable
 // Object class (`LinkEvents` in `worker.ts`): without it nothing is published and `GET /events`
 // answers 503, so clients fall back to asking.
 export interface WorkerEnv
   extends
     StashConfig.Env,
     Partial<GithubConfig.Env>,
+    Partial<GoogleConfig.Env>,
     Partial<AnthropicConfig.Env>,
     Pick<Live.PlatformEnv, "DB" | "ENRICHMENT_QUEUE" | "KV">,
     Partial<Pick<Live.PlatformEnv, "VECTORS" | "AI" | "BLOBS" | "LINK_EVENTS">> {

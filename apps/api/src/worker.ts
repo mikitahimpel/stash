@@ -8,6 +8,7 @@ import * as Blobs from "@stash/backend-platform/blobs";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as EnrichmentQueue from "@stash/backend-platform/enrichment-queue";
 import * as GithubConfig from "@stash/backend-platform/github-config";
+import * as GoogleConfig from "@stash/backend-platform/google-config";
 import * as HttpClientLive from "@stash/backend-platform/http-client";
 import * as Kv from "@stash/backend-platform/kv";
 import * as LinkEventsService from "@stash/backend-platform/link-events";
@@ -47,6 +48,9 @@ const platform = Layer.mergeAll(
   workerEnv.GITHUB_CLIENT_ID === undefined
     ? Layer.succeed(GithubConfig.GithubConfig)({ clientId: "" })
     : GithubConfig.layerFromEnv(workerEnv),
+  // Sign in with Google is on only with both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; without
+  // them its routes answer 503 before the api runs (see `handleLoginNotConfigured`).
+  GoogleConfig.layerFromEnv(workerEnv),
   HttpClientLive.layer,
   Ai.layer(workerEnv.AI ?? { run: missingBinding("AI") }),
   // The live stream of link changes: every write publishes to its user's own `LinkEvents` object.

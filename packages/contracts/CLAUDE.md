@@ -10,8 +10,8 @@ contracts. Contracts depend on no context.
 
 | Package | Name | Contents |
 |---|---|---|
-| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), link events (`./link-event`), tag, device, tab, command, token, digest, user and account (`./user`: role, daily AI quota, today's AI use), invite (`./invite`), and tagged errors |
-| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect, members (`./members`: the caller's account, and for the owner the list and removing a member), invites (`./invites`: owner-only create / list / revoke, and the open `check`), events (`GET /events`, the live stream: a WebSocket of `LinkEvent` JSON texts from `@stash/contracts-domain/link-event`, 426 for a plain request); plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
+| `domain/` | `@stash/contracts-domain` | Effect Schema for link (with the optional `post` of a link to a post on X), link events (`./link-event`), tag, device, tab, command, token, digest, user and account (`./user`: role, daily AI quota, today's AI use), invite (`./invite`), sign-in methods (`./sign-in`: passkeys, linked Google and GitHub accounts, WebAuthn ceremony JSON), and tagged errors |
+| `api/` | `@stash/contracts-api` | `HttpApi` definition with groups links, search, tabs, devices, tokens, auth, digest, pairings, connect, members (`./members`: the caller's account, and for the owner the list and removing a member), invites (`./invites`: owner-only create / list / revoke, and the open `check`), events (`GET /events`, the live stream: a WebSocket of `LinkEvent` JSON texts from `@stash/contracts-domain/link-event`, 426 for a plain request), signIn (`./sign-in`: passkeys, Google, linking); plus `InternalApi` (`./internal-api`) for Worker-to-Worker calls |
 
 ## May depend on
 
@@ -52,12 +52,17 @@ and no implementations. Servers and clients live in their own contexts.
 - Every endpoint is guarded by `Authorization` from `./security` (bearer API token, then session
   cookie), except `auth.deviceStart` and `auth.devicePoll` (GitHub Device Flow login),
   `pairings.claim` (the extension claims its token with a one-time code its user approved) and
-  `invites.check` (whether an invite link still works, asked before signing in). `Authorization`
+  `invites.check` (whether an invite link still works, asked before signing in), and the open
+  half of `signIn` (`./sign-in`, #178: `providers`, the passkey sign-in and sign-up ceremonies,
+  Google's start and callback). The rest of `signIn` (Settings → Security) also answers
+  `Forbidden` to an API token: only a web session may change how its user signs in. `Authorization`
   provides `CurrentPrincipal` (a device or the user) and `CurrentUser` (whose data: id and role).
   Owner-only endpoints declare `Forbidden`.
 - `InternalApi` (`internal-api.ts`) is a separate `HttpApi`, not part of `StashApi`, with no auth
   middleware: `apps/api` serves it only on a named entrypoint that only a Service Binding reaches.
-  Today it has `internal.createMcpToken` (`POST /internal/mcp-tokens`), which `apps/mcp` calls.
+  It has `internal.createMcpToken` (`POST /internal/mcp-tokens`, by GitHub account) and
+  `internal.createMcpTokenForSession` (`POST /internal/mcp-tokens/session`, by a web session
+  cookie), which `apps/mcp` calls.
 
 ## Testing
 

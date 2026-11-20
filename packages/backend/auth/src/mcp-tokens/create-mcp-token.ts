@@ -4,6 +4,8 @@ import * as Errors from "@stash/contracts-domain/errors";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import type * as Redacted from "effect/Redacted";
+import * as SessionVerifier from "../authorization/session-verifier.ts";
 import * as ApiTokenSecret from "../api-tokens/api-token-secret.ts";
 import * as ApiTokensRepo from "../api-tokens/api-tokens-repo.ts";
 import type * as GithubClient from "../device-flow/github-client.ts";
@@ -23,6 +25,24 @@ export const createMcpToken = Effect.fn("createMcpToken")(function* (
   if (Option.isNone(user)) {
     return yield* new Errors.LoginNotAllowed({ message: "This GitHub login is not allowed" });
   }
+  return yield* mintFor(user.value);
+});
+
+/**
+ * The same token for the user of a web session: the MCP sign-in on the site's own host, after a
+ * passkey, Google or GitHub sign-in in the web app. `Unauthorized` for a session that is unknown,
+ * expired or no longer allowed.
+ */
+export const createMcpTokenForSession = Effect.fn("createMcpTokenForSession")(function* (
+  session: Redacted.Redacted<string>,
+) {
+  const verifier = yield* SessionVerifier.SessionVerifier;
+  const { user } = yield* verifier.verify(session);
+  const created = yield* mintFor(user);
+  return { ...created, userId: user.id };
+});
+
+const mintFor = Effect.fn("mintMcpToken")(function* (user: Security.CurrentUser["Service"]) {
   const repo = yield* ApiTokensRepo.ApiTokensRepo;
   const token = yield* ApiTokenSecret.generate;
   const info = yield* repo
@@ -32,6 +52,6 @@ export const createMcpToken = Effect.fn("createMcpToken")(function* (
       hash: yield* ApiTokenSecret.hash(token),
       createdAt: yield* DateTime.now,
     })
-    .pipe(Effect.provideService(Security.CurrentUser, user.value));
+    .pipe(Effect.provideService(Security.CurrentUser, user));
   return { ...info, token } satisfies ApiToken.CreatedApiToken;
 });
