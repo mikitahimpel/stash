@@ -699,8 +699,8 @@ export const seeded = (now: number, options: { readonly tabs?: TabsScene } = {})
   };
 };
 
-/** The api of a first-run user: signed in, nothing saved, no devices. */
-export const empty: Fixtures = {
+/** The api of a first-run user at `now`: signed in, nothing saved, no devices. */
+export const empty = (now: number): Fixtures => ({
   answer: (method, url) => {
     if (method !== "GET") return undefined;
     const path = url.pathname.replace(/^\/api/, "");
@@ -711,12 +711,12 @@ export const empty: Fixtures = {
     if (path === "/tabs") return { devices: [] };
     if (path === "/search") return { hits: [] };
     // The owner alone: no members, no invites.
-    if (path === "/members/me") return account(Date.now());
-    if (path === "/members") return members(Date.now(), 0).slice(0, 1);
+    if (path === "/members/me") return account(now);
+    if (path === "/members") return members(now, 0).slice(0, 1);
     if (path === "/invites") return [];
     return undefined;
   },
-};
+});
 
 /**
  * The recent searches of a returning user, as the app keeps them in `localStorage`
@@ -746,6 +746,9 @@ interface Created {
  */
 export const connectable = (now: number) => {
   const base = seeded(now);
+  // `now` moves on as the walk does: a first save or use comes after the page has opened.
+  const startedAt = performance.now();
+  const later = () => iso(now + Math.round(performance.now() - startedAt) + 1000);
   const created: Array<Created> = [];
   const contact = new Map<string, { lastSeenAt: string; lastSave: unknown }>();
   const tokens: Array<Record<string, unknown>> = [];
@@ -805,7 +808,7 @@ export const connectable = (now: number) => {
   };
   /** The device `id` gets in touch, with a save titled `title` if given. */
   const arrive = (id: string, title?: string) => {
-    const at = iso(Date.now() + 1000);
+    const at = later();
     contact.set(id, {
       lastSeenAt: at,
       lastSave:
@@ -822,7 +825,7 @@ export const connectable = (now: number) => {
       name: "Claude (MCP)",
       createdAt: iso(now),
       revokedAt: null,
-      lastUsedAt: iso(Date.now() + 1000),
+      lastUsedAt: later(),
     });
   /** The devices the guides registered, newest last. */
   const devices = (): ReadonlyArray<Created> => created;

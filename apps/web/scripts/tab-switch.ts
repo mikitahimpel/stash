@@ -24,6 +24,7 @@
 import * as Fs from "node:fs";
 import * as Path from "node:path";
 import { type Browser, chromium, type CDPSession, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import * as PreviewImages from "./preview-images.ts";
 import * as PreviewServer from "./preview-server.ts";
@@ -90,7 +91,7 @@ interface Api {
 
 const answer = async (page: Page, api: Api) => {
   const { requests } = api;
-  const fixtures = Fixtures.seeded(Date.now());
+  const fixtures = Fixtures.seeded(CheckClock.now());
   // The feed with one more link at its top, as if another device had just saved it.
   const withElsewhere = (body: unknown) => {
     const feed = body as { readonly items?: ReadonlyArray<Record<string, unknown>> };
@@ -145,7 +146,7 @@ interface Row {
 const walk = async (browser: Browser): Promise<ReadonlyArray<Row>> => {
   const rows: Array<Row> = [];
   {
-    const context = await browser.newContext({
+    const context = await CheckClock.newContext(browser, {
       viewport: { width: 1440, height: 900 },
       colorScheme: "light",
       deviceScaleFactor: 1,

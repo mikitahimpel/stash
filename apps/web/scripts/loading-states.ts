@@ -15,6 +15,7 @@
 // (`loading-<page>-<width>-skeleton.png` and `-loaded.png`).
 import * as Path from "node:path";
 import { type Browser, chromium, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import { type Box, boxes, record, shifts } from "./loading-states-probe.ts";
 import * as PreviewImages from "./preview-images.ts";
@@ -148,7 +149,8 @@ const emptyViews = [
 const sleep = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
 const answer = async (page: Page, data: "seeded" | "empty") => {
-  const fixtures = data === "seeded" ? Fixtures.seeded(Date.now()) : Fixtures.empty;
+  const fixtures =
+    data === "seeded" ? Fixtures.seeded(CheckClock.now()) : Fixtures.empty(CheckClock.now());
   await page.route(`${PreviewImages.origin}**`, (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -174,6 +176,23 @@ const answer = async (page: Page, data: "seeded" | "empty") => {
   });
 };
 
+/**
+ * The Inbox opens on Today with two rows or more, as its skeleton draws it. On the wall clock an
+ * early-morning run opened on one row of Today, or on Yesterday (#188); on the checks' clock it
+ * never does.
+ */
+const todayFirst = async (page: Page): Promise<Array<string>> => {
+  const day = page.locator("[data-slot=link-day]").first();
+  // Its first line, the day; the header also counts the day's links (and is set in capitals).
+  const label = (await day.locator("[data-slot=group-header]").innerText()).trim().split("\n")[0];
+  const rows = await day.locator("[data-slot=link-row]").count();
+  return /^today$/i.test(label ?? "") && rows >= 2
+    ? []
+    : [
+        `day groups: the Inbox opens on "${label}" with ${rows} row(s), not on Today with 2 or more`,
+      ];
+};
+
 const differences = (
   name: string,
   skeleton: Box | null,
@@ -197,7 +216,7 @@ const main = async () => {
   try {
     browser = await chromium.launch();
     for (const viewport of viewports) {
-      const context = await browser.newContext({
+      const context = await CheckClock.newContext(browser, {
         viewport: { width: viewport.width, height: viewport.height },
         colorScheme: "light",
         deviceScaleFactor: shots ? 2 : 1,
@@ -263,6 +282,7 @@ const main = async () => {
             );
           }
         }
+        if (view.name === "inbox") found.push(...(await todayFirst(page)));
         if (cls > maxCls) found.push(`CLS ${cls.toFixed(4)} > ${maxCls}: ${moved.join("; ")}`);
         report(view.name, cls, found);
         await page.close();

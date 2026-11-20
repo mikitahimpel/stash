@@ -5,6 +5,7 @@
 // the first save, check-in or use. Also the extension's approve page and `/save`. Exits 1 on the
 // first step that fails.
 import { chromium, type Page } from "playwright";
+import * as CheckClock from "./check-clock.ts";
 import * as Fixtures from "./layout-fixtures.ts";
 import * as PreviewServer from "./preview-server.ts";
 
@@ -159,9 +160,9 @@ const main = async () => {
   let failed = 0;
   try {
     for (const walk of walks) {
-      const context = await browser.newContext({ reducedMotion: "reduce" });
+      const context = await CheckClock.newContext(browser, { reducedMotion: "reduce" });
       const page = await context.newPage();
-      const api = Fixtures.connectable(Date.now());
+      const api = Fixtures.connectable(CheckClock.now());
       await open(page, api, walk.signed ?? false);
       try {
         await walk.run(page, api);
