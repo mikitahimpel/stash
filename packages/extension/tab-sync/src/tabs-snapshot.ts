@@ -7,15 +7,25 @@ import * as Schema from "effect/Schema";
 
 const isUrl = Schema.is(Link.Url);
 
-/** When this browser first saw each open tab, in epoch ms, by tab id. */
-export type OpenedAt = ReadonlyMap<number, number>;
+/** When this browser first saw a tab at its URL, in epoch ms. */
+export interface Seen {
+  readonly url: string | null;
+  readonly at: number;
+}
+
+/**
+ * When this browser first saw each open tab, by tab id, with the URL it had then. Firefox reuses
+ * tab ids in each session, so a time counts only while the tab still has that URL.
+ */
+export type OpenedAt = ReadonlyMap<number, Seen>;
 
 /** Whether the tab goes into a snapshot: an http(s) page outside a private window. */
 export const isReported = (tab: BrowserTabs.Tab): tab is BrowserTabs.Tab & { url: string } =>
   !tab.incognito && tab.url !== null && isUrl(tab.url);
 
 /**
- * `openedAt` for the tabs open now: a tab already known keeps its time, a new one takes `now` (or
+ * `openedAt` for the tabs open now: a tab already known at the same URL keeps its time; a new one,
+ * or one whose URL changed (another page, or a tab id reused after a restart), takes `now` (or
  * the time it was last active, if that is earlier: a tab that was open before this browser
  * started reporting). Closed tabs are forgotten.
  */
@@ -24,7 +34,17 @@ export const trackOpened = (
   tabs: ReadonlyArray<BrowserTabs.Tab>,
   now: number,
 ): OpenedAt =>
-  new Map(tabs.map((tab) => [tab.id, known.get(tab.id) ?? Math.min(now, tab.lastAccessed ?? now)]));
+  new Map(
+    tabs.map((tab) => {
+      const seen = known.get(tab.id);
+      return [
+        tab.id,
+        seen !== undefined && seen.url === tab.url
+          ? seen
+          : { url: tab.url, at: Math.min(now, tab.lastAccessed ?? now) },
+      ];
+    }),
+  );
 
 /**
  * The open tabs as the API stores them, in tab-strip order. Tabs without an http(s) URL
@@ -38,7 +58,7 @@ export const fromTabs = (
   openedAt: OpenedAt = new Map(),
 ): ReadonlyArray<Tab.OpenTab> =>
   tabs.filter(isReported).map((tab) => {
-    const opened = openedAt.get(tab.id);
+    const opened = openedAt.get(tab.id)?.at;
     return {
       url: tab.url as Link.Url,
       title: tab.title,

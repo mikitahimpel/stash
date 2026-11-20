@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import type * as TabsGroup from "@stash/contracts-api/tabs";
 import * as LinkEvent from "@stash/contracts-domain/link-event";
+import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import * as TabPatches from "../src/tab-patches.ts";
 
@@ -11,10 +12,10 @@ const device = (id: string) => ({
   createdAt: "2026-01-01T00:00:00.000Z",
 });
 
-const event = (deviceId: string, takenAt: string, urls: ReadonlyArray<string>) =>
+const event = (deviceId: string, takenAt: string, urls: ReadonlyArray<string>, at = takenAt) =>
   Schema.decodeUnknownSync(LinkEvent.TabsUpdated)({
     type: "tabs.updated",
-    at: takenAt,
+    at,
     device: device(deviceId),
     snapshot: {
       deviceId,
@@ -75,6 +76,47 @@ describe("TabPatches.apply", () => {
       "device-a",
       "device-b",
       "device-c",
+    ]);
+  });
+
+  it("leaves out a device a fresh answer no longer lists, when its patch is older", () => {
+    const all = {
+      ...answer("2026-01-01T00:00:00.000Z"),
+      at: DateTime.makeUnsafe("2026-01-01T00:05:00.000Z"),
+    };
+    // device-c reported, then was deleted; the answer after that does not list it.
+    const gone = event("device-c", "2026-01-01T00:01:00.000Z", ["https://example.com/c"]);
+    expect(TabPatches.apply(all, patches(gone))).toBe(all);
+  });
+
+  it("adds an unlisted device whose patch came after the answer", () => {
+    const all = {
+      ...answer("2026-01-01T00:00:00.000Z"),
+      at: DateTime.makeUnsafe("2026-01-01T00:05:00.000Z"),
+    };
+    // Taken before the answer, sent after it: a device connected while the answer was on its way.
+    const connected = event(
+      "device-c",
+      "2026-01-01T00:04:00.000Z",
+      ["https://example.com/c"],
+      "2026-01-01T00:05:01.000Z",
+    );
+    expect(
+      TabPatches.apply(all, patches(connected)).devices.map((entry) => entry.device.id),
+    ).toEqual(["device-a", "device-b", "device-c"]);
+  });
+
+  it("still lays a listed device's newer set over a fresh answer", () => {
+    const all = {
+      ...answer("2026-01-01T00:00:00.000Z"),
+      at: DateTime.makeUnsafe("2026-01-01T00:05:00.000Z"),
+    };
+    const next = TabPatches.apply(
+      all,
+      patches(event("device-a", "2026-01-01T00:01:00.000Z", ["https://example.com/new"])),
+    );
+    expect(next.devices[0]?.snapshot?.tabs.map((tab) => tab.url)).toEqual([
+      "https://example.com/new",
     ]);
   });
 });

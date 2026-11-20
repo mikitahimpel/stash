@@ -25,8 +25,14 @@ export const DeviceTabs = Schema.Struct({
 });
 export type DeviceTabs = typeof DeviceTabs.Type;
 
+/**
+ * Every device of the user, oldest first. `at` is the server's time of the answer (the api always
+ * sends it): a `tabs.updated` of a device the answer does not list is newer than it only if its
+ * `at` is later, so a client can tell a device deleted since from one connected since.
+ */
 export const AllTabs = Schema.Struct({
   devices: Schema.Array(DeviceTabs),
+  at: Schema.optionalKey(Schema.DateTimeUtcFromString),
 });
 export type AllTabs = typeof AllTabs.Type;
 

@@ -23,7 +23,7 @@ describe("Database (node:sqlite test layer)", () => {
       const inserted = yield* db.run(
         D1Database.sql`INSERT INTO notes (url, pinned) VALUES (${"https://example.com/a"}, ${true})`,
       );
-      expect(inserted).toEqual({ changes: 1, lastRowId: 1 });
+      expect(inserted).toEqual({ changes: 1, lastRowId: 1, rows: [] });
       yield* db.run(
         D1Database.statement(
           "INSERT INTO notes (url, pinned) VALUES (?, ?)",
@@ -62,6 +62,21 @@ describe("Database (node:sqlite test layer)", () => {
       ).pipe(Effect.flip);
       expect(wrong).toBeInstanceOf(D1Database.DatabaseError);
       expect(wrong.operation).toBe("decode");
+    }).pipe(Effect.provide(Testing.layerD1Database)),
+  );
+
+  it.effect("gives back and decodes the rows of a RETURNING clause in a batch", () =>
+    Effect.gen(function* () {
+      const db = yield* setup;
+      const insert = D1Database.sql`INSERT INTO notes (url, pinned)
+        VALUES (${"https://example.com/a"}, ${1}), (${"https://example.com/b"}, ${0})
+        RETURNING id, url, pinned`;
+      const [result] = yield* db.batch([insert]);
+      const notes = yield* D1Database.decodeReturned(Note, insert)(result!);
+      expect([...notes].sort((a, b) => a.id - b.id)).toEqual([
+        { id: 1, url: "https://example.com/a", pinned: 1 },
+        { id: 2, url: "https://example.com/b", pinned: 0 },
+      ]);
     }).pipe(Effect.provide(Testing.layerD1Database)),
   );
 

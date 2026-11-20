@@ -84,7 +84,8 @@ layers.
   asks only for the pending links on screen (`?ids=`, 3 s backing off to 30 s, nothing when none
   is pending). Open tabs come the same way: a `tabs.updated` event (a device's whole new tab set)
   is kept in `@stash/web-api-client/tab-patches` and laid over the cached `GET /tabs` by
-  `OpenTabsAtoms.live`; after a gap of the stream Open now asks for the tabs again in the
+  `OpenTabsAtoms.live` (a device the answer does not list shows only if its event came after the
+  answer's `at`, so a deleted device stays away); after a gap of the stream Open now asks for the tabs again in the
   background. `pnpm --filter @stash/web check:live-updates` checks both in a browser.
 - Any 401 from the api sends the user to the login page, which returns to the page they wanted
   (`@stash/web-auth/auth-guard`). Pages don't handle `Unauthorized` themselves.

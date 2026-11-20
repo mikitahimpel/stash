@@ -29,24 +29,17 @@ export class OpenTabsRepo extends Context.Service<
     /**
      * Replaces the device's tabs in one transaction. A URL that was already open keeps its
      * earliest `opened_at`. A new one takes the reported `openedAt`, or `takenAt` if there is none.
-     * Every tab's `last_seen_at` becomes `takenAt`.
+     * Every tab's `last_seen_at` becomes `takenAt`. Answers the snapshot as it is stored now
+     * (as `listAll` reads it), from the written rows, with no read of its own.
      */
     readonly replace: (
       deviceId: Device.DeviceId,
       takenAt: DateTime.Utc,
       tabs: ReadonlyArray<Tab.OpenTab>,
-    ) => Effect.Effect<void, D1Database.DatabaseError, Security.CurrentUser>;
+    ) => Effect.Effect<Tab.TabsSnapshot, D1Database.DatabaseError, Security.CurrentUser>;
     /** Every device, oldest first, with its snapshot (`null` if it never reported one). */
     readonly listAll: Effect.Effect<
       ReadonlyArray<DeviceSnapshot>,
-      D1Database.DatabaseError,
-      Security.CurrentUser
-    >;
-    /** One of the user's devices with its snapshot, as `listAll` has it. */
-    readonly findDevice: (
-      deviceId: Device.DeviceId,
-    ) => Effect.Effect<
-      Option.Option<DeviceSnapshot>,
       D1Database.DatabaseError,
       Security.CurrentUser
     >;
@@ -102,6 +95,9 @@ const toOpenTab = (row: typeof TabRow.Type): Tab.OpenTab => ({
   ...(row.faviconUrl === null ? {} : { faviconUrl: row.faviconUrl }),
 });
 
+// RETURNING gives the rows in no set order, so they carry their id to be put in tab-strip order.
+const InsertedTabRow = Schema.Struct({ ...TabRow.fields, id: Schema.Number });
+
 const CountRow = Schema.Struct({ count: Schema.Number, start: Schema.Number });
 
 const deviceColumns = `id, name, kind, created_at AS createdAt, tabs_taken_at AS tabsTakenAt`;
@@ -153,9 +149,8 @@ export const make = Effect.gen(function* () {
       // from the old rows. An `INTEGER PRIMARY KEY` gets max(id) + 1, so inside the transaction
       // the device's newest `tabs.length` rows are exactly the new ones.
       // Every statement names the user, and the insert writes nothing unless the device is theirs.
-      yield* db.batch([
-        D1Database.statement(
-          `INSERT INTO open_tabs (device_id, user_id, url, title, opened_at, last_seen_at,
+      const insert = D1Database.statement(
+        `INSERT INTO open_tabs (device_id, user_id, url, title, opened_at, last_seen_at,
               last_active_at, window_id, window_name, favicon_url)
             SELECT ?1, ?4, json_extract(t.value, '$.url'), json_extract(t.value, '$.title'),
               COALESCE(
@@ -172,12 +167,15 @@ export const make = Effect.gen(function* () {
               json_extract(t.value, '$.faviconUrl')
             FROM json_each(?3) AS t
             WHERE EXISTS (SELECT 1 FROM devices d WHERE d.id = ?1 AND d.user_id = ?4)
-            ORDER BY t.key`,
-          deviceId,
-          taken,
-          rows,
-          user.id,
-        ),
+            ORDER BY t.key
+            RETURNING id, ${tabColumns}`,
+        deviceId,
+        taken,
+        rows,
+        user.id,
+      );
+      const [inserted] = yield* db.batch([
+        insert,
         D1Database.statement(
           `DELETE FROM open_tabs WHERE device_id = ?1 AND user_id = ?3 AND id NOT IN (
             SELECT id FROM open_tabs WHERE device_id = ?1 AND user_id = ?3
@@ -189,6 +187,15 @@ export const make = Effect.gen(function* () {
         D1Database.sql`UPDATE devices SET tabs_taken_at = ${taken}
           WHERE id = ${deviceId} AND user_id = ${user.id}`,
       ]);
+      const written = yield* D1Database.decodeReturned(
+        InsertedTabRow,
+        insert,
+      )(inserted!).pipe(provide);
+      return {
+        deviceId,
+        takenAt,
+        tabs: [...written].sort((a, b) => a.id - b.id).map(toOpenTab),
+      };
     }),
     listAll: Effect.gen(function* () {
       const user = yield* Security.CurrentUser;
@@ -206,26 +213,6 @@ export const make = Effect.gen(function* () {
       );
       return withTabs(devices, tabs);
     }).pipe(provide),
-    findDevice: (deviceId) =>
-      Effect.gen(function* () {
-        const user = yield* Security.CurrentUser;
-        const devices = yield* D1Database.query(DeviceRow)(
-          D1Database.statement(
-            `SELECT ${deviceColumns} FROM devices WHERE id = ? AND user_id = ?`,
-            deviceId,
-            user.id,
-          ),
-        );
-        if (devices.length === 0) return Option.none();
-        const tabs = yield* D1Database.query(TabRow)(
-          D1Database.statement(
-            `SELECT ${tabColumns} FROM open_tabs WHERE device_id = ? AND user_id = ? ORDER BY id`,
-            deviceId,
-            user.id,
-          ),
-        );
-        return Option.fromNullishOr(withTabs(devices, tabs)[0]);
-      }).pipe(provide),
     countReport: Effect.fnUntraced(function* (deviceId, nowMillis, windowMillis) {
       const user = yield* Security.CurrentUser;
       return yield* D1Database.queryFirst(CountRow)(

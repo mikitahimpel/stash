@@ -9,7 +9,8 @@ import type * as AtomRegistry from "effect/reactivity/AtomRegistry";
 // (`tabs.updated`), laid over the cached `GET /tabs` answer when it is read. A device's set
 // replaces its snapshot in place, so Open now shows a tab opened on another device without asking
 // again. Of two sets of one device the one taken later wins, so a fresher answer of the api is
-// never undone by an older event.
+// never undone by an older event, and a device the answer no longer lists (deleted, or removed
+// with its member) stays away unless its event came after the answer.
 
 /** The newest `tabs.updated` of each device, by device id. */
 export type Patches = ReadonlyMap<Device.DeviceId, LinkEvent.TabsUpdated>;
@@ -40,9 +41,18 @@ export const markGap = (registry: AtomRegistry.AtomRegistry): void =>
   registry.update(gaps, (count) => count + 1);
 
 /**
- * `all` with every device's newer set laid over it. A device the answer does not list yet (one
- * connected after it) is added at the end, as the api lists devices oldest first. Returns `all`
- * itself when nothing changes, and the devices without a patch as they are.
+ * Whether the patch of a device the answer does not list came after the answer: a device
+ * connected since. One from before it is of a device that is gone. An answer without `at` keeps
+ * every patch.
+ */
+const isAfter = (patch: LinkEvent.TabsUpdated, all: TabsGroup.AllTabs): boolean =>
+  all.at === undefined || DateTime.toEpochMillis(patch.at) > DateTime.toEpochMillis(all.at);
+
+/**
+ * `all` with every device's newer set laid over it. A device the answer does not list is added at
+ * the end, as the api lists devices oldest first, but only when its patch came after the answer
+ * (one connected since); a patch from before it is of a device that is gone, and is left out.
+ * Returns `all` itself when nothing changes, and the devices without a patch as they are.
  */
 export const apply = (all: TabsGroup.AllTabs, patches: Patches): TabsGroup.AllTabs => {
   if (patches.size === 0) return all;
@@ -56,7 +66,7 @@ export const apply = (all: TabsGroup.AllTabs, patches: Patches): TabsGroup.AllTa
     return { device: patch.device, snapshot: patch.snapshot, saved: patch.saved };
   });
   for (const patch of patches.values()) {
-    if (listed.has(patch.device.id)) continue;
+    if (listed.has(patch.device.id) || !isAfter(patch, all)) continue;
     changed = true;
     devices.push({ device: patch.device, snapshot: patch.snapshot, saved: patch.saved });
   }

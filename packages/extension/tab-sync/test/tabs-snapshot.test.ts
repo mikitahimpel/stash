@@ -44,7 +44,9 @@ describe("tabs snapshot", () => {
       }),
       Testing.tab({ id: 2, favIconUrl: "data:image/png;base64,AAAA" }),
     ];
-    const opened = new Map([[1, DateTime.toEpochMillis(now) - 60_000]]);
+    const opened = new Map([
+      [1, { url: "https://example.com/tabs/1", at: DateTime.toEpochMillis(now) - 60_000 }],
+    ]);
     const [first, second] = TabsSnapshot.fromTabs(tabs, now, opened);
     expect(first).toMatchObject({
       openedAt: DateTime.subtract(now, { minutes: 1 }),
@@ -56,26 +58,39 @@ describe("tabs snapshot", () => {
     expect(second).not.toHaveProperty("lastActiveAt");
   });
 
-  it("keeps when a tab was first seen and forgets closed tabs", () => {
+  it("keeps when a tab was first seen at its url and forgets closed tabs", () => {
     const t = 1_000_000;
+    const a = "https://example.com/a";
+    const b = "https://example.com/b";
     const first = TabsSnapshot.trackOpened(
       new Map(),
-      [Testing.tab({ id: 1 }), Testing.tab({ id: 2, lastAccessed: t - 500 })],
+      [Testing.tab({ id: 1, url: a }), Testing.tab({ id: 2, url: b, lastAccessed: t - 500 })],
       t,
     );
     expect([...first]).toEqual([
-      [1, t],
-      [2, t - 500],
+      [1, { url: a, at: t }],
+      [2, { url: b, at: t - 500 }],
     ]);
     const second = TabsSnapshot.trackOpened(
       first,
-      [Testing.tab({ id: 2 }), Testing.tab({ id: 3 })],
+      [Testing.tab({ id: 2, url: b }), Testing.tab({ id: 3, url: a })],
       t + 10,
     );
     expect([...second]).toEqual([
-      [2, t - 500],
-      [3, t + 10],
+      [2, { url: b, at: t - 500 }],
+      [3, { url: a, at: t + 10 }],
     ]);
+  });
+
+  it("starts a tab's time over when its url changes, as for a reused tab id", () => {
+    const t = 1_000_000;
+    const known = new Map([[1, { url: "https://example.com/old", at: t - 86_400_000 }]]);
+    const tracked = TabsSnapshot.trackOpened(
+      known,
+      [Testing.tab({ id: 1, url: "https://example.com/new" })],
+      t,
+    );
+    expect([...tracked]).toEqual([[1, { url: "https://example.com/new", at: t }]]);
   });
 
   it("hashes a switch of tabs and a move to another window, not the time", () => {
@@ -85,7 +100,11 @@ describe("tabs snapshot", () => {
     expect(TabsSnapshot.hash(TabsSnapshot.fromTabs(activated, now))).not.toBe(hash);
     const moved = [{ ...tabs[0]!, windowId: 2 }];
     expect(TabsSnapshot.hash(TabsSnapshot.fromTabs(moved, now))).not.toBe(hash);
-    expect(TabsSnapshot.hash(TabsSnapshot.fromTabs(tabs, now, new Map([[1, 5]])))).toBe(hash);
+    expect(
+      TabsSnapshot.hash(
+        TabsSnapshot.fromTabs(tabs, now, new Map([[1, { url: "https://example.com/a", at: 5 }]])),
+      ),
+    ).toBe(hash);
   });
 
   it("hashes URLs and titles, not the time", () => {

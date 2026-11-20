@@ -7,7 +7,12 @@ import * as DateTime from "effect/DateTime";
 import * as D1Database from "@stash/backend-platform/d1-database";
 import * as Testing from "@stash/backend-platform/testing";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { TestClock } from "effect/testing";
+import * as LinksRepo from "@stash/backend-links/links-repo";
+import * as SaveRateLimiter from "@stash/backend-links/save-rate-limiter";
+import * as DevicesRepo from "../src/devices/devices-repo.ts";
+import * as OpenTabsRepo from "../src/snapshots/open-tabs-repo.ts";
 import * as ListOpenTabs from "../src/snapshots/list-open-tabs.ts";
 import * as ReplaceTabsSnapshot from "../src/snapshots/replace-tabs-snapshot.ts";
 import * as TabsTestLayer from "./tabs-test-layer.ts";
@@ -42,6 +47,41 @@ const iso = (value: DateTime.Utc | null) => (value === null ? null : DateTime.fo
 
 const rows = (snapshot: Tab.TabsSnapshot | null | undefined) =>
   snapshot?.tabs.map((t) => [t.url, iso(t.openedAt), iso(t.lastSeenAt)]);
+
+// The SQL of every read (`all`, `first`) the repos make, in order.
+const reads: Array<string> = [];
+const layerRecordingReads = Layer.mergeAll(
+  DevicesRepo.layer,
+  OpenTabsRepo.layer,
+  LinksRepo.layer,
+  SaveRateLimiter.layer(),
+).pipe(
+  Layer.provideMerge(
+    Layer.mergeAll(
+      Layer.effect(D1Database.Database)(
+        Effect.map(D1Database.Database, (db) =>
+          D1Database.Database.of({
+            ...db,
+            all: (s) =>
+              Effect.andThen(
+                Effect.sync(() => reads.push(s.sql)),
+                db.all(s),
+              ),
+            first: (s) =>
+              Effect.andThen(
+                Effect.sync(() => reads.push(s.sql)),
+                db.first(s),
+              ),
+          }),
+        ),
+      ).pipe(Layer.provide(TabsTestLayer.layerDatabase)),
+      Testing.layerEnrichmentQueue,
+      Testing.layerKv,
+      Testing.layerLinkEvents,
+      Testing.layerCurrentUser(),
+    ),
+  ),
+);
 
 describe("replaceTabsSnapshot", () => {
   it.effect("keeps opened_at for URLs still open and updates last_seen_at", () =>
@@ -94,6 +134,14 @@ describe("replaceTabsSnapshot", () => {
         [TabsTestLayer.macAgent, null],
         [TabsTestLayer.iphone, null],
       ]);
+    }).pipe(Effect.provide(TabsTestLayer.layer)),
+  );
+
+  it.effect("dates the answer with the server's time from before its read", () =>
+    Effect.gen(function* () {
+      yield* TestClock.adjust("90 seconds");
+      const all = yield* ListOpenTabs.listOpenTabs;
+      expect(all.at).toEqual(DateTime.makeUnsafe(90_000));
     }).pipe(Effect.provide(TabsTestLayer.layer)),
   );
 
@@ -237,5 +285,44 @@ describe("replaceTabsSnapshot", () => {
       yield* reportA("2026-02-01T10:01:00.000Z", [tab("https://example.com/x")]);
       expect(rows(yield* snapshotOf(TabsTestLayer.zenA))).toHaveLength(1);
     }).pipe(Effect.provide(TabsTestLayer.layer)),
+  );
+
+  it.effect("announces what it wrote, with the kept times, without reading the tabs back", () =>
+    Effect.gen(function* () {
+      const reportA = report();
+      yield* reportA("2026-02-01T10:00:00.000Z", [tab("https://example.com/kept")]);
+      reads.length = 0;
+      yield* reportA("2026-02-01T11:00:00.000Z", [
+        tab("https://example.com/new"),
+        {
+          ...tab("https://example.com/kept", "2026-02-01T10:59:00.000Z"),
+          window: { id: "2", name: "Work" },
+        },
+        tab("https://example.com/third"),
+      ]);
+      // The device is read once, to check the device may write; its tabs are never read.
+      expect(
+        reads.filter((sql) => /\bFROM open_tabs\b/.test(sql) && /^\s*SELECT/.test(sql)),
+      ).toEqual([]);
+      expect(reads.filter((sql) => /^\s*SELECT[^]*\bFROM devices\b/.test(sql))).toHaveLength(1);
+
+      const published = yield* Testing.TestLinkEvents.use((events) => events.published);
+      const event = published.at(-1);
+      if (event?.type !== "tabs.updated") throw new Error("expected tabs.updated");
+      expect(event.device).toEqual({
+        id: TabsTestLayer.zenA,
+        name: "Synthetic Zen A",
+        kind: "zen",
+        createdAt: at("2026-01-01T00:00:00.000Z"),
+      });
+      // The event holds exactly what a read of the device gives.
+      expect(event.snapshot).toEqual(yield* snapshotOf(TabsTestLayer.zenA));
+      expect(rows(event.snapshot)).toEqual([
+        ["https://example.com/new", "2026-02-01T11:00:00.000Z", "2026-02-01T11:00:00.000Z"],
+        ["https://example.com/kept", "2026-02-01T10:00:00.000Z", "2026-02-01T11:00:00.000Z"],
+        ["https://example.com/third", "2026-02-01T11:00:00.000Z", "2026-02-01T11:00:00.000Z"],
+      ]);
+      expect(event.snapshot.tabs[1]?.window).toEqual({ id: "2", name: "Work" });
+    }).pipe(Effect.provide(layerRecordingReads)),
   );
 });

@@ -43,7 +43,11 @@ export const retryDelayInMinutes = 0.5;
 /** The `browser.storage.local` key that holds when each open tab was first seen (`openedAtKey`). */
 export const openedAtKey = "stash/tab-sync/opened-at";
 
-const OpenedAtEntries = Schema.Array(Schema.Tuple([Schema.Number, Schema.Number]));
+// `[tab id, url, first seen]`. An entry of the older `[tab id, first seen]` form does not decode,
+// so those tabs are seen anew once.
+const OpenedAtEntries = Schema.Array(
+  Schema.Tuple([Schema.Number, Schema.NullOr(Schema.String), Schema.Number]),
+);
 const decodeOpenedAt = Schema.decodeUnknownOption(OpenedAtEntries);
 
 /** The `browser.storage.local` key that holds the `LastSync`. */
@@ -92,11 +96,14 @@ export const sync = Effect.gen(function* () {
         decodeOpenedAt,
       ),
       () => [],
-    ),
+    ).map(([id, url, at]) => [id, { url, at }] as const),
   );
   const openedAt = TabsSnapshot.trackOpened(known, open, DateTime.toEpochMillis(now));
-  if (openedAt.size !== known.size || [...openedAt].some(([id, at]) => known.get(id) !== at)) {
-    yield* storage.set(openedAtKey, [...openedAt]);
+  if (openedAt.size !== known.size || [...openedAt].some(([id, seen]) => known.get(id) !== seen)) {
+    yield* storage.set(
+      openedAtKey,
+      [...openedAt].map(([id, seen]) => [id, seen.url, seen.at]),
+    );
   }
   const openTabs = TabsSnapshot.fromTabs(open, now, openedAt);
   const hash = TabsSnapshot.hash(openTabs);

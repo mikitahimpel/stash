@@ -2,11 +2,11 @@ import type * as TabsApi from "@stash/contracts-api/tabs";
 import * as Security from "@stash/contracts-api/security";
 import type * as Device from "@stash/contracts-domain/device";
 import * as Errors from "@stash/contracts-domain/errors";
+import type * as Tab from "@stash/contracts-domain/tab";
 import * as LinkEvents from "@stash/backend-platform/link-events";
 import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as DeviceAccess from "../device-access.ts";
 import * as FindDevice from "../devices/find-device.ts";
 import * as OpenTabsRepo from "./open-tabs-repo.ts";
@@ -19,16 +19,12 @@ import * as SavedTabs from "./saved-tabs.ts";
 export const reportLimit = { count: 60, windowMillis: 60_000 } as const;
 
 /**
- * Sends `tabs.updated` with the device's tabs as they are stored now (with the `openedAt` the
+ * Sends `tabs.updated` with the device's tabs as they were just stored (with the `openedAt` the
  * api kept) and which of them are saved. Never fails: a stream that misses it only makes Open now
  * wait for the next report or its own refresh.
  */
-const publish = (deviceId: Device.DeviceId) =>
+const publish = (device: Device.Device, snapshot: Tab.TabsSnapshot) =>
   Effect.gen(function* () {
-    const repo = yield* OpenTabsRepo.OpenTabsRepo;
-    const found = yield* repo.findDevice(deviceId);
-    if (Option.isNone(found) || found.value.snapshot === null) return;
-    const { device, snapshot } = found.value;
     const saved = yield* SavedTabs.savedTabs(snapshot.tabs);
     const user = yield* Security.CurrentUser;
     const events = yield* LinkEvents.LinkEvents;
@@ -41,7 +37,7 @@ const publish = (deviceId: Device.DeviceId) =>
     });
   }).pipe(
     Effect.catchCause((cause) =>
-      Effect.logWarning(`tabs events: ${deviceId} was not read for its update`, cause),
+      Effect.logWarning(`tabs events: ${device.id} was not published`, cause),
     ),
   );
 
@@ -65,6 +61,6 @@ export const replaceTabsSnapshot = Effect.fn("replaceTabsSnapshot")(function* (
       retryAfterSeconds: Math.max(1, Math.ceil((window.endsAt - now) / 1000)),
     });
   }
-  yield* repo.replace(deviceId, report.takenAt, report.tabs);
-  yield* publish(deviceId);
+  const snapshot = yield* repo.replace(deviceId, report.takenAt, report.tabs);
+  yield* publish(device, snapshot);
 });
