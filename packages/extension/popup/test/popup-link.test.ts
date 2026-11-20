@@ -25,7 +25,99 @@ describe("PopupLink", () => {
       tags: ["video"],
       savedAt: Date.UTC(2026, 0, 1),
       enriched: true,
+      post: null,
     });
+  });
+
+  const author = {
+    name: "Ada Example",
+    handle: "ada_example",
+    avatarUrl: "https://images.example.com/ada.jpg",
+    verified: true,
+  };
+  const post = (fields: Record<string, unknown> = {}) => ({
+    state: "available",
+    id: "1",
+    url: "https://x.com/ada_example/status/1",
+    author,
+    text: "First line\n\nsecond  line",
+    entities: [],
+    createdAt: null,
+    media: [],
+    replyTo: null,
+    counts: null,
+    long: false,
+    quoted: null,
+    ...fields,
+  });
+
+  it("shows a post's author and words", () => {
+    const link = PopupLink.fromLink(
+      decode(PopupApi.link("p", { url: "https://x.com/ada_example/status/1", post: post() })),
+    );
+    expect(link.post).toEqual({
+      state: "available",
+      name: "Ada Example",
+      handle: "ada_example",
+      avatarUrl: "https://images.example.com/ada.jpg",
+      verified: true,
+      text: "First line second line",
+      previewUrl: null,
+      video: false,
+    });
+  });
+
+  it("previews a post with its first photo or its video's poster", () => {
+    const photo = (url: string) => ({ kind: "photo", url, width: 1200, height: 800 });
+    const photos = PopupLink.fromLink(
+      decode(
+        PopupApi.link("p", {
+          post: post({
+            text: " ",
+            media: [
+              photo("https://images.example.com/1.jpg"),
+              photo("https://images.example.com/2.jpg"),
+            ],
+          }),
+        }),
+      ),
+    );
+    expect(photos.post).toMatchObject({
+      text: "2 photos",
+      previewUrl: "https://images.example.com/1.jpg",
+      video: false,
+    });
+    const video = PopupLink.fromLink(
+      decode(
+        PopupApi.link("v", {
+          post: post({
+            media: [
+              {
+                kind: "video",
+                posterUrl: "https://images.example.com/poster.jpg",
+                videoUrl: null,
+                width: null,
+                height: null,
+                durationMs: null,
+              },
+            ],
+          }),
+        }),
+      ),
+    );
+    expect(video.post).toMatchObject({
+      previewUrl: "https://images.example.com/poster.jpg",
+      video: true,
+    });
+  });
+
+  it("says a post that could not be read is unavailable", () => {
+    const unavailable = { state: "unavailable", id: "2", url: "https://x.com/i/status/2" };
+    const untitled = PopupLink.fromLink(
+      decode(PopupApi.link("u", { title: null, post: unavailable })),
+    );
+    expect(untitled.post).toEqual({ state: "unavailable" });
+    expect(untitled.title).toBe("Post unavailable");
   });
 
   it("falls back to the host for a link without a title", () => {

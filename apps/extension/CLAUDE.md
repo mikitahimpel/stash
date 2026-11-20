@@ -46,6 +46,12 @@ platform services. WXT-generated code is the only exception.
 - The toolbar popup (`entrypoints/popup/`) only shows state and calls its `actions`
   (`popup-actions.ts`, which run `@stash/ext-popup` effects). It pairs nothing itself: "Connect
   this browser" opens the options page, because a popup closes as soon as another tab opens.
+- A post on X (`link.post`) is a recent row in a post's order, as in the web Inbox ("Media rows"
+  in [docs/design.md](../../docs/design.md)): the author's line (16px picture, name, verified
+  mark, @handle, age) first, then the post's words on two lines; the preview is its first photo or
+  video poster (with a play mark), else the author's picture. A post that could not be read is an
+  ordinary row that says `Post unavailable`. Remote pictures load lazily with
+  `referrerpolicy="no-referrer"`.
 - Removing a link is a hard delete. The popup never puts the focus on Undo or Remove, offers the
   one-click Undo only for a link its own Save just created (`created: true`), and asks before
   removing any other.
@@ -84,7 +90,7 @@ page decides: the focus and the confirmation before a delete. The options page h
 - `test/background.test.ts`, `test/save-config.test.ts`, `test/build-origin.test.ts`,
   `test/options-actions.test.ts`, `test/options-page.test.ts`, `test/popup-actions.test.ts`,
   `test/popup-page.test.ts` (mounts the page in happy-dom over fake `actions`: where the focus goes,
-  and that removing a link takes a deliberate click)
+  and that removing a link takes a deliberate click; a post's row in a post's order)
 
 ## Commands
 

@@ -67,6 +67,7 @@ const link = (
   minutesAgo: number,
   imageUrl: string | null,
   tags: ReadonlyArray<string> = [],
+  post: PopupLink.PopupPost | null = null,
 ): PopupLink.PopupLink => ({
   id: Link.LinkId.make(id),
   url: `https://${host}/${id}`,
@@ -76,6 +77,32 @@ const link = (
   tags,
   savedAt: now - minutesAgo * minute,
   enriched: true,
+  post,
+});
+
+/** A round picture for a made-up author: a coloured disc with an initial. */
+const avatar = (fill: string, letter: string) =>
+  svg(
+    `<rect width="48" height="48" fill="${fill}"/><text x="24" y="31" font-family="sans-serif" font-size="22" font-weight="600" fill="#ffffff" text-anchor="middle">${letter}</text>`,
+    "0 0 48 48",
+  );
+
+const post = (
+  name: string,
+  handle: string,
+  text: string,
+  avatarUrl: string,
+  previewUrl: string | null = null,
+  video = false,
+): PopupLink.PopupPost => ({
+  state: "available",
+  name,
+  handle,
+  avatarUrl,
+  verified: false,
+  text,
+  previewUrl,
+  video,
 });
 
 const page: PopupView.Page = {
@@ -95,26 +122,44 @@ const recent = [
     code("#1f2937", "#60a5fa"),
   ),
   link(
+    "post-words",
+    "Rowan Example: Shipped the smallest possible version today.",
+    "x.com",
+    60 * 3,
+    null,
+    [],
+    post(
+      "Rowan Example",
+      "rowan_example",
+      "Shipped the smallest possible version today. It does one thing, and the list of what it leaves out is longer than the list of what it does.",
+      avatar("#0f766e", "R"),
+    ),
+  ),
+  link(
     "queues",
     "What a queue buys you, and what it costs",
     "example.net",
     60 * 5,
     chart("#3b1d60", "#f0abfc"),
   ),
+  link("post-gone", "Post unavailable", "x.com", 60 * 24 * 6, null, [], {
+    state: "unavailable",
+  }),
   link(
-    "walk",
-    "A slow walk along the northern coast",
-    "travel.example.com",
-    60 * 26,
-    hills("#f59e0b", "#7c2d12"),
-  ),
-  link("reading", "Reading list for a long winter", "example.org", 60 * 24 * 4, null),
-  link(
-    "sqlite",
-    "Full-text search in a single file",
-    "db.example.com",
-    60 * 24 * 16,
-    code("#0f3d2e", "#34d399"),
+    "post-video",
+    "Example Studio: A minute on how the coast walk was filmed",
+    "x.com",
+    60 * 30,
+    null,
+    [],
+    post(
+      "Example Studio",
+      "example_studio",
+      "A minute on how the coast walk was filmed, with one camera and a lot of patience.",
+      avatar("#9333ea", "E"),
+      hills("#0ea5e9", "#14532d"),
+      true,
+    ),
   ),
 ];
 
@@ -133,7 +178,7 @@ const connected: PopupView.Connection = {
 const views = {
   "not-paired": { connection: { _tag: "NotPaired" }, saved: null, recent: [] },
   paired: { connection: connected, saved: null, recent },
-  saved: { connection: connected, saved: savedPage, recent: [savedPage, ...recent.slice(0, 4)] },
+  saved: { connection: connected, saved: savedPage, recent: [savedPage, ...recent.slice(0, 3)] },
 } satisfies Record<string, PopupView.View>;
 
 export type State = keyof typeof views;
