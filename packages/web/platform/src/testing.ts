@@ -19,6 +19,7 @@ import type * as Live from "./live.ts";
 import { Keyboard, type KeyPress } from "./keyboard.ts";
 import { LiveSocket, LiveSocketError } from "./live-socket.ts";
 import { Network } from "./network.ts";
+import { PasskeyError, Passkeys, type Json, type PasskeyErrorReason } from "./passkeys.ts";
 import * as RecentSearches from "./recent-searches.ts";
 import { Share, ShareError, type ShareData } from "./share.ts";
 import * as Theme from "./theme.ts";
@@ -327,6 +328,36 @@ export const layerKeyboard: Layer.Layer<Keyboard | TestKeyboard> = Layer.effectC
 /** The real recent-searches logic on a store of its own, in memory. */
 export const layerRecentSearches: Layer.Layer<RecentSearches.RecentSearches> =
   RecentSearches.layer.pipe(Layer.provide(layerKeyValueStore));
+
+/**
+ * Passkeys answered by `authenticator` (a software one in tests). It gets each ceremony's options
+ * and returns the credential, or a `PasskeyErrorReason` to fail with. Without one, every ceremony
+ * fails as in a browser without WebAuthn.
+ */
+export const layerPasskeys = (authenticator?: {
+  readonly create: (options: Json) => Promise<Json | PasskeyErrorReason>;
+  readonly get: (options: Json) => Promise<Json | PasskeyErrorReason>;
+}): Layer.Layer<Passkeys> => {
+  const run = (answer: (options: Json) => Promise<Json | PasskeyErrorReason>, options: Json) =>
+    Effect.promise(() => answer(options)).pipe(
+      Effect.flatMap((result) =>
+        typeof result === "string"
+          ? Effect.fail(new PasskeyError({ reason: result }))
+          : Effect.succeed(result),
+      ),
+    );
+  return Layer.succeed(Passkeys)({
+    supported: Effect.succeed(authenticator !== undefined),
+    create: (options) =>
+      authenticator === undefined
+        ? Effect.fail(new PasskeyError({ reason: "Unsupported" }))
+        : run(authenticator.create, options),
+    get: (options) =>
+      authenticator === undefined
+        ? Effect.fail(new PasskeyError({ reason: "Unsupported" }))
+        : run(authenticator.get, options),
+  });
+};
 
 /** Every service from `./live`, in memory, plus the test controls. */
 export const layer: Layer.Layer<

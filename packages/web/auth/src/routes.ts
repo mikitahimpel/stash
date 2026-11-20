@@ -31,6 +31,12 @@ export const returnTo = (query: LocationQuery): string => {
 };
 
 /**
+ * Whether `path` is served by a Worker rather than the app (the MCP sign-in's `/authorize/...`,
+ * or the api's `/api/...`), so opening it is a full page load.
+ */
+export const isServerPath = (path: string): boolean => /^\/(authorize|api)(\/|\?|$)/.test(path);
+
+/**
  * Whether `route` opens without a session: the login page, and pages that set `meta.public` (such
  * as the app's dev-only UI gallery).
  */

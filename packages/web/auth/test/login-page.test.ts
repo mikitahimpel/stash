@@ -157,7 +157,7 @@ describe("login page", () => {
     const { wrapper, copied } = await mountPage([pending]);
     expect(wrapper.find("[data-test=device-code]").exists()).toBe(false);
 
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
 
     expect(wrapper.find("[data-test=user-code]").text()).toBe("WDJB-MJHT");
@@ -174,7 +174,7 @@ describe("login page", () => {
 
   it("counts down to the expiry", async () => {
     const { wrapper } = await mountPage([pending]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(61);
     expect(wrapper.find("[data-test=countdown]").text()).toBe("13:59");
@@ -182,7 +182,7 @@ describe("login page", () => {
 
   it("polls at the server's interval, stops on complete and opens the app", async () => {
     const { wrapper, router, polls } = await mountPage([pending, pending, complete]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
 
     await wait(4);
@@ -197,7 +197,7 @@ describe("login page", () => {
 
   it("waits 5 seconds longer after slow_down", async () => {
     const { wrapper, polls } = await mountPage([slowDown, pending, slowDown, pending]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
 
     await wait(5 + 10 + 10 + 15);
@@ -208,7 +208,7 @@ describe("login page", () => {
 
   it("shows restart when the flow expired, and starts a new one", async () => {
     const { wrapper, polls, starts } = await mountPage([error("DeviceFlowExpired", 410)]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
 
@@ -229,7 +229,7 @@ describe("login page", () => {
 
   it("expires on its own once the countdown ran out", async () => {
     const { wrapper, polls } = await mountPage([pending]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await vi.advanceTimersByTimeAsync(900_000);
     await wait(5);
@@ -243,7 +243,7 @@ describe("login page", () => {
     ["LoginNotAllowed", "Ask its owner for an invite", "Use another account"],
   ])("shows a clear state for %s", async (tag, message, action) => {
     const { wrapper, router } = await mountPage([error(tag, 403)]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
 
@@ -261,7 +261,7 @@ describe("login page", () => {
       path: "/login?redirect=/open-now",
     });
     reg.set(AuthAtoms.signedOut, true);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     expect(router.currentRoute.value.fullPath).toBe("/open-now");
@@ -273,19 +273,19 @@ describe("login page", () => {
       start: () =>
         ApiTesting.json({ _tag: "NotConfigured", message: "GitHub login is not configured" }, 503),
     });
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     const state = wrapper.find("[data-test=not-configured]");
     expect(state.text()).toContain("Sign-in isn't configured on this deployment yet.");
     expect(wrapper.find("[role=alert]").exists()).toBe(false);
-    expect(wrapper.find("[data-test=sign-in]").exists()).toBe(false);
+    expect(wrapper.find("[data-test=github]").exists()).toBe(false);
     expect(polls).toEqual([]);
   });
 
   it("shows the error and Retry when a poll can't reach the api", async () => {
     const { wrapper } = await mountPage([() => new Response("oops", { status: 500 })]);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     expect(wrapper.find("[role=alert]").text()).toContain("Couldn't reach stash");
@@ -298,7 +298,7 @@ describe("login page", () => {
     const { wrapper, starts } = await mountPage([pending], {
       start: () => (fail ? new Response("oops", { status: 502 }) : ApiTesting.json({ ...started })),
     });
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
 
     expect(starts()).toBe(1);
@@ -323,7 +323,7 @@ describe("login page", () => {
     Object.defineProperty(browser, "clipboard", { value: undefined, configurable: true });
     try {
       const { wrapper } = await mountPage([pending], { clipboard: WebPlatform.layerClipboard });
-      await wrapper.find("[data-test=sign-in]").trigger("click");
+      await wrapper.find("[data-test=github]").trigger("click");
       await settle();
       expect(wrapper.find("[data-test=user-code]").text()).toBe("WDJB-MJHT");
       expect(wrapper.find("[data-test=verification-link]").attributes("target")).toBe("_blank");
@@ -366,9 +366,9 @@ describe("login page opened by an invite link", () => {
     expect(checks).toEqual([{ token }]);
     const line = wrapper.find("[data-test=invite]");
     expect(line.attributes("data-state")).toBe("open");
-    expect(line.text()).toContain("You're invited");
+    expect(line.text()).toContain("You were invited to Stash");
 
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(10);
     // Every poll carries the invite: the api uses it when the account is new.
@@ -389,7 +389,7 @@ describe("login page opened by an invite link", () => {
     expect(line.attributes("role")).toBe("alert");
     expect(line.text()).toContain("no longer works");
 
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     expect(pollBodies).toEqual([{ flowId: "flow-1", invite: token }]);
@@ -403,7 +403,7 @@ describe("login page opened by an invite link", () => {
     const { wrapper, checks, pollBodies } = await mountPage([pending], { invite: null });
     expect(checks).toEqual([]);
     expect(wrapper.find("[data-test=invite]").attributes("data-state")).toBe("closed");
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     expect(pollBodies).toEqual([{ flowId: "flow-1" }]);
@@ -412,7 +412,7 @@ describe("login page opened by an invite link", () => {
   it("the plain login page shows no invite line and sends no invite", async () => {
     const { wrapper, checks, pollBodies } = await mountPage([pending]);
     expect(wrapper.find("[data-test=invite]").exists()).toBe(false);
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await settle();
     await wait(5);
     expect(checks).toEqual([]);

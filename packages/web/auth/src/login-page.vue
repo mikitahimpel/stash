@@ -4,6 +4,8 @@ import type * as Invite from "@stash/contracts-domain/invite";
 import Button from "@stash/web-ui/button";
 import CenteredScreen from "@stash/web-ui/centered-screen";
 import DeviceCode from "@stash/web-ui/device-code";
+import TextLink from "@stash/web-ui/text-link";
+import * as PageNavigation from "@stash/web-platform/page-navigation";
 import Wordmark from "@stash/web-ui/wordmark";
 import * as Exit from "effect/Exit";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
@@ -13,6 +15,7 @@ import { useRoute, useRouter } from "vue-router";
 import * as AuthAtoms from "./auth-atoms.ts";
 import * as DeviceLoginAtoms from "./device-login-atoms.ts";
 import * as Routes from "./routes.ts";
+import * as SignInAtoms from "./sign-in-atoms.ts";
 
 // What the page reads when it has no invite to check.
 const noInvite = Atom.make(AsyncResult.initial<DeviceLoginAtoms.InviteState>());
@@ -56,12 +59,76 @@ const failure = computed(() =>
 );
 
 // Signed in: the session cookie is set, and the guard lets the app through to the page the user
-// wanted.
-watch(login, (value) => {
-  if (value?.step !== "complete") return;
+// wanted. A page outside the app (the MCP sign-in's `/authorize/session`) is a full navigation.
+const signedIn = ref(false);
+const openApp = () => {
+  signedIn.value = true;
   setSignedOut(false);
-  void router.push(Routes.returnTo(route.query));
+  const path = Routes.returnTo(route.query);
+  if (Routes.isServerPath(path)) PageNavigation.navigateTo(path);
+  else void router.push(path);
+};
+watch(login, (value) => {
+  if (value?.step === "complete") openApp();
 });
+
+// Passkeys and Google.
+const providers = useAtomValue(() => SignInAtoms.providers);
+const googleOn = computed(
+  () => AsyncResult.isSuccess(providers.value) && providers.value.value.google,
+);
+// An open invite makes a new account with a passkey; otherwise a passkey signs in.
+const joining = computed(() => props.invite && inviteState.value === "open");
+const [passkeyIn, runSignIn] = useAtom(() => SignInAtoms.signInWithPasskey);
+const [passkeyUp, runSignUp] = useAtom(() => SignInAtoms.signUpWithPasskey);
+const passkeyResult = ref<"in" | "up" | undefined>();
+const passkeyOutcome = computed(() => {
+  const result = passkeyResult.value === "up" ? passkeyUp.value : passkeyIn.value;
+  return passkeyResult.value !== undefined && AsyncResult.isSuccess(result)
+    ? result.value
+    : undefined;
+});
+const passkeyBusy = computed(
+  () =>
+    (passkeyResult.value === "up" ? passkeyUp.value : passkeyIn.value).waiting &&
+    passkeyResult.value !== undefined,
+);
+watch(passkeyOutcome, (outcome) => {
+  if (outcome === "signedIn") openApp();
+});
+const passkey = (mode: "in" | "up") => {
+  passkeyResult.value = mode;
+  if (mode === "up" && props.invite) runSignUp(props.invite);
+  else runSignIn();
+};
+const passkeyText = computed(() => {
+  switch (passkeyOutcome.value) {
+    case "unknown":
+      return "This passkey doesn't open an account in this stash.";
+    case "exists":
+      return "This device already has a passkey for this account.";
+    case "unsupported":
+      return "This browser can't use passkeys. Continue with Google or GitHub.";
+    case "closed":
+      return "This invite link no longer works. Ask for a new one.";
+    case "rateLimited":
+      return "Too many tries. Wait a minute and try again.";
+    case "failed":
+      return "Couldn't sign in with the passkey. Check the connection and try again.";
+    default:
+      return undefined;
+  }
+});
+
+const google = () =>
+  PageNavigation.navigateTo(
+    SignInAtoms.googleStartUrl({
+      invite: joining.value ? (props.invite ?? undefined) : undefined,
+      redirect: Routes.returnTo(route.query),
+    }),
+  );
+// The Google callback comes back with `?signin=<code>` when it did not sign anyone in.
+const googleText = computed(() => SignInAtoms.googleErrorText(route.query[SignInAtoms.errorParam]));
 
 // The countdown ticks once a second while a code is shown.
 const now = ref(Date.now());
@@ -175,8 +242,8 @@ const ended = computed(() => {
       </Button>
     </section>
 
-    <template v-else-if="login?.step !== 'complete'">
-      <!-- The line keeps its place while the invite is checked, so the button does not move. -->
+    <template v-else-if="login?.step !== 'complete' && !signedIn">
+      <!-- The line keeps its place while the invite is checked, so the buttons do not move. -->
       <p
         v-if="inviteState !== undefined"
         class="max-w-sm text-center text-body"
@@ -188,15 +255,48 @@ const ended = computed(() => {
         {{
           inviteState === "closed"
             ? "This invite link no longer works. If you already have an account, sign in."
-            : "You're invited to this stash. Sign in with GitHub to join."
+            : "You were invited to Stash. Choose how you'll sign in."
         }}
       </p>
-      <Button as-child variant="primary" size="lg">
-        <button type="button" :disabled="starting" data-test="sign-in" @click="restart">
-          Sign in with GitHub
-        </button>
-      </Button>
-      <p class="text-meta text-muted-foreground">you'll get a code to enter on github.com</p>
+      <p
+        v-if="googleText ?? passkeyText"
+        role="alert"
+        class="max-w-sm text-center text-body"
+        data-test="sign-in-error"
+      >
+        {{ passkeyText ?? googleText }}
+      </p>
+      <div class="flex w-full max-w-xs flex-col gap-2">
+        <Button as-child variant="primary" size="lg" class="w-full">
+          <button
+            type="button"
+            :disabled="passkeyBusy"
+            data-test="passkey"
+            @click="passkey(joining ? 'up' : 'in')"
+          >
+            Continue with passkey
+          </button>
+        </Button>
+        <Button v-if="googleOn" as-child size="lg" class="w-full">
+          <button type="button" data-test="google" @click="google">Continue with Google</button>
+        </Button>
+        <Button as-child size="lg" class="w-full">
+          <button type="button" :disabled="starting" data-test="github" @click="restart">
+            Continue with GitHub
+          </button>
+        </Button>
+      </div>
+      <p class="text-meta text-muted-foreground">
+        <template v-if="joining">
+          Already a member?
+          <TextLink as-child
+            ><button type="button" data-test="passkey-sign-in" @click="passkey('in')">
+              Sign in with a passkey
+            </button></TextLink
+          >
+        </template>
+        <template v-else>Face ID, Touch ID or a security key · GitHub gives you a code</template>
+      </p>
     </template>
 
     <p v-else class="text-body text-muted-foreground" data-test="signed-in">
