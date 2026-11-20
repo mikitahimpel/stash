@@ -120,7 +120,7 @@ describe("auth guard", () => {
     const { wrapper, router } = await mountApp(path, false);
     expect(router.currentRoute.value.name).toBe("login");
     expect(wrapper.find("nav").exists()).toBe(false);
-    expect(wrapper.find("main button").text()).toBe("Sign in with GitHub");
+    expect(wrapper.find("main button").text()).toBe("Continue with passkey");
   });
 
   it("renders the page when signed in", async () => {
@@ -210,7 +210,7 @@ describe("login gate", () => {
     expect(router.currentRoute.value.query["redirect"]).toBe(path);
     expect(saved).toEqual([]);
 
-    await wrapper.find("[data-test=sign-in]").trigger("click");
+    await wrapper.find("[data-test=github]").trigger("click");
     await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(path), {
       timeout: 10_000,
     });
@@ -231,7 +231,7 @@ describe("login gate", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("login");
     await vi.waitFor(() =>
-      expect(wrapper.find("[data-test=sign-in]").text()).toBe("Sign in with GitHub"),
+      expect(wrapper.find("[data-test=github]").text()).toBe("Continue with GitHub"),
     );
   });
 });
