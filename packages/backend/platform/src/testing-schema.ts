@@ -311,4 +311,25 @@ CREATE TABLE passkeys (
 ) WITHOUT ROWID;
 
 CREATE INDEX passkeys_user_id_idx ON passkeys (user_id);
+
+CREATE TABLE passkey_challenges (
+  id TEXT PRIMARY KEY,
+  -- The challenge and what it is for, as JSON.
+  challenge TEXT NOT NULL,
+  -- Epoch milliseconds.
+  expires_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX passkey_challenges_expires_at_idx ON passkey_challenges (expires_at);
+
+CREATE TABLE google_flows (
+  -- The OAuth state of the sign-in.
+  state TEXT PRIMARY KEY,
+  -- The PKCE verifier, the nonce, the binding cookie's hash and what the sign-in is for, as JSON.
+  flow TEXT NOT NULL,
+  -- Epoch milliseconds.
+  expires_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX google_flows_expires_at_idx ON google_flows (expires_at);
 `;

@@ -38,7 +38,12 @@ const provider = OAuthProvider.make({
   mintForSession: (session) =>
     Effect.runPromise(
       ApiClient.createMcpTokenForSession(workerEnv, Redacted.make(session)).pipe(
-        Effect.map(({ token, userId }) => ({ token: Redacted.value(token), userId })),
+        Effect.map(({ id, token, userId }) => ({
+          token: Redacted.value(token),
+          userId,
+          revoke: () =>
+            Effect.runPromise(ApiClient.revokeOwnToken(workerEnv, token, id).pipe(Effect.ignore)),
+        })),
         // The session is unknown or expired: sign in again.
         Effect.catchTag("Unauthorized", () => Effect.succeed(null)),
       ),

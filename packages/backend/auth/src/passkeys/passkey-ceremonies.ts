@@ -79,7 +79,7 @@ const verifyRegistration = (credential: SignIn.PasskeyCredential, challenge: str
         expectedChallenge: challenge,
         expectedOrigin: rp.origin,
         expectedRPID: rp.id,
-        requireUserVerification: false,
+        requireUserVerification: true,
         supportedAlgorithmIDs: algorithms,
       }),
     ).pipe(Effect.result);
@@ -117,7 +117,7 @@ const registrationOptions = (user: {
             ? {}
             : { transports: parseTransports(passkey.transports)! }),
         })),
-        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+        authenticatorSelection: { residentKey: "required", userVerification: "required" },
         supportedAlgorithmIDs: algorithms,
       }),
     );
@@ -128,7 +128,7 @@ export const signInOptions = Effect.fn("passkeySignInOptions")(function* () {
   const rp = yield* RelyingParty.relyingParty;
   const challenges = yield* PasskeyChallenges.PasskeyChallenges;
   const options = yield* Effect.promise(() =>
-    generateAuthenticationOptions({ rpID: rp.id, timeout, userVerification: "preferred" }),
+    generateAuthenticationOptions({ rpID: rp.id, timeout, userVerification: "required" }),
   );
   const challengeId = yield* challenges.put({ kind: "sign-in", challenge: options.challenge });
   return { challengeId, options: asJson(options) };
@@ -170,7 +170,7 @@ export const signIn = Effect.fn("passkeySignIn")(function* (
         counter: passkey.counter,
         ...(transports === undefined ? {} : { transports: transports as never }),
       },
-      requireUserVerification: false,
+      requireUserVerification: true,
     }),
   ).pipe(Effect.result);
   if (Result.isFailure(verified) || !verified.success.verified) return yield* notAllowed();

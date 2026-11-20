@@ -56,6 +56,8 @@ export class TestApi extends Context.Service<
     readonly mintedTokens: Effect.Effect<
       ReadonlyArray<{ readonly token: string; readonly login: string }>
     >;
+    /** The tokens the fake api accepts now. */
+    readonly activeTokens: Effect.Effect<ReadonlyArray<string>>;
     /** Revokes a token, as Settings does: the fake api then answers it with 401. */
     readonly revokeToken: (token: string) => Effect.Effect<void>;
   }
@@ -313,7 +315,15 @@ const groups = (state: State) => {
     handlers
       .handle("list", () => unsupported("tokens.list"))
       .handle("create", () => unsupported("tokens.create"))
-      .handle("revoke", () => unsupported("tokens.revoke")),
+      .handle("revoke", ({ params }) =>
+        Effect.gen(function* () {
+          const minted = state.minted[Number(params.id.replace(/^token-/, "")) - 1];
+          if (minted === undefined || !state.activeTokens.has(minted.token)) {
+            return yield* new Errors.NotFound({ resource: "token", id: params.id });
+          }
+          state.activeTokens.delete(minted.token);
+        }),
+      ),
   );
 
   const auth = HttpApiBuilder.group(Api.StashApi, "auth", (handlers) =>
@@ -431,6 +441,7 @@ export const layerFetcher = (seed: Seed = {}): Layer.Layer<FetcherService | Test
           links: Effect.sync(() => [...state.links.values()]),
           commands: Effect.sync(() => [...state.commands.values()]),
           mintedTokens: Effect.sync(() => [...state.minted]),
+          activeTokens: Effect.sync(() => [...state.activeTokens]),
           revokeToken: (token) =>
             Effect.sync(() => {
               state.activeTokens.delete(token);

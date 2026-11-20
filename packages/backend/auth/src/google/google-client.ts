@@ -23,6 +23,22 @@ import * as Schema from "effect/Schema";
 /** How long one call to Google may take. */
 export const requestTimeout = Duration.seconds(10);
 
+/** The longest Google's keys are trusted without fetching them again, whatever its cache says. */
+export const maxKeysAgeMillis = 60 * 60 * 1000;
+
+/**
+ * How long the keys of a JWKS answer may be kept: its `Cache-Control: max-age`, at most
+ * `maxKeysAgeMillis` (also when the header is missing). `no-store` / `no-cache` keep them for this
+ * one verification only.
+ */
+export const keysAgeMillis = (cacheControl: string | undefined): number => {
+  const header = (cacheControl ?? "").toLowerCase();
+  if (/\bno-(store|cache)\b/.test(header)) return 0;
+  const maxAge = /\bmax-age=(\d+)/.exec(header);
+  if (maxAge === null) return maxKeysAgeMillis;
+  return Math.min(Number(maxAge[1]) * 1000, maxKeysAgeMillis);
+};
+
 /** Seconds of clock difference tolerated on `exp` and `iat`. */
 export const clockSkewSeconds = 60;
 
@@ -114,10 +130,12 @@ export const make = Effect.gen(function* () {
       Effect.mapError(() => fail("Google could not be reached")),
     );
 
-  // The signing keys, by `kid`, for this isolate. A token signed with an unknown key fetches them
-  // again (Google rotates them), at most once a minute.
+  // The signing keys, by `kid`, for this isolate, until `expiresAt` (Google's `max-age`, at most
+  // an hour): a key Google retired stops being trusted. A token signed with an unknown key fetches
+  // them again (Google rotates them), at most once a minute.
   let keys = new Map<string, CryptoKey>();
   let fetchedAt = Number.NEGATIVE_INFINITY;
+  let expiresAt = Number.NEGATIVE_INFINITY;
 
   const fetchKeys = (jwksUri: string) =>
     Effect.gen(function* () {
@@ -133,6 +151,7 @@ export const make = Effect.gen(function* () {
       }
       keys = next;
       fetchedAt = yield* Clock.currentTimeMillis;
+      expiresAt = fetchedAt + keysAgeMillis(response.headers["cache-control"]);
     });
 
   const importKey = (jwk: Jwk) =>
@@ -150,9 +169,15 @@ export const make = Effect.gen(function* () {
 
   const keyFor = (kid: string, jwksUri: string) =>
     Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      if (now >= expiresAt && keys.size > 0) {
+        // Expired: never trusted again without asking Google.
+        keys = new Map();
+        yield* fetchKeys(jwksUri);
+      }
       const known = keys.get(kid);
       if (known !== undefined) return known;
-      if ((yield* Clock.currentTimeMillis) - fetchedAt > 60_000) yield* fetchKeys(jwksUri);
+      if (now - fetchedAt > 60_000) yield* fetchKeys(jwksUri);
       const fetched = keys.get(kid);
       if (fetched === undefined) return yield* fail("ID token signed with an unknown key");
       return fetched;

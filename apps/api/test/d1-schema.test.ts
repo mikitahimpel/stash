@@ -83,6 +83,9 @@ describe("D1 migrations", () => {
         "user_identities",
         "invites",
         "ai_usage",
+        "passkeys",
+        "passkey_challenges",
+        "google_flows",
       ]),
     );
   });

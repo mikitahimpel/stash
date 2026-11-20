@@ -65,18 +65,28 @@ export interface Options {
   readonly synced?: boolean;
   /** Counts signatures (synced passkeys don't, and stay at 0). */
   readonly counts?: boolean;
+  /**
+   * Checks who holds it (Face ID, Touch ID, a PIN) and says so (the UV flag). A security key
+   * without a PIN only tests presence. Default `true`.
+   */
+  readonly verifies?: boolean;
 }
 
 /** An authenticator, with the passkeys it made. */
 export const make = (options: Options = {}) => {
   const passkeys: Array<Passkey> = [];
   const synced = options.synced ?? true;
+  let uv = options.verifies === false ? 0 : flags.uv;
 
   const clientData = (type: string, challenge: string, origin: string) =>
     new TextEncoder().encode(JSON.stringify({ type, challenge, origin, crossOrigin: false }));
 
   return {
     passkeys,
+    /** Whether from now on it checks who holds it (see `Options.verifies`). */
+    setVerifies: (verifies: boolean) => {
+      uv = verifies ? flags.uv : 0;
+    },
     /** Answers `navigator.credentials.create()` for creation options (JSON). */
     create: async (
       creation: Record<string, unknown>,
@@ -99,7 +109,7 @@ export const make = (options: Options = {}) => {
       ]);
       const authData = concat(
         await sha256(new TextEncoder().encode(rp.id)),
-        new Uint8Array([flags.up | flags.uv | flags.at | (synced ? flags.be | flags.bs : 0)]),
+        new Uint8Array([flags.up | uv | flags.at | (synced ? flags.be | flags.bs : 0)]),
         new Uint8Array(4),
         new Uint8Array(16),
         new Uint8Array([0, id.length]),
@@ -141,7 +151,7 @@ export const make = (options: Options = {}) => {
       new DataView(counter.buffer).setUint32(0, passkey.counter);
       const authData = concat(
         await sha256(new TextEncoder().encode(passkey.rpId)),
-        new Uint8Array([flags.up | flags.uv | (synced ? flags.be | flags.bs : 0)]),
+        new Uint8Array([flags.up | uv | (synced ? flags.be | flags.bs : 0)]),
         counter,
       );
       const data = clientData("webauthn.get", String(request["challenge"]), origin);

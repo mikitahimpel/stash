@@ -33,7 +33,7 @@ The client has no token of its own. Each sign-in mints an api token for its gran
 On the site's own host (`MCP_ORIGIN` is `WEB_ORIGIN`, a custom domain) the consent page signs in
 through the web app instead (#178): `/authorize/session` reads the `stash_session` cookie, sends a
 browser without one to `/login?redirect=/authorize/session?state=…`, and mints the token for the
-session's user (`ApiClient.createMcpTokenForSession`) before it takes the upstream transaction.
+session's user (`ApiClient.createMcpTokenForSession`) before it takes the upstream transaction (which works once); when that fails (a forged or used `state`, another browser) the token is revoked again with itself (`ApiClient.revokeOwnToken`).
 The Device Flow stays as a fallback link there, and is the only way on other origins.
 Every `/mcp` request first checks that token (`ApiClient.isTokenActive`; revoked → revoke the grant
 and answer 401 `invalid_token`), then provides it as `ApiClient.GrantApiToken` in the request

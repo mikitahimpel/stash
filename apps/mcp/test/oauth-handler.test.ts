@@ -705,7 +705,12 @@ describe("web sign-in on the site's host", () => {
       mintForSession: (session) =>
         Effect.runPromise(
           ApiClient.createMcpTokenForSession(apiEnv, Redacted.make(session)).pipe(
-            Effect.map(({ token, userId }) => ({ token: Redacted.value(token), userId })),
+            Effect.map(({ id, token, userId }) => ({
+              token: Redacted.value(token),
+              userId,
+              revoke: () =>
+                Effect.runPromise(ApiClient.revokeOwnToken(apiEnv, token, id).pipe(Effect.ignore)),
+            })),
             Effect.catchTag("Unauthorized", () => Effect.succeed(null)),
           ),
         ),
@@ -770,13 +775,38 @@ describe("web sign-in on the site's host", () => {
     expect(grants()).toHaveLength(1);
   });
 
-  it("gives no grant without the browser that approved, even with a session", async () => {
+  /** The tokens minted since `before` that the api still accepts. */
+  const stillActive = async (before: number) => {
+    const minted = (await Effect.runPromise(testApi.mintedTokens)).slice(before);
+    const active = new Set(await Effect.runPromise(testApi.activeTokens));
+    return { minted: minted.length, active: minted.filter(({ token }) => active.has(token)) };
+  };
+
+  it("gives no grant without the browser that approved, and leaves no token behind", async () => {
     const { location } = await approveOnWeb();
+    const before = (await Effect.runPromise(testApi.mintedTokens)).length;
     const response = await send(`${location.pathname}${location.search}`, {
       headers: { cookie: `stash_session=${Testing.webSession}` },
     });
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(grants()).toEqual([]);
+    // The token minted for it was revoked again: no unused `Claude (MCP)` in Settings.
+    expect(await stillActive(before)).toEqual({ minted: 1, active: [] });
+  });
+
+  it("revokes the token of a forged or used state link, and keeps the granted one", async () => {
+    const { location, cookie } = await approveOnWeb();
+    const back = `${location.pathname}${location.search}`;
+    const signedIn = { cookie: `${cookie}; stash_session=${Testing.webSession}` };
+    const before = (await Effect.runPromise(testApi.mintedTokens)).length;
+    expect((await send(back, { headers: signedIn })).status).toBe(302);
+    const forged = `${OAuthHandler.sessionPath}?state=forged-state-0123456789`;
+    expect((await send(forged, { headers: signedIn })).status).toBeGreaterThanOrEqual(400);
+    expect((await send(back, { headers: signedIn })).status).toBeGreaterThanOrEqual(400);
+    const { minted, active } = await stillActive(before);
+    expect(minted).toBe(3);
+    expect(active).toHaveLength(1);
+    expect(grants()).toHaveLength(1);
   });
 
   it("keeps the GitHub device code as a fallback link", async () => {

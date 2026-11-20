@@ -375,6 +375,41 @@ describe("passkeys", () => {
     ),
   );
 
+  it.live("asks for user verification, and refuses a passkey that only tested presence", () =>
+    withServer((send) =>
+      Effect.gen(function* () {
+        const db = yield* D1Database.Database;
+        // A security key without a PIN: it can't make the account.
+        const presenceOnly = SoftAuthenticator.make({ verifies: false });
+        const invite = yield* newInvite;
+        expect((yield* signUpWithPasskey(send, presenceOnly, invite)).status).toBe(403);
+        expect(yield* db.all(D1Database.sql`SELECT COUNT(*) AS n FROM passkeys`)).toEqual([
+          { n: 0 },
+        ]);
+        expect(yield* db.all(D1Database.sql`SELECT accepted_at FROM invites`)).toEqual([
+          { accepted_at: null },
+        ]);
+
+        // Made with Face ID, then used without it: not a sign-in.
+        const phone = SoftAuthenticator.make();
+        expect((yield* signUpWithPasskey(send, phone, invite)).status).toBe(200);
+        phone.setVerifies(false);
+        expect((yield* signInWithPasskey(send, phone)).response.status).toBe(403);
+
+        // Every ceremony asks the browser for it.
+        const signIn = yield* body(yield* send(post("/auth/passkey/options")));
+        expect(signIn.options.userVerification).toBe("required");
+        const signUp = yield* body(
+          yield* send(post("/auth/passkey/sign-up/options", { invite: yield* newInvite })),
+        );
+        expect(signUp.options.authenticatorSelection).toMatchObject({
+          residentKey: "required",
+          userVerification: "required",
+        });
+      }),
+    ),
+  );
+
   it.live("adds and removes passkeys from Settings, but never the last way to sign in", () =>
     withServer((send) =>
       Effect.gen(function* () {

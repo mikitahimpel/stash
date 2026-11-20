@@ -69,9 +69,12 @@ export interface Options {
    * unknown or expired (the browser is sent to sign in). Rejects if the api is unreachable.
    */
   readonly webSignIn?: {
-    readonly mintForSession: (
-      session: string,
-    ) => Promise<{ readonly token: string; readonly userId: string } | null>;
+    readonly mintForSession: (session: string) => Promise<{
+      readonly token: string;
+      readonly userId: string;
+      /** Revokes the token again: the sign-in it was minted for did not finish. Never fails. */
+      readonly revoke: () => Promise<void>;
+    } | null>;
   };
   /** Whether the GitHub Device Flow can run (`GITHUB_CLIENT_ID` is set). Defaults to `true`. */
   readonly githubConfigured?: boolean;
@@ -253,11 +256,18 @@ export const make = (options: Options) => {
     if (session === undefined || session === "") return redirect(login.toString());
     const minted = await webSignIn.mintForSession(session).catch(() => undefined);
     if (minted === null) return redirect(login.toString());
-    const resumed = await oauth.finishUpstream(
-      new Request(new URL(here, options.origin), {
-        headers: { cookie: request.headers.get("cookie") ?? "" },
-      }),
-    );
+    // The upstream transaction works once, so it is taken only with a token in hand. When it can't
+    // be (a forged or stale `state`, another browser), the token goes again: none stays unused.
+    const resumed = await oauth
+      .finishUpstream(
+        new Request(new URL(here, options.origin), {
+          headers: { cookie: request.headers.get("cookie") ?? "" },
+        }),
+      )
+      .catch(async (error: unknown) => {
+        await minted?.revoke();
+        throw error;
+      });
     if (minted === undefined) {
       return redirect(
         authorizationErrorRedirect(
