@@ -201,6 +201,46 @@ describe("tab sync", () => {
     }).pipe(Effect.provide(platform));
   });
 
+  it.effect("gives a reused tab id with another url a new first-seen time", () => {
+    const api = fakeApi();
+    const platform = Testing.make({ tabs, config, handler: api.handler });
+    return Effect.gen(function* () {
+      yield* TabSync.sync;
+      yield* TestClock.adjust("10 minutes");
+      // After a restart Firefox numbers its tabs again: id 1 is now another page.
+      yield* (yield* Testing.TestTabs).set([
+        Testing.tab({ id: 1, url: "https://example.com/reused" }),
+        tabs[3]!,
+      ]);
+      yield* TabSync.sync;
+      const second = api.reports[1]?.body.tabs as ReadonlyArray<{ url: string; openedAt: string }>;
+      expect(second.map((tab) => [tab.url, tab.openedAt])).toEqual([
+        ["https://example.com/reused", "1970-01-01T00:10:00.000Z"],
+        ["https://example.com/b", "1970-01-01T00:00:00.000Z"],
+      ]);
+      const stored = yield* (yield* Storage.Storage).get(TabSync.openedAtKey);
+      expect(Option.getOrUndefined(stored)).toEqual([
+        [1, "https://example.com/reused", 600_000],
+        [4, "https://example.com/b", 0],
+      ]);
+    }).pipe(Effect.provide(platform));
+  });
+
+  it.effect("sees tabs anew when the stored times are in the older form", () => {
+    const api = fakeApi();
+    const platform = Testing.make({ tabs, config, handler: api.handler });
+    return Effect.gen(function* () {
+      yield* TestClock.adjust("10 minutes");
+      yield* (yield* Storage.Storage).set(TabSync.openedAtKey, [[1, 0]]);
+      yield* TabSync.sync;
+      const first = api.reports[0]?.body.tabs as ReadonlyArray<{ url: string; openedAt: string }>;
+      expect(first.map((tab) => tab.openedAt)).toEqual([
+        "1970-01-01T00:10:00.000Z",
+        "1970-01-01T00:10:00.000Z",
+      ]);
+    }).pipe(Effect.provide(platform));
+  });
+
   it.effect("skips on start when the stored hash matches", () => {
     const first = fakeApi();
     const second = fakeApi();

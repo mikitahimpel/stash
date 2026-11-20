@@ -34,6 +34,8 @@ export const sql = (strings: TemplateStringsArray, ...params: ReadonlyArray<Valu
 export interface RunResult {
   readonly changes: number;
   readonly lastRowId: number;
+  /** The rows a `RETURNING` clause gave back, before decoding (none without one). */
+  readonly rows: ReadonlyArray<Row>;
 }
 
 export type DatabaseOperation = "all" | "first" | "run" | "batch" | "exec" | "decode";
@@ -89,6 +91,7 @@ export class Database extends Context.Service<
 const toRunResult = (result: D1BindingResult): RunResult => ({
   changes: result.meta.changes,
   lastRowId: result.meta.last_row_id,
+  rows: (result.results ?? []) as ReadonlyArray<Row>,
 });
 
 /** Wraps a D1 binding. */
@@ -136,6 +139,14 @@ export const query =
     Database.use((db) => db.all(s)).pipe(
       Effect.flatMap((rows) => Effect.forEach(rows, decodeRow(schema, s))),
     );
+
+/** Decodes the rows a `RETURNING` clause gave back (`RunResult.rows`) with `schema`. */
+export const decodeReturned =
+  <S extends Schema.Constraint>(schema: S, s: Statement) =>
+  (
+    result: RunResult,
+  ): Effect.Effect<ReadonlyArray<S["Type"]>, DatabaseError, S["DecodingServices"]> =>
+    Effect.forEach(result.rows, decodeRow(schema, s));
 
 /** Runs the statement and decodes the first row with `schema`, if there is one. */
 export const queryFirst =
